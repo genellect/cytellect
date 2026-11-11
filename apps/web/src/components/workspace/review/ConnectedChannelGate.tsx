@@ -5,12 +5,14 @@ import {ApiError,errorCodeMessage,errorMessage} from "@/lib/api";
 import type {ApiAdapter} from "@/lib/workspace/api-adapter";
 import {channelGateName,channelGateRequest,channelGateThresholds,recordedChannelGate,type ChannelGateFilter,type ChannelGateResult,type GateField} from "@/lib/workspace/channel-gate";
 
-export function ConnectedChannelGate({adapter,workspace,fields,channels,disabled=false,onClassified}:{
-  adapter:ApiAdapter;workspace:string;fields:GateField[];channels:Array<{id:string;stain:string|null}>;disabled?:boolean;
+/** `recorded`: the public demo, which answers from its recording. It classifies only with the method that
+ * needs no value typed in (each acquisition date's Otsu threshold), for every channel and measured value. */
+export function ConnectedChannelGate({adapter,workspace,fields,channels,disabled=false,recorded=false,onClassified}:{
+  adapter:ApiAdapter;workspace:string;fields:GateField[];channels:Array<{id:string;stain:string|null}>;disabled?:boolean;recorded?:boolean;
   onClassified:(result:ChannelGateResult,filter:ChannelGateFilter)=>void|Promise<void>;
 }){
   const [channel,setChannel]=useState("");
-  const [method,setMethod]=useState<ChannelGateFilter["method"]>("manual");
+  const [method,setMethod]=useState<ChannelGateFilter["method"]>(recorded?"batch_otsu":"manual");
   const [threshold,setThreshold]=useState(""),[percentile,setPercentile]=useState("99");
   const [values,setValues]=useState<"raw"|"corrected">("raw"),[keep,setKeep]=useState<"positive"|"negative">("positive");
   const [controls,setControls]=useState<string[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState("");
@@ -42,13 +44,14 @@ export function ConnectedChannelGate({adapter,workspace,fields,channels,disabled
     <label>判定するチャンネル<select value={channel} onChange={event=>setChannel(event.target.value)} disabled={disabled||busy}>
       <option value="">選択</option>{channels.map(item=><option key={item.id} value={item.id}>{item.stain||item.id} · {item.id}</option>)}</select></label>
     <label>判定方法<select value={method} onChange={event=>setMethod(event.target.value as typeof method)} disabled={disabled||busy}>
-      <option value="manual">しきい値を指定（探索的）</option><option value="negative_control">撮影日ごとの陰性対照</option><option value="batch_otsu">撮影日ごとのOtsu（探索的）</option></select></label>
+      {!recorded&&<><option value="manual">しきい値を指定（探索的）</option><option value="negative_control">撮影日ごとの陰性対照</option></>}<option value="batch_otsu">撮影日ごとのOtsu（探索的）</option></select></label>
+    {recorded&&<small>公開デモでは、値を入力しない判定方法（撮影日ごとの Otsu）で分類し、陽性核を集計します。分類の後に統計で比べられるのは、陽性率・陽性核数と、陽性核の面積・平均輝度です。しきい値の指定、陰性対照による判定、陰性核の集計は、お手元の画像で使えます。</small>}
     <label>測定値<select value={values} onChange={event=>setValues(event.target.value as typeof values)} disabled={disabled||busy}>
       <option value="raw">原値</option><option value="corrected">背景補正値</option></select></label>
     {method==="manual"&&<label>核内平均輝度のしきい値<input type="number" step="any" value={threshold} onChange={event=>setThreshold(event.target.value)} disabled={disabled||busy}/></label>}
     {method==="negative_control"&&<><label>陰性対照のパーセンタイル<input type="number" min="50" max="99.999" step="any" value={percentile} onChange={event=>setPercentile(event.target.value)} disabled={disabled||busy}/></label>
       <fieldset><legend>陰性対照の視野（各撮影日に20核以上）</legend>{fields.map(field=><label key={field.fieldId} style={{display:"block"}}><input type="checkbox" disabled={disabled||busy} checked={controls.includes(field.fieldId)} onChange={event=>setControls(previous=>event.target.checked?[...previous,field.fieldId]:previous.filter(id=>id!==field.fieldId))}/>{field.label}</label>)}</fieldset></>}
-    <label>測定値の集計対象<select value={keep} onChange={event=>setKeep(event.target.value as typeof keep)} disabled={disabled||busy}><option value="positive">陽性核</option><option value="negative">陰性核</option></select></label>
+    <label>測定値の集計対象<select value={keep} onChange={event=>setKeep(event.target.value as typeof keep)} disabled={disabled||busy}><option value="positive">陽性核</option>{!recorded&&<option value="negative">陰性核</option>}</select></label>
     <small>陽性率では、選別前の陽性核と陰性核を分母にします。補正値の欠測は原値に置き換えません。</small>
     <button type="button" disabled={disabled||busy||!valid} onClick={()=>void classify()}>{busy?"分類中…":"チャンネルで分類"}</button>
     {!fields.length&&<p>核を検出して採用すると分類できます。</p>}

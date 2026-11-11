@@ -14,7 +14,7 @@ const PUBLISHED = fs.existsSync(path.resolve("public/showcase/seed.zip"));
 const live = 240_000;
 
 /** The published scenes (snapshot/scenes.json); a single-scene demo reads as one scene without an id. */
-interface Scene {id: string; label: string; workspaceId: string; regions: string[]; assistantScope?: string; fields: unknown[]}
+interface Scene {id: string; label: string; workspaceId: string; regions: string[]; assistantScope?: string; fields: unknown[]; gateChannels?: string[]}
 const SCENES: Scene[] = (() => {
   try {return (JSON.parse(fs.readFileSync(path.resolve("public/showcase/snapshot/scenes.json"), "utf8")) as {scenes: Scene[]}).scenes;}
   catch {return [];}
@@ -158,6 +158,11 @@ test("demo: image, outline, measurement, statistics and figure features run with
   await expect(guide).toContainText("輪郭の修正は、各画像の左下の操作で行えます");
   await guide.getByRole("button", {name: "次へ"}).click();
   await expect(page.getByRole("button", {name: /^測定値/})).toHaveAttribute("aria-expanded", "true");
+  // The nucleus table step shows one field with its table of nuclei open.
+  await guide.getByRole("button", {name: "次へ"}).click();
+  await expect(page.getByRole("button", {name: "2 画面", exact: true})).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByRole("button", {name: "核ごとの表", exact: true})).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("table", {name: "核ごとの表"}).locator("tbody tr").first()).toBeVisible({timeout: live});
   await guide.getByRole("button", {name: "次へ"}).click();
   await expect(header.getByRole("button", {name: "統計", exact: true})).toHaveAttribute("aria-current", "page");
   await guide.getByRole("button", {name: "次へ"}).click();
@@ -340,6 +345,31 @@ test("deep links open the requested step without the guide", async ({page}) => {
   await noErrors(page, watch);
 });
 
+test("closing the guide on the nucleus table step gives back the view the visitor had", async ({page}) => {
+  test.skip(!NUCLEOLAR, "No scene with nucleoli is published.");
+  const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
+  const header = page.locator("header");
+  const bar = page.locator("[class*=channelBar]");
+  const pair = page.getByRole("button", {name: "2 画面", exact: true});
+  await expect(pair).toHaveAttribute("aria-pressed", "true", {timeout: live});
+  await bar.getByRole("combobox", {name: "領域", exact: true}).selectOption("nucleoli");
+  const guide = page.getByRole("complementary", {name: "公開デモの使い方"});
+  await header.getByRole("button", {name: "使い方", exact: true}).click();
+  await guide.getByRole("button", {name: /核ごとの表$/}).click();
+  await expect(pair).toHaveAttribute("aria-pressed", "false");
+  await expect(bar.getByRole("combobox", {name: "領域", exact: true})).toHaveValue("nuclei");
+  // Closed on that step, the guide leaves the visitor where they were, and opening it again changes nothing.
+  await guide.getByRole("button", {name: "閉じる", exact: true}).click();
+  await expect(guide).toHaveCount(0);
+  await expect(pair).toHaveAttribute("aria-pressed", "true");
+  await expect(bar.getByRole("combobox", {name: "領域", exact: true})).toHaveValue("nucleoli");
+  await header.getByRole("button", {name: "使い方", exact: true}).click();
+  await expect(guide).toBeVisible();
+  await expect(pair).toHaveAttribute("aria-pressed", "true");
+  await expect(bar.getByRole("combobox", {name: "領域", exact: true})).toHaveValue("nucleoli");
+  await noErrors(page, watch);
+});
+
 test("phones run the guided operations from the recorded tour", async ({page}) => {
   test.skip(!!DEV, "The recorded tour is part of the published demo files.");
   await page.addInitScript(() => Object.defineProperty(navigator, "deviceMemory", {value: 2}));
@@ -508,6 +538,8 @@ test("operations the recording does not hold are explained at once, without the 
   await expect(recorded).toContainText("0.5");
   await expect(inspector.locator("dl").filter({hasText: "背景補正"})).toContainText("自動推定");
   await expect(inspector.getByRole("combobox", {name: "領域", exact: true}).locator("option[value=cell]")).toHaveCount(0);
+  // A scene without a stain worth classifying by offers no classification.
+  if (OPENING?.gateChannels && !OPENING.gateChannels.length) await expect(inspector.locator("summary", {hasText: "チャンネルによる核の分類"})).toHaveCount(0);
   // A hand correction of an outline side by side is explained at once, as in one field: each pane has the same tools.
   const pair = page.getByRole("button", {name: "2 画面", exact: true});
   if (await pair.getAttribute("aria-pressed") === "true") {
@@ -769,5 +801,72 @@ for (const scene of SCENES.length ? SCENES : [undefined]) test(`each preset AI i
   await page.getByRole("button", {name: "AIへ送信"}).click();
   await expect(page.getByText(scopeText(scene))).toBeVisible({timeout: live});
   await expect(notRecorded).toHaveCount(0);
+  await noErrors(page, watch);
+});
+
+test("the nucleus table, the partition table and positivity by a channel open from the recording", async ({page}) => {
+  test.skip(SCENES.length > 0 && !NUCLEOLAR, "No published scene has nucleoli.");
+  test.setTimeout(600_000);
+  const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
+  await expect(regions(page).first()).toBeAttached({timeout: live});
+  const pair = page.getByRole("button", {name: "2 画面", exact: true});
+  if (await pair.getAttribute("aria-pressed") === "true") await pair.click();
+  // One field's nuclei, one row each, with every stain and the adopted nucleoli; its ZIP is recorded too.
+  // The nucleolar scene opens on its nucleoli; the table lists the nuclei.
+  await page.locator("[class*=channelBar]").getByRole("combobox", {name: "領域", exact: true}).selectOption("nuclei");
+  // The table beside the image, or below it when the image leaves no room.
+  const toggle = page.getByRole("button", {name: "核ごとの表", exact: true}).filter({visible: true});
+  await expect(page.getByRole("button", {name: /^測定値/}).first()).toBeVisible({timeout: live});
+  if (!await toggle.count()) {
+    const drawer = page.getByRole("button", {name: /^測定値/}).first();
+    if (await drawer.getAttribute("aria-expanded") !== "true") await drawer.click();
+  }
+  await toggle.first().click();
+  const table = page.getByRole("table", {name: "核ごとの表"});
+  await expect(table.locator("tbody tr").first()).toBeVisible({timeout: live});
+  const download = page.waitForEvent("download", {timeout: live});
+  await page.getByRole("button", {name: "CSV を保存", exact: true}).click();
+  expect((await download).suggestedFilename()).toMatch(/^nucleus-table-.+\.zip$/);
+  await expect(notRecorded(page)).toHaveCount(0);
+  // A row selects its nucleus on the image.
+  const first = table.locator("tbody tr").first().getByRole("button").first();
+  const id = Number(await first.textContent());
+  await first.click();
+  await expect(page.locator(`svg path[data-region="${id}"]`)).toHaveAttribute("aria-pressed", "true");
+  // The partition table of the same nuclei, for a target and a different reference region.
+  await page.getByRole("button", {name: "区画への分配", exact: true}).click();
+  const partition = page.getByRole("region", {name: "区画への分配"});
+  const values = (label: string) => partition.getByLabel(label).locator("option").evaluateAll(options => options.map(option => (option as HTMLOptionElement).value).filter(Boolean));
+  const [target, reference] = await values("対象領域");
+  await partition.getByLabel("対象領域").selectOption(target);
+  await partition.getByLabel("参照領域").selectOption(reference);
+  await partition.getByLabel("測定チャンネル").selectOption((await values("測定チャンネル"))[0]);
+  await partition.getByRole("button", {name: "分配表を表示", exact: true}).click();
+  await expect(partition.locator("table caption")).toContainText("分配表", {timeout: live});
+  await expect(notRecorded(page)).toHaveCount(0);
+  await page.getByRole("button", {name: "区画への分配", exact: true}).click();
+  // Positivity by a channel: the demo offers the method that needs no value typed in.
+  const inspector = await openSettings(page);
+  await inspector.locator("summary", {hasText: "チャンネルによる核の分類・陽性率"}).click();
+  const gate = inspector.getByRole("region", {name: "チャンネルによる核の分類"});
+  expect(await gate.getByLabel("判定方法").locator("option").evaluateAll(options => options.map(option => (option as HTMLOptionElement).value))).toEqual(["batch_otsu"]);
+  // Only the stains whose positive and negative nuclei mean something, and the positive nuclei kept.
+  const offered = await gate.getByRole("combobox", {name: "判定するチャンネル", exact: true}).locator("option").evaluateAll(options => options.map(option => (option as HTMLOptionElement).value).filter(Boolean));
+  if (NUCLEOLAR?.gateChannels) expect(offered).toEqual(NUCLEOLAR.gateChannels);
+  expect(await gate.getByRole("combobox", {name: "測定値の集計対象", exact: true}).locator("option").evaluateAll(options => options.map(option => (option as HTMLOptionElement).value))).toEqual(["positive"]);
+  const channel = (await gate.getByLabel("判定するチャンネル").locator("option").evaluateAll(options => options.map(option => (option as HTMLOptionElement).value).filter(Boolean)))[0];
+  await gate.getByLabel("判定するチャンネル").selectOption(channel);
+  await gate.getByRole("button", {name: "チャンネルで分類", exact: true}).click();
+  await expect(gate.locator("output")).toContainText("陽性", {timeout: live});
+  await expect(notRecorded(page)).toHaveCount(0);
+  // The positive fraction of the nuclei, compared descriptively (the threshold is exploratory).
+  await page.locator("header").getByRole("button", {name: "統計", exact: true}).click();
+  await page.getByRole("complementary", {name: "解析対象"}).getByRole("combobox", {name: "指標", exact: true}).selectOption("positive_fraction");
+  // The compared fields are classified again with the current experiment information before calculating.
+  const results = page.getByRole("region", {name: "測定結果の統計解析"});
+  await results.getByRole("button", {name: "現在の実験情報で再分類", exact: true}).click();
+  await expect(results.getByText(/の分類記録を確認しました。/)).toBeVisible({timeout: live});
+  await calculate(page);
+  await expect(notRecorded(page)).toHaveCount(0);
   await noErrors(page, watch);
 });
