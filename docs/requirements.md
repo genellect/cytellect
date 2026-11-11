@@ -182,3 +182,17 @@ nuclear revision; manual or imported nuclei are refused
 (`partition_nuclear_source_required`) until their parent binding is accepted.
 Partition comparisons, editable figures, replay and compartment-level saturation
 acceptance remain subsequent work.
+
+M24: The image is coloured by what it measures (image measurement view, approved
+2026-11-11, [requirements](drafts/image-measurement-view/requirements.md) MV-01–MV-10).
+A colour mode on the image toolbar (outlines / positive-negative nuclei / nucleolus and
+nucleoplasm) applies to one field and to both panes side by side. Positive-negative draws
+the five saved channel-gate states apart (never folding unclassified, excluded or control
+into negative), with counts per image; its classification opens in the side panel with each
+date's judged values and threshold, negative control offered first and exploratory methods
+named (M22). Nucleolus and nucleoplasm fill both compartments and show the M23 partition
+table, loaded without a button as nucleoplasm / nucleoli (the direction of the statistics
+metric), with target and reference named. The table under each image names per what, which
+stain and which values; adopted nuclei open on the nucleus table. One next step beside the
+table opens statistics with the same metric, and for positivity states that the compared
+fields are judged again by the same rule. The view only draws saved API values.

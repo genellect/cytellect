@@ -179,4 +179,4 @@ C-01〜C-08 は実装の PR で確かめる。C-09 は研究者による評価�
 
 ## 8. 承認後の移し先
 
-承認後は、要件を[要件](../../requirements.md)、[ワークスペースの再設計](../../workspace-redesign.md)、[公開デモ](../../showcase.md)に移し、この下書きは経緯として残す。
+承認後は、要件を[要件](../../requirements.md)、[ワークスペースの再設計](../../workspace-redesign.md)、[公開デモ](../../showcase.md)に移し、この下書きは経緯として残す。実装の PR で、要件 M24、再設計の「Interaction model」、公開デモの「訪問者ができること」、[操作評価課題](../../usability-tasks.ja.md)の課題 6 に移した。
