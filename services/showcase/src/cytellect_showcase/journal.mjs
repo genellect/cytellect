@@ -327,8 +327,9 @@ async function closePanel(page) {
   if (await close.isVisible()) {await close.click(); await idle(page);}
 }
 
-// The most nuclei of one opening field whose deletion is recorded (the nucleolar fields hold 5–18).
-const DELETABLE = 24;
+// The most regions of one opening field whose deletion is recorded (the nucleolar scene's opening fields hold
+// up to 18 nuclei and 33 nucleoli).
+const DELETABLE = 40;
 // Every walk of one demo scene; names carry the scene id so each scene's entries stay apart.
 function walksOf(demo) {
   const REGIONS = demo.regions, EXAMPLES = demo.examples, RANK = demo.rank ?? [];
@@ -435,13 +436,15 @@ function walksOf(demo) {
     await download;
     await idle(page);
   };
-  // Deleting one nucleus of an opening field and taking it back (元に戻す), each from the seed, for every
-  // nucleus of both opening fields of a nucleolar scene (a few nuclei per field). Scenes with hundreds of
-  // nuclei per field are not recorded; a deletion there is answered with the demo's notice.
-  if (REGIONS.includes("nucleoli")) for (let pane = 0; pane < 2; pane++) for (let row = 0; row < DELETABLE; row++) scenes[`delete-${pane + 1}-${row + 1}`] = async page => {
+  // Deleting one nucleus or one nucleolus of an opening field and taking it back (元に戻す), each from the seed,
+  // for every one of both opening fields of a nucleolar scene (tens per field). Scenes with hundreds of nuclei per
+  // field are not recorded; a deletion there, or a second one in a row, is answered with the demo's notice.
+  if (REGIONS.includes("nucleoli")) for (const target of ["nuclei", "nucleoli"]) for (let pane = 0; pane < 2; pane++) for (let row = 0; row < DELETABLE; row++) scenes[`delete-${target}-${pane + 1}-${row + 1}`] = async page => {
+    const region = page.getByRole("toolbar", {name: "画像の表示"}).getByRole("combobox", {name: "領域", exact: true});
+    if (await region.inputValue() !== target) {await region.selectOption(target); await idle(page);}
     const panes = page.getByRole("region", {name: /の測定値$/});
     await panes.nth(pane).waitFor({timeout: LIVE});
-    const rows = panes.nth(pane).getByRole("table", {name: "核ごとの表"}).locator("tbody tr");
+    const rows = panes.nth(pane).locator("table tbody tr");
     await rows.first().waitFor({timeout: LIVE});
     if (row >= await rows.count()) return;
     const section = panes.nth(pane).locator("xpath=ancestor::section[1]");

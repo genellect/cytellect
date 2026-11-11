@@ -567,15 +567,16 @@ test("operations the recording does not hold are explained at once, without the 
   await noErrors(page, watch);
 });
 
-test("choices the recording holds answer as in production: deleting a nucleus and taking it back, negative nuclei, a background mode", async ({page}) => {
+test("choices the recording holds answer as in production: deleting a region and taking it back, negative nuclei, a background mode", async ({page}) => {
   test.skip(SCENES.length > 0 && !NUCLEOLAR, "No published scene has nucleoli.");
   test.setTimeout(600_000);
   const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
   await expect(regions(page).first()).toBeAttached({timeout: live});
-  // Deleting any nucleus of an opening field is recorded, with its undo; the outline and the table follow.
+  // Deleting any nucleolus (the scene opens on nucleoli) or nucleus of an opening field is recorded, with its undo;
+  // the outline and the table follow.
   const pane = page.getByRole("region", {name: /の測定値$/}).first();
   const section = pane.locator("xpath=ancestor::section[1]");
-  const rows = pane.getByRole("table", {name: "核ごとの表"}).locator("tbody tr");
+  const rows = pane.locator("table tbody tr");
   await expect(rows.first()).toBeVisible({timeout: live});
   const before = await section.locator("svg path[data-region]").count();
   await rows.last().getByRole("button").first().click();
