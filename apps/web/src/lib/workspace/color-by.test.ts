@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vitest";
-import {colorByChoices, gateHistogram, gateLegend, gateStates, nextComparison, partitionDefaults, shownColorBy, tableHeading} from "./color-by";
+import {PARTITION_DIRECTION, colorByChoices, gateHistogram, gateLegend, gateLegendItems, gateStates, nextComparison, shownColorBy, tableHeading} from "./color-by";
 
 const nucleus = (field: string, region: number, status: "positive" | "negative" | "unclassified" | "control" | "excluded", mean: number | null, date = "2021-12-01", threshold: number | null = 100) =>
   ({field_id: field, region_id: region, acquisition_date: date, channel_mean: mean, positive: status === "positive" ? true : status === "negative" ? false : null, status, reason: "", threshold, exclusion_reason: null});
@@ -37,6 +37,14 @@ describe("positive and negative nuclei (MV-03)", () => {
     expect(gateLegend({1: "negative", 2: "positive", 3: "positive"}).map(item => item.status)).toEqual(["positive", "negative"]);
   });
 
+  it("names an exploratory decision on the image, as the table and statistics do (M22)", () => {
+    const states = gateStates(nuclei, "a");
+    expect(gateLegendItems(states, "batch_otsu").at(-1)).toEqual({key: "exploratory", label: "探索的（撮影日ごとの Otsu）"});
+    expect(gateLegendItems(states, "manual").at(-1)?.label).toBe("探索的（指定したしきい値）");
+    expect(gateLegendItems(states, "negative_control").map(item => item.key)).toEqual(["positive", "negative", "unclassified", "excluded", "control"]);
+    expect(gateLegendItems({}, "batch_otsu")).toEqual([]);
+  });
+
   it("places the saved values of one date on a chart with its threshold, skipping missing values", () => {
     const chart = gateHistogram([...nuclei, nucleus("c", 1, "positive", 200, "2021-12-02", 120)], "2021-12-01", 4);
     expect(chart.total).toBe(5);
@@ -49,8 +57,7 @@ describe("positive and negative nuclei (MV-03)", () => {
 
 describe("partition direction (owner decision 1)", () => {
   it("reads nucleoplasm ÷ nucleoli, the direction of the statistics metric", () => {
-    expect(partitionDefaults([{name: "nucleoli", revisionId: "r-ncl"}, {name: "nucleoplasm", revisionId: "r-np"}])).toEqual({target: "r-np", reference: "r-ncl"});
-    expect(partitionDefaults([{name: "nucleoli", revisionId: "r-ncl"}])).toEqual({target: "", reference: "r-ncl"});
+    expect(PARTITION_DIRECTION).toEqual({target: "nucleoplasm", reference: "nucleoli"});
   });
 });
 

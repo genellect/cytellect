@@ -195,4 +195,4 @@ table, loaded without a button as nucleoplasm / nucleoli (the direction of the s
 metric), with target and reference named. The table under each image names per what, which
 stain and which values; adopted nuclei open on the nucleus table. One next step beside the
 table opens statistics with the same metric, and for positivity states that the compared
-fields are judged again by the same rule. The view only draws saved API values.
+fields are judged again by the same rule, once per click and only when the decision is not current; that decision stays with the comparison and its saved result, while the workspace keeps the decision made on the image's fields, which colours the image again after a reload. Exploratory thresholds are named on the image legend too. The view only draws saved API values.

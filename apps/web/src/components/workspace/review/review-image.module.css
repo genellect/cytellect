@@ -47,5 +47,7 @@
 .legend [data-legend=control] span{border:1.5px dotted #7ab8ff}
 .legend [data-legend=nucleoplasm] span{border-color:#7fbfff;background:#4da3ff55}
 .legend [data-legend=nucleoli] span{border-color:#ff9fd4;background:#ff5fb099}
+.legend [data-legend=exploratory]{opacity:.85}
+.legend [data-legend=exploratory] span{display:none}
 @media(max-width:600px){.legend{max-width:calc(100% - 150px);top:5px;left:5px}}
 

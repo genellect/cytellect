@@ -108,7 +108,7 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
         <div className={styles.paneImage}>{!field?<p className={styles.empty}>{layoutPanes.unassigned?"選んだ視野は層が決まっていないため、ほかの視野と並べません。「実験」で層を選んでください。":stratumName?`この実験回の層「${stratumName}」には、この群の画像がありません。`:"この実験回の画像がありません。"}</p>:urls[index]&&layout.scale>0?<ReviewImageCanvas
           src={urls[index]!} width={field.width} height={field.height} contours={value?.masks.regions||[]}
           // The colour mode applies to both panes, so the two groups are read the same way (MV-01, MV-03).
-          classification={saved||candidate?undefined:states(field.id)} colorBy={colorBy} legend={saved||candidate?undefined:legend(field.id)} fills={fills(field.id)}
+          classification={saved||candidate?undefined:states(field.id)} colorBy={colorBy} legend={saved||candidate?undefined:legend(field.id)} fills={saved||candidate?undefined:fills(field.id)}
           selected={shown} label={`${pane.group.label} ${field.label}`}
           onSelect={select} editingKey={`${field.id}:${target}:${value?.revision||"none"}`}
           editDisabled={r.busy||!editable}

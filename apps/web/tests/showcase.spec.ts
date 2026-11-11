@@ -809,6 +809,11 @@ test("the colour modes open positivity, the partition and the nucleus table from
     expect(classified).toBeGreaterThan(0);
     const legend = await section.getByRole("list", {name: /の色分け$/}).locator("li").allTextContents();
     expect(legend.reduce((sum, text) => sum + Number(text.match(/(\d+)$/)?.[1] ?? 0), 0)).toBe(classified);
+    // Each state drawn has its own legend entry (never folded into negative), and the image names the exploratory threshold (M22).
+    const drawn = await section.locator("svg path[data-classification]").evaluateAll(paths => [...new Set(paths.map(path => path.getAttribute("data-classification")))].sort());
+    const keys = await section.getByRole("list", {name: /の色分け$/}).locator("li").evaluateAll(items => items.map(item => item.getAttribute("data-legend")));
+    expect(keys.filter(key => key !== "exploratory").sort()).toEqual(drawn);
+    expect(legend.at(-1)).toBe("探索的（撮影日ごとの Otsu）");
     // The table names what it lists: per nucleus, the stain and the method (C-02); each nucleus has its decision.
     await expect(pane.getByRole("heading", {level: 3})).toContainText("核ごと · 5-EUで判定");
     await expect(pane.getByRole("table", {name: "核ごとの表"}).locator("thead")).toContainText("判定");
@@ -845,5 +850,9 @@ test("the colour modes open positivity, the partition and the nucleus table from
   await expect(results.getByText(/の分類記録を確認しました。/)).toBeVisible({timeout: live});
   await calculate(page);
   await expect(notRecorded(page)).toHaveCount(0);
+  // The compared fields' decision stays with the comparison: the image keeps its own decision and colours (MV-10).
+  await page.locator("header").getByRole("button", {name: "画像", exact: true}).click();
+  await expect(page.getByRole("list", {name: /の色分け$/}).first()).toContainText("陽性");
+  await expect(page.getByText("保存した判定の記録が、今の核や視野と合いません。")).toHaveCount(0);
   await noErrors(page, watch);
 });

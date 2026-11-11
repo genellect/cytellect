@@ -24,7 +24,7 @@ import {ConnectedNucleusTable,type NucleusTableSource} from "./NucleusTable";
 import {ConnectedPartition} from "./ConnectedPartition";
 import {ConnectedChannelGate} from "./ConnectedChannelGate";
 import {channelGateRequest,recordedChannelGate,type ChannelGateFilter,type ChannelGateResult} from "@/lib/workspace/channel-gate";
-import {PARTITION_DIRECTION,colorByChoices,gateLegend,gateStates,nextComparison,shownColorBy,tableHeading,type ColorBy,type NextComparison} from "@/lib/workspace/color-by";
+import {PARTITION_DIRECTION,colorByChoices,gateLegendItems,gateStates,nextComparison,shownColorBy,tableHeading,type ColorBy,type GateStatus,type NextComparison} from "@/lib/workspace/color-by";
 import type {RegionClassification} from "./ReviewImageCanvas";
 import type {NucleusTableGate} from "./nucleus-table-model";
 import {NextStep,TableHeading,type ColorView,type NextAction} from "./ColorView";
@@ -342,7 +342,7 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
     return undefined;
   }
   function legendFor(fieldId:string){
-    if(colorShown==="positivity"){const states=regionStates(fieldId);return states?gateLegend(states as Record<number,"positive">).map(item=>({key:item.status,label:item.label,count:item.count})):undefined;}
+    if(colorShown==="positivity"){const states=regionStates(fieldId);return states?gateLegendItems(states as Record<number,GateStatus>,channelFilter?.method):undefined;}
     if(colorShown==="compartments")return [{key:"nucleoplasm",label:"核質"},{key:"nucleoli",label:"核小体"}];
     return undefined;
   }
@@ -462,7 +462,7 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
 
         </>}
       </section>
-      <section className={styles.resultWork} hidden={mode==="image"||mode==="experiment"}>{r.unfinishedImports.length>0&&<p role="status" className={styles.unfinishedNotice}>登録できなかった画像が {r.unfinishedImports.length} 件あります。比較の前に、画面下の「取込」の一覧で理由を付けて除外してください。</p>}<ConnectedResults adapter={r.adapter} workspace={data?.workspaceId||""} selection={r.adapter.selection()} items={sources} target={sourceTarget} metric={metric} channel={metricUsesChannel(metric)?actualChannel||null:null} mode={mode==="image"||mode==="experiment"?lastResultMode:mode} onOpening={(openedMetric,openedChannel)=>{if(explicitMetric.current)return;if(metric==="mean")setMetric(openedMetric);if(openedChannel&&!channelId)setChannel(openedChannel);}} reclassifyRequest={reclassifyRequest} experiment={experiment} experimentSha256={r.experimentSha256()} onEditExperiment={()=>changeMode("experiment")} onSource={(id,n,revision,source,ch,structure)=>void openSource(id,n,revision,source,ch,structure)} onAnalysisTargetChange={setTarget} onPrepareMissing={()=>r.run(sourceTarget)} disabled={r.busy} gfp={gfpFilter} channelGate={channelFilter} onChannelGateRecorded={classifyChannel} initialSpec={storedSpec||undefined} onSaveDraft={draft=>r.saveResultDraft(draft)} onMetricChange={(nextMetric,nextChannel)=>{setMetric(nextMetric);if(nextChannel)setChannel(nextChannel);}}/></section>
+      <section className={styles.resultWork} hidden={mode==="image"||mode==="experiment"}>{r.unfinishedImports.length>0&&<p role="status" className={styles.unfinishedNotice}>登録できなかった画像が {r.unfinishedImports.length} 件あります。比較の前に、画面下の「取込」の一覧で理由を付けて除外してください。</p>}<ConnectedResults adapter={r.adapter} workspace={data?.workspaceId||""} selection={r.adapter.selection()} items={sources} target={sourceTarget} metric={metric} channel={metricUsesChannel(metric)?actualChannel||null:null} mode={mode==="image"||mode==="experiment"?lastResultMode:mode} onOpening={(openedMetric,openedChannel)=>{if(explicitMetric.current)return;if(metric==="mean")setMetric(openedMetric);if(openedChannel&&!channelId)setChannel(openedChannel);}} reclassifyRequest={reclassifyRequest} experiment={experiment} experimentSha256={r.experimentSha256()} onEditExperiment={()=>changeMode("experiment")} onSource={(id,n,revision,source,ch,structure)=>void openSource(id,n,revision,source,ch,structure)} onAnalysisTargetChange={setTarget} onPrepareMissing={()=>r.run(sourceTarget)} disabled={r.busy} gfp={gfpFilter} channelGate={channelFilter} initialSpec={storedSpec||undefined} onSaveDraft={draft=>r.saveResultDraft(draft)} onMetricChange={(nextMetric,nextChannel)=>{setMetric(nextMetric);if(nextChannel)setChannel(nextChannel);}}/></section>
     </div>
 
     {(mode==="image"&&!!field||ai)&&(panel||ai)&&<aside className={styles.inspector} aria-label={ai?"AI":"画像解析"}><div className={styles.panelHeading}><h2>{ai?"AI":"画像解析"}</h2><button className={styles.icon} aria-label="パネルを閉じる" onClick={()=>dispatchPanel("close")}><Icon name="close"/></button></div><div className={styles.inspectorBody}>
@@ -573,7 +573,7 @@ function ImageStage({planes,target,fieldId,region,rows,rowsField,onRegion,onSele
         {!single&&<div className={styles.tileCaption}>{plane.field.label} · {plane.channel.stain||plane.channel.id}</div>}
         {plane.field.previews[plane.channel.id]?<ReviewImageCanvas
           src={plane.field.previews[plane.channel.id]} width={plane.field.width} height={plane.field.height}
-          contours={value?.masks.regions||[]} classification={old||candidate?undefined:states(plane.field.id)} colorBy={colorBy} legend={old||candidate?undefined:legend(plane.field.id)} fills={fills(plane.field.id)} selected={plane.field.id===fieldId?region:undefined}
+          contours={value?.masks.regions||[]} classification={old||candidate?undefined:states(plane.field.id)} colorBy={colorBy} legend={old||candidate?undefined:legend(plane.field.id)} fills={old||candidate?undefined:fills(plane.field.id)} selected={plane.field.id===fieldId?region:undefined}
           label={`${plane.field.label} ${plane.channel.stain||plane.channel.id}`}
           onSelect={n=>onSelect(plane.field.id,plane.channel.id,n)} onOpen={!single?()=>onOpen(plane.field.id,plane.channel.id):undefined}
           editingKey={`${plane.field.id}:${target}:${value?.revision||"none"}`} editDisabled={r.busy||!editable}

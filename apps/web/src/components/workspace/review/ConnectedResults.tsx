@@ -34,7 +34,6 @@ export interface ConnectedResultsProps {
   onSource:(fieldId:string,regionId?:number,revisionId?:string,target?:ReviewTarget,channelId?:string|null,structure?:ReviewTarget)=>void;beforePrepare?:()=>Promise<WorkspaceSelection|null>;disabled?:boolean;
   gfp?:GfpSelectionChoice|null;
   channelGate?:ChannelGateFilter|null;
-  onChannelGateRecorded?:(result:ChannelGateResult,filter:ChannelGateFilter)=>void|Promise<void>;
   initialSpec?:Pick<components["schemas"]["AnalysisSpec"],"statistics"|"figure"|"additional_analyses"|"figure_proposals">;
   onSaveDraft?:(draft:{statistics?:unknown;figure?:unknown;additional_analyses?:unknown[];figure_proposals?:unknown[]})=>Promise<unknown>;
   onMetricChange?:(metric:string,channel:string|null)=>void;
@@ -72,7 +71,7 @@ export function ConnectedResults(props:ConnectedResultsProps) {
   return <WorkspaceResults key={props.workspace} {...props}/>;
 }
 
-function WorkspaceResults({adapter,workspace,selection,items:allItems,target,metric,channel,mode,onOpening,onSource,beforePrepare,disabled=false,gfp=null,channelGate=null,onChannelGateRecorded,initialSpec,onSaveDraft,onMetricChange,onAnalysisTargetChange,onPrepareMissing,experiment=null,experimentSha256=null,onEditExperiment,reclassifyRequest=0}:ConnectedResultsProps) {
+function WorkspaceResults({adapter,workspace,selection,items:allItems,target,metric,channel,mode,onOpening,onSource,beforePrepare,disabled=false,gfp=null,channelGate=null,initialSpec,onSaveDraft,onMetricChange,onAnalysisTargetChange,onPrepareMissing,experiment=null,experimentSha256=null,onEditExperiment,reclassifyRequest=0}:ConnectedResultsProps) {
   const derived=useMemo(()=>experiment?fieldMetadata(experiment):{},[experiment]);
   // A stratified design (1.1.0) is read one declared stratum at a time: only that stratum's fields enter,
   // and the API refuses a cohort, description or comparison that pools strata.
@@ -243,8 +242,9 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
       const revision=await comparison.cohort(workspace,sources,fields,adopted,compartment&&unresolved?MISSING_POLICY:null,true,stratumRequest);
       const result=await adapter.channelGate(workspace,channelGateRequest({...channelGate,reference_sha256:null},sources.map(source=>({fieldId:source.field,label:source.label,revisionId:revision}))));
       if(gateCurrent.current!==requested)return;
+      // The compared fields' decision stays with this comparison (and its saved result). The workspace keeps the decision
+      // made on the image's own fields, so the image is coloured again after a reload (MV-10).
       const filter=recordedChannelGate(result);
-      await onChannelGateRecorded?.(result,filter);
       if(gateCurrent.current===requested)setRecordedGate({identity:requested,revision,filter,result});
     }catch(cause){if(gateCurrent.current===requested)setError(fail(cause));}
     finally{lock.current=false;setBusy("");}
@@ -253,8 +253,15 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   const pendingReclassify=useRef(0);
   useEffect(()=>{if(reclassifyRequest)pendingReclassify.current=reclassifyRequest;},[reclassifyRequest]);
   const runPendingReclassify=useEffectEvent(()=>{pendingReclassify.current=0;void classifyForResults();});
-  useEffect(()=>{if(!pendingReclassify.current||currentGate||!channelGate||busy||disabled||!sources.length||missing||!ledgerReady)return;runPendingReclassify();},
-    [reclassifyRequest,currentGate,channelGate,busy,disabled,sources.length,missing,ledgerReady]);
+  // The request answers that one click: it lapses when the decision is already current or the researcher moves on,
+  // so a later change of the experiment or exclusions never judges again unasked.
+  useEffect(()=>{
+    if(!pendingReclassify.current)return;
+    if(mode!=="statistics"||!metric.startsWith("positive_")||!channelGate){pendingReclassify.current=0;return;}
+    if(busy||disabled||!sources.length||missing||!ledgerReady)return;
+    if(currentGate){pendingReclassify.current=0;return;}
+    runPendingReclassify();
+  },[reclassifyRequest,currentGate,channelGate,busy,disabled,sources.length,missing,ledgerReady,mode,metric]);
   async function calculate(){
     if(lock.current||!ready)return;lock.current=true;setBusy("解析中…");setError("");
     try{

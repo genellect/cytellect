@@ -53,6 +53,13 @@ export function gateLegend(states: Record<number, GateStatus>): Array<{status: G
   return GATE_STATUS_ORDER.filter(status => counts.has(status)).map(status => ({status, label: GATE_STATUS_LABELS[status], count: counts.get(status)!}));
 }
 
+/** The image's legend for positivity: each state with its count, then 「探索的」 when no negative control fixed the
+ * threshold (M22), so the image says so as the table and the statistics do. */
+export function gateLegendItems(states: Record<number, GateStatus>, method: ChannelGateFilter["method"] | null | undefined): Array<{key: string; label: string; count?: number}> {
+  const items: Array<{key: string; label: string; count?: number}> = gateLegend(states).map(item => ({key: item.status, label: item.label, count: item.count}));
+  return items.length && method && gateExploratory(method) ? [...items, {key: "exploratory", label: `探索的（${method === "manual" ? "指定したしきい値" : "撮影日ごとの Otsu"}）`}] : items;
+}
+
 const methodLabels: Record<ChannelGateFilter["method"], string> = {
   negative_control: "撮影日ごとの陰性対照", batch_otsu: "撮影日ごとの Otsu・探索的", manual: "指定したしきい値・探索的",
 };
@@ -78,10 +85,6 @@ export function gateHistogram(nuclei: GateNucleus[], date: string, bins = 24) {
 /** Nucleoplasm ÷ nucleoli: the partition table's K = target ÷ reference, in the direction of the statistics
  * metric log2_nucleoplasm_over_nucleolus, so the image and the comparison read the same way (owner decision 1). */
 export const PARTITION_DIRECTION = {target: "nucleoplasm", reference: "nucleoli"} as const;
-export function partitionDefaults(sources: Array<{name: ReviewTarget; revisionId: string}>): {target: string; reference: string} {
-  const find = (name: ReviewTarget) => sources.find(source => source.name === name)?.revisionId ?? "";
-  return {target: find(PARTITION_DIRECTION.target), reference: find(PARTITION_DIRECTION.reference)};
-}
 
 const regionNames: Record<ReviewTarget, string> = {nuclei: "核", nucleoli: "核小体", nucleoplasm: "核質", cell: "細胞ROI"};
 /** What the table under the image lists, in the words of the image (MV-06): per what, which stain, which values. */
