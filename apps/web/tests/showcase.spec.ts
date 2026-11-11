@@ -877,7 +877,8 @@ test("the colour modes open positivity, the partition and the nucleus table from
   await expect(notRecorded(page)).toHaveCount(0);
   // The compared fields' decision stays with the comparison: the image keeps its own decision and colours (MV-10).
   await page.locator("header").getByRole("button", {name: "画像", exact: true}).click();
-  await expect(page.getByRole("list", {name: /の色分け$/}).first()).toContainText("陽性");
+  await expect(page.getByRole("list", {name: /の色分け$/})).toHaveCount(2);
+  for (const list of await page.getByRole("list", {name: /の色分け$/}).all()) await expect(list).toContainText("探索的（撮影日ごとの Otsu）");
   await expect(page.getByText("保存した判定の記録が、今の核や視野と合いません。")).toHaveCount(0);
   await noErrors(page, watch);
 });
