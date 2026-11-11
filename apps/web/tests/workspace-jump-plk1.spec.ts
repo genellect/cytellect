@@ -171,6 +171,8 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   const sidebar = page.getByRole("complementary", {name: "視野一覧"});
   await expect(sidebar.getByRole("button").filter({hasText: /未測定/})).toHaveCount(registeredFields.length);
   await sidebar.getByRole("button").filter({hasText: /未測定/}).first().click();
+  // 染色対応 is in the image menu (⋯), out of the way of the image work (MV-08).
+  await page.locator("summary[aria-label='画像の設定']").click();
   await page.getByRole("button", {name: "染色対応", exact: true}).click();
   for (const channel of CHANNELS) {
     await page.getByLabel(`${channel.id}の染色名`, {exact: true}).fill(channel.stain);

@@ -30,9 +30,11 @@ test("nuclear and nucleolar candidates retain source identity and explicit adopt
   await page.getByTestId("file-input").setInputFiles(bytes.map((buffer,index)=>({name:`a9_c${index+1}.tif`,mimeType:"image/tiff",buffer})));
   await page.getByRole("button",{name:/^1 画面/}).click();
   const wid=(await (await created).json()).id as string;
-  await expect(page.getByRole("button",{name:"染色対応",exact:true})).toBeEnabled();
+  await expect(page.getByRole("toolbar",{name:"画像の表示"}).getByRole("combobox",{name:"領域",exact:true})).toBeEnabled();
   expect(runRequests).toHaveLength(0);
   await expect(page.getByLabel("AIへの指示",{exact:true})).toBeVisible();
+  // 染色対応 is in the image menu (⋯), out of the way of the image work (MV-08).
+  await page.locator("summary[aria-label='画像の設定']").click();
   await page.getByRole("button",{name:"染色対応",exact:true}).click();
   // Roles are explicit; c2 alone does not establish the nuclear stain.
   await page.getByLabel("c1の染色名").fill("F-actin");

@@ -299,11 +299,12 @@ async function statisticsAfter(page) {
  * Otsu threshold, which needs no value typed in), with the measured value and the nuclei kept.
  */
 async function classify(page, channel, values, keep = "positive") {
+  // Positive and negative nuclei are a colour mode of the image; choosing it opens the classification (MV-01, MV-04).
+  const color = colorMode(page);
+  if (await color.inputValue() !== "positivity") {await color.selectOption("positivity"); await idle(page);}
   const inspector = page.getByRole("complementary", {name: "画像解析"});
   if (!await inspector.count()) {await header(page).getByRole("button", {name: "設定パネル"}).click(); await idle(page);}
-  const details = inspector.locator("details").filter({has: page.locator("summary", {hasText: "チャンネルによる核の分類・陽性率"})});
-  if (!await details.evaluate(element => element.open)) await details.locator("summary").click();
-  const gate = details.getByRole("region", {name: "チャンネルによる核の分類"});
+  const gate = inspector.getByRole("region", {name: "チャンネルによる核の分類"});
   await gate.getByRole("combobox", {name: "判定するチャンネル", exact: true}).selectOption(channel);
   await gate.getByRole("combobox", {name: "測定値", exact: true}).selectOption(values);
   await gate.getByRole("combobox", {name: "測定値の集計対象", exact: true}).selectOption(keep);
@@ -312,6 +313,14 @@ async function classify(page, channel, values, keep = "positive") {
   await idle(page);
   const refused = (await gate.getByRole("alert").allTextContents()).filter(text => text.trim());
   if (refused.length) throw new Error(`classification refused: ${refused.join(" / ")}`);
+}
+function colorMode(page) {return page.getByRole("toolbar", {name: "画像の表示"}).getByRole("combobox", {name: "色分け", exact: true});}
+/** The next step beside a table (MV-09): statistics with what the image shows, then the calculation and its figures. */
+async function nextStep(page, name) {
+  await page.getByRole("button", {name}).first().click();
+  await idle(page);
+  await statistics(page).waitFor({timeout: LIVE});
+  if (await calculate(page)) await figures(page, true);
 }
 async function closePanel(page) {
   const close = page.getByRole("button", {name: "パネルを閉じる"});
@@ -380,7 +389,18 @@ function walksOf(demo) {
       // Among the positive nuclei a stain may hold saturated pixels; comparing their intensity is then refused (Q-04).
       for (const metric of ["area_px", "area_um2", "mean", "mean_corrected"]) await statisticsScene("nuclei", metric, ["distribution", "comparison"], "上限値または飽和した画素")(page);
     };
+    // The image's next step: the positive fraction, after the compared fields are judged again by the same rule.
+    if (values === "raw") scenes[`positivity-${channel}-next`] = async page => {
+      await classify(page, channel, values);
+      await closePanel(page);
+      await nextStep(page, /^陽性率を群で比べる/);
+    };
   }
+  // The nucleolus-and-nucleoplasm colour mode and its next step (the nucleoplasm ÷ nucleolus ratio).
+  if (REGIONS.includes("nucleoli") && REGIONS.includes("nucleoplasm")) scenes["compartments-next"] = async page => {
+    await colorMode(page).selectOption("compartments"); await idle(page);
+    await nextStep(page, /^核質／核小体の比を群で比べる/);
+  };
   return Object.entries(scenes).map(([name, walk]) => ({name: demo.id ? `${demo.id}:${name}` : name, walk, workspace: demo.workspace}));
 }
 await mkdir(config.out, {recursive: true});

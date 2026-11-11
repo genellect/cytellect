@@ -25,5 +25,29 @@
 .error{position:absolute;left:12px;right:12px;bottom:52px;margin:0;padding:8px;background:#24272bed;border-radius:4px;color:#fff;font-size:13px}
 @media(max-width:600px){.toolbar:not(.editToolbar){top:5px;right:5px}.editToolbar{bottom:5px;left:5px}.toolbar button{width:28px;height:28px}}
 
-.outline[data-classification=positive]{stroke:#68ed9e;fill:#68ed9e18}.outline[data-classification=negative]{stroke:#b4bdc9;stroke-dasharray:3 3}.outline[data-classification=unknown]{stroke:#f4bb58;stroke-dasharray:2 4}
+/* A saved decision is drawn by its state, also on the selected region and over a colour merge (MV-03).
+   Positive is filled; negative is a plain grey line; the states that are neither stay apart from negative. */
+.frame .outline[data-classification=positive],.frame .selected[data-classification=positive]{stroke:#68ed9e;fill:#68ed9e40}
+.frame .outline[data-classification=negative],.frame .selected[data-classification=negative]{stroke:#c3cad3;fill:#c3cad314}
+.frame .outline[data-classification=unclassified],.frame .outline[data-classification=unknown],.frame .selected[data-classification=unclassified],.frame .selected[data-classification=unknown]{stroke:#f4bb58;stroke-dasharray:2 3}
+.frame .outline[data-classification=excluded],.frame .selected[data-classification=excluded]{stroke:#ff7a7a;stroke-dasharray:6 3}
+.frame .outline[data-classification=control],.frame .selected[data-classification=control]{stroke:#7ab8ff;stroke-dasharray:1 3}
+.frame .selected[data-classification]{stroke-width:2.6}
+/* Nucleus and nucleolus apart: the nucleus (its nucleoplasm) blue, its nucleoli magenta on top. */
+.frame[data-color-by=compartments] .outline{stroke:#7fbfff;fill:#4da3ff2e}
+.frame[data-color-by=compartments] .selected{fill:#4da3ff55}
+.fill{fill:#ff5fb070;stroke:#ff9fd4;stroke-width:1}
+.legend{position:absolute;z-index:2;left:8px;top:8px;display:flex;flex-wrap:wrap;gap:4px 10px;max-width:calc(100% - 170px);margin:0;padding:4px 8px;list-style:none;border-radius:6px;background:#24272bef;color:#f7f8fa;font-size:12px;line-height:1.5}
+.legend li{display:flex;align-items:center;gap:5px;white-space:nowrap}
+.legend span{width:11px;height:11px;border-radius:3px;border:1.5px solid currentColor}
+.legend [data-legend=positive] span{border-color:#68ed9e;background:#68ed9e66}
+.legend [data-legend=negative] span{border-color:#c3cad3}
+.legend [data-legend=unclassified] span{border:1.5px dashed #f4bb58}
+.legend [data-legend=excluded] span{border:1.5px dashed #ff7a7a}
+.legend [data-legend=control] span{border:1.5px dotted #7ab8ff}
+.legend [data-legend=nucleoplasm] span{border-color:#7fbfff;background:#4da3ff55}
+.legend [data-legend=nucleoli] span{border-color:#ff9fd4;background:#ff5fb099}
+.legend [data-legend=exploratory]{opacity:.85}
+.legend [data-legend=exploratory] span{display:none}
+@media(max-width:600px){.legend{max-width:calc(100% - 150px);top:5px;left:5px}}
 

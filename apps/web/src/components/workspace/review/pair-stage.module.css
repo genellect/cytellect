@@ -22,7 +22,7 @@
   .pair{grid-template-columns:minmax(0,1fr);grid-auto-rows:max-content;overflow:auto;align-content:start}
   .pane,.paneBody{grid-template-rows:auto auto}
   .paneImage{padding:0}
-  .paneTable{max-height:240px}
+  .paneTable{max-height:300px}
 }
 
 .tableViews{display:flex;gap:4px;padding:6px 8px 0}.tableViews button{font-size:13px;border:0;background:none;padding:2px 9px;border-radius:12px}.tableViews button[aria-pressed=true]{color:#1e58ad;background:#e8f0fc}.paneTable tr[data-excluded=true] td{color:#8a919c}.paneTable>p{margin:6px 8px;font-size:13px}

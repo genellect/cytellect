@@ -30,14 +30,22 @@ const percent=(value:number|null|undefined,reason?:string|null):Cell=>
 export const nucleusTableKey=(field:string,nuclearRevision?:string,nucleolarRevision?:string,exclusion?:string|null)=>
   JSON.stringify([field,nuclearRevision??"",nucleolarRevision??"",exclusion||null]);
 
+/** A saved channel-gate decision shown in the table (MV-07): each nucleus's state, its judged value and the
+ * threshold of its acquisition date, as the API saved them. */
+export interface NucleusTableGate {stain:string;nuclei:Record<number,{status:string;value:number|null;threshold:number|null;reason?:string}>}
+const gateLabels:Record<string,string>={positive:"陽性",negative:"陰性",unclassified:"未判定",excluded:"除外",control:"対照"};
+
 /** Columns, rows and the nucleus ledger of a nucleus table, in the order the API returned them. */
-export function nucleusTableView(table:NucleusTableData,channels:NucleusTableChannel[]){
+export function nucleusTableView(table:NucleusTableData,channels:NucleusTableChannel[],gate?:NucleusTableGate){
   const name=(id:string)=>channels.find(channel=>channel.id===id)?.stain||id;
   const calibrated=table.calibration!==null;
   const order=table.rows[0]?.channels.map(item=>({id:item.channel_id,role:item.role}))??[];
   const corrected=new Set(order.filter(({id})=>table.rows.some(row=>row.channels.some(item=>item.channel_id===id&&(item.mean_corrected!==null||item.integrated_corrected!==null)))).map(({id})=>id));
   const nucleoli=table.nucleolar_source!==null;
-  const columns:Column[]=[{key:"id",label:"核"},{key:"area",label:calibrated?"核面積 / µm²":"核面積 / px²"}];
+  const columns:Column[]=[{key:"id",label:"核"}];
+  if(gate)columns.push({key:"gate",label:"判定",title:`${gate.stain}による陽性・陰性の判定（保存した判定の記録）`},
+    {key:"gate:value",label:`${gate.stain} 判定値`,title:"判定に使った核内の平均輝度"},{key:"gate:threshold",label:"しきい値",title:"その撮影日のしきい値"});
+  columns.push({key:"area",label:calibrated?"核面積 / µm²":"核面積 / px²"});
   const cells:Array<{id:string;cell:(values:Values)=>Cell}>=[];
   for(const {id,role} of order){
     // The nuclear stain's integrated signal is a relative DNA signal; other stains are read as means.
@@ -67,7 +75,10 @@ export function nucleusTableView(table:NucleusTableData,channels:NucleusTableCha
     const notes=[row.excluded?`${row.exclusion_scope==="field"?"視野を除外":"除外"}${row.exclusion_reason?`：${row.exclusion_reason}`:""}`:m.status==="missing"?reasonText(m.reason):"",
       m.excluded_objects?`除外した核小体 ${m.excluded_objects}`:"",!row.excluded&&row.touches_border?"画像の端に接する":""];
     const state=notes.filter(Boolean).join("・");
-    return {id:row.nucleus_id,excluded:row.excluded,cells:[area,...signal,...nucleolar,{text:state}]};
+    const decision=gate?.nuclei[row.nucleus_id];
+    const judged:Cell[]=!gate?[]:decision?[{text:gateLabels[decision.status]??decision.status,title:decision.reason||undefined},number(decision.value,1),number(decision.threshold,1)]
+      :[missing("判定の記録にない核"),missing(),missing()];
+    return {id:row.nucleus_id,excluded:row.excluded,status:decision?.status,cells:[...judged,area,...signal,...nucleolar,{text:state}]};
   });
   return {columns,rows,ledger:ledger(table,nucleoli,order.map(({id})=>({id,name:name(id)})))};
 }

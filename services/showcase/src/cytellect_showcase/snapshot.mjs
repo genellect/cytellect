@@ -115,33 +115,38 @@ async function fieldTables(number) {
     else report.alerts.push(`field ${number}: no nucleus table ZIP button`);
     await step(`field ${number} channel table`, () => page.getByRole("button", {name: "このチャンネル", exact: true}).first().click());
   } else report.alerts.push(`field ${number}: no nucleus table toggle`);
-  const open = page.getByRole("button", {name: "区画への分配", exact: true});
-  if (!await open.count()) return;
-  await step(`field ${number} partition`, () => open.click());
-  const panel = page.getByRole("region", {name: "区画への分配"});
-  const target = panel.getByLabel("対象領域"), reference = panel.getByLabel("参照領域"), channel = panel.getByLabel("測定チャンネル");
-  if (await target.count()) {
-    const values = select => select.locator("option").evaluateAll(options => options.map(option => option.value).filter(Boolean));
-    const regions = await values(target), measured = await values(channel);
+  // The partition is the table of the nucleolus-and-nucleoplasm colour mode (MV-05): every target and
+  // reference (by name) with every stain of the toolbar, each loaded without a button, with its CSV.
+  const color = page.getByRole("toolbar", {name: "画像の表示"}).getByRole("combobox", {name: "色分け", exact: true});
+  if (!await color.locator("option[value=compartments]:not([disabled])").count()) return;
+  await step(`field ${number} compartments`, () => color.selectOption("compartments"));
+  const drawer = page.getByRole("button", {name: /^測定値/}).first();
+  const panel = page.getByRole("region", {name: "区画への分配"}).first();
+  if (!await appears(panel) && await drawer.count() && await drawer.getAttribute("aria-expanded") !== "true") await step(`field ${number} measurements`, () => drawer.click());
+  const target = panel.getByRole("combobox", {name: "対象", exact: true}), reference = panel.getByRole("combobox", {name: "参照", exact: true});
+  if (await appears(target)) {
+    const names = await target.locator("option").evaluateAll(options => options.map(option => option.value).filter(Boolean));
+    const stains = page.getByRole("toolbar", {name: "画像の表示"}).locator("button[data-channel]");
     report.partitions = report.partitions ?? 0;
-    for (const t of regions) for (const r of regions) {
+    for (const t of names) for (const r of names) {
       if (t === r) continue;
-      for (const c of measured) {
-        await target.selectOption(t); await reference.selectOption(r); await channel.selectOption(c);
-        await step(`field ${number} partition ${report.partitions + 1}`, () => panel.getByRole("button", {name: "分配表を表示", exact: true}).click());
+      for (let c = 0; c < await stains.count(); c++) {
+        await step(`field ${number} partition ${report.partitions + 1}`, async () => {await stains.nth(c).click(); await target.selectOption(t); await reference.selectOption(r);});
         const csv = panel.getByRole("button", {name: "原値・補正値をCSV保存", exact: true});
         if (await appears(csv)) await step(`field ${number} partition csv`, () => saved(csv));
         else report.alerts.push(`field ${number}: no partition CSV button`);
         report.partitions++;
       }
     }
-  }
-  await step(`field ${number} partition closed`, () => open.click());
+    // The default pair (nucleoplasm ÷ nucleoli) is left chosen for the next field.
+    await target.selectOption("nucleoplasm"); await reference.selectOption("nucleoli");
+  } else report.alerts.push(`field ${number}: no partition choices`);
+  await step(`field ${number} outlines`, () => color.selectOption("outline"));
 }
 // Every field, region and channel a visitor can look at, so browsing never meets an unrecorded
 // view (regions through the settings panel; never 細胞ROI: it starts a run).
 const region = page.locator("select").filter({has: page.locator("option[value=nucleoplasm]")}).first();
-const channels = page.locator("[class*=channelBar] > button[data-channel], [class*=channelBar] > button[data-composite]");
+const channels = page.locator("[class*=channelBar] button[data-channel], [class*=channelBar] button[data-composite]");
 for (let index = 0; index < count; index++) {
   await step(`field ${index + 1}`, () => cards.nth(index).click());
   if (!(await region.isVisible())) await step("settings panel", () => page.getByRole("button", {name: "設定パネル"}).click());

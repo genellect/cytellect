@@ -39,6 +39,8 @@ test("synthetic fields reach real independent-unit comparison and editable expor
     // Unpaired groups with typed independent units: registered without a form, groups are entered in statistics.
     await page.getByRole("button", {name: /^形を決めずに登録/}).click();
     await expect(page.getByRole("complementary", {name:"視野一覧"}).getByRole("button").filter({hasText:/未測定/})).toHaveCount(4, {timeout:120000});
+    // 染色対応 is in the image menu (⋯), out of the way of the image work (MV-08).
+    await page.locator("summary[aria-label='画像の設定']").click();
     await page.getByRole("button", {name:"染色対応", exact:true}).click();
     await page.getByLabel("c1の染色名", {exact:true}).fill("DAPI");
     await page.getByLabel("c1の役割", {exact:true}).selectOption("nuclear");
