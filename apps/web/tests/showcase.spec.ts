@@ -576,6 +576,10 @@ test("deleting one region of an opening field and taking it back is answered fro
   const section = pane.locator("xpath=ancestor::section[1]");
   const rows = pane.locator("table tbody tr");
   await expect(rows.first()).toBeVisible({timeout: live});
+  // Once the opening fields have settled (an edit while they still load is not taken).
+  await page.waitForLoadState("networkidle");
+  await expect(page.locator("header [role=status]").first()).toHaveText("", {timeout: live});
+  await page.waitForTimeout(1000);
   const before = await section.locator("svg path[data-region]").count();
   const choose = async (row: Locator) => {
     await row.getByRole("button").first().click();
