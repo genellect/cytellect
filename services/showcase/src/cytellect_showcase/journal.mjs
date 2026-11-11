@@ -209,7 +209,9 @@ const offered = (region, metric) => !FIXED[metric] || FIXED[metric] === region;
 const choices = select => select.locator("option:not([disabled])").evaluateAll(options => options.map(option => option.value).filter(Boolean));
 // Every statistic the panel offers for one region and metric, from the seed: each stain, each
 // analysis it allows and, for an association, each horizontal axis, with their figures.
-function statisticsScene(region, metric, kinds = null) {
+// `refusal`: a refusal the shared analysis gives on purpose (e.g. saturated pixels in an intensity comparison);
+// it is recorded as the visitor would see it, and the walk goes on without a figure.
+function statisticsScene(region, metric, kinds = null, refusal = null) {
   return async page => {
     await tab(page, "統計");
     await statistics(page).waitFor({timeout: LIVE});
@@ -229,8 +231,7 @@ function statisticsScene(region, metric, kinds = null) {
         const axis = statistics(page).getByRole("combobox", {name: "横軸", exact: true});
         for (const x of kind === "association" ? await choices(axis) : [null]) {
           if (x) {await axis.selectOption(x); await idle(page);}
-          await calculate(page);
-          await figures(page, kind === "comparison");
+          if (await calculate(page, refusal)) await figures(page, kind === "comparison");
         }
       }
     }
@@ -376,7 +377,8 @@ function walksOf(demo) {
       await classify(page, channel, values);
       await closePanel(page);
       for (const metric of ["positive_fraction", "positive_count"]) await statisticsScene("nuclei", metric)(page);
-      for (const metric of ["area_px", "area_um2", "mean", "mean_corrected"]) await statisticsScene("nuclei", metric, ["distribution", "comparison"])(page);
+      // Among the positive nuclei a stain may hold saturated pixels; comparing their intensity is then refused (Q-04).
+      for (const metric of ["area_px", "area_um2", "mean", "mean_corrected"]) await statisticsScene("nuclei", metric, ["distribution", "comparison"], "上限値または飽和した画素")(page);
     };
   }
   return Object.entries(scenes).map(([name, walk]) => ({name: demo.id ? `${demo.id}:${name}` : name, walk, workspace: demo.workspace}));

@@ -341,9 +341,11 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
     busy={r.busy||!transportAvailable} readOnly={demo} onSave={saveExperiment} onAdd={addToExperiment} pending={pending&&!demo?{count:pending.length,onPlace:placePending,onWithoutForm:()=>{const files=pending;setPending(null);setMode("image");void act(()=>r.importFiles(files));},onDiscard:()=>setPending(null)}:undefined} onOpenField={id=>{setSelected(id);changeMode("image");}} onCsv={()=>changeMode("statistics")}/>;
   const setupShown=experimentSetupShown(mode,!!field,demo);
   // The nucleus table step shows one field's nuclei (the table lists one field's nuclei) with its table open.
+  // The view the visitor had before the guide's nucleus-table step, restored when the guide leaves that step.
+  const guidePair=useRef<boolean|null>(null);
   function guideStep(next:DemoStep,openTable:boolean,nucleus=false){changeMode(next);if(openTable){setTable(true);setPairTables(true);}
-    // The other steps show the two groups side by side again, as their text says.
-    if(nucleus){setPairView(false);setCompare(false);changeTarget("nuclei");setNucleusView(true);}else{setNucleusView(false);setPairView(true);}}
+    if(nucleus){guidePair.current??=pairView;setPairView(false);setCompare(false);changeTarget("nuclei");setNucleusView(true);}
+    else{setNucleusView(false);if(guidePair.current!==null){setPairView(guidePair.current);guidePair.current=null;}}}
   useEffect(()=>{folderInput.current?.setAttribute("webkitdirectory","");},[]);
   const chooseComparison=()=>{if(!picked.length&&field)setPicked(field.channels.map(ch=>`${field.id}:${ch.id}`));setCompare(true);setPicker(true);};
 
