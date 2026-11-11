@@ -774,6 +774,10 @@
   "background": "automatic",
   "opening": "comparison",
   "final_target": "nucleoli",
+  "gate_channels": [
+   "eu5"
+  ],
+  "gate_channels_note": "5-EU（30 分の取り込みで新しく合成された RNA）だけで核を分類する。陽性・陰性が、その核が転写しているかどうかを表すため。Hoechst（核染色）と NPM1（常に発現する核小体の目印）は、陽性・陰性に生物学的な意味がないので分類に使わない（2026-11-11、オーナーの判断）。",
   "statistics": {
    "distribution": {
     "target": "nucleoli",

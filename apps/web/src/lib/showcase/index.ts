@@ -69,7 +69,10 @@ export interface ShowcaseDataset {title: string; attribution: string; licence: s
   /** Region sets the demo recorded; null keeps every region (older recordings). */
   regions: Array<"nuclei" | "nucleoli" | "nucleoplasm"> | null;
   /** The change the source reports, shown apart from the demo's own measurement (X-03). */
-  reported: {source: string; comparison: string; direction: string; quantity: string; scope: string; independence?: string} | null}
+  reported: {source: string; comparison: string; direction: string; quantity: string; scope: string; independence?: string} | null;
+  /** Channels the demo classifies nuclei by: stains whose positive and negative nuclei mean something in
+   * this scene (empty: the scene offers no classification; null: older recordings, every channel). */
+  gateChannels: string[] | null}
 const httpsUrl = (value: unknown) => {try {return typeof value === "string" && new URL(value).protocol === "https:" ? value : "";} catch {return "";}};
 export function validDataset(value: unknown): ShowcaseDataset | null {
   if (!value || typeof value !== "object") return null;
@@ -79,7 +82,8 @@ export function validDataset(value: unknown): ShowcaseDataset | null {
   return {title: text("title"), attribution: text("attribution"), licence: text("licence"), licenceUrl: httpsUrl(record.licenceUrl), sourceUrl: httpsUrl(record.sourceUrl),
     caveats: Array.isArray(record.caveats) ? record.caveats.filter((item): item is string => typeof item === "string" && !!item.trim()).slice(0, 8) : [],
     regions: Array.isArray(record.regions) ? record.regions.filter((item): item is "nuclei" | "nucleoli" | "nucleoplasm" => item === "nuclei" || item === "nucleoli" || item === "nucleoplasm") : null,
-    reported: reportedChange(record.reportedChange)};
+    reported: reportedChange(record.reportedChange),
+    gateChannels: Array.isArray(record.gateChannels) ? record.gateChannels.filter((item): item is string => typeof item === "string" && /^[\w.-]{1,64}$/.test(item)) : null};
 }
 function reportedChange(value: unknown): ShowcaseDataset["reported"] {
   if (!value || typeof value !== "object") return null;
