@@ -345,6 +345,31 @@ test("deep links open the requested step without the guide", async ({page}) => {
   await noErrors(page, watch);
 });
 
+test("closing the guide on the nucleus table step gives back the view the visitor had", async ({page}) => {
+  test.skip(!NUCLEOLAR, "No scene with nucleoli is published.");
+  const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
+  const header = page.locator("header");
+  const bar = page.locator("[class*=channelBar]");
+  const pair = page.getByRole("button", {name: "2 画面", exact: true});
+  await expect(pair).toHaveAttribute("aria-pressed", "true", {timeout: live});
+  await bar.getByRole("combobox", {name: "領域", exact: true}).selectOption("nucleoli");
+  const guide = page.getByRole("complementary", {name: "公開デモの使い方"});
+  await header.getByRole("button", {name: "使い方", exact: true}).click();
+  await guide.getByRole("button", {name: /核ごとの表$/}).click();
+  await expect(pair).toHaveAttribute("aria-pressed", "false");
+  await expect(bar.getByRole("combobox", {name: "領域", exact: true})).toHaveValue("nuclei");
+  // Closed on that step, the guide leaves the visitor where they were, and opening it again changes nothing.
+  await guide.getByRole("button", {name: "閉じる", exact: true}).click();
+  await expect(guide).toHaveCount(0);
+  await expect(pair).toHaveAttribute("aria-pressed", "true");
+  await expect(bar.getByRole("combobox", {name: "領域", exact: true})).toHaveValue("nucleoli");
+  await header.getByRole("button", {name: "使い方", exact: true}).click();
+  await expect(guide).toBeVisible();
+  await expect(pair).toHaveAttribute("aria-pressed", "true");
+  await expect(bar.getByRole("combobox", {name: "領域", exact: true})).toHaveValue("nucleoli");
+  await noErrors(page, watch);
+});
+
 test("phones run the guided operations from the recorded tour", async ({page}) => {
   test.skip(!!DEV, "The recorded tour is part of the published demo files.");
   await page.addInitScript(() => Object.defineProperty(navigator, "deviceMemory", {value: 2}));
