@@ -103,8 +103,8 @@ function guideSteps(dataset: ShowcaseDataset | null): Array<{mode: DemoStep; tit
   return [
   {mode: "image", title: "画像と輪郭", text: `2 つの群を並べ、検出した輪郭を重ねています。輪郭を選ぶと、その値が表で分かります。輪郭の修正は、各画像の左下の操作で行えます（公開デモでは修正を記録しないため、試すと案内が出ます）。${nucleolar ? "「領域」で核・核小体・核質を切り替えられます。" : ""}`},
   {mode: "image", title: "測定値", text: "輪郭ごとの面積と輝度を、各画像の下の表で確認できます。", table: true},
-  {mode: "image", title: "核ごとの表", text: `1 つの視野の核を、1 行ずつ確かめます。核の面積と各染色の輝度${nucleolar ? "、核小体の数・面積・形" : ""}を同じ核の行に並べ、行を選ぶと画像のその核に移ります。表は ZIP（CSV と列の定義）で保存できます。${nucleolar ? "画像の上の「区画への分配」では、同じ核の中で核小体と核質に含まれる信号を比べます。" : ""}`, table: true, nucleus: true},
-  {mode: "statistics", title: "統計", text: `視野や群をまとめて計算します。${dataset?.gateChannels?.length ? "「画像」の設定パネルにある「チャンネルによる核の分類・陽性率」で核を陽性と陰性に分けると、ここで陽性率も比べられます。" : ""}`},
+  {mode: "image", title: "核ごとの表", text: `1 つの視野の核を、1 行ずつ確かめます。核の面積と各染色の輝度${nucleolar ? "、核小体の数・面積・形" : ""}を同じ核の行に並べ、行を選ぶと画像のその核に移ります。表は ZIP（CSV と列の定義）で保存できます。${nucleolar ? "画像の上の「色分け」を「核小体と核質」にすると、同じ核の中で核質と核小体に含まれる信号の比を、表で比べられます。" : ""}`, table: true, nucleus: true},
+  {mode: "statistics", title: "統計", text: `視野や群をまとめて計算します。${dataset?.gateChannels?.length ? "「画像」の上の「色分け」を「陽性・陰性」にして核を分けると、ここで陽性率も比べられます。" : ""}`},
   {mode: "figure", title: "グラフと書き出し", text: "論文用の図を編集し、ZIPで保存できます。"},
   ];
 }

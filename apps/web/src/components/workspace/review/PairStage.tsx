@@ -1,5 +1,5 @@
 "use client";
-import {useEffect,useRef,useState} from "react";
+import {useEffect,useRef,useState,type ReactNode} from "react";
 import type {ReviewField,ReviewTarget} from "@/lib/workspace/review-preview";
 import type {SavedResult} from "@/lib/workspace/api-adapter";
 import type {useWorkspaceRuntime} from "@/lib/workspace/use-workspace-runtime";
@@ -9,6 +9,7 @@ import {ReviewImageCanvas,type ReviewImageViewport} from "./ReviewImageCanvas";
 import {MeasurementTable} from "./MeasurementTable";
 import {ConnectedNucleusTable} from "./NucleusTable";
 import {pairPaneLayout} from "./image-stage-layout";
+import {TableHeading,type ColorView} from "./ColorView";
 import styles from "./pair-stage.module.css";
 
 type Runtime=ReturnType<typeof useWorkspaceRuntime>;
@@ -23,6 +24,8 @@ interface Props {
   onEditing:(value:boolean)=>void;
   /** The run shown (the toolbar chooses it), whether zoom is linked and whether each pane lists its measurements. */
   runId:string;linked:boolean;tables:boolean;onDisplay?:(value:PairDisplay|null)=>void;
+  /** The partition table of a pane's field, in the nucleolus-and-nucleoplasm colour mode (MV-05). */
+  partition?:(field:ReviewField)=>ReactNode;
 }
 
 /** Runs in which at least one group has a field, in the design's order. */
@@ -36,7 +39,8 @@ export const pairRuns=(design:ExperimentDesign)=>(design.runs??[]).filter(run=>d
  * that version's structures, with its nucleus (`nucleus`) outlined among the nuclei of the same analysis (`context`). */
 export interface Historical {target:ReviewTarget;result:SavedResult;context?:SavedResult["masks"]["regions"];nucleus?:number}
 
-export function PairStage({design,fields,runtime:r,target,channel,selectedField,region,historical,onSelect,onEditing,runId,linked,tables,onDisplay}:Props){
+export function PairStage({design,fields,runtime:r,target,channel,selectedField,region,historical,onSelect,onEditing,runId,linked,tables,onDisplay,
+  colorBy,states,legend,fills,gateTable,heading,next,partition}:Props&ColorView){
   const runs=pairRuns(design);
   const run=runs.find(value=>value.id===runId)??runs[0];
   const [chosen,setChosen]=useState<Record<string,string>>({});
@@ -72,8 +76,8 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
   useEffect(()=>{onDisplay?.(display);},[displayValue]);// eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>()=>onDisplay?.(null),[]);// eslint-disable-line react-hooks/exhaustive-deps
 
-  // Each pane can show its field's nucleus table (every stain and the confirmed nucleoli per nucleus).
-  const [nucleusView,setNucleusView]=useState(false);
+  // Each pane shows its field's nucleus table (every stain and the confirmed nucleoli per nucleus) by default.
+  const [nucleusView,setNucleusView]=useState(true);
   if(!run)return <p className={styles.empty}>2 つの群に画像がある実験回がありません。「実験」で群と実験回に画像を割り当ててください。</p>;
   return <div className={styles.pair} data-placement={layout.placement}>
     {panes.map((pane,index)=>{
@@ -103,6 +107,8 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
         <div className={styles.paneBody} ref={index===0?body:undefined}>
         <div className={styles.paneImage}>{!field?<p className={styles.empty}>{layoutPanes.unassigned?"選んだ視野は層が決まっていないため、ほかの視野と並べません。「実験」で層を選んでください。":stratumName?`この実験回の層「${stratumName}」には、この群の画像がありません。`:"この実験回の画像がありません。"}</p>:urls[index]&&layout.scale>0?<ReviewImageCanvas
           src={urls[index]!} width={field.width} height={field.height} contours={value?.masks.regions||[]}
+          // The colour mode applies to both panes, so the two groups are read the same way (MV-01, MV-03).
+          classification={saved||candidate?undefined:states(field.id)} colorBy={colorBy} legend={saved||candidate?undefined:legend(field.id)} fills={fills(field.id)}
           selected={shown} label={`${pane.group.label} ${field.label}`}
           onSelect={select} editingKey={`${field.id}:${target}:${value?.revision||"none"}`}
           editDisabled={r.busy||!editable}
@@ -117,10 +123,13 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
           context={savedView?.context??(target==="nucleoli"||target==="nucleoplasm"?r.currentResult(field.id,"nuclei")?.masks.regions:undefined)}
           contextSelected={savedView?.nucleus}/>:<p className={styles.empty}>画像を読み込み中…</p>}</div>
         {tables&&field&&<div className={styles.paneTable} role="region" aria-label={`${pane.group.label} の測定値`} tabIndex={0}>
-          {nuclear&&<div className={styles.tableViews} role="group" aria-label={`${pane.group.label} の表の切り替え`}><button aria-pressed={!nucleusView} onClick={()=>setNucleusView(false)}>このチャンネル</button><button aria-pressed={nucleusView} onClick={()=>setNucleusView(true)}>核ごとの表</button></div>}
-          {nuclear&&nucleusView?<ConnectedNucleusTable load={r.adapter.nucleusTable} save={r.adapter.saveNucleusTable} field={field.id} nuclearRevision={nuclear.revision}
-            nucleolarRevision={r.currentResult(field.id,"nucleoli")?.revision} exclusion={field.exclusionReason} channels={field.channels} selected={shown} onSelect={select}/>
-          :rows.length?<MeasurementTable rows={rows} selected={shown} onSelect={select}/>:<p className={styles.tableEmpty}>{value?"この染色の測定値はありません。":"「測定」で輪郭と測定値を作ります。"}</p>}</div>}
+          {/* Each table names what it lists; the next step sits once, beside the last group's table (MV-06, MV-09). */}
+          <TableHeading heading={heading(colorBy==="positivity"||(!!nuclear&&nucleusView),rows)} next={index===panes.length-1?next:null}/>
+          {colorBy==="compartments"?partition?.(field)
+          :<>{colorBy==="outline"&&nuclear&&<div className={styles.tableViews} role="group" aria-label={`${pane.group.label} の表の切り替え`}><button aria-pressed={!nucleusView} onClick={()=>setNucleusView(false)}>このチャンネル</button><button aria-pressed={nucleusView} onClick={()=>setNucleusView(true)}>核ごとの表</button></div>}
+          {nuclear&&(nucleusView||colorBy==="positivity")?<ConnectedNucleusTable load={r.adapter.nucleusTable} save={r.adapter.saveNucleusTable} field={field.id} nuclearRevision={nuclear.revision}
+            nucleolarRevision={r.currentResult(field.id,"nucleoli")?.revision} exclusion={field.exclusionReason} channels={field.channels} gate={colorBy==="positivity"?gateTable(field.id):undefined} selected={shown} onSelect={select}/>
+          :rows.length?<MeasurementTable rows={rows} selected={shown} onSelect={select}/>:<p className={styles.tableEmpty}>{value?"この染色の測定値はありません。":"「測定」で輪郭と測定値を作ります。"}</p>}</>}</div>}
         </div>
       </section>;
     })}

@@ -1,3 +1,4 @@
+import {nucleusTableFixture} from "./nucleus-table-fixture";
 import {expect,test} from "@playwright/test";
 
 test("stain assignments persist, name thumbnails and determine the actual nuclear input",async({page})=>{
@@ -24,6 +25,8 @@ test("stain assignments persist, name thumbnails and determine the actual nuclea
     if(path.endsWith("/runs/failed-preview"))return json(preview);
     if(path.endsWith("/selection"))return json({version:1,entries:[{id:"entry",field_id:"field",revision_id:"nuclei",target_revisions:{nuclei:"nuclei"},exclusion_reason:null}]});
     if(path.endsWith("/region-fields"))return json([field]);
+    // The nucleus table is the default table of adopted nuclei (MV-07): one nucleus, every stain.
+    if(path.endsWith("/nucleus-table"))return json(nucleusTableFixture({fieldId:"field",revision:"nuclei",channels,nuclei:[7],areaPx:64}));
     if(path.endsWith("/revisions"))return json([{id:"nuclei",state:"succeeded",created:1,config:{recipe,field_ids:["field"]}}]);
     if(path.endsWith("/jobs"))return json([]);
     if(path.endsWith("/region-measurements"))return json({revision_id:"nuclei",field_failures:[],exclusions:[],field_tables:{field:{rows:channels.map(channel=>({region_id:7,channel_id:channel.channel_id,area_px:64,mean:20,median:20,integrated:1280}))}}});
@@ -33,12 +36,14 @@ test("stain assignments persist, name thumbnails and determine the actual nuclea
     return json({detail:"unused_fixture_route"},404);
   });
   await page.goto("/workspace?id=assignments");
-  await expect(page.getByRole("button",{name:"染色対応",exact:true})).toBeEnabled();
+  await expect(page.getByRole("toolbar",{name:"画像の表示"}).getByRole("combobox",{name:"領域",exact:true})).toBeEnabled();
   // The field menu closes with Escape instead of staying over the image and table.
   await page.getByLabel("画像の設定").click();
   await expect(page.getByLabel("画像の用途")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByLabel("画像の用途")).toBeHidden();
+  // 染色対応 is in the image menu (⋯), out of the way of the image work (MV-08).
+  await page.locator("summary[aria-label='画像の設定']").click();
   await page.getByRole("button",{name:"染色対応",exact:true}).click();
   await expect(page.getByLabel("c2の染色名")).toHaveValue("DAPI");
   await expect(page.getByText("ファイル名から読み取った名前です。",{exact:false})).toHaveCount(1);
@@ -54,7 +59,9 @@ test("stain assignments persist, name thumbnails and determine the actual nuclea
   await expect(page.getByRole("button",{name:"GFP · c1",exact:true})).toBeVisible();
   await expect(page.locator("svg [data-region]")).toHaveCount(0);
   await page.reload();
-  await expect(page.getByRole("button",{name:"染色対応",exact:true})).toBeEnabled();
+  await expect(page.getByRole("toolbar",{name:"画像の表示"}).getByRole("combobox",{name:"領域",exact:true})).toBeEnabled();
+  // 染色対応 is in the image menu (⋯), out of the way of the image work (MV-08).
+  await page.locator("summary[aria-label='画像の設定']").click();
   await page.getByRole("button",{name:"染色対応",exact:true}).click();
   await expect(page.getByLabel("c1の染色名")).toHaveValue("GFP");
   await expect(page.getByLabel("c2の染色名")).toHaveValue("DAPI");

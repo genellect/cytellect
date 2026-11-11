@@ -29,6 +29,14 @@ describe("nucleus table view",()=>{
     // The same nucleus's absolute nucleolar area and its fraction of the nucleus are both read.
     expect(view.rows[0].cells.map(cell=>cell.text)).toEqual(["6.3","2,500","40.3","30.0","2","1.25","20.0%","80.0%","0.500","除外した核小体 1"]);
   });
+  it("adds the saved decision, its judged value and threshold, and marks a nucleus the decision does not hold (MV-07)",()=>{
+    const gate={stain:"NPM1",nuclei:{1:{status:"positive",value:40.25,threshold:35},2:{status:"unclassified",value:null,threshold:35,reason:"channel_value_missing"}}};
+    const view=nucleusTableView(table,channels,gate);
+    expect(view.columns.slice(0,5).map(column=>column.label)).toEqual(["核","判定","NPM1 判定値","しきい値","核面積 / µm²"]);
+    expect(view.rows.map(row=>row.cells.slice(0,3).map(cell=>cell.text))).toEqual([["陽性","40.3","35.0"],["未判定","—","35.0"],["—","—","—"]]);
+    expect(view.rows.map(row=>row.status)).toEqual(["positive","unclassified",undefined]);
+    expect(view.rows[2].cells[0].title).toBe("判定の記録にない核");
+  });
   it("keeps a nucleus without an adopted nucleolus missing with its reason, never zero, and accounts for every nucleus",()=>{
     const view=nucleusTableView(table,channels);
     const second=view.rows[1].cells;

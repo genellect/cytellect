@@ -11,8 +11,13 @@ export interface PartitionRequest {
   fieldId:string; nuclearRevisionId:string; targetRevisionId:string; referenceRevisionId:string; channelId:string;
 }
 export interface ConnectedPartitionProps {
-  fieldId:string; fieldLabel:string; nuclearRevisionId?:string; nuclearLabel?:string;
-  sources:PartitionSourceOption[]; channels:PartitionChannelOption[];
+  fieldId:string; fieldLabel:string; nuclearRevisionId?:string;
+  /** The field's regions inside the nuclei, by name (核小体, 核質). */
+  sources:Array<PartitionSourceOption&{name:string}>;
+  /** Target and reference by name; the workspace keeps them so every pane and the heading read the same pair (MV-05). */
+  pair:{target:string;reference:string}; onPair:(pair:{target:string;reference:string})=>void;
+  /** The measured stain is the one chosen above the image. */
+  channel:PartitionChannelOption;
   load:(request:PartitionRequest)=>Promise<PartitionTableData>;
   exportCsv:(request:PartitionRequest)=>Promise<void>;
   selectedNucleus?:number; onSelectNucleus?:(id:number)=>void;
@@ -32,69 +37,59 @@ function reasonText(reason:string){return reasonLabels[reason]??reason;}
 function valueText(value:number|null|undefined){return value==null?"欠測":new Intl.NumberFormat("ja-JP",{maximumSignificantDigits:6}).format(value);}
 function requestKey(request:PartitionRequest){return JSON.stringify(request);}
 
-/** Explicit source selection; every scientific value, including CSV, comes from the API. */
-export function ConnectedPartition({fieldId,fieldLabel,nuclearRevisionId,nuclearLabel,sources,channels,load,exportCsv,
+/** The partition table of one field in the nucleolus-and-nucleoplasm colour mode (MV-05, M23). It loads as soon as the
+ * target, the reference and the stain are known, with no button; the request names all three, and the table names them.
+ * Every scientific value, including the CSV, comes from the API. */
+export function ConnectedPartition({fieldId,fieldLabel,nuclearRevisionId,sources,pair,onPair,channel,load,exportCsv,
   selectedNucleus,onSelectNucleus}:ConnectedPartitionProps){
   const controlId=useId();
-  const scope=`${fieldId}|${nuclearRevisionId??""}`;
-  const [selection,setSelection]=useState({scope:"",target:"",reference:"",channel:""});
   const [basis,setBasis]=useState<"raw"|"corrected">("raw");
-  const [state,setState]=useState<{key:string;table?:PartitionTableData;loading?:boolean;error?:string}>({key:""});
+  const [state,setState]=useState<{key:string;table?:PartitionTableData;error?:string}>({key:""});
   const [exporting,setExporting]=useState(false);
-  const serial=useRef(0);
-  const chosen=selection.scope===scope?selection:{scope,target:"",reference:"",channel:""};
-  const request:PartitionRequest={fieldId,nuclearRevisionId:nuclearRevisionId??"",targetRevisionId:chosen.target,
-    referenceRevisionId:chosen.reference,channelId:chosen.channel};
+  const target=sources.find(item=>item.name===pair.target),reference=sources.find(item=>item.name===pair.reference);
+  const request:PartitionRequest={fieldId,nuclearRevisionId:nuclearRevisionId??"",targetRevisionId:target?.revisionId??"",
+    referenceRevisionId:reference?.revisionId??"",channelId:channel.id};
   const key=requestKey(request);
+  const valid=!!nuclearRevisionId&&!!target&&!!reference&&target.revisionId!==reference.revisionId&&!!channel.id;
   const current=state.key===key?state:undefined;
   const table=current?.table;
   const areaKey=table?.calibration?"area_um2":"area_px";
   const areaUnit=table?.calibration?"µm²":"px²";
-  const valid=!!nuclearRevisionId&&sources.some(item=>item.revisionId===chosen.target)
-    &&sources.some(item=>item.revisionId===chosen.reference)&&channels.some(item=>item.id===chosen.channel)
-    &&chosen.target!==chosen.reference;
-  function choose(name:"target"|"reference"|"channel",value:string){setSelection({...chosen,[name]:value});}
-  async function show(){
+  // The loader may be a new function on every render; only the request decides a new load.
+  const loader=useRef(load);
+  useEffect(()=>{loader.current=load;},[load]);
+  useEffect(()=>{
     if(!valid)return;
-    const attempt=++serial.current;
-    setState({key,loading:true});
-    try{
-      const result=await load(request);
-      if(result.field_id!==request.fieldId||result.nuclear_source.revision_id!==request.nuclearRevisionId
-        ||result.target_source.revision_id!==request.targetRevisionId||result.reference_source.revision_id!==request.referenceRevisionId
-        ||result.pixel_source.channel.channel_id!==request.channelId)throw new Error("選択した入力と結果の対応を確認できません。");
-      if(serial.current===attempt)setState({key,table:result});
-    }catch(error){if(serial.current===attempt)setState({key,error:error instanceof Error?error.message:"分配表を取得できませんでした。"});}
-  }
+    let live=true;
+    const asked:PartitionRequest=JSON.parse(key);
+    loader.current(asked).then(result=>{
+      if(result.field_id!==asked.fieldId||result.nuclear_source.revision_id!==asked.nuclearRevisionId
+        ||result.target_source.revision_id!==asked.targetRevisionId||result.reference_source.revision_id!==asked.referenceRevisionId
+        ||result.pixel_source.channel.channel_id!==asked.channelId)throw new Error("選択した入力と結果の対応を確認できません。");
+      if(live)setState({key,table:result});
+    }).catch(error=>{if(live)setState({key,error:error instanceof Error?error.message:"分配表を取得できませんでした。"});});
+    return()=>{live=false;};
+  },[key,valid]);
+  const names=sources.map(item=>item.name);
   async function download(){
     if(!table)return;
     setExporting(true);
     try{await exportCsv(request);}catch(error){setState({key,table,error:error instanceof Error?error.message:"CSVを保存できませんでした。"});}
     finally{setExporting(false);}
   }
-  // The panel opens from the toolbar above the image: bring it into view, once, when it appears.
-  const panel=useRef<HTMLElement>(null);
-  useEffect(()=>{panel.current?.scrollIntoView?.({block:"nearest"});},[]);
-  return <section ref={panel} className={styles.panel} aria-label="区画への分配">
-    <div><h3>区画への分配</h3><p className={styles.intro}>{fieldLabel}の同じ核で、対象と参照に含まれる信号を比較します。</p></div>
-    {!nuclearRevisionId?<p>この視野の核領域を採用すると、対象・参照・測定チャンネルを選べます。</p>
+  return <section className={styles.panel} aria-label="区画への分配">
+    {!nuclearRevisionId?<p>この視野の核領域を採用すると、核の中の区画への分配を表示します。</p>
     :sources.length<2?<p>核の中の 2 つの領域（核小体と核質など）を測定すると、その間で信号の分配を比べられます。この視野で測定した核の中の領域は {sources.length} つです。</p>:<>
-      <p className={styles.source}>親核：{nuclearLabel??"採用した核領域"}</p>
-      <fieldset className={styles.choices} disabled={current?.loading||exporting}>
-        <legend>測定する入力</legend>
-        <label htmlFor={`${controlId}-target`}>対象領域<select id={`${controlId}-target`} value={chosen.target} onChange={event=>choose("target",event.target.value)}>
-          <option value="">対象を選択</option>{sources.map(source=><option key={source.revisionId} value={source.revisionId}>{source.label}{source.detail?`（${source.detail}）`:""}</option>)}
-        </select></label>
-        <label htmlFor={`${controlId}-reference`}>参照領域<select id={`${controlId}-reference`} value={chosen.reference} onChange={event=>choose("reference",event.target.value)}>
-          <option value="">参照を選択</option>{sources.map(source=><option key={source.revisionId} value={source.revisionId}>{source.label}{source.detail?`（${source.detail}）`:""}</option>)}
-        </select></label>
-        <label htmlFor={`${controlId}-channel`}>測定チャンネル<select id={`${controlId}-channel`} value={chosen.channel} onChange={event=>choose("channel",event.target.value)}>
-          <option value="">チャンネルを選択</option>{channels.map(channel=><option key={channel.id} value={channel.id}>{channel.label}{channel.stain&&channel.stain!==channel.label?`（${channel.stain}）`:""}</option>)}
-        </select></label>
-      </fieldset>
-      <p className={styles.hint}>対象と参照は、同じ核の中で重ならない領域を選びます。参照は自動で補いません。</p>
-      {chosen.target&&chosen.target===chosen.reference&&<p role="status">対象と参照に異なる領域を選んでください。</p>}
-      <button type="button" disabled={!valid||current?.loading||exporting} onClick={()=>void show()}>{current?.loading?"分配表を読み込み中…":"分配表を表示"}</button>
+      <div className={styles.choices}>
+        <label htmlFor={`${controlId}-target`}>対象<select id={`${controlId}-target`} value={pair.target} onChange={event=>onPair({target:event.target.value,reference:event.target.value===pair.reference?pair.target:pair.reference})}>
+          {sources.map(source=><option key={source.name} value={source.name}>{source.label}</option>)}</select></label>
+        <span aria-hidden="true">÷</span>
+        <label htmlFor={`${controlId}-reference`}>参照<select id={`${controlId}-reference`} value={pair.reference} onChange={event=>onPair({reference:event.target.value,target:event.target.value===pair.target?pair.reference:pair.target})}>
+          {sources.map(source=><option key={source.name} value={source.name}>{source.label}</option>)}</select></label>
+        <span>測定する染色：{channel.label}</span>
+      </div>
+      {!names.includes(pair.target)||!names.includes(pair.reference)?<p role="status">この視野には{!names.includes(pair.target)?"対象":"参照"}の領域がありません。</p>
+      :!current?<p role="status">分配表を読み込み中…</p>:null}
     </>}
     {current?.error&&<p role="alert">{current.error}</p>}
     {table&&<>
@@ -102,11 +97,11 @@ export function ConnectedPartition({fieldId,fieldLabel,nuclearRevisionId,nuclear
       <div className={styles.toolbar}><label htmlFor={`${controlId}-basis`}>表示する輝度<select id={`${controlId}-basis`} value={basis} onChange={event=>setBasis(event.target.value as "raw"|"corrected")}>
         <option value="raw">原値</option><option value="corrected">背景補正値</option>
       </select></label><button type="button" disabled={exporting} onClick={()=>void download()}>{exporting?"CSVを保存中…":"原値・補正値をCSV保存"}</button></div>
-      <p className={styles.definition}>K = 対象の平均輝度 ÷ 参照の平均輝度。同じ測定チャンネルの対象／参照を表します。</p>
+      <p className={styles.definition}>K = 対象の平均輝度 ÷ 参照の平均輝度（同じ染色）。統計の「核質／核小体 log₂ 比」と同じ向きにするには、対象を核質、参照を核小体にします。</p>
       <p className={styles.definition}>この表は区画内の飽和を評価していません。飽和した画素を含む核では、K が実際より小さく出ることがあります。</p>
       <p role="status">{table.background.status==="confirmed"?"保存済みの確認済み背景ROIを用いて補正しています。":"測定用の背景ROIが未確認のため、補正値は欠測です。"}</p>
       <div className={styles.tableScroll} tabIndex={0} role="region" aria-label="核ごとの分配表を横にスクロール">
-        <table><caption>{fieldLabel}の分配表 · {basis==="raw"?"原値":"背景補正値"}</caption><thead><tr>
+        <table><caption>{fieldLabel}の分配表 · {table.target_source.label} ÷ {table.reference_source.label} · {basis==="raw"?"原値":"背景補正値"}</caption><thead><tr>
           <th scope="col">核</th><th scope="col">K</th><th scope="col">log2K</th><th scope="col">状態・欠測理由</th>
           <th scope="col">対象面積<br/>{areaUnit}</th><th scope="col">参照面積<br/>{areaUnit}</th>
           <th scope="col">対象平均<br/>元の輝度単位</th><th scope="col">参照平均<br/>元の輝度単位</th>

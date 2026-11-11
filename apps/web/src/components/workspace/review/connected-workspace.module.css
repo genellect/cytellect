@@ -26,3 +26,20 @@
 .tableViews{display:flex;gap:4px;margin:0 0 8px}.tableViews button{font-size:14px;border:0;background:none;padding:3px 10px;border-radius:12px}.tableViews button[aria-pressed=true]{color:#1e58ad;background:#e8f0fc}.workspace tr[data-excluded=true] td{color:#8a919c}
 .tableDrawer{padding:4px 12px 8px}.tableDrawer h3{font-size:14px;margin:6px 0}
 .channelBar button[aria-expanded=true]{color:#1e58ad;background:#e8f0fc}
+/* The table's heading names what it lists; the next step sits on its right (MV-06, MV-09). */
+.tableHeading{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;margin:0 0 6px}
+.tableHeading h3{margin:0;font-size:14px;font-weight:600}
+.nextStep{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;margin-left:auto}
+.nextStep button{font-size:13px;padding:3px 10px;border:1px solid #c5d5ee;border-radius:14px;background:#f2f7ff;color:#1e58ad;white-space:nowrap}
+.nextStep button:disabled{color:#8a94a2;border-color:#dfe3e8;background:#f6f7f9}
+.nextStep small{font-size:12px;color:#5d6875}
+/* The image toolbar in two groups: what is shown, and how it is laid out (MV-08). It wraps instead of hiding controls. */
+.channelBar{flex-wrap:wrap;row-gap:2px;overflow-x:visible}
+.barGroup{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;min-width:0}
+.barGroup[data-arrange]{margin-left:auto;justify-content:flex-end}
+.stains{display:flex;flex-wrap:wrap;align-items:center;gap:2px;margin-right:6px}
+.stains>span{font-size:14px;margin-right:4px;color:inherit}
+.workspace .arrange{display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;font-size:13px;color:#3b4656}
+.workspace .arrange svg{width:17px;height:17px}
+.workspace .menuButton{display:block;margin-top:12px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:#fff;font-size:14px}
+@media(max-width:620px){.barGroup[data-arrange]{margin-left:0}.workspace .arrange span{display:none}}

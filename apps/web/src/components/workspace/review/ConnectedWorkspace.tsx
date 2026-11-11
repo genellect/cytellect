@@ -23,7 +23,11 @@ import {MeasurementTable} from "./MeasurementTable";
 import {ConnectedNucleusTable,type NucleusTableSource} from "./NucleusTable";
 import {ConnectedPartition} from "./ConnectedPartition";
 import {ConnectedChannelGate} from "./ConnectedChannelGate";
-import type {ChannelGateFilter,ChannelGateResult} from "@/lib/workspace/channel-gate";
+import {channelGateRequest,recordedChannelGate,type ChannelGateFilter,type ChannelGateResult} from "@/lib/workspace/channel-gate";
+import {PARTITION_DIRECTION,colorByChoices,gateLegend,gateStates,nextComparison,shownColorBy,tableHeading,type ColorBy,type NextComparison} from "@/lib/workspace/color-by";
+import type {RegionClassification} from "./ReviewImageCanvas";
+import type {NucleusTableGate} from "./nucleus-table-model";
+import {TableHeading,type ColorView,type NextAction} from "./ColorView";
 import {UnfinishedImports} from "./UnfinishedImports";
 import {PairStage,pairDisplayText,pairRuns,type Historical,type PairDisplay} from "./PairStage";
 import {assignFields,fieldsIn,type ExperimentDesign} from "@/lib/workspace/experiment-design";
@@ -44,7 +48,7 @@ function channelLabel(ch:{id:string;stain:string|null},all:Array<{id:string;stai
   return all.filter(other=>other.stain===ch.stain).length>1?`${ch.stain} · ${ch.id}`:ch.stain;
 }
 type Runtime=ReturnType<typeof useWorkspaceRuntime>;
-const paths={stop:"M6 6h12v12H6z",plus:"M12 4v16M4 12h16",compare:"M3 4h7v16H3zM14 4h7v16h-7z",settings:"M4 7h16M4 17h16M8 4v6M16 14v6",close:"m6 6 12 12M6 18 18-12",back:"m10 5-7 7 7 7M3 12h18",ai:"M4 4h16v12H9l-5 4V4M8 8h8M8 12h5",send:"M12 20V4m-7 7 7-7 7 7"};
+const paths={stop:"M6 6h12v12H6z",plus:"M12 4v16M4 12h16",compare:"M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z",pair:"M3 5h8v14H3zM13 5h8v14h-8z",link:"M10 14l4-4M8.5 11.5 6 14a3 3 0 0 0 4 4l2.5-2.5M15.5 12.5 18 10a3 3 0 0 0-4-4l-2.5 2.5",table:"M4 5h16v14H4zM4 10h16M10 10v9",settings:"M4 7h16M4 17h16M8 4v6M16 14v6",close:"m6 6 12 12M6 18 18-12",back:"m10 5-7 7 7 7M3 12h18",ai:"M4 4h16v12H9l-5 4V4M8 8h8M8 12h5",send:"M12 20V4m-7 7 7-7 7 7"};
 function Icon({name}:{name:keyof typeof paths}){return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d={paths[name]}/></svg>;}
 /** `showcase`: the public demo (/demo) — the same workspace on the serverless transport (docs/showcase.md). */
 export default function ConnectedWorkspace({showcase=false}:{showcase?:boolean}={}){
@@ -89,8 +93,15 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   // Physical units need every analysed field to have a confirmed pixel size (M-02).
   const calibrated=fields.length>0&&fields.every(value=>value.kind==="reference"||!!value.pixelSizeUm);
   const regionOffered=(id:ReviewTarget)=>!demo||(id!=="cell"&&(!showcase.dataset?.regions||showcase.dataset.regions.includes(id)));
-  const [mode,setMode]=useState<Mode>(initialMode??"image"),[selected,setSelected]=useState(""),[channelId,setChannel]=useState(""),[target,setTarget]=useState<ReviewTarget>("nuclei"),[region,setRegion]=useState<number>(),[nucleusView,setNucleusView]=useState(false);
-  const [partitionView,setPartitionView]=useState(false);
+  const [mode,setMode]=useState<Mode>(initialMode??"image"),[selected,setSelected]=useState(""),[channelId,setChannel]=useState(""),[target,setTarget]=useState<ReviewTarget>("nuclei"),[region,setRegion]=useState<number>(),[nucleusView,setNucleusView]=useState(true);
+  // The partition's target and reference by name, shared by every pane and the table heading: nucleoplasm ÷ nucleoli,
+  // the direction of the statistics metric (owner decision 1, MV-05).
+  const [partitionPair,setPartitionPair]=useState<{target:string;reference:string}>({...PARTITION_DIRECTION});
+  // How the image colours its regions; the colour mode is the entry to a measurement (MV-01).
+  const [colorBy,setColorBy]=useState<ColorBy>("outline");
+  // A saved decision that no longer matches the nuclei and fields (MV-10), and a request to judge again in statistics (MV-09).
+  const [gateStale,setGateStale]=useState(""),[reclassifyRequest,setReclassifyRequest]=useState(0);
+  const explicitMetric=useRef(false);
   // Whether the image leaves room for the table beside it (then the 測定値 button moves it below).
   const [sideRoom,setSideRoom]=useState(false);
   const [lastResultMode,setLastResultMode]=useState<"statistics"|"figure">("statistics");
@@ -124,17 +135,12 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   const nuclearResult=target==="nuclei"&&!historicResult&&!candidate&&field?r.currentResult(field.id,"nuclei"):undefined;
   const nucleusTableSource:NucleusTableSource|undefined=field&&nuclearResult?{shown:nucleusView,onShow:setNucleusView,load:r.adapter.nucleusTable,save:r.adapter.saveNucleusTable,field:field.id,caption:field.label,exclusion:field.exclusionReason,
     nuclearRevision:nuclearResult.revision,nucleolarRevision:r.currentResult(field.id,"nucleoli")?.revision,channels:field.channels}:undefined;
-  const partitionNucleus=field&&!historicResult&&!candidate?r.currentResult(field.id,"nuclei"):undefined;
-  const partitionSources=field?(["nucleoli","nucleoplasm"] as const).flatMap(name=>{
-    const value=r.currentResult(field.id,name);
-    return value?[{revisionId:value.revision,label:targets[name]}]:[];
-  }):[];
   const planes=fields.flatMap(value=>value.channels.map(ch=>({field:value,channel:ch,key:`${value.id}:${ch.id}`})));
   const visible=compare?planes.filter(value=>picked.includes(value.key)):planes.filter(value=>value.field.id===field?.id&&value.channel.id===actualChannel);
   // The table beside one image lists `rows` (the selected field in the selected channel), which a comparison may not show:
-  // its caption names those rows' stain, and their field when the image is another field's.
-  const rowsChannel=field?.channels.find(value=>value.id===actualChannel);
-  const rowsCaption=field&&rowsChannel?`${visible.some(value=>value.field.id!==field.id)?`${field.label} · `:""}${rowsChannel.stain||rowsChannel.id}`:"";
+  // its heading names those rows' stain, and their field when the image is another field's.
+  // The field the rows come from, named when the images in view include another field.
+  const rowsField=field&&visible.some(value=>value.field.id!==field.id)?field.label:"";
   const mergeable=!!field&&compositeLayers(field).length>1,merged=composite&&mergeable&&!compare;
   const transportAvailable=API_CONFIGURED||demo;
   const busy=r.busy||editing||!transportAvailable;
@@ -274,7 +280,14 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   const openingChannel=demo?showcase.scene?.channel:undefined;
   useEffect(()=>{if(openingChannel)setChannel(previous=>previous||openingChannel);},[openingChannel]);
   async function classify(result:GfpGateResult,filter:WorkspaceGfpFilter){await act(async()=>{await r.saveSelection({field_ids:nuclearFields.map(value=>value.fieldId),gfp:filter});setGfpSaved({signature:nuclearSignature,result,filter});});}
-  async function classifyChannel(result:ChannelGateResult,filter:ChannelGateFilter){await r.saveSelection({field_ids:channelFields.map(value=>value.fieldId),gfp:null,channel_gate:filter});setGfpSaved(null);setChannelSaved({signature:channelSignature,result,filter});}
+  async function classifyChannel(result:ChannelGateResult,filter:ChannelGateFilter){await r.saveSelection({field_ids:channelFields.map(value=>value.fieldId),gfp:null,channel_gate:filter});setGfpSaved(null);setGateStale("");setChannelSaved({signature:channelSignature,result,filter});}
+  /** The colour mode chosen on the image. Positive and negative nuclei are judged in the side panel, which opens with it (MV-04). */
+  function chooseColorBy(value:ColorBy){setColorBy(value);if(value!=="outline"&&target!=="nuclei")changeTarget("nuclei");if(value==="positivity")dispatchPanel("settings");}
+  /** The next step (MV-09): statistics with what the image shows; positivity judges the compared fields again by the same rule. */
+  function compareGroups(next:NextComparison){
+    explicitMetric.current=true;setMetric(next.metric);if(next.channel)setChannel(next.channel);
+    if(next.reclassify)setReclassifyRequest(Date.now());changeMode("statistics");
+  }
   async function saveBackground(polygon:Point[]){
     if(!backgroundDraw)return;
     const updated={...backgrounds,[backgroundDraw.field]:{...backgrounds[backgroundDraw.field]}};
@@ -284,6 +297,8 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   }
   function changeTarget(value:ReviewTarget){
     ++sourceRequest.current;setPreviewRequest(null);setHistorical(null);setTarget(value);setRegion(undefined);
+    // The colour modes are per nucleus; another region shows its outlines.
+    if(value!=="nuclei")setColorBy("outline");
     if(value==="cell"&&r.settings.cellDefinition?.source!=="cellpose"&&field&&!field.results.cell&&!busy)void act(()=>r.run("cell",field.id));
   }
   async function measure(){await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
@@ -313,6 +328,62 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   // The demo classifies nuclei only by the stains its scene names (positive and negative must mean something).
   const sceneGate=demo?showcase.dataset?.gateChannels:null;
   const gateChannels=(field?.channels||data?.channels||[]).filter(value=>!sceneGate||sceneGate.includes(value.id));
+  // The colour modes the shown field can be coloured by, and the one in effect (MV-01). They are per nucleus.
+  const colorChoices=colorByChoices({nuclei:!!field&&!!r.currentResult(field.id,"nuclei"),gateChannels:gateChannels.length,
+    nucleoli:!!field&&!!r.currentResult(field.id,"nucleoli"),nucleoplasm:!!field&&!!r.currentResult(field.id,"nucleoplasm"),saved:!!historicResult||!!candidate});
+  const colorShown:ColorBy=target==="nuclei"?shownColorBy(colorBy,colorChoices):"outline";
+  const stainName=(id:string)=>{const ch=(field?.channels||data?.channels||[]).find(value=>value.id===id);return ch?ch.stain||ch.id:id;};
+  const gateStain=channelFilter?stainName(channelFilter.channel_id):"";
+  /** Each region's state on one field's image: the saved channel decision in the positivity mode, the GFP decision on outlines. */
+  function regionStates(fieldId:string):Record<number,RegionClassification>|undefined{
+    if(colorShown==="positivity")return channelClassification?gateStates(channelClassification,fieldId):undefined;
+    if(colorShown==="outline"&&classification&&(target==="nuclei"||target==="cell"))return Object.fromEntries(classification.filter(item=>item.field_id===fieldId)
+      .map(item=>[item.region_id,item.gfp_positive===null?"unknown":item.gfp_positive?"positive":"negative"]));
+    return undefined;
+  }
+  function legendFor(fieldId:string){
+    if(colorShown==="positivity"){const states=regionStates(fieldId);return states?gateLegend(states as Record<number,"positive">).map(item=>({key:item.status,label:item.label,count:item.count})):undefined;}
+    if(colorShown==="compartments")return [{key:"nucleoplasm",label:"核質"},{key:"nucleoli",label:"核小体"}];
+    return undefined;
+  }
+  const fillsFor=(fieldId:string)=>colorShown==="compartments"?r.currentResult(fieldId,"nucleoli")?.masks.regions:undefined;
+  function gateTableFor(fieldId:string):NucleusTableGate|undefined{
+    if(colorShown!=="positivity"||!channelClassification)return undefined;
+    return {stain:gateStain,nuclei:Object.fromEntries(channelClassification.filter(item=>item.field_id===fieldId)
+      .map(item=>[item.region_id,{status:item.status,value:item.channel_mean,threshold:item.threshold,reason:item.reason}]))};
+  }
+  /** What the table under an image lists (MV-06). */
+  function headingFor(nucleusTable:boolean,shownRows:MeasurementRow[]){
+    if(colorShown==="positivity")return channelFilter?tableHeading({colorBy:"positivity",stain:gateStain,method:channelFilter.method,values:channelFilter.values}):"核ごと · 陽性・陰性は未判定";
+    if(colorShown==="compartments")return tableHeading({colorBy:"compartments",stain:stainName(actualChannel),target:targets[partitionPair.target as ReviewTarget]??partitionPair.target,reference:targets[partitionPair.reference as ReviewTarget]??partitionPair.reference});
+    return tableHeading({colorBy:"outline",target,stain:stainName(actualChannel),corrected:shownRows.some(row=>row.mean_corrected!=null),nucleusTable});
+  }
+  // The one next step beside the table (MV-09), for a two-group design.
+  const nextStep=experiment?.layout==="pair"&&!historicResult&&!candidate?nextComparison({colorBy:colorShown,metric,target,channel:actualChannel,stain:stainName(actualChannel)}):null;
+  /** The partition table of one field (MV-05): nucleoli and nucleoplasm of its adopted nuclei, in the stain chosen above the image. */
+  function partitionFor(value:ReviewField){
+    const nuclear=r.currentResult(value.id,"nuclei"),ch=value.channels.find(item=>item.id===actualChannel);
+    const sources=(["nucleoli","nucleoplasm"] as const).flatMap(name=>{const current=r.currentResult(value.id,name);return current?[{name,revisionId:current.revision,label:targets[name]}]:[];});
+    return <ConnectedPartition key={`${value.id}:${nuclear?.revision??""}`} fieldId={value.id} fieldLabel={value.label} nuclearRevisionId={nuclear?.revision}
+      sources={sources} pair={partitionPair} onPair={setPartitionPair} channel={{id:actualChannel,label:ch?channelLabel(ch,value.channels):actualChannel,stain:ch?.stain}}
+      load={request=>explained(()=>r.adapter.regionPartition(request))} exportCsv={request=>explained(()=>r.adapter.saveRegionPartition(request))}
+      selectedNucleus={value.id===field?.id?region:undefined} onSelectNucleus={id=>{setSelected(value.id);setRegion(id);}}/>;
+  }
+  const nextAction=nextStep?{...nextStep,disabled:colorShown==="positivity"&&!channelFilter,onClick:()=>compareGroups(nextStep)}:null;
+  // A saved decision colours the image again after a reload, when it still matches the nuclei and fields (MV-10).
+  const restoreKey=JSON.stringify([channelSignature,channelFilter]);
+  const restoredFor=useRef("");
+  const restoreGate=useEffectEvent(async()=>{
+    if(!channelFilter||!data?.workspaceId||!channelFields.length)return;
+    restoredFor.current=restoreKey;
+    try{
+      const result=await r.adapter.channelGate(data.workspaceId,channelGateRequest({...channelFilter,reference_sha256:null},channelFields));
+      if(restoredFor.current!==restoreKey)return;
+      if(result.record.decision_sha256!==channelFilter.reference_sha256){setGateStale("保存した判定の記録が、今の核や視野と合いません。右の「陽性・陰性の判定」で判定し直してください。");return;}
+      setGateStale("");setChannelSaved({signature:channelSignature,result,filter:recordedChannelGate(result)});
+    }catch(error){if(restoredFor.current===restoreKey&&!isShowcaseNotice(error instanceof Error?error.message:""))setGateStale(error instanceof Error?error.message:"保存した判定の記録を読み込めませんでした。");}
+  });
+  useEffect(()=>{if(colorShown!=="positivity"||busy||!channelFilter||channelClassification||restoredFor.current===restoreKey)return;void restoreGate();},[colorShown,busy,channelFilter,channelClassification,restoreKey]);
   // Two-group designs open side by side (V-01); the single view stays one click away.
   const [pairView,setPairView]=useState(true);
   const pairActive=pairView&&experiment?.layout==="pair"&&!compare&&!backgroundDraw;
@@ -364,38 +435,49 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
       <section hidden={!setupShown} className={styles.imageWork}>{setupShown&&setup}</section>
       <section hidden={mode!=="image"||setupShown} className={styles.imageWork}>
         {!field&&demo&&!fields.length&&!r.error?<div className={styles.start}><p role="status">公開画像と保存済みの解析結果を読み込み中…</p></div>:!field&&!demo?null:!field?<div className={styles.start}><h1>画像解析</h1><div className={styles.startActions}><button className={styles.primary} disabled={intakeDisabled} onClick={()=>chooseFiles()}>画像を追加</button><button disabled={intakeDisabled} onClick={()=>chooseFiles(true)}>フォルダを追加</button></div><p>TIFF・OME-TIFF</p><button onClick={()=>changeMode("statistics")}>測定済みデータを使う</button></div>:<>
-          <div className={styles.channelBar}>{returnMode&&<button className={styles.icon} aria-label="元の結果へ戻る" disabled={editing} onClick={returnToResult}><Icon name="back"/></button>}{pairActive&&runsShown.length>0?<><label className={styles.inline}>実験回<select disabled={editing} value={pairRunId} onChange={e=>choosePairRun(e.target.value)}>{runsShown.map(run=><option key={run.id} value={run.id}>{run.label}</option>)}</select></label><label className={styles.inlineCheck} title="2 つの画像の拡大と位置を連動します"><input type="checkbox" checked={pairLinked} onChange={e=>setPairLinked(e.target.checked)}/>拡大を連動</label></>:<strong title={field.label}>{field.label}</strong>}<label className={styles.inline}>領域<select disabled={busy} value={target} onChange={e=>changeTarget(e.target.value as ReviewTarget)}>{Object.entries(targets).filter(([id])=>regionOffered(id as ReviewTarget)).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label>{!pairActive&&mergeable&&<button data-composite disabled={editing} aria-pressed={merged} onClick={()=>{setComposite(true);setCompare(false);}}>重ねて表示</button>}{field.channels.map(ch=><button disabled={editing} aria-pressed={actualChannel===ch.id&&!compare&&!(merged&&!pairActive)} key={ch.id} title={ch.id} aria-label={ch.stain?`${ch.stain} · ${ch.id}`:undefined} data-channel={ch.id} onClick={()=>{setChannel(ch.id);setCompare(false);setComposite(false);}}>{channelLabel(ch,field.channels)}</button>)}<span className={styles.barEnd}/>{pairActive&&pairDisplay&&<details className={styles.rangeInfo} data-shared={pairDisplay.shared}><summary>{pairDisplayText(pairDisplay).label}</summary><p>{pairDisplayText(pairDisplay).detail}</p></details>}{pairActive&&<button disabled={editing} aria-pressed={pairTables} onClick={()=>setPairTables(!pairTables)}>測定値</button>}{/* Always reachable: without adopted nuclei the panel itself says what to do first (visible, not a tooltip). */}
-            {!historicResult&&!candidate&&<button disabled={busy} aria-expanded={partitionView} title="同じ核の中で、対象と参照の領域に含まれる信号を比べます"
-            onClick={()=>{setPairView(false);setCompare(false);setPartitionView(!partitionView);}}>区画への分配</button>}<button disabled={busy} onClick={()=>setAssignments(!assignments)}>染色対応</button>{experiment?.layout==="pair"&&<button disabled={editing} aria-pressed={pairActive} onClick={()=>{setPairView(!pairActive);setCompare(false);}}>2 画面</button>}{!pairActive&&<button className={styles.icon} disabled={editing} aria-label="画像を比較" title="視野やチャンネルを選んで並べる" aria-pressed={compare} onClick={chooseComparison}><Icon name="compare"/></button>}<details className={styles.fieldMenu} data-dismissible><summary aria-label="画像の設定">⋯</summary><div className={styles.menuPanel}><label>画像の用途<select disabled={busy} value={field.kind||"analysis"} onChange={e=>void act(()=>r.saveFieldLink(field.id,e.target.value as "analysis"|"reference"))}><option value="analysis">解析画像</option><option value="reference">補助画像</option></select></label>{field.kind==="reference"&&<label>対応する視野<select disabled={busy} value={field.referenceFor||""} onChange={e=>void act(()=>r.saveFieldLink(field.id,"reference",e.target.value||null))}><option value="">指定なし</option>{fields.filter(value=>value.id!==field.id&&value.kind!=="reference").map(value=><option key={value.id} value={value.id}>{value.label}</option>)}</select></label>}</div></details></div>
+          {/* What the image shows on the left (region, stain, colour mode), how it is laid out on the right (MV-08). */}
+          <div className={styles.channelBar} role="toolbar" aria-label="画像の表示">
+            <div className={styles.barGroup} role="group" aria-label="何を見るか">{returnMode&&<button className={styles.icon} aria-label="元の結果へ戻る" disabled={editing} onClick={returnToResult}><Icon name="back"/></button>}{!pairActive&&<strong title={field.label}>{field.label}</strong>}
+              <label className={styles.inline}>領域<select disabled={busy} value={target} onChange={e=>changeTarget(e.target.value as ReviewTarget)}>{Object.entries(targets).filter(([id])=>regionOffered(id as ReviewTarget)).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label>
+              <span className={styles.stains} role="group" aria-label="染色"><span aria-hidden="true">染色</span>{!pairActive&&mergeable&&<button data-composite disabled={editing} aria-pressed={merged} onClick={()=>{setComposite(true);setCompare(false);}}>重ねて表示</button>}{field.channels.map(ch=><button disabled={editing} aria-pressed={actualChannel===ch.id&&!compare&&!(merged&&!pairActive)} key={ch.id} title={ch.id} aria-label={ch.stain?`${ch.stain} · ${ch.id}`:undefined} data-channel={ch.id} onClick={()=>{setChannel(ch.id);setCompare(false);setComposite(false);}}>{channelLabel(ch,field.channels)}</button>)}</span>
+              <label className={styles.inline}>色分け<select disabled={editing} value={colorShown} onChange={e=>chooseColorBy(e.target.value as ColorBy)}>{colorChoices.map(choice=><option key={choice.id} value={choice.id} disabled={choice.reason!==null} title={choice.reason??undefined}>{choice.label}{choice.reason?`（${choice.reason}）`:""}</option>)}</select></label></div>
+            <div className={styles.barGroup} data-arrange role="group" aria-label="並べ方">
+              {pairActive&&runsShown.length>0&&<label className={styles.inline}>実験回<select disabled={editing} value={pairRunId} onChange={e=>choosePairRun(e.target.value)}>{runsShown.map(run=><option key={run.id} value={run.id}>{run.label}</option>)}</select></label>}
+              {pairActive&&<button className={styles.arrange} disabled={editing} aria-pressed={pairLinked} aria-label="拡大を連動" title="2 つの画像の拡大と位置を連動します" onClick={()=>setPairLinked(!pairLinked)}><Icon name="link"/><span>連動</span></button>}
+              {pairActive&&pairDisplay&&<details className={styles.rangeInfo} data-shared={pairDisplay.shared}><summary>{pairDisplayText(pairDisplay).label}</summary><p>{pairDisplayText(pairDisplay).detail}</p></details>}
+              {pairActive&&<button className={styles.arrange} disabled={editing} aria-pressed={pairTables} aria-label="測定値" title="各画像の表を表示します" onClick={()=>setPairTables(!pairTables)}><Icon name="table"/><span>測定値</span></button>}
+              {experiment?.layout==="pair"&&<button className={styles.arrange} disabled={editing} aria-pressed={pairActive} aria-label="2 画面" title="2 つの群の視野を並べます" onClick={()=>{setPairView(!pairActive);setCompare(false);}}><Icon name="pair"/><span>2 画面</span></button>}
+              {!pairActive&&<button className={styles.icon} disabled={editing} aria-label="画像を比較" title="視野やチャンネルを選んで並べる" aria-pressed={compare} onClick={chooseComparison}><Icon name="compare"/></button>}
+              <details className={styles.fieldMenu} data-dismissible><summary aria-label="画像の設定">⋯</summary><div className={styles.menuPanel}><label>画像の用途<select disabled={busy} value={field.kind||"analysis"} onChange={e=>void act(()=>r.saveFieldLink(field.id,e.target.value as "analysis"|"reference"))}><option value="analysis">解析画像</option><option value="reference">補助画像</option></select></label>{field.kind==="reference"&&<label>対応する視野<select disabled={busy} value={field.referenceFor||""} onChange={e=>void act(()=>r.saveFieldLink(field.id,"reference",e.target.value||null))}><option value="">指定なし</option>{fields.filter(value=>value.id!==field.id&&value.kind!=="reference").map(value=><option key={value.id} value={value.id}>{value.label}</option>)}</select></label>}
+                {/* Channel names and roles are set once per image set; they are kept here, out of the way of the work above (MV-08). */}
+                <button className={styles.menuButton} disabled={busy} onClick={event=>{(event.currentTarget.closest("details") as HTMLDetailsElement|null)?.removeAttribute("open");setAssignments(!assignments);}}>染色対応</button></div></details></div>
+          </div>
           {assignments&&<AssignmentEditor key={field.id} field={field} runtime={r} onDone={()=>{setAssignments(false);queuePreview("nuclei");}} onError={setLocalError}/>}
           {picker&&<div className={styles.comparisonPicker}>{planes.map(value=><label key={value.key}><input type="checkbox" checked={picked.includes(value.key)} onChange={e=>setPicked(previous=>e.target.checked?[...previous,value.key]:previous.filter(key=>key!==value.key))}/>{value.field.label} · {value.channel.stain||value.channel.id}</label>)}<button className={styles.icon} aria-label="比較対象を閉じる" onClick={()=>setPicker(false)}><Icon name="close"/></button></div>}
-          {pairActive?<PairStage design={experiment!} fields={fields} runtime={r} target={target} channel={actualChannel} selectedField={field.id} region={region} historical={historical} onSelect={(id,ch,n)=>{setSelected(id);setChannel(ch);setRegion(n);}} onEditing={setEditing} runId={pairRunId} linked={pairLinked} tables={pairTables} onDisplay={setPairDisplay}/>:<ImageStage planes={visible} target={target} fieldId={field.id} region={region} rows={rows} onRegion={setRegion} onSelect={(id,ch,n)=>{setSelected(id);setChannel(ch);setRegion(n);}} onOpen={openField} runtime={r} editing={editing} onEditing={setEditing} classification={target==="nuclei"||target==="cell"?classification:undefined} channelClassification={target==="nuclei"?channelClassification:undefined} historical={historical} backgrounds={backgrounds} backgroundDraw={backgroundDraw?{field:backgroundDraw.field,requestId:backgroundDraw.id,onSave:saveBackground,onCancel:()=>setBackgroundDraw(null)}:undefined} viewport={viewport} onViewport={(fid,value)=>setViewport(previous=>({...previous,[fid]:value}))} composite={merged} demo={demo} rowsCaption={rowsCaption} nucleusTable={nucleusTableSource} sideTable={!table} onSideTable={setSideRoom}/>}
+          {pairActive?<PairStage design={experiment!} fields={fields} runtime={r} target={target} channel={actualChannel} selectedField={field.id} region={region} historical={historical} onSelect={(id,ch,n)=>{setSelected(id);setChannel(ch);setRegion(n);}} onEditing={setEditing} runId={pairRunId} linked={pairLinked} tables={pairTables} onDisplay={setPairDisplay}
+            colorBy={colorShown} states={regionStates} legend={legendFor} fills={fillsFor} gateTable={gateTableFor} heading={headingFor} next={nextAction} partition={partitionFor}/>:<ImageStage planes={visible} target={target} fieldId={field.id} region={region} rows={rows} onRegion={setRegion} onSelect={(id,ch,n)=>{setSelected(id);setChannel(ch);setRegion(n);}} onOpen={openField} runtime={r} editing={editing} onEditing={setEditing} colorBy={colorShown} states={regionStates} legend={legendFor} fills={fillsFor} gateTable={gateTableFor} heading={headingFor} next={nextAction} partition={colorShown==="compartments"?partitionFor(field):undefined} historical={historical} backgrounds={backgrounds} backgroundDraw={backgroundDraw?{field:backgroundDraw.field,requestId:backgroundDraw.id,onSave:saveBackground,onCancel:()=>setBackgroundDraw(null)}:undefined} viewport={viewport} onViewport={(fid,value)=>setViewport(previous=>({...previous,[fid]:value}))} composite={merged} demo={demo} rowsField={rowsField} nucleusTable={nucleusTableSource} sideTable={!table} onSideTable={setSideRoom}/>}
           {/* Side by side, each pane lists its own measurements; this row then only carries the selected field's actions. */}
           {(!pairActive||!!candidate||!!field.exclusionReason||!!field.error)&&<div className={styles.measureToggle}>{pairActive?<strong>{field.label}</strong>:<button aria-expanded={table} aria-label={sideRoom?`測定値${rows.length?` · ${rows.length}`:""}（${table?"画像の横に戻す":"画像の下に広げる"}）`:undefined} title={sideRoom?(table?"測定値を画像の横に戻します":"測定値を画像の下に広げます"):undefined} onClick={()=>setTable(!table)}>測定値{rows.length?` · ${rows.length}`:""}</button>}<span>{targets[target]}{historicResult?" · 図の保存時の版":candidate?" · 検出候補":result?"":" · 未測定"}</span>{candidate&&<button disabled={busy} onClick={()=>void act(()=>r.acceptCandidates(field.id,target))}>候補を採用</button>}{field.exclusionReason?<button onClick={()=>void act(()=>r.excludeField(field.id,null))}>解析対象に戻す</button>:field.error?<button onClick={()=>void act(()=>r.excludeField(field.id,"利用者が解析対象から除外"))}>この視野を除外</button>:null}</div>}
-          {table&&!pairActive&&<div className={styles.tableDrawer}><MeasurementsPanel target={target} rows={rows} rowsCaption={rowsCaption} region={region} onRegion={setRegion} editing={editing} nucleusTable={nucleusTableSource}/></div>}
-          {!historicResult&&!candidate&&<>
-            {partitionView&&!editing&&<ConnectedPartition
-              key={`${field.id}:${partitionNucleus?.revision??""}:${partitionSources.map(value=>value.revisionId).join(":")}`}
-              fieldId={field.id} fieldLabel={field.label} nuclearRevisionId={partitionNucleus?.revision}
-              sources={partitionSources} channels={field.channels.filter(value=>value.role!=="unused")}
-              load={value=>explained(()=>r.adapter.regionPartition(value))}
-              exportCsv={value=>explained(()=>r.adapter.saveRegionPartition(value))}
-              selectedNucleus={target==="nuclei"?region:undefined}
-              onSelectNucleus={id=>{changeTarget("nuclei");setRegion(id);}}/>}
-          </>}
+          {table&&!pairActive&&<div className={styles.tableDrawer}><MeasurementsPanel heading={headingFor(!!nucleusTableSource?.shown,rows)} rowsField={rowsField} mode={colorShown} gate={field?gateTableFor(field.id):undefined} next={nextAction} partition={colorShown==="compartments"?partitionFor(field):undefined} rows={rows} region={region} onRegion={setRegion} editing={editing} nucleusTable={nucleusTableSource}/></div>}
+
         </>}
       </section>
-      <section className={styles.resultWork} hidden={mode==="image"||mode==="experiment"}>{r.unfinishedImports.length>0&&<p role="status" className={styles.unfinishedNotice}>登録できなかった画像が {r.unfinishedImports.length} 件あります。比較の前に、画面下の「取込」の一覧で理由を付けて除外してください。</p>}<ConnectedResults adapter={r.adapter} workspace={data?.workspaceId||""} selection={r.adapter.selection()} items={sources} target={sourceTarget} metric={metric} channel={metricUsesChannel(metric)?actualChannel||null:null} mode={mode==="image"||mode==="experiment"?lastResultMode:mode} onOpening={(openedMetric,openedChannel)=>{if(metric==="mean")setMetric(openedMetric);if(openedChannel&&!channelId)setChannel(openedChannel);}} experiment={experiment} experimentSha256={r.experimentSha256()} onEditExperiment={()=>changeMode("experiment")} onSource={(id,n,revision,source,ch,structure)=>void openSource(id,n,revision,source,ch,structure)} onAnalysisTargetChange={setTarget} onPrepareMissing={()=>r.run(sourceTarget)} disabled={r.busy} gfp={gfpFilter} channelGate={channelFilter} onChannelGateRecorded={classifyChannel} initialSpec={storedSpec||undefined} onSaveDraft={draft=>r.saveResultDraft(draft)} onMetricChange={(nextMetric,nextChannel)=>{setMetric(nextMetric);if(nextChannel)setChannel(nextChannel);}}/></section>
+      <section className={styles.resultWork} hidden={mode==="image"||mode==="experiment"}>{r.unfinishedImports.length>0&&<p role="status" className={styles.unfinishedNotice}>登録できなかった画像が {r.unfinishedImports.length} 件あります。比較の前に、画面下の「取込」の一覧で理由を付けて除外してください。</p>}<ConnectedResults adapter={r.adapter} workspace={data?.workspaceId||""} selection={r.adapter.selection()} items={sources} target={sourceTarget} metric={metric} channel={metricUsesChannel(metric)?actualChannel||null:null} mode={mode==="image"||mode==="experiment"?lastResultMode:mode} onOpening={(openedMetric,openedChannel)=>{if(explicitMetric.current)return;if(metric==="mean")setMetric(openedMetric);if(openedChannel&&!channelId)setChannel(openedChannel);}} reclassifyRequest={reclassifyRequest} experiment={experiment} experimentSha256={r.experimentSha256()} onEditExperiment={()=>changeMode("experiment")} onSource={(id,n,revision,source,ch,structure)=>void openSource(id,n,revision,source,ch,structure)} onAnalysisTargetChange={setTarget} onPrepareMissing={()=>r.run(sourceTarget)} disabled={r.busy} gfp={gfpFilter} channelGate={channelFilter} onChannelGateRecorded={classifyChannel} initialSpec={storedSpec||undefined} onSaveDraft={draft=>r.saveResultDraft(draft)} onMetricChange={(nextMetric,nextChannel)=>{setMetric(nextMetric);if(nextChannel)setChannel(nextChannel);}}/></section>
     </div>
 
     {(mode==="image"&&!!field||ai)&&(panel||ai)&&<aside className={styles.inspector} aria-label={ai?"AI":"画像解析"}><div className={styles.panelHeading}><h2>{ai?"AI":"画像解析"}</h2><button className={styles.icon} aria-label="パネルを閉じる" onClick={()=>dispatchPanel("close")}><Icon name="close"/></button></div><div className={styles.inspectorBody}>
       {ai?<><button onClick={showSettings}>解析設定を表示</button><div className={styles.userMessage}>{instruction}</div>{demoReply?<p>{demoReply}</p>:r.proposal?<><p>{r.proposal.draft.rationale}</p><dl>{r.proposal.draft.channels.map(ch=><div key={ch.token}><dt>{ch.token}</dt><dd>{ch.stain||ch.role}</dd></div>)}</dl>{r.proposal.draft.missing_information.length>0&&<ul>{r.proposal.draft.missing_information.map(text=><li key={text}>{text}</li>)}</ul>}{r.canUndoProposal()&&<button disabled={busy} onClick={()=>void act(()=>r.undoProposal())}>AIによる設定変更を戻す</button>}</>:<p>下の入力欄から解析の指示を送信できます。</p>}{demo&&<ProposalExamples examples={showcase.examples} disabled={busy} onChoose={value=>{setInstruction(value);void sendInstruction(value);}}/>}</>:<>
+        {colorShown==="positivity"&&<section aria-label="陽性・陰性の判定"><h3>陽性・陰性の判定</h3>
+          {gateStale&&<p role="status">{gateStale}</p>}
+          <ConnectedChannelGate recorded={demo} adapter={r.adapter} workspace={data?.workspaceId||""} fields={channelFields} channels={gateChannels} disabled={busy}
+            initialChannel={channelFilter?.channel_id??(gateChannels.some(ch=>ch.id===actualChannel)?actualChannel:"")} decision={channelClassification&&channelSaved?{result:channelSaved.result,filter:channelSaved.filter}:null}
+            selected={field&&region!==undefined?{fieldId:field.id,regionId:region}:null} onClassified={classifyChannel}/>
+          {channelFilter&&<button disabled={busy} onClick={()=>void act(async()=>{await r.saveSelection({field_ids:channelFields.map(value=>value.fieldId),gfp:null});setChannelSaved(null);setGateStale("");})}>チャンネルによる分類を解除</button>}</section>}
         <label>領域<select disabled={busy} value={target} onChange={e=>{changeTarget(e.target.value as ReviewTarget);}}>{Object.entries(targets).filter(([id])=>regionOffered(id as ReviewTarget)).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label>
         <section><h3>検出</h3>{demo?<RecordedDetection target={target} recipe={field?r.resultRecipe(field.id,target):undefined} settings={r.settings} channels={field?.channels||data?.channels||[]} nuclear={field?.channels.find(ch=>ch.role==="nuclear")?.id||field?.nuclearChannelId||""}/>:<fieldset className={styles.plain}>{target==="nuclei"?<><label>核染色<select value={field?.channels.find(ch=>ch.role==="nuclear")?.id||field?.nuclearChannelId||""} disabled={busy} onChange={e=>void act(()=>r.saveAssignments((field?.channels||[]).map(ch=>({channel_id:ch.id,stain:ch.stain,role:ch.id===e.target.value?"nuclear":ch.role==="unused"?"unused":"measure"})),field?.id).then(()=>queuePreview("nuclei")))}><option value="">チャンネルを指定</option>{(field?.channels||data?.channels)?.map(ch=><option key={ch.id} value={ch.id}>{ch.stain?`${ch.stain} · ${ch.id}`:ch.id}</option>)}</select></label><p className={styles.method}>StarDist 2D</p><details><summary>検出条件</summary><NumberSetting label="確率閾値" value={r.settings.nuclearProbability} min={0} max={1} step={.05} onChange={v=>setSetting("nuclearProbability",v??.5)}/><NumberSetting label="NMS閾値" value={r.settings.nuclearNms} min={0} max={1} step={.05} onChange={v=>setSetting("nuclearNms",v??.3)}/><NumberSetting label="検出用画像の長辺 / px" value={r.settings.nuclearMaxSide} min={64} max={2048} onChange={v=>setSetting("nuclearMaxSide",v)}/></details></>:target==="cell"?<><label>検出アルゴリズム<select disabled={busy} value={r.settings.cellDefinition?.source||"manual"} onChange={e=>setSetting("cellDefinition",{source:e.target.value as "manual"|"cellpose",channel:r.settings.cellDefinition?.channel||""})}><option value="manual">手描き</option><option value="cellpose">Cellpose-SAM</option></select></label>{r.settings.cellDefinition?.source==="cellpose"?<><label>細胞を検出する画像<select disabled={busy} value={r.settings.cellDefinition.channel} onChange={e=>{setSetting("cellDefinition",{source:"cellpose",channel:e.target.value});if(e.target.value)setChannel(e.target.value);}}><option value="">チャンネルを指定</option>{(field?.channels||data?.channels)?.map(ch=><option key={ch.id} value={ch.id}>{ch.stain?`${ch.stain} · ${ch.id}`:ch.id}</option>)}</select></label>{field&&<CellposeSettings runtime={r} field={field.id} target="cell" disabled={busy} onChanged={()=>queuePreview()}/>}</>:<p>画像上で細胞の輪郭を描けます。</p>}</>:target==="nucleoplasm"?<p>採用した核から、核小体を除いた領域です。</p>:<><label>核小体の定義<select value={r.settings.nucleolarDefinition.source} disabled={busy} onChange={e=>selectNucleolarSource(e.target.value as "dapi_poor"|"marker"|"ncl")}><option value="dapi_poor">核染色の低輝度領域</option><option value="marker">核小体マーカー</option><option value="ncl">NCL陽性領域</option></select></label>{r.settings.nucleolarDefinition.source!=="dapi_poor"&&<label>{r.settings.nucleolarDefinition.source==="ncl"?"NCL画像":"マーカー画像"}<select value={r.settings.nucleolarDefinition.marker} onChange={e=>{setSetting("nucleolarDefinition",{...r.settings.nucleolarDefinition,marker:e.target.value,...(r.settings.nucleolarDefinition.source==="ncl"?{algorithm:nclAlgorithm}:{})});setChannel(e.target.value);}}><option value="">チャンネルを指定</option>{(field?.channels||data?.channels)?.map(ch=><option value={ch.id} key={ch.id}>{ch.stain?`${ch.stain} · ${ch.id}`:ch.id}</option>)}</select></label>}{r.settings.nucleolarDefinition.source==="ncl"&&<label>検出アルゴリズム<select value={rawNclCellpose?"cellpose-raw":nclAlgorithm} disabled={busy} onChange={e=>{if(e.target.value==="cellpose-raw")return;r.selectNucleolarSource("ncl",r.settings.nucleolarDefinition.marker,e.target.value as "cellpose"|"objects"|"legacy");queuePreview();}}><option value="cellpose">Cellpose-SAM（局所背景除去）</option>{rawNclCellpose&&<option value="cellpose-raw">Cellpose-SAM（前処理なし）</option>}<option value="objects">局所輝度差・形状</option><option value="legacy">NCLしきい値</option></select></label>}{r.settings.nucleolarDefinition.source==="ncl"&&nclAlgorithm==="cellpose"?field&&<CellposeSettings runtime={r} field={field.id} target="nucleoli" disabled={busy} onChanged={()=>queuePreview()}/>:<details><summary>検出条件</summary>{r.settings.nucleolarDefinition.source==="dapi_poor"&&<NumberSetting label="核内中央値に対する輝度比" value={r.settings.nucleolarDefinition.relative} min={.01} max={.99} step={.05} onChange={v=>setSetting("nucleolarDefinition",{...r.settings.nucleolarDefinition,relative:v??.7})}/>}<NumberSetting label="平滑化 σ / px" value={r.settings.nucleolarSigma??(r.settings.nucleolarDefinition.source==="ncl"?nclDefaults.smoothing_sigma_px:null)} min={0} max={r.settings.nucleolarDefinition.source==="ncl"?10:20} step={.1} onChange={v=>{r.setNucleolarSigma(v);queuePreview();}}/>{r.settings.nucleolarDefinition.source!=="ncl"&&<NumberSetting label="核辺縁の除外 / px" value={r.settings.nucleolarRim} min={0} onChange={v=>setSetting("nucleolarRim",v)}/>}<NumberSetting label="最小面積 / px²" value={r.settings.nucleolarMinimumArea??(r.settings.nucleolarDefinition.source==="ncl"?nclDefaults.minimum_area_px:null)} min={1} onChange={v=>setSetting("nucleolarMinimumArea",v)}/><NumberSetting label="最大面積 / px²" value={r.settings.nucleolarMaximumArea??(r.settings.nucleolarDefinition.source==="ncl"?nclDefaults.maximum_area_px:null)} min={1} onChange={v=>setSetting("nucleolarMaximumArea",v)}/>{r.settings.nucleolarDefinition.source==="ncl"&&nclAlgorithm==="objects"&&field&&<>
   {([["core_contrast","候補中心の輝度差",0,65535,1],["minimum_peak_difference","局所背景との輝度差",0,65535,1],["minimum_peak_ratio","局所背景との輝度比",1,100,.1],["boundary_fraction","境界の輝度割合",.01,.99,.05],["minimum_solidity","充実度",0,1,.05],["minimum_circularity","円形度",0,1,.05]] as const).map(([key,label,min,max,step])=><NumberSetting key={key} label={label} value={nclDefaults[key]} min={min} max={max} step={step} onChange={v=>{if(v!==null){r.setNclParameter(field.id,key,v);queuePreview();}}}/>) }
 </>}</details>}</>}</fieldset>}</section>
         {!demo&&<details><summary>GFPによる対象選別</summary><ConnectedGfp key={gfpUnit} unit={gfpUnit} adapter={r.adapter} workspace={data?.workspaceId||""} fields={nuclearFields} channels={field?.channels||data?.channels||[]} disabled={busy} onClassified={(result,filter)=>void classify(result,filter)}/>{gfpFilter&&<button disabled={busy} onClick={()=>void act(async()=>{await r.saveSelection({field_ids:nuclearFields.map(value=>value.fieldId),gfp:null});setGfpSaved(null);})}>すべての{targets[classificationTarget]}を対象にする</button>}</details>}
-        {metricTarget(metric,target)!=="cell"&&gateChannels.length>0&&<details><summary>チャンネルによる核の分類・陽性率</summary><ConnectedChannelGate recorded={demo} adapter={r.adapter} workspace={data?.workspaceId||""} fields={channelFields} channels={gateChannels} disabled={busy} onClassified={classifyChannel}/>{channelFilter&&<button disabled={busy} onClick={()=>void act(async()=>{await r.saveSelection({field_ids:channelFields.map(value=>value.fieldId),gfp:null});setChannelSaved(null);})}>チャンネルによる分類を解除</button>}</details>}
         <section><h3>測定</h3><MetricSelect value={metric} onChange={setMetric} calibrated={calibrated} offered={id=>regionOffered(metricTarget(id,target))}/>{demo?<dl className={styles.recordedSettings}><div><dt>背景補正</dt><dd>{{raw:"なし（原値）",automatic:"自動推定",confirmed_roi:"背景ROI"}[r.settings.background]}</dd></div></dl>:<label>背景補正<select value={r.settings.background} disabled={busy} onChange={e=>setSetting("background",e.target.value as RuntimeSettings["background"])}><option value="raw">なし（原値）</option><option value="automatic">自動推定</option><option value="confirmed_roi">背景ROI</option></select></label>}{r.settings.background==="confirmed_roi"&&field&&<ConnectedBackground fieldId={field.id} fieldLabel={field.label} channels={field.channels.map(ch=>({...ch,role:ch.role||undefined}))} backgrounds={backgrounds} confirmedChannelIds={storedSpec?.confirmed_channel_ids||[]} disabled={r.busy} drawing={!!backgroundDraw} onDraw={channels=>{setCompare(false);setBackgroundDraw({field:field.id,channels,id:crypto.randomUUID()});}} onRemove={async channels=>{const updated={...backgrounds,[field.id]:{...backgrounds[field.id]}};for(const ch of channels)delete updated[field.id][ch];await r.saveBackgrounds(updated,storedSpec?.confirmed_channel_ids||[]);}}/>}</section>
       </>}
     </div></aside>}
@@ -473,7 +555,7 @@ function AssignmentEditor({field,runtime:r,onDone,onError}:{field:ReviewField;ru
   return <div className={styles.assignments}>{draft.map((ch,index)=><label key={ch.channel_id}>{field.previews[ch.channel_id]&&<img src={field.previews[ch.channel_id]} alt={ch.channel_id}/>}<strong>{ch.channel_id}</strong><input aria-label={`${ch.channel_id}の染色名`} placeholder="染色名" value={ch.stain||""} onChange={e=>setDraft(previous=>previous.map((item,i)=>i===index?{...item,stain:e.target.value||null}:item))}/>{ch.stain&&fromFilename.get(ch.channel_id)===ch.stain&&<small className={styles.stainHint}>ファイル名から読み取った名前です。撮影記録の染色名と合っているか確かめてください。</small>}<select aria-label={`${ch.channel_id}の役割`} value={ch.role} onChange={e=>setDraft(previous=>previous.map((item,i)=>({...item,role:i===index?e.target.value as ChannelAssignment["role"]:e.target.value==="nuclear"&&item.role==="nuclear"?"measure":item.role})))}><option value="nuclear">核検出</option><option value="measure">測定</option><option value="unused">使用しない</option></select></label>)}<button disabled={r.busy} className={styles.primary} onClick={()=>{void r.saveAssignments(draft,field.id).then(onDone).catch(e=>onError(e instanceof Error?e.message:"保存できませんでした。"));}}>保存</button></div>;
 }
 
-function ImageStage({planes,target,fieldId,region,rows,rowsCaption,onRegion,onSelect,onOpen,runtime:r,editing,onEditing,classification,channelClassification,historical,backgrounds,backgroundDraw,viewport,onViewport,composite=false,demo=false,nucleusTable,sideTable=true,onSideTable}:{composite?:boolean;demo?:boolean;sideTable?:boolean;onSideTable?:(shown:boolean)=>void;rowsCaption:string;nucleusTable?:NucleusTableSource;planes:Array<{field:ReviewField;channel:{id:string;stain:string|null};key:string}>;target:ReviewTarget;fieldId:string;region?:number;rows:MeasurementRow[];onRegion:(n:number)=>void;onSelect:(field:string,ch:string,n:number)=>void;onOpen:(field:string,ch:string)=>void;runtime:Runtime;editing:boolean;onEditing:(v:boolean)=>void;classification?:GfpGateResult["nuclei"];channelClassification?:ChannelGateResult["nuclei"];historical:Historical|null;backgrounds:WorkspaceBackgrounds;backgroundDraw?:{field:string;requestId:string;onSave:(polygon:Point[])=>Promise<void>;onCancel:()=>void};viewport:Record<string,ReviewImageViewport|null>;onViewport:(fid:string,value:ReviewImageViewport|null)=>void}){
+function ImageStage({planes,target,fieldId,region,rows,rowsField,onRegion,onSelect,onOpen,runtime:r,editing,onEditing,colorBy,states,legend,fills,gateTable,heading,next,partition,historical,backgrounds,backgroundDraw,viewport,onViewport,composite=false,demo=false,nucleusTable,sideTable=true,onSideTable}:ColorView&{partition?:ReactNode;composite?:boolean;demo?:boolean;sideTable?:boolean;onSideTable?:(shown:boolean)=>void;rowsField:string;nucleusTable?:NucleusTableSource;planes:Array<{field:ReviewField;channel:{id:string;stain:string|null};key:string}>;target:ReviewTarget;fieldId:string;region?:number;rows:MeasurementRow[];onRegion:(n:number)=>void;onSelect:(field:string,ch:string,n:number)=>void;onOpen:(field:string,ch:string)=>void;runtime:Runtime;editing:boolean;onEditing:(v:boolean)=>void;historical:Historical|null;backgrounds:WorkspaceBackgrounds;backgroundDraw?:{field:string;requestId:string;onSave:(polygon:Point[])=>Promise<void>;onCancel:()=>void};viewport:Record<string,ReviewImageViewport|null>;onViewport:(fid:string,value:ReviewImageViewport|null)=>void}){
   const ref=useRef<HTMLDivElement>(null),[size,setSize]=useState({width:800,height:600});
   useEffect(()=>{const node=ref.current;if(!node)return;const observer=new ResizeObserver(entries=>{const {width,height}=entries[0].contentRect;setSize({width,height});});observer.observe(node);return()=>observer.disconnect();},[]);
   const single=planes.length===1;const layout=imageStageLayout(planes.map(plane=>plane.field),size);
@@ -491,7 +573,7 @@ function ImageStage({planes,target,fieldId,region,rows,rowsCaption,onRegion,onSe
         {!single&&<div className={styles.tileCaption}>{plane.field.label} · {plane.channel.stain||plane.channel.id}</div>}
         {plane.field.previews[plane.channel.id]?<ReviewImageCanvas
           src={plane.field.previews[plane.channel.id]} width={plane.field.width} height={plane.field.height}
-          contours={value?.masks.regions||[]} classification={channelClassification?Object.fromEntries(channelClassification.filter(item=>item.field_id===plane.field.id).map(item=>[item.region_id,item.positive])):Object.fromEntries((classification||[]).filter(item=>item.field_id===plane.field.id).map(item=>[item.region_id,item.gfp_positive]))} selected={plane.field.id===fieldId?region:undefined}
+          contours={value?.masks.regions||[]} classification={old||candidate?undefined:states(plane.field.id)} colorBy={colorBy} legend={old||candidate?undefined:legend(plane.field.id)} fills={fills(plane.field.id)} selected={plane.field.id===fieldId?region:undefined}
           label={`${plane.field.label} ${plane.channel.stain||plane.channel.id}`}
           onSelect={n=>onSelect(plane.field.id,plane.channel.id,n)} onOpen={!single?()=>onOpen(plane.field.id,plane.channel.id):undefined}
           editingKey={`${plane.field.id}:${target}:${value?.revision||"none"}`} editDisabled={r.busy||!editable}
@@ -508,19 +590,28 @@ function ImageStage({planes,target,fieldId,region,rows,rowsCaption,onRegion,onSe
           initialZoom={demo&&single?1.8:undefined} initialFocus={demo&&single?nucleus?centre(nucleus.points):densestPoint(r.currentResult(plane.field.id,"nuclei")?.masks.regions||[],plane.field.width/4):undefined}/>:<p>画像を読み込み中…</p>}
       </div>;
     })}
-    {showTable&&<div className={styles.sideMeasurements}><MeasurementsPanel target={target} rows={rows} rowsCaption={rowsCaption} region={region} onRegion={onRegion} editing={editing} nucleusTable={nucleusTable}/></div>}
+    {showTable&&<div className={styles.sideMeasurements}><MeasurementsPanel heading={heading(!!nucleusTable?.shown,rows)} rowsField={rowsField} mode={colorBy} gate={gateTable(fieldId)} next={next} partition={partition} rows={rows} region={region} onRegion={onRegion} editing={editing} nucleusTable={nucleusTable}/></div>}
   </div>;
 }
 
-/** The measurements of the shown field: this channel's table, or the nucleus table joining every stain and the
- * adopted nucleoli of each nucleus (values from the API). Shown once, beside the image or below it. */
-function MeasurementsPanel({target,rows,rowsCaption,region,onRegion,editing,nucleusTable}:{target:ReviewTarget;rows:MeasurementRow[];rowsCaption:string;region?:number;onRegion:(n:number)=>void;editing:boolean;nucleusTable?:NucleusTableSource}){
+/** The table of what the image shows (MV-06, MV-07): its heading names per what, which stain and which values; the
+ * colour mode decides the rows. Values come from the API. Shown once, beside the image or below it, with the next step. */
+function MeasurementsPanel({heading,mode,gate,next,rows,rowsField,region,onRegion,editing,nucleusTable,partition}:{heading:string;mode:ColorBy;gate?:NucleusTableGate;next?:NextAction|null;
+  rows:MeasurementRow[];rowsField:string;region?:number;onRegion:(n:number)=>void;editing:boolean;nucleusTable?:NucleusTableSource;partition?:ReactNode}){
+  // In a comparison of images the table may list another field than the one in view: its heading names it.
+  const field=rowsField?`${rowsField} · `:"";
+  const nucleusRows=mode==="positivity"||!!nucleusTable?.shown;
   return <>
-    {nucleusTable&&<div className={styles.tableViews} role="group" aria-label="表の切り替え"><button aria-pressed={!nucleusTable.shown} onClick={()=>nucleusTable.onShow(false)}>このチャンネル</button><button aria-pressed={nucleusTable.shown} onClick={()=>nucleusTable.onShow(true)}>核ごとの表</button></div>}
-    {nucleusTable?.shown?<><h3>核ごとの表<small> · {nucleusTable.caption}</small></h3><ConnectedNucleusTable load={nucleusTable.load} save={nucleusTable.save} field={nucleusTable.field} nuclearRevision={nucleusTable.nuclearRevision} nucleolarRevision={nucleusTable.nucleolarRevision} channels={nucleusTable.channels} exclusion={nucleusTable.exclusion} selected={region} onSelect={onRegion}/></>
-    :<><h3>{targets[target]}の測定値{rowsCaption&&<small> · {rowsCaption}</small>}</h3>{rows.length?<MeasurementTable rows={rows} selected={region} onSelect={onRegion}/>:<p>測定結果はここに表示されます。</p>}</>}{editing&&<p>描画を保存または取消して続けてください。</p>}
+    <TableHeading heading={`${field}${heading}`} next={next}/>
+    {mode==="compartments"?partition
+    :<>{mode==="outline"&&nucleusTable&&<div className={styles.tableViews} role="group" aria-label="表の切り替え"><button aria-pressed={!nucleusTable.shown} onClick={()=>nucleusTable.onShow(false)}>このチャンネル</button><button aria-pressed={nucleusTable.shown} onClick={()=>nucleusTable.onShow(true)}>核ごとの表</button></div>}
+    {nucleusRows&&nucleusTable?<ConnectedNucleusTable load={nucleusTable.load} save={nucleusTable.save} field={nucleusTable.field} nuclearRevision={nucleusTable.nuclearRevision} nucleolarRevision={nucleusTable.nucleolarRevision} channels={nucleusTable.channels} exclusion={nucleusTable.exclusion} gate={mode==="positivity"?gate:undefined} selected={region} onSelect={onRegion}/>
+    :mode==="positivity"?<p>核を検出して採用すると、核ごとの判定を表示します。</p>
+    :rows.length?<MeasurementTable rows={rows} selected={region} onSelect={onRegion}/>:<p>測定結果はここに表示されます。</p>}</>}
+    {editing&&<p>描画を保存または取消して続けてください。</p>}
   </>;
 }
+
 
 /** Closes open menus (`details[data-dismissible]`) that do not contain the pointer target. */
 function closeDismissible(target:Node|null=null){

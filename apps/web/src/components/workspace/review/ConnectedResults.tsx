@@ -25,6 +25,8 @@ import {channelGateInputSignature,channelGateName,channelGateRequest,channelGate
 
 export interface ConnectedResultItem {fieldId:string;label:string;result?:SavedResult;metadata?:Metadata;excluded?:boolean}
 export interface ConnectedResultsProps {
+  /** A request from the image's next step (MV-09) to judge the compared fields again by the saved rule, once. */
+  reclassifyRequest?:number;
   adapter:ApiAdapter;workspace:string;selection:WorkspaceSelection|null;items:ConnectedResultItem[];
   target:ReviewTarget;metric:string;channel:string|null;mode:"statistics"|"figure";
   /** The saved two-group result in words and its figure, for the image view (requirements X-01). */
@@ -70,7 +72,7 @@ export function ConnectedResults(props:ConnectedResultsProps) {
   return <WorkspaceResults key={props.workspace} {...props}/>;
 }
 
-function WorkspaceResults({adapter,workspace,selection,items:allItems,target,metric,channel,mode,onOpening,onSource,beforePrepare,disabled=false,gfp=null,channelGate=null,onChannelGateRecorded,initialSpec,onSaveDraft,onMetricChange,onAnalysisTargetChange,onPrepareMissing,experiment=null,experimentSha256=null,onEditExperiment}:ConnectedResultsProps) {
+function WorkspaceResults({adapter,workspace,selection,items:allItems,target,metric,channel,mode,onOpening,onSource,beforePrepare,disabled=false,gfp=null,channelGate=null,onChannelGateRecorded,initialSpec,onSaveDraft,onMetricChange,onAnalysisTargetChange,onPrepareMissing,experiment=null,experimentSha256=null,onEditExperiment,reclassifyRequest=0}:ConnectedResultsProps) {
   const derived=useMemo(()=>experiment?fieldMetadata(experiment):{},[experiment]);
   // A stratified design (1.1.0) is read one declared stratum at a time: only that stratum's fields enter,
   // and the API refuses a cohort, description or comparison that pools strata.
@@ -247,6 +249,12 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
     }catch(cause){if(gateCurrent.current===requested)setError(fail(cause));}
     finally{lock.current=false;setBusy("");}
   }
+  // The image's next step asked to judge the compared fields again (MV-09); it runs once the cohort is ready.
+  const pendingReclassify=useRef(0);
+  useEffect(()=>{if(reclassifyRequest)pendingReclassify.current=reclassifyRequest;},[reclassifyRequest]);
+  const runPendingReclassify=useEffectEvent(()=>{pendingReclassify.current=0;void classifyForResults();});
+  useEffect(()=>{if(!pendingReclassify.current||currentGate||!channelGate||busy||disabled||!sources.length||missing||!ledgerReady)return;runPendingReclassify();},
+    [reclassifyRequest,currentGate,channelGate,busy,disabled,sources.length,missing,ledgerReady]);
   async function calculate(){
     if(lock.current||!ready)return;lock.current=true;setBusy("解析中…");setError("");
     try{
@@ -335,7 +343,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
       </div>}
       <button type="button" onClick={()=>setCsv(true)}>CSV の数値表を解析</button>
       <p className={styles.current}>{regionLabel(shownMetric,shownTarget)??"保存した解析"} · {metricLabels[shownMetric]||shownMetric}{shownChannel?` · ${shownChannel}`:""}</p>
-      {positivityMissing&&<p role="status">陽性核数・陽性率には、「画像」の設定パネルにある「チャンネルによる核の分類・陽性率」で、チャンネルを選んで核を分類してください。</p>}
+      {positivityMissing&&<p role="status">陽性核数・陽性率には、「画像」で色分けを「陽性・陰性」にして、染色を選んで核を分類してください。</p>}
       {channelGate&&<div><p>{currentGate?`${channelGateName(currentGate.result)}の分類記録を確認しました。` :"集計対象・実験情報の変更後は、分類記録の確認が必要です。"}</p>
         <button type="button" disabled={disabled||!!busy||!sources.length||!!missing||!ledgerReady} onClick={()=>void classifyForResults()}>現在の実験情報で再分類</button>
         <small>判定記録の確認後に計算できます。陽性率の分母は選別前の判定可能な核です。</small>

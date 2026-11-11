@@ -13,7 +13,10 @@ WEB = ROOT / "apps/web/src"
 def test_font_subset_covers_ui_text():
     manifest = json.loads((ROOT / "apps/web/public/fonts/subset-manifest.json").read_text(encoding="utf-8"))
     covered = set(manifest["requested_codepoints"])
-    sources = [*WEB.glob("components/**/*.tsx"), *WEB.glob("app/**/*.tsx"), *WEB.glob("lib/*.ts"), *WEB.glob("lib/*catalog*.json")]
+    sources = [*WEB.glob("components/**/*.tsx"), *WEB.glob("app/**/*.tsx"), *WEB.glob("lib/*catalog*.json"),
+               # UI text also lives in models beside the components and in lib/workspace (test files excluded).
+               *(path for path in WEB.glob("components/**/*.ts") if not path.name.endswith(".test.ts")),
+               *(path for path in WEB.glob("lib/**/*.ts") if not path.name.endswith(".test.ts") and path.name != "generated.ts")]
     missing = {}
     for path in sources:
         for char in path.read_text(encoding="utf-8"):
