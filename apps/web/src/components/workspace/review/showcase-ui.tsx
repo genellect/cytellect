@@ -98,22 +98,23 @@ export function DemoBadge({dataset, onGuide}: {dataset: ShowcaseDataset | null; 
 }
 
 /** The steps; the first names only the regions this scene has, and where outlines are corrected. */
-function guideSteps(dataset: ShowcaseDataset | null): Array<{mode: DemoStep; title: string; text: string; table?: boolean}> {
+function guideSteps(dataset: ShowcaseDataset | null): Array<{mode: DemoStep; title: string; text: string; table?: boolean; nucleus?: boolean}> {
   const nucleolar = !!dataset?.regions?.includes("nucleoli");
   return [
   {mode: "image", title: "画像と輪郭", text: `2 つの群を並べ、検出した輪郭を重ねています。輪郭を選ぶと、その値が表で分かります。輪郭の修正は、各画像の左下の操作で行えます（公開デモでは修正を記録しないため、試すと案内が出ます）。${nucleolar ? "「領域」で核・核小体・核質を切り替えられます。" : ""}`},
   {mode: "image", title: "測定値", text: "輪郭ごとの面積と輝度を、各画像の下の表で確認できます。", table: true},
-  {mode: "statistics", title: "統計", text: "視野や群をまとめて計算します。"},
+  {mode: "image", title: "核ごとの表", text: `1 つの視野の核を、1 行ずつ確かめます。核の面積と各染色の輝度${nucleolar ? "、核小体の数・面積・形" : ""}を同じ核の行に並べ、行を選ぶと画像のその核に移ります。表は ZIP（CSV と列の定義）で保存できます。${nucleolar ? "画像の上の「区画への分配」では、同じ核の中で核小体と核質に含まれる信号を比べます。" : ""}`, table: true, nucleus: true},
+  {mode: "statistics", title: "統計", text: `視野や群をまとめて計算します。${dataset?.gateChannels?.length ? "「画像」の設定パネルにある「チャンネルによる核の分類・陽性率」で核を陽性と陰性に分けると、ここで陽性率も比べられます。" : ""}`},
   {mode: "figure", title: "グラフと書き出し", text: "論文用の図を編集し、ZIPで保存できます。"},
   ];
 }
 
 /** First-visit guide; each step opens the matching part of the real workspace. */
-export function DemoGuide({open, onClose, onStep, dataset}: {open: boolean; onClose: () => void; onStep: (mode: DemoStep, table: boolean) => void; dataset: ShowcaseDataset | null}) {
+export function DemoGuide({open, onClose, onStep, dataset}: {open: boolean; onClose: () => void; onStep: (mode: DemoStep, table: boolean, nucleus: boolean) => void; dataset: ShowcaseDataset | null}) {
   const [index, setIndex] = useState(0);
   if (!open) return null;
   const steps = guideSteps(dataset), step = steps[index];
-  const go = (next: number) => {setIndex(next); onStep(steps[next].mode, !!steps[next].table);};
+  const go = (next: number) => {setIndex(next); onStep(steps[next].mode, !!steps[next].table, !!steps[next].nucleus);};
   const finish = () => {setIndex(0); onClose();};
   return <aside className={styles.guide} aria-label="公開デモの使い方">
     <ol>{steps.map((value, position) => <li key={value.title} aria-current={position === index ? "step" : undefined}><button type="button" onClick={() => go(position)}>{position + 1} {value.title}</button></li>)}</ol>

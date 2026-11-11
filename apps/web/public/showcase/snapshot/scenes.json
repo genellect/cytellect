@@ -5,7 +5,7 @@
    "version": 1,
    "id": "cpg0016-jump-source13-plk1",
    "label": "核数：PLK1 ノックアウトと対照（JUMP）",
-   "workspaceId": "80f78531-148c-47c3-a2a2-2c1fbd5cbfc6",
+   "workspaceId": "ff2f2115-1fd8-45b3-a352-4d224090ac5d",
    "title": "JUMP Cell Painting, cpg0016 source_13 CRISPR plates (Cell Painting Gallery)",
    "attribution": "Images: JUMP Cell Painting Consortium, Cell Painting Gallery cpg0016-jump, source_13 (CC0 1.0); plates CP-CC9-R1-01, CP-CC9-R2-01, CP-CC9-R3-01, sites 4-6 of wells A02 and A23; DNA channel only.",
    "licence": "CC0-1.0",
@@ -35,6 +35,7 @@
     "nuclei"
    ],
    "target": "nuclei",
+   "gateChannels": [],
    "examples": [
     {
      "label": "核の数と面積の分布",
@@ -215,7 +216,7 @@
    "version": 1,
    "id": "zenodo-6643470-nucleolar",
    "label": "核小体：ActD による転写の停止（U2OS）",
-   "workspaceId": "d6d38480-50b7-4a0b-9e7c-b8caa887807e",
+   "workspaceId": "9cfa3b14-11e3-4e93-afc6-4b6747961850",
    "title": "DS6a_5EU_Pulse_RawData (Schmidt, Rohatgi, Brandman 2022)",
    "attribution": "Images: Schmidt HB, Rohatgi R, Brandman O (2022), DS6a_5EU_Pulse_RawData, Zenodo, doi:10.5281/zenodo.6643470, CC BY 4.0; 640 x 640 crops placed on the Hoechst stain, channels Hoechst, NPM1 and 5-EU.",
    "licence": "CC-BY-4.0",
@@ -249,6 +250,9 @@
     "nucleoplasm"
    ],
    "target": "nucleoli",
+   "gateChannels": [
+    "eu5"
+   ],
    "channel": "eu5",
    "examples": [
     {
