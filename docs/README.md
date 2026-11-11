@@ -38,7 +38,7 @@ Cytellect の文書の一覧。利用者は「利用ガイド」から、開発�
 - [研究パラメータの拡張計画](drafts/research-measurements/plan.md)：設計レビューを反映した共通測定・層別・受入・並行作業の計画。4 方針は採用済み、具体的な契約は M0 で確定
 - [ローカル研究データの利用](drafts/research-measurements/local-data.md)：非公開の教師・評価データを公開開発から分離する境界
 - [群間比較の UX 改善：目標定義書（案）](drafts/group-comparison/goals.md)、[要件定義書（案）](drafts/group-comparison/requirements.md)、[開発体制（案）](drafts/group-comparison/development.md)：レビュー中の下書き
-- [画像の測定ビュー：要件定義書（案）](drafts/image-measurement-view/requirements.md)、[実装案](drafts/image-measurement-view/implementation.md)：画像の色分けを測定の入口にし、何を測っているかと次の一手を画面で示す。オーナーの承認待ち
+- [画像の測定ビュー：要件定義書（案）](drafts/image-measurement-view/requirements.md)、[実装案](drafts/image-measurement-view/implementation.md)：画像の色分けを測定の入口にし、何を測っているかと次の一手を画面で示す。2026-11-11 承認、実装中
 - [クラウド開発環境：実装計画（案）](drafts/cloud-development/plan.md)：オーナーの承認待ち
 - [本番構成での動作確認と研究者 UX 評価：実施計画（案）](drafts/cloud-development/verification.md)：オーナーの承認待ち
 - [エージェントによる画面の評価：2026-10-27](drafts/cloud-development/agent-evaluation-2026-10-27.md)：研究者による評価ではない

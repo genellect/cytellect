@@ -1,11 +1,11 @@
 # 画像の測定ビュー：実装案
 
-作成：2026-11-11。[要件定義書（案）](requirements.md)の実装の手順。**要件がオーナーに承認されるまで実装を始めない。** 要件と食い違う場合は要件が正しく、この文書を直す。
+作成：2026-11-11。[要件定義書（案）](requirements.md)の実装の手順。要件は 2026-11-11 にオーナーが承認した。要件と食い違う場合は要件が正しく、この文書を直す。
 
 ## 1. 作業を始める前に
 
 - [AGENTS.md](../../../AGENTS.md)、[要件定義書（案）](requirements.md)、[ワークスペースの再設計](../../workspace-redesign.md)の「Interaction model」を読む。
-- 依存：公開デモで分類・分配を開く変更は genellect/cytellect#194、結果のまとめの結論は genellect/cytellect#195 にある。どちらも `main` に入った後に、最新の `main` からブランチ `feat/image-measurement-view` を作る。
+- 依存：公開デモで分類・分配を開く変更は genellect/cytellect#194、結果のまとめの結論は genellect/cytellect#195 にある。ブランチ `feat/image-measurement-view` は、この 2 つを取り込んで作った。2 つが `main` に入ったら、最新の `main` を取り込む。
 - 1 つの PR で、[§4](#4-段階) の段階ごとにコミットする。段階 2 の後で、手元のビルドの画面の画像をオーナーに見せて方向を確かめる。
 
 ## 2. 方向性に照らしたレビュー（2026-11-11）
