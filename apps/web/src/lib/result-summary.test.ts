@@ -68,6 +68,65 @@ describe("result summary", () => {
     expect(summary.interval).toContain("群の平均の差");
   });
 
+  it("opens with a conclusion: the direction, about how much, and whether the runs agree (S-01)", () => {
+    expect(summarize(base(), {method: "paired t-test", p_value: 0.012}, "核の面積", "µm²").conclusion)
+      .toBe("Drugで、核の面積がDMSOに比べ約 20% 小さくなりました。3 回の実験すべてで同じ向きでした。");
+    // Runs that disagree are said so, not hidden behind the mean.
+    const mixed = base({runs: [...base().runs.slice(0, 2), {pair: "r3", control: 95, treatment: 99, difference: 4, ratio: 1.04}]});
+    expect(summarize(mixed, {method: "paired t-test", p_value: 0.04}, "核の面積", "µm²").conclusion).toMatch(/同じ向きだったのは 3 回中 2 回です。$/);
+    // A large change reads as a fold change; a fraction in percentage points.
+    expect(summarize(base({metric: "nucleolar_count", difference: interval(3, 1, 5), ratio: interval(2.4, 1.5, 3.8),
+      runs: base().runs.map(run => ({...run, difference: 3, ratio: 2.4}))}), {method: "paired t-test", p_value: 0.02}, "核小体の数", "").conclusion)
+      .toBe("Drugで、核小体の数がDMSOに比べ約 2.4 倍になりました。3 回の実験すべてで同じ向きでした。");
+    expect(summarize(base({metric: "positive_fraction", scale: "fraction", difference: interval(15, 5, 25), ratio: interval(null, null, null, "ratio_not_applicable"),
+      runs: base().runs.map(run => ({...run, difference: 15, ratio: null}))}), {method: "paired t-test", p_value: 0.0004}, "陽性の割合", "").conclusion)
+      .toBe("Drugで、陽性の割合がDMSOに比べ約 15 ポイント 高くなりました。3 回の実験すべてで同じ向きでした。");
+    // Independent groups have no runs to agree.
+    expect(summarize(base({design: "independent", test: "welch-t", metric: "nucleus_count", n_pairs: null, difference: interval(-4, -7, -1), ratio: interval(null, null, null, "nonpositive_values"), runs: []}),
+      {method: "Welch t-test", p_value: 0.03}, "核数", "").conclusion).toBe("Drugで、核数がDMSOに比べ約 4 少なくなりました。");
+  });
+
+  it("calls an interval that includes zero, or a rank test with p ≥ 0.05, not clear, never no change (S-07)", () => {
+    const unclear = summarize(base({difference: interval(-3, -10, 4), ratio: interval(0.97, 0.9, 1.04)}), {method: "paired t-test", p_value: 0.3}, "核の面積", "µm²").conclusion;
+    expect(unclear).toBe("この実験では、Drugによる核の面積の違いははっきりしませんでした（差の 95% 信頼区間が 0 を含みます）。違いがないことを示すものではありません。");
+    const rank = (p: number) => summarize(base({test: "wilcoxon", difference: interval(null, null, null, "rank_test"), ratio: interval(null, null, null, "rank_test")}),
+      {method: "Wilcoxon signed-rank", p_value: p, effect: 1, effect_name: "matched rank-biserial correlation A minus B", group_a: "DMSO", group_b: "Drug"}, "核の面積", "µm²").conclusion;
+    expect(rank(0.25)).toBe("この実験では、Drugによる核の面積の違いははっきりしませんでした（p = 0.25）。違いがないことを示すものではありません。");
+    expect(rank(0.03)).toBe("Drugで、核の面積がDMSOに比べ小さくなりました（順位に基づく検定、p = 0.03）。3 回の実験すべてで同じ向きでした。");
+    for (const text of [unclear, rank(0.25)]) expect(text).not.toMatch(/変化がない|変わらな|差がない/);
+  });
+
+  it("takes a rank test's direction from its saved effect, not from the means or the runs' majority", () => {
+    // One extreme treatment unit raises the treatment mean, while the saved Mann–Whitney effect says treatment is lower.
+    const independent = base({design: "independent", test: "mann-whitney-u", n_pairs: null, runs: [],
+      difference: interval(null, null, null, "rank_test"), ratio: interval(null, null, null, "rank_test"),
+      groups: [{condition: "DMSO", n: 8, mean: 13.5, sd: 2, ci_low: null, ci_high: null, unavailable_reason: "rank_test"},
+        {condition: "Drug", n: 8, mean: 128, sd: 350, ci_low: null, ci_high: null, unavailable_reason: "rank_test"}]});
+    const conclusion = (effect: number | null, groupA = "Drug", groupB = "DMSO") => summarize(independent,
+      {method: "Mann–Whitney U", p_value: 0.0104, effect, effect_name: "probability of superiority A over B (ties half)", group_a: groupA, group_b: groupB}, "核の面積", "µm²").conclusion;
+    expect(conclusion(0.125)).toBe("Drugで、核の面積がDMSOに比べ小さくなりました（順位に基づく検定、p = 0.01）。");
+    // The same effect saved with the groups the other way round reads the same.
+    expect(conclusion(0.875, "DMSO", "Drug")).toBe("Drugで、核の面積がDMSOに比べ小さくなりました（順位に基づく検定、p = 0.01）。");
+    // Without an effect whose groups are known, no direction is claimed.
+    expect(conclusion(null)).toBe("DrugとDMSOで、核の面積の分布に違いが見られました（順位に基づく検定、p = 0.01）。");
+    expect(conclusion(0.125, "A", "B")).toBe("DrugとDMSOで、核の面積の分布に違いが見られました（順位に基づく検定、p = 0.01）。");
+  });
+
+  it("states a descriptive comparison by the recorded runs and says it is not a test", () => {
+    const none = interval(null, null, null, "inference_not_requested");
+    expect(summarize(base({test: "none", difference: none, ratio: none}), {}, "核の面積", "µm²").conclusion)
+      .toBe("記録した 3 回の実験すべてで、Drugの核の面積はDMSOより 18〜22% 小さい値でした（記述のみ・検定なし）。");
+    const partly = base({test: "none", difference: none, ratio: none, runs: [...base().runs.slice(0, 2), {pair: "r3", control: 95, treatment: 99, difference: 4, ratio: 1.04}]});
+    expect(summarize(partly, {}, "核の面積", "µm²").conclusion)
+      .toBe("記録した 3 回の実験のうち 2 回で、Drugの核の面積はDMSOより小さい値でした（実験回ごとの変化 −22%〜+4%、記述のみ・検定なし）。");
+    const fractions = base({test: "none", metric: "positive_fraction", scale: "fraction", difference: none, ratio: none, runs: base().runs.map((run, index) => ({...run, difference: 10 + index, ratio: null}))});
+    expect(summarize(fractions, {}, "陽性の割合", "").conclusion).toBe("記録した 3 回の実験すべてで、Drugの陽性の割合はDMSOより 10〜12 ポイント 高い値でした（記述のみ・検定なし）。");
+    const folds = base({test: "none", metric: "nucleolar_count", difference: none, ratio: none, runs: base().runs.map((run, index) => ({...run, difference: 50, ratio: 2 + index / 10}))});
+    expect(summarize(folds, {}, "核小体の数", "").conclusion).toBe("記録した 3 回の実験すべてで、Drugの核小体の数はDMSOの 2〜2.2 倍の値でした（記述のみ・検定なし）。");
+    const split = base({test: "none", difference: none, ratio: none, runs: [base().runs[0], {pair: "r2", control: 100, treatment: 110, difference: 10, ratio: 1.1}]});
+    expect(summarize(split, {}, "核の面積", "µm²").conclusion).toBe("記録した実験回では、DrugとDMSOで核の面積の向きは揃いませんでした（記述のみ・検定なし）。");
+  });
+
   it("formats numbers and p values", () => {
     expect([formatNumber(1234.5), formatNumber(0.012345), formatNumber(-0.5)]).toEqual(["1230", "0.0123", "-0.5"]);
     expect([formatP(0.0004), formatP(0.0456), formatP(null)]).toEqual(["p < 0.001", "p = 0.046", "p は計算できません"]);
