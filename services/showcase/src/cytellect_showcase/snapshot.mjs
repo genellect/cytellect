@@ -123,7 +123,7 @@ async function fieldTables(number) {
   const drawer = page.getByRole("button", {name: /^測定値/}).first();
   const panel = page.getByRole("region", {name: "区画への分配"}).first();
   if (!await appears(panel) && await drawer.count() && await drawer.getAttribute("aria-expanded") !== "true") await step(`field ${number} measurements`, () => drawer.click());
-  const target = panel.getByLabel("対象", {exact: true}), reference = panel.getByLabel("参照", {exact: true});
+  const target = panel.getByRole("combobox", {name: "対象", exact: true}), reference = panel.getByRole("combobox", {name: "参照", exact: true});
   if (await appears(target)) {
     const names = await target.locator("option").evaluateAll(options => options.map(option => option.value).filter(Boolean));
     const stains = page.getByRole("toolbar", {name: "画像の表示"}).locator("button[data-channel]");
