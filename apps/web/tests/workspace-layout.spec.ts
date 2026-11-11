@@ -172,7 +172,9 @@ for (const size of [SIZES[0], SIZES[1]]) test(`statistics on a ${size.name}: the
   await page.goto(SCENES[0] ? `/demo?id=${SCENES[0].workspaceId}&step=statistics` : "/demo?step=statistics");
   const summary = page.getByRole("region", {name: "結果のまとめ"});
   await expect(summary).toBeVisible({timeout: live});
-  await expect(summary.locator("p").first()).toContainText("比べました");
+  // The conclusion comes first, then the measured values; a descriptive scene never reads as a test (S-01, E-05).
+  await expect(summary.locator("p").first()).toContainText("（記述のみ・検定なし）");
+  await expect(summary.locator("p").nth(1)).toContainText("比べました");
   // The source's report is there to open, not in front of the result.
   const source = summary.locator("details").filter({hasText: "出典の報告"});
   if (await source.count()) await expect(source).not.toHaveAttribute("open", "");

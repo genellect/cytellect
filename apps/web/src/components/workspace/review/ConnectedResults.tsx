@@ -495,7 +495,8 @@ function ReportedSource({reported}:{reported:NonNullable<ShowcaseDataset["report
 function ResultSummaryCard({estimates,comparison,metricLabel,unit,warnings,counts,reported,missing}:{estimates:ComparisonEstimates;comparison:SavedComparison;metricLabel:string;unit:string;warnings:string[];counts:ReturnType<typeof breakdown>;reported:ShowcaseDataset["reported"];missing:MissingSummary|null}){
   const summary=summarize(estimates,comparison,metricLabel,unit);
   return <section className={styles.summary} aria-label="結果のまとめ">
-    <p className={styles.headline}>{summary.headline}</p>
+    <p className={styles.headline}>{summary.conclusion}</p>
+    <p>{summary.headline}</p>
     {missing&&<MissingLead summary={missing}/>}
     {summary.interval&&<p>{summary.interval}</p>}
     <p>{summary.test}</p>
