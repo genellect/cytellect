@@ -430,6 +430,8 @@ function walksOf(demo) {
     await render(page);
     await figure(page).getByLabel("凡例を表示", {exact: true}).check();
     await render(page);
+    // The package with the original images (tens of MB each) is recorded on full scenes only.
+    if (demo.scope === "story") return;
     await figure(page).getByLabel("元画像を含める", {exact: true}).check();
     const download = page.waitForEvent("download", {timeout: LIVE});
     await figure(page).getByRole("button", {name: "保存", exact: true}).click();
@@ -452,7 +454,16 @@ function walksOf(demo) {
     await section.getByRole("button", {name: "選択領域を削除", exact: true}).click(); await idle(page);
     await section.getByRole("button", {name: "元に戻す", exact: true}).click(); await idle(page);
   };
-  return Object.entries(scenes).map(([name, walk]) => ({name: demo.id ? `${demo.id}:${name}` : name, walk, workspace: demo.workspace}));
+  // A scene recorded for its story (scenario.journal "story", build.py) keeps what tells it: the guided tour and
+  // its options, the saved figures, the paired opening comparison, every statistic of the story's metrics
+  // (the opening comparison and its companions), measuring each region, the AI examples and the image's next
+  // steps. Everything else the screen offers is answered with the demo's notice (DM-10: the published files'
+  // limit). The full exploration is recorded on the scenes kept "full" (the demo's first scene).
+  const story = new Set((demo.story ?? []).map(item => `statistics-${item.region}-${item.metric}`));
+  const told = name => ["tour", "tour-options", "saved-figures", "statistics-paired", "compartments-next"].includes(name)
+    || story.has(name) || /^measure-/.test(name) || /^ai-(\d+|in-order|fields)$/.test(name) || /^positivity-.+-next$/.test(name);
+  return Object.entries(scenes).filter(([name]) => demo.scope !== "story" || told(name))
+    .map(([name, walk]) => ({name: demo.id ? `${demo.id}:${name}` : name, walk, workspace: demo.workspace}));
 }
 await mkdir(config.out, {recursive: true});
 // Scenes are independent (each starts from the seed), so several run at once.

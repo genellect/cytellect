@@ -91,23 +91,33 @@ def download(source: dict, cache: Path) -> Path:
     cache.mkdir(parents=True, exist_ok=True)
     name = ("md5-" + source["md5"]) if source.get("md5") else source["sha256"]
     target = cache / name
+
+    def intact(path: Path) -> bool:
+        return not (("bytes" in source and path.stat().st_size != source["bytes"])
+                    or ("md5" in source and _md5_file(path) != source["md5"])
+                    or ("sha256" in source and sha256_file(path) != source["sha256"]))
+
     if not target.exists():
         partial = cache / (name + ".partial")
+        # A response cut short by the network ends without an error; the digest check retries it.
         for attempt in range(4):
             try:
                 log("download", source["url"])
                 request = urllib.request.Request(source["url"], headers={"User-Agent": "cytellect-showcase-build"})
                 with urllib.request.urlopen(request, timeout=300) as response, partial.open("wb") as stream:
                     shutil.copyfileobj(response, stream, 1024 * 1024)
-                break
+                if intact(partial):
+                    break
+                log("download incomplete, retrying", source["url"])
             except OSError:
                 if attempt == 3:
                     raise
-                time.sleep(10 * (attempt + 1))
+            if attempt == 3:
+                partial.unlink(missing_ok=True)
+                raise SystemExit(f"source integrity mismatch: {source['url']}")
+            time.sleep(10 * (attempt + 1))
         os.replace(partial, target)
-    if (("bytes" in source and target.stat().st_size != source["bytes"])
-            or ("md5" in source and _md5_file(target) != source["md5"])
-            or ("sha256" in source and sha256_file(target) != source["sha256"])):
+    if not intact(target):
         target.unlink()
         raise SystemExit(f"source integrity mismatch: {source['url']}")
     source.setdefault("sha256", sha256_file(target))
@@ -1131,6 +1141,46 @@ def rederive_in_browser(seed_zip: Path, seed_data: Path, work: Path) -> dict:
     return {key: result[key] for key in ("statistics", "figure_render")}
 
 
+def pack_recordings(recordings: Path) -> dict[str, Path | bytes]:
+    """Seed entries for the detector recordings: index, label arrays (``.npz``) and engine files.
+
+    Recordings made by this build hold ``.npy`` arrays, packed here; recordings unpacked from an
+    earlier seed already hold ``.npz`` and are published as they are. A missing array fails the
+    build when the archive is written, so a seed never lists an array it does not contain.
+    """
+    import numpy as np
+
+    index = json.loads((recordings / "index.json").read_text())
+    entries: dict[str, Path | bytes] = {}
+    used = set()
+    for entry in index["entries"].values():
+        # Label arrays are published compressed (.npz) so unpacking the seed stays small.
+        for name, relative in list(entry["outputs"].items()):
+            if relative.endswith(".npy"):
+                packed = relative[:-4] + ".npz"
+                if f"recordings/{packed}" not in entries:
+                    buffer = io.BytesIO()
+                    np.savez_compressed(buffer, array=np.load(recordings / relative, allow_pickle=False))
+                    entries[f"recordings/{packed}"] = buffer.getvalue()
+                entry["outputs"][name] = packed
+            elif relative.endswith(".npz"):
+                if not (recordings / relative).is_file():
+                    raise SystemExit(f"showcase_recording_array_missing: {relative}")
+                entries[f"recordings/{relative}"] = recordings / relative
+            else:
+                raise SystemExit(f"showcase_recording_array_unknown: {relative}")
+        for item in entry["files"]:
+            if item.get("omitted") or item["bytes"] > ENGINE_FILE_LIMIT:
+                item.pop("file", None)
+                item["omitted"] = True
+            else:
+                used.add(item["file"])
+    entries["recordings/index.json"] = (json.dumps(index, sort_keys=True, indent=1) + "\n").encode()
+    for relative in sorted(used):
+        entries[f"recordings/{relative}"] = recordings / relative
+    return entries
+
+
 def export_seed(data_dir: Path, recordings: Path, proposals: dict, showcase: dict, target: Path) -> dict:
     staging = data_dir.parent / "seed-db.sqlite"
     sqlite_copy(data_dir / "cytellect.sqlite", staging)
@@ -1145,29 +1195,7 @@ def export_seed(data_dir: Path, recordings: Path, proposals: dict, showcase: dic
             omitted.append({"path": relative.as_posix(), "sha256": sha256_file(path), "bytes": path.stat().st_size})
             continue
         entries[relative.as_posix()] = path
-    index = json.loads((recordings / "index.json").read_text())
-    used = set()
-    import numpy as np
-
-    for entry in index["entries"].values():
-        # Label arrays are published compressed (.npz) so unpacking the seed stays small.
-        for name, relative in list(entry["outputs"].items()):
-            if relative.endswith(".npy"):
-                packed = relative[:-4] + ".npz"
-                if f"recordings/{packed}" not in entries:
-                    buffer = io.BytesIO()
-                    np.savez_compressed(buffer, array=np.load(recordings / relative, allow_pickle=False))
-                    entries[f"recordings/{packed}"] = buffer.getvalue()
-                entry["outputs"][name] = packed
-        for item in entry["files"]:
-            if item.get("omitted") or item["bytes"] > ENGINE_FILE_LIMIT:
-                item.pop("file", None)
-                item["omitted"] = True
-            else:
-                used.add(item["file"])
-    entries["recordings/index.json"] = (json.dumps(index, sort_keys=True, indent=1) + "\n").encode()
-    for relative in sorted(used):
-        entries[f"recordings/{relative}"] = recordings / relative
+    entries.update(pack_recordings(recordings))
     from cytellect_api.db import Store, fields
 
     from .seed import plan
@@ -1711,7 +1739,8 @@ def main(argv: list[str] | None = None) -> None:
              "regions": scene_regions(manifest),
              "examples": len((manifest["scenario"].get("proposals") or {}).get("presets", [])),
              "rank": rank_examples(manifest),
-             "gateChannels": manifest["scenario"].get("gate_channels", [])} for _, manifest in manifests])
+             "gateChannels": manifest["scenario"].get("gate_channels", []),
+             "scope": journal_scope(manifest), "story": story_metrics(manifest)} for _, manifest in manifests])
         save()
         write_manifest(args, manifests, state)
     if "manifest" in stages:
@@ -1722,6 +1751,27 @@ def main(argv: list[str] | None = None) -> None:
                                work / "qa" / manifest["id"], scenes[manifest["id"]]["scenario"]["fields"])
             log("qa overlays", manifest["id"], len(written))
     log("done", round(time.perf_counter() - started, 1), "s")
+
+
+def journal_scope(manifest: dict) -> str:
+    """``full`` records every operation the screen offers; ``story`` only what tells the scene (journal.mjs)."""
+    scope = manifest["scenario"].get("journal", "full")
+    if scope not in ("full", "story"):
+        raise SystemExit(f"unknown journal scope: {scope}")
+    return scope
+
+
+def story_metrics(manifest: dict) -> list[dict]:
+    """The region and metric of the opening analyses and the companions, whose statistics a story scene records."""
+    plan = manifest["scenario"]
+    items = list((plan.get("statistics") or {}).values()) + list(plan.get("companions") or [])
+    seen, story = set(), []
+    for item in items:
+        key = (item["target"], item["metric"])
+        if key not in seen:
+            seen.add(key)
+            story.append({"region": item["target"], "metric": item["metric"]})
+    return story
 
 
 def opening_channel(manifest: dict) -> dict:

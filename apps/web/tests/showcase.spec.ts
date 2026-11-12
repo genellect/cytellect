@@ -666,6 +666,10 @@ test("measuring again with another background correction is answered from the re
   await page.locator("header").getByRole("button", {name: "測定", exact: true}).click();
   await expect(page.locator("header [role=status]").first()).toHaveText("", {timeout: live});
   await expect(notRecorded(page)).toHaveCount(0);
+  // The statistics view then compares the new measurement: the opening result's region is for the first look only.
+  await page.locator("header").getByRole("button", {name: "統計", exact: true}).click();
+  await expect(page.getByRole("complementary", {name: "解析対象"}).getByRole("combobox", {name: "領域", exact: true})).toHaveValue("nuclei");
+  await expect(notRecorded(page)).toHaveCount(0);
   await noErrors(page, watch);
 });
 

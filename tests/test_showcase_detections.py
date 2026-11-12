@@ -230,3 +230,41 @@ def test_seed_duplicates_are_omitted_and_restored_byte_for_byte(tmp_path):
     (unpacked / "showcase.json").write_text(json.dumps({"regenerate": entries}))
     with pytest.raises(ValueError, match="showcase_seed_restore_mismatch"):
         seed.restore(unpacked)
+
+
+def test_seed_keeps_label_arrays_of_recordings_unpacked_from_an_earlier_seed(tmp_path, monkeypatch):
+    """A build that reuses a published seed's recordings (``.npz``) publishes those arrays again."""
+    from cytellect_showcase.build import pack_recordings
+
+    def fake_detect(image, parameters, output_dir, executable, scratch_root=None, *, detection_max_side=None):
+        output_dir.mkdir(parents=True, exist_ok=True)
+        (output_dir / "engine-result.json").write_text('{"count": 2}')
+        return fake_labels(), {"engine": "fake", "parameters": NuclearDetectorSpec.model_validate(parameters).model_dump()}
+
+    monkeypatch.setattr("cytellect_worker.regions.detect_nuclei", fake_detect)
+    install_recorder(tmp_path / "recordings")
+    labels, _ = regions.detect_nuclei(image(), DETECTOR, tmp_path / "run" / "engine", "/fiji", scratch_root=tmp_path)
+    detections.uninstall()
+
+    def unpack(entries, target):
+        for name, value in entries.items():
+            (target / name).parent.mkdir(parents=True, exist_ok=True)
+            (target / name).write_bytes(value if isinstance(value, bytes) else value.read_bytes())
+        return target / "recordings"
+
+    first = unpack(pack_recordings(tmp_path / "recordings"), tmp_path / "seed1")
+    second = unpack(pack_recordings(first), tmp_path / "seed2")
+    arrays = [entry for entry in json.loads((second / "index.json").read_text())["entries"].values()]
+    assert [list(entry["outputs"].values())[0].endswith(".npz") for entry in arrays] == [True]
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("replay must not run a detector")
+
+    monkeypatch.setattr("cytellect_worker.regions.detect_nuclei", forbidden)
+    install_replay(second)
+    replayed, _ = regions.detect_nuclei(image(), DETECTOR, tmp_path / "elsewhere" / "engine", "")
+    assert np.array_equal(replayed, labels)
+
+    (first / list(arrays[0]["outputs"].values())[0]).unlink()
+    with pytest.raises(SystemExit, match="showcase_recording_array_missing"):
+        pack_recordings(first)
