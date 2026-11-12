@@ -153,3 +153,13 @@ def test_only_a_saved_two_group_comparison_can_be_discussed(tmp_path, service):
     assert post(client, job).status_code == 404
     assert client.post("/v1/jobs/missing/discussion", headers=HEADERS, json={"transmission_confirmed": True}).status_code == 404
     assert service == []
+
+
+def test_a_descriptive_comparison_is_discussed_without_a_test(tmp_path, service):
+    """The demo's comparisons are descriptive (independence not confirmed): no contrast, no p value."""
+    client, app = client_for(tmp_path)
+    job, _ = saved_job(client, app, test="none")
+    response = post(client, job)
+    assert response.status_code == 200, response.text
+    result = service[0]["content"]["context"]["result"]
+    assert result["test"] == "none" and result["p_value"] is None and result["difference"] is None

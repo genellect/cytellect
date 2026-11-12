@@ -35,9 +35,10 @@ def discussion_context(result: dict[str, Any], experiment: ExperimentNote | None
     if result.get("analysis_kind") != "region-comparison" or not estimates:
         raise DiscussionUnsupported("discussion_requires_saved_estimates")
     comparisons = result.get("comparisons") or []
-    if len(comparisons) != 1:
+    # A descriptive comparison saves no test (no p value); a tested one saves exactly one contrast.
+    if len(comparisons) != (0 if estimates.get("test") == "none" else 1):
         raise DiscussionUnsupported("discussion_requires_one_comparison")
-    comparison = comparisons[0]
+    comparison = comparisons[0] if comparisons else {}
     selection = (result.get("spec") or {}).get("selection") or {}
     region = selection.get("region_set_id")
     channel = result.get("channel") or {}
