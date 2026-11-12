@@ -794,7 +794,20 @@
   },
   "background": "automatic",
   "background_note": "Measured with the automatic background estimate so the raw and background-corrected intensity metrics the panel offers are both available; the planned nucleus-count comparison does not use intensities.",
-  "presentation_amendment": "Presentation amended 2026-10-26 by the owner, after the scene was published: the display comparing the adopted nuclei with the CellProfiler objects JUMP published for the same images is withdrawn, because its purpose was not clear to visitors. It was display only; no field, rule, measurement or comparison changes, and the planned comparison (nuclei per field) is unchanged."
+  "presentation_amendment": "Presentation amended 2026-10-26 by the owner, after the scene was published: the display comparing the adopted nuclei with the CellProfiler objects JUMP published for the same images is withdrawn, because its purpose was not clear to visitors. It was display only; no field, rule, measurement or comparison changes, and the planned comparison (nuclei per field) is unchanged.",
+  "discussion_example": {
+   "implications": [
+    "PLK1 を壊すと、どの実験回でも視野あたりの細胞が減っており、細胞が分裂して増えるのに PLK1 が要ることと整合する。"
+   ],
+   "alternatives": [
+    "細胞が死んで減ったのか、分裂が止まって増えなかったのかは、核の数だけでは区別できない。",
+    "実験回の独立性が確認されていないため、回の間のばらつきを過小に見ている可能性がある。"
+   ],
+   "next_steps": [
+    "分裂中の細胞や細胞死の目印を染め、細胞が減った理由を確かめる。",
+    "別のガイドでも同じように減るかを確かめ、ガイドごとの効き方の偏りを除く。"
+   ]
+  }
  },
  "derivation_amendment": "Amendment recorded before publication: the approved requirement D-08 asks for at least three fields per group and run, so sites 4 and 6 (with site 5 the centre row of the 3 x 3 sites; F004-F006 in the published file names) were added for every well. The site-5 nuclei-per-field result (Run1-Run3: 471/244/376 non-targeting, 37/44/45 PLK1) had been computed before this amendment; the added sites are fixed by position only, not by any measured value, and no site is removed. The comparison plan is unchanged.",
  "scene_label": "核数：PLK1 ノックアウトと対照（JUMP）",

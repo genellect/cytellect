@@ -917,6 +917,7 @@ def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
             for kind in [*(value for value in layouts if value != drawn), drawn]:
                 renders.append(timed(f"render-{kind}", lambda kind=kind: space.render(saved["comparison"], kind)))
     directions = direction_checks(plan.get("direction_checks", []), saved)
+    example = example_discussion(api, space.wid, plan.get("discussion_example"), saved.get("comparison"))
     # Leave the saved settings on the region the opening comparison measures (scenario.final_target, the
     # nucleus view by default), so the images open on the outlines that are compared. Nuclei and nucleoli
     # can be edited there; nucleoplasm masks are derived and not editable.
@@ -927,8 +928,38 @@ def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
     owner = api.app.state.store.one(workspaces, id=space.wid)["owner"]
     return {"workspace_id": space.wid, "owner": owner, "fields": space.fields, "timings": timings, "fragment_review": removed,
             "statistics": {name: {"job": value["job"], "revision": value["revision"]} for name, value in saved.items()},
-            "direction_checks": directions,
+            "direction_checks": directions, "discussion_example": example,
             "renders": renders, "spec_version": space.spec["version"], "space": space}
+
+
+def example_discussion(api: Api, workspace: str, example: dict | None, comparison: dict | None) -> dict | None:
+    """The demo's discussion of its opening comparison (requirements AC-08): written for the scene, never by a model.
+
+    It passes the production checks against the saved result (no number outside the result, no significance,
+    "no change" or reference) and is stored as `origin: "example"`, which the page shows as the demo's example.
+    """
+    if not example:
+        return None
+    if not comparison or comparison["operation"] != "comparison":
+        raise ApiError("discussion_example needs the scene's recorded comparison")
+    import time
+    import uuid
+
+    from cytellect_analysis.discussion_context import discussion_context
+    from cytellect_analysis.discussion_validation import DiscussionRejected, validate_discussion
+    from cytellect_api.db import result_discussions
+
+    context = discussion_context(comparison["result"])
+    try:
+        validated = validate_discussion(example, context, model="demo-example", prompt_version="example", origin="example")
+    except DiscussionRejected as error:
+        raise ApiError(f"discussion_example rejected: {error.codes}") from None
+    with api.app.state.store.transaction() as conn:
+        conn.execute(result_discussions.insert().values(
+            id=str(uuid.uuid4()), workspace_id=workspace, job_id=comparison["job"], cache_key=f"example:{comparison['job']}",
+            request_id=str(uuid.uuid4()), state="complete", created=time.time(), lease_until=0.0,
+            discussion=validated.model_dump(mode="json")))
+    return {"job": comparison["job"], "context_sha256": validated.context_sha256}
 
 
 def direction_checks(checks: list[dict], saved: dict) -> list[dict]:
@@ -1783,7 +1814,7 @@ def write_manifest(args, manifests: list, state: dict) -> None:
             "scenario_notes": {key: manifest.get("scenario", {}).get(key) for key in (
                 "unit_definition", "pairing_basis", "design_note", "statistics", "statistics_planned",
                 "statistics_amendment", "grid_notes", "fragment_review", "comparison_plan", "opening",
-                "final_target", "companions", "direction_checks", "presentation_amendment")},
+                "final_target", "companions", "direction_checks", "presentation_amendment", "discussion_example")},
             "experiment": manifest.get("experiment"),
             "proposals": ({**{key: manifest["scenario"]["proposals"].get(key) for key in ("model", "prompt_version", "source", "note")},
                            "presets": [item["instruction"] for item in manifest["scenario"]["proposals"]["presets"]],
