@@ -809,9 +809,15 @@ test("the statistics view states the premise once, in the basis line, and opens 
     await summary.locator("summary").filter({hasText: /^記述統計/}).click();
     await expect(summary).toContainText("実験回の独立性が未確認のため、検定と信頼区間は算出していません。");
     await expect(summary.getByRole("button", {name: "実験デザインを編集"})).toBeVisible();
-    // The always-visible text of the summary (without the run table and the folded parts) stays short.
-    const visible = await summary.evaluate(root => [...root.querySelectorAll(":scope > h3, :scope > ul, :scope > p")].map(element => element.textContent ?? "").join("").length);
+    // The always-visible text of the summary (without the run table and the folded parts) stays short. The demo's
+    // one-sentence definition of the metric (DM-11) is an aid for visitors, not part of the result, and is not counted.
+    const visible = await summary.evaluate(root => [...root.querySelectorAll(":scope > h3, :scope > ul, :scope > p:not([data-term-hint])")].map(element => element.textContent ?? "").join("").length);
     expect(visible, scene?.id).toBeLessThanOrEqual(230);
+    // The opening result carries the scene's example discussion, marked as a demo sample (AC-08); the demo never calls
+    // the language model, so no generate button is offered with it.
+    const discussion = results.getByRole("region", {name: "考察"});
+    await expect(discussion, scene?.id).toContainText("デモ用サンプル（参考）", {timeout: live});
+    await expect(discussion.getByRole("button", {name: "考察を生成"})).toHaveCount(0);
   }
 });
 

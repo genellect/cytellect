@@ -62,7 +62,7 @@ interface ResultPayload {stratum?:{label:string;levels:Array<{factor:string;leve
 type MissingSummary=components["schemas"]["CompartmentMissingSummary"];
 interface Saved {job:string;revision:string;result:ResultPayload;identity:string;requestIdentity:string;plot:RenderPlot;figureJob:string;figure:ResultPayload["figure"];operation:ResultOperation;sources?:Array<{field:string;label:string}>;historical?:boolean;target?:ReviewTarget}
 /** Saved units are the analysis package's (English, for figures); the result text names them in Japanese. */
-const unitLabels:Record<string,string>={"nuclei per field":"個／視野","nuclei per mm²":"個／mm²","positive nuclei per field":"個／視野","fraction of evaluable nuclei":""};
+const unitLabels:Record<string,string>={"nuclei per field":"個／視野","nuclei per mm²":"個／mm²","positive nuclei per field":"個／視野","fraction of evaluable nuclei":"",dimensionless:""};
 const unitLabel=(unit?:string|null)=>unit?unitLabels[unit]??unit:"";
 const metricLabels:Record<string,string>={area_px:"面積 / px²",area_um2:"面積 / µm²",mean:"平均輝度",median:"中央値",integrated:"積算輝度",mean_corrected:"平均輝度（背景補正）",integrated_corrected:"積算輝度（背景補正）",nucleolar_count:"核小体数",nucleolar_area_fraction:"核小体面積割合",log2_nucleoplasm_over_nucleolus:"核質／核小体 log₂ 比",positive_count:"視野あたりの陽性核数",positive_fraction:"陽性率",nucleus_count:"視野あたりの核数",nucleus_density_per_mm2:"核の密度（mm² あたり）",nucleolar_area_px:"核小体の総面積 / px²",nucleolar_area_um2:"核小体の総面積 / µm²",nucleolar_eccentricity:"核小体の離心率"};
 const regionNames:Record<string,string>={nuclei:"核",nucleoli:"核小体",nucleoplasm:"核質",cell:"細胞ROI"};
@@ -446,7 +446,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
             saved.result.compartment_missing?{rows:saved.result.compartment_missing.rows,perNucleus:saved.result.spec?.selection?.source==="compartment-summary"}:null)}
           missing={saved.result.compartment_missing??null}/>}
             {/* The discussion is a separate, AI-made (or demo example) frame under the computed result (AC-01). */}
-            {mode==="statistics"&&saved.result.estimates&&!saved.historical&&<DiscussionPanel key={saved.job} adapter={adapter} job={saved.job} demo={demo}/>}
+            {/* The discussion belongs to the shown result, also a saved one (AC-06, AC-08). */}{mode==="statistics"&&saved.result.estimates&&<DiscussionPanel key={saved.job} adapter={adapter} job={saved.job} demo={demo}/>}
             {mode==="statistics"&&saved.operation==="distribution"&&experiment&&<RunMedians onEditExperiment={onEditExperiment} design={experiment} summary={saved.result.field_summary??[]} metricLabel={resultMetricLabel(saved.result,saved.result.metric||"")} unit={unitLabel(saved.result.unit)} reported={showcaseDataset?.reported??null} missing={saved.result.compartment_missing??null}/>}
             {/* Without a summary card the denominators still stand beside the result (Q-05). */}
             {mode==="statistics"&&saved.result.compartment_missing&&!saved.result.estimates&&!(saved.operation==="distribution"&&experiment)&&<><MissingLead summary={saved.result.compartment_missing}/><MissingNucleoli summary={saved.result.compartment_missing}/></>}
@@ -561,7 +561,7 @@ function ResultSummaryCard({estimates,comparison,metricLabel,unit,warnings,count
   const hint=useShowcaseUi().enabled?METRIC_HINTS[estimates.metric]:undefined;
   return <section className={styles.summary} aria-label="結果のまとめ">
     <h3 className={styles.headline}>{summary.heading}</h3>
-    {hint&&<p className={styles.hint}>{hint}</p>}
+    {hint&&<p className={styles.hint} data-term-hint>{hint}</p>}
     {summary.points.length>0&&<ul className={styles.points}>{summary.points.map(value=><li key={value}>{value}</li>)}</ul>}
     <ResultBasisLine basis={summary.basis} onEditExperiment={onEditExperiment}/>
     {missing?.warnings.map(warning=><p key={String(warning.run)} role="status" className={styles.missingWarning}>{warning.run?`実験回 ${warning.run} で、`:""}群の間の欠測の割合が {formatNumber(warning.difference_points)} ポイント違います（基準 {missing.warning_points} ポイント）。処理に関わる選別の偏りが残っている可能性があります。</p>)}
