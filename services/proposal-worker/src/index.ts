@@ -9,6 +9,7 @@
  */
 import { draftProposal, inputTokenCeiling, MODEL, ModelError, PROMPT_VERSION, NUCLEAR_FILTER_PREVIOUS_PROMPT_VERSION, PARENT_PREVIOUS_PROMPT_VERSION, CELLPOSE_PREVIOUS_PROMPT_VERSION, OBJECT_PREVIOUS_PROMPT_VERSION, NCL_PREVIOUS_PROMPT_VERSION, PREVIOUS_PROMPT_VERSION, PROCESSING_PROMPT_VERSION, LEGACY_PROMPT_VERSION, PREIMPORT_PROMPT_VERSION, observedCost, type Preview, type ReasoningEffort } from "./openai";
 import { D1Store, type D1Database, type Store } from "./store";
+import { checkDiscussionRequest, discussionTokenCeiling, draftDiscussion, DISCUSSION_PROMPT_VERSION } from "./discussion";
 import contract from "./contract.json";
 import { matchesSchema } from "./schema";
 import { D1AuthStore } from "./auth-store";
@@ -127,6 +128,12 @@ export function worstCaseUsd(config: Config, context: unknown, previews: Preview
   return perCall * 2;
 }
 
+export function discussionWorstCaseUsd(config: Config, context: unknown): number {
+  const perCall = (discussionTokenCeiling(config, context) * Math.max(config.priceCacheWrite, config.priceCachedIn)
+    + config.maxOutputTokens * config.priceOut) / 1_000_000;
+  return perCall * 2;
+}
+
 export interface HandleOptions {
   fetcher?: typeof fetch;
   now?: () => number;
@@ -195,7 +202,9 @@ export async function handle(request: Request, env: Env, store: Store, options: 
     return json(201, { device_token: device });
   }
 
-  if (url.pathname === "/v1/proposals") {
+  if (url.pathname === "/v1/proposals" || url.pathname === "/v1/discussions") {
+    // Result discussions share the device token, quotas and budget with proposals (requirement AC-07).
+    const discussion = url.pathname === "/v1/discussions";
     const presented = bearer(request);
     const deviceHash = presented ? await sha256(presented) : null;
     if (!deviceHash) return failure(401, "unauthorized");
@@ -209,11 +218,15 @@ export async function handle(request: Request, env: Env, store: Store, options: 
     if (!config) return failure(503, "proposal_service_disabled");
     if (await store.budgetBlocked()) return failure(503, "budget_reconciliation_required");
     const body = await readJson(request);
-    const checked = body && checkRequest(body);
+    const discussed = discussion && body ? checkDiscussionRequest(body) : null;
+    const checked = discussion ? (discussed ? { context: discussed, previews: [] as Preview[] } : null) : body && checkRequest(body);
     if (!checked) return failure(400, "request_invalid");
-    const promptVersion = body!.prompt_version ?? LEGACY_PROMPT_VERSION;
-    if (typeof promptVersion !== "string" || ![PROMPT_VERSION, NUCLEAR_FILTER_PREVIOUS_PROMPT_VERSION, PARENT_PREVIOUS_PROMPT_VERSION, CELLPOSE_PREVIOUS_PROMPT_VERSION, OBJECT_PREVIOUS_PROMPT_VERSION, NCL_PREVIOUS_PROMPT_VERSION, PREVIOUS_PROMPT_VERSION, PROCESSING_PROMPT_VERSION, PREIMPORT_PROMPT_VERSION, LEGACY_PROMPT_VERSION].includes(promptVersion)) return failure(400, "prompt_version_unsupported");
-    if (checked.context.field_count === 0 && promptVersion === LEGACY_PROMPT_VERSION) return failure(400, "prompt_version_unsupported");
+    const requested = body!.prompt_version ?? (discussion ? null : LEGACY_PROMPT_VERSION);
+    if (typeof requested !== "string") return failure(400, "prompt_version_unsupported");
+    const promptVersion: string = requested;
+    if (discussion ? promptVersion !== DISCUSSION_PROMPT_VERSION
+      : ![PROMPT_VERSION, NUCLEAR_FILTER_PREVIOUS_PROMPT_VERSION, PARENT_PREVIOUS_PROMPT_VERSION, CELLPOSE_PREVIOUS_PROMPT_VERSION, OBJECT_PREVIOUS_PROMPT_VERSION, NCL_PREVIOUS_PROMPT_VERSION, PREVIOUS_PROMPT_VERSION, PROCESSING_PROMPT_VERSION, PREIMPORT_PROMPT_VERSION, LEGACY_PROMPT_VERSION].includes(promptVersion)) return failure(400, "prompt_version_unsupported");
+    if (!discussion && checked.context.field_count === 0 && promptVersion === LEGACY_PROMPT_VERSION) return failure(400, "prompt_version_unsupported");
     const modelConfig = {...config, promptVersion};
     const requestId = request.headers.get("idempotency-key");
     if (!requestId || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) return failure(400, "request_id_required");
@@ -221,17 +234,18 @@ export async function handle(request: Request, env: Env, store: Store, options: 
     const period = month(now);
     if (!(await store.countDeviceRequest(deviceHash, period, config.deviceRequests))) return failure(429, "device_quota_exhausted");
     const reservation = crypto.randomUUID();
-    const amount = worstCaseUsd(modelConfig, checked.context, checked.previews);
+    const amount = discussion ? discussionWorstCaseUsd(modelConfig, checked.context) : worstCaseUsd(modelConfig, checked.context, checked.previews);
     if (user.kind === "ok") {
       const admitted = await store.reserveForUser(reservation, period, amount, config.budget, now, user.email, user.limits.proposal_usd_month);
       if (admitted === "user") return json(429, { code: "quota_exceeded", resets_at: nextMonth(now) });
       if (admitted === "budget") return failure(429, "monthly_budget_exhausted");
     } else if (!(await store.reserve(reservation, period, amount, config.budget, now))) return failure(429, "monthly_budget_exhausted");
     try {
-      const result = await draftProposal({ ...modelConfig, fetcher: options.fetcher, beforeCall: async () => {
+      const settings = { ...modelConfig, fetcher: options.fetcher, beforeCall: async () => {
         if (await store.budgetBlocked()) throw new ModelError("budget_reconciliation_required");
-      } },
-        checked.context, checked.previews);
+      } };
+      const result = discussion ? await draftDiscussion(settings, checked.context)
+        : await draftProposal(settings, checked.context, checked.previews);
       // Non-cached input may include cache writes. Until the API's write breakdown is
       // confirmed, retain its higher tariff; this is a conservative ledger, not an invoice.
       const spent = result.usageComplete ? ((result.inputTokens - result.cachedInputTokens) * config.priceCacheWrite

@@ -105,5 +105,11 @@ class ValidatedDiscussion(DiscussionModel):
 
 
 def draft_json_schema() -> dict[str, Any]:
-    """The strict output schema given to the model (structured output)."""
-    return DiscussionDraft.model_json_schema()
+    """The strict Structured Outputs schema given to the model: the three headings as lists of sentences.
+
+    Every key is required and nothing else is allowed (strict mode). Item counts and lengths are checked by
+    `DiscussionDraft` and `discussion_validation` after the answer, as for analysis proposals.
+    """
+    sentences = {"type": "array", "items": {"type": "string"}}
+    return {"type": "object", "additionalProperties": False, "required": ["implications", "alternatives", "next_steps"],
+            "properties": {"implications": sentences, "alternatives": sentences, "next_steps": sentences}}

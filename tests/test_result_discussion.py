@@ -85,7 +85,10 @@ def test_the_shape_is_fixed_and_bounded():
     with pytest.raises(DiscussionRejected):
         validate_discussion({**draft("a"), "values": [1]}, DESCRIPTIVE, model="m")
     schema = draft_json_schema()
-    assert schema["additionalProperties"] is False and set(schema["properties"]) == {"protocol", "implications", "alternatives", "next_steps"}
+    assert schema["additionalProperties"] is False and set(schema["properties"]) == set(schema["required"]) == {
+        "implications", "alternatives", "next_steps"}
+    # What the model returns under this schema is a valid draft once its counts and lengths fit.
+    assert DiscussionDraft.model_validate({"implications": ["a"], "alternatives": [], "next_steps": []}).protocol == DISCUSSION_PROTOCOL
 
 
 def test_the_context_carries_no_image_file_or_path():
