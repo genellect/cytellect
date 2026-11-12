@@ -163,3 +163,21 @@ def test_a_descriptive_comparison_is_discussed_without_a_test(tmp_path, service)
     assert response.status_code == 200, response.text
     result = service[0]["content"]["context"]["result"]
     assert result["test"] == "none" and result["p_value"] is None and result["difference"] is None
+
+
+def test_a_redrawn_figure_reads_and_writes_the_discussion_of_its_comparison(tmp_path, service):
+    client, app = client_for(tmp_path)
+    job, store = saved_job(client, app)
+    with store.transaction() as conn:
+        source = conn.execute(jobs.select().where(jobs.c.id == job)).mappings().one()
+        conn.execute(jobs.insert().values(id="render-1", workspace_id=source["workspace_id"], revision_id=source["revision_id"],
+            kind="figure-render", state="succeeded", created=time.time(), result_dir=source["result_dir"],
+            payload={"source_job_id": job, "plot": {}, "request_id": "r1"}))
+    assert client.get("/v1/jobs/render-1/discussion", headers=HEADERS).json() is None
+    drafted = post(client, "render-1")
+    assert drafted.status_code == 200, drafted.text
+    assert drafted.json()["job_id"] == job
+    for jid in (job, "render-1"):
+        shown = client.get(f"/v1/jobs/{jid}/discussion", headers=HEADERS).json()
+        assert shown["job_id"] == job and shown["discussion"]["draft"]["implications"] == DRAFT["implications"]
+    assert len(service) == 1
