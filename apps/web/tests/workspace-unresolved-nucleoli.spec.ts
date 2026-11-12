@@ -90,11 +90,10 @@ test("unresolved nucleoli are confirmed by group, unit and reason, then kept as 
   await expect.poll(()=>fixture.review()).not.toBeNull();
   expect(fixture.cohort()).toMatchObject({compartment_missing:"unresolved-as-missing/1.0.0"});
   expect(fixture.review()).toEqual({accept_invalidated_fields:[],compartment_missing:{policy:"unresolved-as-missing/1.0.0",confirmed:{f1:{no_candidate:1}}}});
-  // Right under the result sentence: what the values describe, all missing over all nuclei and the
+  // Beside the result: all missing over all nuclei, in the basis line of a comparison (RS-07), and the
   // within-run warning; the same card lists every group and unit.
   const summary=page.getByRole("region",{name:"結果のまとめ"}).or(page.getByRole("region",{name:"測定結果の統計解析"})).first();
-  await expect(summary.getByText("核小体を確定できた核についての値です。")).toBeVisible();
-  await expect(summary).toContainText("確定できない核 1 / 5（20%）");
+  await expect(summary).toContainText(/確定できない核 1 \/ 5/);
   await expect(summary.getByRole("status").filter({hasText:"群の間の欠測の割合が"})).toContainText("群の間の欠測の割合が 33.3 ポイント違います（基準 10 ポイント）");
   const shown=page.getByRole("group",{name:"核小体を確定できない核の内訳"});
   await expect(shown.getByRole("row").filter({hasText:"unit-0"})).toContainText("1 / 3（33.3%）");
