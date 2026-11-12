@@ -143,6 +143,6 @@ const warnings: Record<string, string> = {
   channel_gate_exploratory_threshold_without_negative_control: "手動・Otsuのしきい値は陰性対照を用いていないため、探索的な判定です。",
   channel_gate_unclassified_nuclei_not_selected: "測定値やしきい値が欠けた核は未判定です。集計対象や陽性率の分母には含めていません。",
   channel_gate_saturated_nuclei_present: "保存形式または記録された撮影上限値に達した画素を含む核があります。元画像と撮影条件、定量できる輝度範囲を確認してください。",
-  channel_gate_selection_and_outcome_share_channel: "選別と同じチャンネルの輝度を測定した値です。値がしきい値で区切られているため、陽性と陰性の差は独立した結果ではありません。",
+  channel_gate_selection_and_outcome_share_channel: "選別と同じチャンネルの輝度を、選別した核で測定した値です。値がしきい値で区切られているため、陽性と陰性の差は独立した結果ではありません。",
 };
 export const descriptiveWarning = (code: string) => warnings[code] ?? code;

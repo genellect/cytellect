@@ -53,7 +53,7 @@ describe("cloud account display", () => {
   it("keeps error codes out of the sentence", () => {
     expect(accountErrorText(new AccountRequestError("account_code_invalid", 400, undefined, 3))).toBe("コードが一致しません。あと 3 回入力できます。");
     expect(accountErrorText(new AccountRequestError("account_rate_limited", 429, 42))).toContain("約 42 秒後");
-    expect(accountErrorText(new AccountRequestError("account_rate_limited", 429, 20 * 3600))).toBe("しばらくしてからもう一度試してください（約 20 時間後）。");
+    expect(accountErrorText(new AccountRequestError("account_rate_limited", 429, 20 * 3600))).toBe("しばらくしてからもう一度試してください（約 20 時間後）。このPCでの解析は続けて使えます。");
     expect(accountErrorText(new AccountRequestError("account_rate_limited", 429, 600))).toContain("約 10 分後");
     expect(accountErrorText(new AccountRequestError("account_mail_failed", 502))).toBe("メールを送れませんでした。時間をおいてもう一度試してください。");
     expect(accountErrorText(new AccountRequestError("unexpected_code", 500))).not.toContain("unexpected_code");

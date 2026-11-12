@@ -27,7 +27,7 @@ export default function RegionUploadPanel({wid,channels,maskSource,hasFields,run
  return <details className={styles.upload} open={open} onToggle={event=>setOpen(event.currentTarget.open)}>
   <summary>＋ 画像を登録</summary>
   <form onSubmit={event=>{event.preventDefault();run(()=>upload(event));}}>
-   <p className={styles.small}>チャンネル別の8/16-bitグレースケール2D TIFFを登録します。表示名とファイルの対応を確認してください。</p>
+   <p className={styles.small}>チャンネル別の8/16-bitグレースケール2D TIFFを登録します。表示名とファイルの対応を確認してください。染色が不明な場合は空欄にします。</p>
    <div className={styles.regionChannels}>{drafts.map((channel,index)=><fieldset className={styles.regionChannel} key={channel.id}>
     <legend>チャンネル {index+1}</legend>
     <div className={styles.formGrid}><label>表示名<input aria-label={`チャンネル ${index+1} の表示名`} value={channel.label} onChange={event=>update(index,{label:event.target.value,confirmed:false})} placeholder="例：Actin、核染色" maxLength={120} required readOnly={hasFields}/></label><label>実際の染色・標識（任意）<input aria-label={`チャンネル ${index+1} の染色`} value={channel.stain} onChange={event=>update(index,{stain:event.target.value,confirmed:false})} placeholder="不明なら空欄" maxLength={120} readOnly={hasFields}/></label><label>画像 TIFF<input aria-label={`チャンネル ${index+1} の画像`} name={`ch${index}`} type="file" accept=".tif,.tiff" required onChange={()=>update(index,{confirmed:false})}/></label></div>

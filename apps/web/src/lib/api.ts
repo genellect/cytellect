@@ -7,9 +7,9 @@ export const LOOPBACK_API = (() => {try {return ["localhost", "127.0.0.1", "[::1
 /** The public build without an analysis API hosts the serverless demo (/demo). */
 export const PUBLIC_SHOWCASE = !API_CONFIGURED;
 /** Local mode: the launcher (the small 「Cytellect」 window) is closed or stopped; say how to start it again. */
-export const LOCAL_UNREACHABLE_TEXT = "Cytellect に接続できません。デスクトップの「Cytellect」をもう一度開いてください。";
+export const LOCAL_UNREACHABLE_TEXT = "Cytellect に接続できません。小さな「Cytellect」の画面が閉じている場合は、デスクトップの「Cytellect」をもう一度開いてください。";
 /** Local mode: the PC reaches no cloud service. University networks often restrict it; name the host to allow. */
-export const CLOUD_NETWORK_HINT = "続く場合は、ネットワーク管理者に api.cytellect.app への接続の許可を依頼してください。";
+export const CLOUD_NETWORK_HINT = "大学や研究室のネットワークでは、接続が制限されている場合があります。続く場合は、ネットワーク管理者に api.cytellect.app への接続の許可を依頼してください。";
 export class ApiError extends Error { constructor(public code: string, public status: number) { super(code); } }
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
  const showcase = !API_CONFIGURED && showcaseActive();
@@ -117,8 +117,8 @@ const messages:Record<string,string> = {
   signal_threshold_indeterminate: "画像内の輝度が一定のため、陽性領域を検出できません。別のチャンネルを指定してください。",
  proposal_service_disabled:LOCAL_MODE?"解析提案にはクラウド機能が必要です。右上の「ログイン」から有効にしてください。":"解析提案は現在無効です。管理者がサービス設定を確認してください。",
  proposal_service_unauthorized:LOCAL_MODE?"解析提案の利用を確認できませんでした。右上のアカウントでログインの状態を確認してください。":"解析提案サービスが接続を認めませんでした。管理者が端末の設定を確認してください。",
- proposal_access_revoked:"解析提案の利用が停止されています。オーナーにお問い合わせください。",
- proposal_quota_exhausted:"今月の解析提案の利用上限に達しました。上限は毎月リセットされます。",
+ proposal_access_revoked:"解析提案の利用が停止されています。オーナーにお問い合わせください。このPCでの解析は続けて使えます。",
+ proposal_quota_exhausted:"今月の解析提案の利用上限に達しました。上限は毎月リセットされます。このPCでの解析は続けて使えます。",
  proposal_service_unavailable:"提案サービスに接続できません。接続状態を確認してください。",
  proposal_model_unavailable:"OpenAIの応答を取得できませんでした。サービスの通信状態を確認してください。",
  proposal_budget_reconciliation_required:"API使用量の上限に不一致があったため停止しています。管理者による費用確認が必要です。",
@@ -158,7 +158,7 @@ const messages:Record<string,string> = {
  statistical_methods_template_invalid:"保存されたMethodsの版を確認できません。解析版と出力条件を確認してください。",
  statistical_methods_source_invalid:"Methodsに必要な保存情報が一致しません。元の測定値と解析版を確認してください。",
  region_upload_id_conflict:"同じ登録操作の内容が変わっています。登録済みの視野を確認し、変更した画像は新しい登録として追加してください。",
- planning_legacy_requires_review:"以前の計画メモです。現在の計画ガイドで内容を確認し直してください。",
+ planning_legacy_requires_review:"以前の計画形式のため、読み込めません。解析設定で作成し直してください。",
  planning_snapshot_mismatch:"計画の保存内容が一致しません。計画を読み込み直して確認してください。",
  planning_candidate_unavailable:"この条件に対応する解析候補がありません。計画を見直してください。",
  planning_resolution_required:"実画像のチャンネルと測定指標を選び、計画との対応を確認してください。",
@@ -197,7 +197,7 @@ const messages:Record<string,string> = {
  region_comparison_incompatible_sampling:"画素サイズや空間サンプリングが比較条件と一致しません。面積の単位と撮影情報を確認してください。",
  region_comparison_incompatible_intensity_scale:"画像間で輝度の保存形式が異なります。異なる尺度の値をそのまま比較できません。",
  region_comparison_saturated_signal:"採用領域に上限値または飽和した画素があります。輝度比較の対象と取得条件を確認してください。",
- region_comparison_invalid_family:"比較の組に重複、または同一条件どうしの比較があります。対照群と比較対象を確認してください。",
+ region_comparison_invalid_family:"比較の組の指定に誤りがあります（重複、同一条件どうし、対照群を含まない組など）。対照群と比較対象を確認してください。",
  region_comparison_invalid_text:"条件名や実験単位の説明を、空欄や改行を含めず入力してください。",
  region_comparison_pairing_basis_required:"対応ありの場合は、試料が対応する根拠を記録してください。",
  unique_complete_pairs_required:"各ペアに各条件の実験単位を1つずつ対応させてください。",
@@ -289,14 +289,14 @@ const messages:Record<string,string> = {
  cellpose_gpu_unavailable:"この実行環境ではGPUを使用できません。CPUを選択してください。",
  cellpose_remote_url_invalid:"クラウドGPUの接続先の設定が正しくありません。管理者に設定の確認を依頼してください。",
  cellpose_remote_rejected:LOCAL_MODE?"クラウドGPUが利用を認めませんでした。右上のアカウントでログインの状態を確認し、管理者の接続キーを使っている場合は管理者に確認を依頼してください。":"クラウドGPUの接続キーが無効です。管理者に接続キーの確認を依頼してください。",
- cellpose_remote_unreachable:LOCAL_MODE?`クラウドGPUに接続できませんでした。${CLOUD_NETWORK_HINT}`:"クラウドGPUに接続できませんでした。ネットワークを確認して、もう一度実行してください。",
+ cellpose_remote_unreachable:LOCAL_MODE?`クラウドGPUに接続できませんでした。もう一度実行してください。${CLOUD_NETWORK_HINT}`:"クラウドGPUに接続できませんでした。ネットワークを確認して、もう一度実行してください。",
  cellpose_remote_unavailable:"クラウドGPUの起動が時間内に完了しませんでした。数分後にもう一度実行してください。",
- cellpose_remote_failed:`クラウドGPUでの処理に失敗しました。もう一度実行し、続く場合は${LOCAL_MODE?"オーナーにお問い合わせください":"管理者に連絡してください"}。`,
- cellpose_remote_output_invalid:`クラウドGPUから正しい結果を受け取れませんでした。もう一度実行し、続く場合は${LOCAL_MODE?"オーナーにお問い合わせください":"管理者に連絡してください"}。`,
+ cellpose_remote_failed:`クラウドGPUでの処理に失敗しました。もう一度実行し、続く場合は${LOCAL_MODE?"オーナーにお問い合わせください。このPCでの解析は続けて使えます":"管理者に連絡してください"}。`,
+ cellpose_remote_output_invalid:`クラウドGPUから正しい結果を受け取れませんでした。もう一度実行し、続く場合は${LOCAL_MODE?"オーナーにお問い合わせください。このPCでの解析は続けて使えます":"管理者に連絡してください"}。`,
  cellpose_remote_version_mismatch:"クラウドGPUの版がこのCytellectと一致しません。管理者にクラウドGPUの更新を依頼してください。",
- cellpose_remote_disabled:"クラウド GPU は現在停止しています。時間をおいてもう一度実行してください。",
- cellpose_remote_quota_exceeded:"今月の GPU の利用上限に達しました。再開日は右上のアカウントに表示されます。",
- cellpose_remote_revoked:"クラウド機能の利用が停止されています。オーナーにお問い合わせください。",
+ cellpose_remote_disabled:"クラウド GPU は現在停止しています。時間をおいてもう一度実行してください。このPCでの解析は続けて使えます。",
+ cellpose_remote_quota_exceeded:"今月の GPU の利用上限に達しました。再開日は右上のアカウントに表示されます。このPCでの解析は続けて使えます。",
+ cellpose_remote_revoked:"クラウド機能の利用が停止されています。オーナーにお問い合わせください。このPCでの解析は続けて使えます。",
  cellpose_remote_auth_required:"ログインの有効期限が切れました。右上の「ログイン」から、もう一度ログインしてください。",
  cellpose_remote_input_too_large:"画像が大きすぎるため、クラウドGPUへ送れません。",
  nucleolar_processing_failed:"核小体の処理に失敗した核があります。再検出、手動修正、または理由を記録して除外してください。",

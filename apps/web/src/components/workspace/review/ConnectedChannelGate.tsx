@@ -52,7 +52,7 @@ export function ConnectedChannelGate({adapter,workspace,fields,channels,disabled
     <label>判定方法<select value={method} onChange={event=>setMethod(event.target.value as typeof method)} disabled={disabled||busy}>
       <option value="negative_control">撮影日ごとの陰性対照</option><option value="batch_otsu">撮影日ごとのOtsu（探索的）</option><option value="manual">しきい値を指定（探索的）</option></select></label>
     {gateExploratory(method)&&<small>陰性対照によらないしきい値での分類は探索的です。陽性率の比較は記述統計のみで、検定はしません。</small>}
-    {recorded&&<small>公開デモには、撮影日ごとの Otsu による分類だけを記録しています。陰性対照としきい値の指定は、お手元の画像で使えます。</small>}
+    {recorded&&<small>公開デモには、撮影日ごとの Otsu による分類だけを記録しています。陰性対照による判定としきい値の指定は記録していないため、選ぶと案内が出ます。お手元の画像では使えます。</small>}
     <label>測定値<select value={values} onChange={event=>setValues(event.target.value as typeof values)} disabled={disabled||busy}>
       <option value="raw">原値</option><option value="corrected">背景補正値</option></select></label>
     {method==="manual"&&<label>核内平均輝度のしきい値<input type="number" step="any" value={threshold} onChange={event=>setThreshold(event.target.value)} disabled={disabled||busy}/></label>}
@@ -92,6 +92,6 @@ function GateReview({result,filter,selected}:{result:ChannelGateResult;filter:Ch
       </figure>;})}
     <small>{GATE_STATUS_ORDER.map(status=><span key={status} style={{marginRight:8,whiteSpace:"nowrap"}}><span aria-hidden="true" style={{display:"inline-block",width:9,height:9,marginRight:3,background:tones[status]}}/>{GATE_STATUS_LABELS[status]}</span>)}</small>
     {nucleus?<p style={{margin:0}}>選んだ核 {nucleus.region_id}：判定値 {format(nucleus.channel_mean)}、しきい値 {format(nucleus.threshold)} → {GATE_STATUS_LABELS[nucleus.status as GateStatus]}</p>
-      :<small>選んだ核：未選択</small>}
+      :<small>画像の核を選択すると、判定値を表示します。</small>}
   </div>;
 }

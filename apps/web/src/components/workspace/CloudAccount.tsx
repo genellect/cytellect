@@ -48,7 +48,7 @@ export function CloudAccountProvider({children, intro: initialIntro = null}: {ch
   }, [setAccount]);
   const startGpu = useCallback(() => {warmed.current = true; void accountApi.startGpu().then(setGpu).catch(() => {});}, []);
   // The cloud counts the start-up wait as GPU time: start it by itself once per session,
-  // afterwards only when the researcher asks (「もう一度試す」) or a detection runs.
+  // afterwards only when the researcher asks (「再試行」) or a detection runs.
   const warmUpOnce = useCallback(() => {if (!warmed.current) startGpu();}, [startGpu]);
   useEffect(() => {void refresh();}, [refresh]);
   const waiting = account?.state === "pending_approval" && !account.approved;
@@ -65,7 +65,7 @@ export function CloudAccountProvider({children, intro: initialIntro = null}: {ch
   // The GPU check learns of an ended login before the account view does.
   useEffect(() => {if (gpu?.state === "auth_required" || gpu?.state === "revoked") void refresh();}, [gpu?.state, refresh]);
   // After an actual sign-in, a Cellpose choice that waited for the login starts the GPU.
-  // Otherwise only the researcher's 「もう一度試す」 starts it again.
+  // Otherwise only the researcher's 「再試行」 starts it again.
   const allowed = account === null ? null : account.state === "allowed";
   const gpuState = useRef<GpuState["state"] | undefined>(undefined);
   const currentGpu = gpu?.state;
@@ -106,7 +106,7 @@ export function AccountIndicator() {
   const [logoutError, setLogoutError] = useState<unknown>(null);
   if (!cloud) return null;
   // The first check can wait for the network; do not offer a sign-in that may already exist.
-  if (cloud.checking && !cloud.account) return <button className={styles.accountButton} disabled><span>確認中</span></button>;
+  if (cloud.checking && !cloud.account) return <button className={styles.accountButton} disabled><span>確認中…</span></button>;
   const {label, detail} = accountLabel(cloud.account);
   const account = cloud.account;
   if (account?.state === "allowed" || account?.state === "offline") {
@@ -120,7 +120,7 @@ export function AccountIndicator() {
       <summary><span>{label}</span>{detail && <small>{detail}</small>}</summary>
       <div className={styles.accountPanel}>
         <p className={styles.accountEmail}>{account.email}</p>
-        <p>{account.state === "allowed" ? "GPU による検出・解析提案：利用可" : `クラウドに接続できません。${CLOUD_NETWORK_HINT}`}</p>
+        <p>{account.state === "allowed" ? "GPU による検出・解析提案：利用可" : `クラウドに接続できません。${CLOUD_NETWORK_HINT}このPCでの解析は続けて使えます。`}</p>
         {gpuQuotaReached(account) && <p role="status">{gpuQuotaText(account)}</p>}
         {usage && <p className={styles.small}>今月の利用：{usage}{resets ? `（${resets}にリセット）` : ""}</p>}
         <p className={styles.small}>{GPU_TIME_NOTE}</p>
@@ -154,7 +154,7 @@ export function CloudNotices() {
     {pending && (pending.action || !collapsed) && <NoticeLine notice={pending} onAction={() => void continueLogin()}
       onClose={pending.action ? undefined : () => setCollapsed(true)} closeLabel="このPCでの解析を続ける"/>}
     {pending && !pending.action && collapsed && <div className={styles.notice} data-tone="info" role="status">
-      <p>クラウド機能：承認待ち</p>
+      <p>クラウド機能：承認待ち。このPCでの解析は続けて使えます。</p>
       <button className={styles.quiet} onClick={() => setCollapsed(false)}>詳細</button>
     </div>}
     {continueError !== null && <div className={styles.notice} data-tone="problem" role="alert">
@@ -363,14 +363,14 @@ function LoginDialog() {
         <label>メールアドレス<input ref={first} type="email" autoComplete="email" inputMode="email" value={email}
           onChange={event => setEmail(event.target.value)} required maxLength={254} placeholder="name@example.ac.jp"/></label>
         <p className={styles.small}>ログイン後、核小体・細胞の検出（Cellpose）では、検出に使う 1 チャンネルの画像をクラウドの GPU に送ります。核小体の検出では核の輪郭も送ります。解析提案には画像を送りません。ほかの解析はこのPCだけで行います。</p>
-        <button className={styles.primary} disabled={busy || !email.trim()}>{busy ? "送信中" : "コードを送信"}</button>
+        <button className={styles.primary} disabled={busy || !email.trim()}>{busy ? "送信中…" : "コードを送信"}</button>
       </form>}
       {step === "code" && <form onSubmit={event => void submitCode(event)}>
         <p role="status">{email} にコードを送りました。</p>
         {exhausted ? <p>このコードの入力回数の上限に達しました。「コードを再送」で新しいコードを受け取ってください。</p> : <>
         <label>6 桁のコード<input ref={first} value={code} onChange={event => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
           inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required/></label>
-        <button className={styles.primary} disabled={busy || !plausibleCode(code)}>{busy ? "確認中" : "ログイン"}</button>
+        <button className={styles.primary} disabled={busy || !plausibleCode(code)}>{busy ? "確認中…" : "ログイン"}</button>
         </>}
         <p className={styles.small}>コードの有効期限：10 分。届かない場合は迷惑メールのフォルダーを確認してください。</p>
         <div className={styles.row}>
@@ -382,10 +382,10 @@ function LoginDialog() {
         <p>{email} の利用が承認されました。6 桁のコードをメールで受け取り、ログインします。</p>
         <button className={styles.primary} disabled={busy} onClick={() => void requestCode(email)}>ログインを続ける</button>
       </> : <>
-        <p>オーナーに利用を申請しました（{email}）。承認時にメールで通知します。</p>
+        <p>オーナーに利用を申請しました（{email}）。承認時にメールで通知します。このPCでの解析は続けて使えます。</p>
         <button className={styles.quiet} onClick={() => {setError(null); setStep("email");}}>メールアドレスを修正</button>
       </>)}
-      {step === "revoked" && <p>このメールアドレスのクラウド機能は停止されています。オーナーにお問い合わせください。</p>}
+      {step === "revoked" && <p>このメールアドレスのクラウド機能は停止されています。オーナーにお問い合わせください。このPCでの解析は続けて使えます。</p>}
       {step === "done" && <>
         <p>{cloud.account?.email || email} でログインしました。GPU による検出と解析提案が使えます。</p>
         {cloud.account && usageText(cloud.account) && <p className={styles.small}>今月の利用：{usageText(cloud.account)}</p>}

@@ -89,7 +89,7 @@ export function gpuQuotaReached(account: Account | null | undefined): boolean {
 /** The sentence for a used-up GPU allowance, with the date it resumes. */
 export function gpuQuotaText(account: Account, timeZone?: string): string {
   const date = formatDate(account.resets_at, timeZone);
-  return `今月の GPU の利用上限に達しました。${date ? `${date}から` : "来月から"}再び使えます。`;
+  return `今月の GPU の利用上限に達しました。${date ? `${date}から` : "来月から"}再び使えます。このPCでの解析は続けて使えます。`;
 }
 
 /** The header's short label. */
@@ -122,10 +122,10 @@ export function usageText(account: Account): string {
 
 const accountMessages: Record<string, string> = {
   account_email_invalid: "メールアドレスの形式を確認してください。",
-  account_cloud_unreachable: `クラウドに接続できません。${CLOUD_NETWORK_HINT}`,
+  account_cloud_unreachable: `クラウドに接続できません。もう一度試してください。${CLOUD_NETWORK_HINT}`,
   account_cloud_failed: "クラウドで処理できませんでした。時間をおいてもう一度試してください。",
   account_mail_failed: "メールを送れませんでした。時間をおいてもう一度試してください。",
-  account_cloud_unavailable: "クラウドのログインが一時的に使えません。時間をおいてもう一度試してください。",
+  account_cloud_unavailable: "クラウドのログインが一時的に使えません。時間をおいてもう一度試してください。このPCでの解析は続けて使えます。",
   account_cloud_misconfigured: "クラウドの接続先の設定が正しくありません。インストーラーをもう一度開いてください。研究データは保たれます。",
   account_code_expired: "コードの有効期限が切れました。「コードを再送」で新しいコードを受け取ってください。",
   account_code_attempts_exhausted: "入力回数の上限に達しました。「コードを再送」で新しいコードを受け取ってください。",
@@ -146,7 +146,7 @@ export function waitText(seconds: number): string {
 /** The researcher-facing sentence; the code itself is shown only under 詳細. */
 export function accountErrorText(error: unknown): string {
   if (!(error instanceof AccountRequestError)) return accountMessages.local_api_unreachable;
-  if (error.code === "account_rate_limited") return `しばらくしてからもう一度試してください（${waitText(error.retryAfterSeconds ?? 60)}）。`;
+  if (error.code === "account_rate_limited") return `しばらくしてからもう一度試してください（${waitText(error.retryAfterSeconds ?? 60)}）。このPCでの解析は続けて使えます。`;
   if (error.code === "account_code_invalid") return error.attemptsLeft === null || error.attemptsLeft === undefined
     ? "コードが一致しません。メールの 6 桁の数字を確かめてください。"
     : `コードが一致しません。あと ${error.attemptsLeft} 回入力できます。`;
@@ -166,13 +166,13 @@ export function gpuNotice(gpu: GpuState | null | undefined, timeZone?: string): 
     case "quota_exceeded": {
       const date = formatDate(gpu.resets_at, timeZone);
       const whose = gpu.scope === "global" ? "クラウド GPU 全体の今月の利用上限" : "今月の GPU の利用上限";
-      return {text: `${whose}に達しました。${date ? `${date}から` : "来月から"}再び使えます。`, tone: "problem"};
+      return {text: `${whose}に達しました。${date ? `${date}から` : "来月から"}再び使えます。このPCでの解析は続けて使えます。`, tone: "problem"};
     }
-    case "revoked": return {text: "クラウド機能の利用が停止されています。オーナーにお問い合わせください。", tone: "problem"};
+    case "revoked": return {text: "クラウド機能の利用が停止されています。オーナーにお問い合わせください。このPCでの解析は続けて使えます。", tone: "problem"};
     case "auth_required": return {text: "ログインの有効期限が切れました。もう一度ログインしてください。", action: {kind: "login", label: "ログイン"}, tone: "problem"};
-    case "disabled": return {text: "クラウド GPU は現在停止しています。時間をおいてもう一度試してください。", action: {kind: "retry", label: "再試行"}, tone: "problem"};
-    case "rejected": case "failed": return {text: "GPU に接続できませんでした。少し待ってからもう一度試してください。", action: {kind: "retry", label: "再試行"}, tone: "problem"};
-    case "offline": return {text: `クラウドに接続できません。${CLOUD_NETWORK_HINT}`, action: {kind: "retry", label: "再試行"}, tone: "problem"};
+    case "disabled": return {text: "クラウド GPU は現在停止しています。時間をおいてもう一度試してください。このPCでの解析は続けて使えます。", action: {kind: "retry", label: "再試行"}, tone: "problem"};
+    case "rejected": case "failed": return {text: "GPU に接続できませんでした。少し待ってからもう一度試してください。このPCでの解析は続けて使えます。", action: {kind: "retry", label: "再試行"}, tone: "problem"};
+    case "offline": return {text: `クラウドに接続できません。${CLOUD_NETWORK_HINT}このPCでの解析は続けて使えます。`, action: {kind: "retry", label: "再試行"}, tone: "problem"};
     case "unconfigured": return {text: "Cellpose の検出はクラウドの GPU で行うため、ログインが必要です。", action: {kind: "login", label: "ログイン"}, tone: "info"};
     default: return null;
   }
@@ -199,12 +199,12 @@ export function pendingNotice(account: Account | null | undefined, timeZone?: st
   if (account?.state !== "pending_approval") return null;
   if (account.approved) return {text: "利用が承認されました。", action: {kind: "login", label: "ログインを続ける"}, tone: "ready"};
   const when = formatDate(account.requested_at ?? null, timeZone, true);
-  return {text: `承認待ち${when ? `（${when} に申請）` : ""}。承認時にメールで通知します。`, tone: "info"};
+  return {text: `承認待ち${when ? `（${when} に申請）` : ""}。承認時にメールで通知します。このPCでの解析は続けて使えます。`, tone: "info"};
 }
 
 /** Account notices other than pending approval (revoked, expired). */
 export function accountNotice(account: Account | null | undefined): Notice | null {
-  if (account?.state === "revoked") return {text: "クラウド機能の利用が停止されています。オーナーにお問い合わせください。", tone: "problem"};
+  if (account?.state === "revoked") return {text: "クラウド機能の利用が停止されています。オーナーにお問い合わせください。このPCでの解析は続けて使えます。", tone: "problem"};
   if (account?.state === "expired") return {text: "ログインの有効期限が切れました。もう一度ログインしてください。", action: {kind: "login", label: "ログイン"}, tone: "info"};
   return null;
 }

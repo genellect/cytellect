@@ -147,7 +147,7 @@ export default function Workbench({id,session,onBack,onError}:Props){
    {!!active&&<section className={styles.measurements} ref={measurementsRef}>
     <div className={styles.sectionHeader}><div><h2>測定結果</h2></div><span className={styles.statusPill}>{active.state==="succeeded"?`${measured.data?.cells.length??0} 核 / 解析版 ${currentIndex+1}`:active.state}</span></div>
     {measured.data?.engine_provenance?.[fid]&&<p className={styles.small}>解析記録：{measured.data.engine_provenance[fid].engine.includes("synthetic-truth")?"合成画像の既知の正解マスク":measured.data.engine_provenance[fid].engine.includes("reused")?"前の解析版のマスクを使用":measured.data.engine_provenance[fid].engine}</p>}
-    {!!failures.length&&<div className={styles.error}>処理に失敗した視野：{failures.length} 件。失敗した視野を暗黙に除外した統計は生成しません。{failures.map(f=><p key={f.field_id}>{f.field_id.slice(0,8)}：{errorCodeMessage(f.reason)}</p>)}</div>}
+    {!!failures.length&&<div className={styles.error}>処理に失敗した視野：{failures.length} 件。失敗した視野を暗黙に除外した統計は作成しません。{failures.map(f=><p key={f.field_id}>{f.field_id.slice(0,8)}：{errorCodeMessage(f.reason)}</p>)}</div>}
     {!!invalidated.length&&<div className={styles.notice}>核の修正により {invalidated.length} 視野の核小体が再確認待ちです。</div>}
     {!!nucleolarFailures.length&&<div className={styles.error}>核小体の処理に失敗した核：{nucleolarFailures.length} 個。核の測定値は保持しています。再検出・手動修正するか、理由を記録して除外してください。</div>}
     {measured.error&&<p role="alert">{errorMessage(measured.error)}</p>}
