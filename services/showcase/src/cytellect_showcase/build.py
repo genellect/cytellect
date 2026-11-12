@@ -1106,7 +1106,10 @@ def deterministic_zip(target: Path, entries: dict[str, Path | bytes]) -> None:
     with zipfile.ZipFile(partial, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
         for name in sorted(entries):
             info = zipfile.ZipInfo(name, date_time=ZIP_DATE)
-            info.compress_type = zipfile.ZIP_DEFLATED
+            # The uploaded planes (uncompressed TIFF, which the in-browser runtime reads without imagecodecs) are
+            # most of the seed; bzip2 keeps it under GitHub's 100 MB file limit (four scenes: 114 MB as deflate,
+            # about 95 MB). Python's zipfile reads both, in CPython and in Pyodide.
+            info.compress_type = zipfile.ZIP_BZIP2 if name.lower().endswith((".tif", ".tiff")) else zipfile.ZIP_DEFLATED
             info.external_attr = 0o644 << 16
             value = entries[name]
             archive.writestr(info, value if isinstance(value, bytes) else value.read_bytes(), compresslevel=9)
