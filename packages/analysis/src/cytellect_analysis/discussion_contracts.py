@@ -13,7 +13,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat
 
-DISCUSSION_PROTOCOL = "result-discussion/1.0.0"
+DISCUSSION_PROTOCOL: Literal["result-discussion/1.0.0"] = "result-discussion/1.0.0"
 DISCUSSION_PROMPT_VERSION = "2026-11-12.2"
 
 Label = Annotated[str, Field(min_length=1, max_length=80)]
