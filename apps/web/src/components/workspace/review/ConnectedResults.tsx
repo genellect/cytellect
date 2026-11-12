@@ -205,7 +205,10 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
     if(!initialSpec)return;const key=JSON.stringify(initialSpec);if(receivedSpec.current===key)return;receivedSpec.current=key;
     if(skipOwnSpec.current){skipOwnSpec.current=false;return;}
     const stat=initialSpec.statistics,figure=initialSpec.figure;
-    if(stat?.method){setOperation(compareWanted.current?"comparison":stat.method.kind==="descriptive"?"distribution":stat.method.kind);setPaired(stat.design==="paired");setRank(["mann-whitney-u","wilcoxon"].includes(stat.method.test||"")||stat.method.association==="spearman");setUnit(stat.unit_definition);setPairing(stat.pairing_basis);setContrasts(stat.comparisons||[]);setMetadata(stat.field_metadata||{});setConfirmed(false);
+    // A saved specification changes for many reasons (settings, measurement policy): only a changed statistics part
+    // replaces the analysis, so a measurement or a background setting never brings back an earlier metric (DM-04).
+    const statKey=JSON.stringify(stat??null),statChanged=receivedStatistics.current!==statKey;receivedStatistics.current=statKey;
+    if(stat?.method&&statChanged){setOperation(compareWanted.current?"comparison":stat.method.kind==="descriptive"?"distribution":stat.method.kind);setPaired(stat.design==="paired");setRank(["mann-whitney-u","wilcoxon"].includes(stat.method.test||"")||stat.method.association==="spearman");setUnit(stat.unit_definition);setPairing(stat.pairing_basis);setContrasts(stat.comparisons||[]);setMetadata(stat.field_metadata||{});setConfirmed(false);
       const restored=restoredMetric(stat);if(restored)onMetricChange?.(restored,stat.channel_id??null);
       const sx=stat as typeof stat & {x_metric?:string|null;x_channel_id?:string|null};if(stat.method.y)onMetricChange?.(displayMetric(stat.method.y.metric),stat.method.y.channel??null);if(stat.method.x){setXMetric(displayMetric(stat.method.x.metric));setXChannel(stat.method.x.channel??null);}else if(sx.x_metric){setXMetric(sx.x_metric);setXChannel(sx.x_channel_id??null);}
     }
@@ -261,6 +264,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   const pendingReclassify=useRef(0);
   useEffect(()=>{if(reclassifyRequest)pendingReclassify.current=reclassifyRequest;},[reclassifyRequest]);
   const compareWanted=useRef(false);
+  const receivedStatistics=useRef<string|null>(null);
   useEffect(()=>{if(!compareRequest)return;compareWanted.current=true;setOperation("comparison");setConfirmed(false);},[compareRequest]);
   const runPendingReclassify=useEffectEvent(()=>{pendingReclassify.current=0;void classifyForResults();});
   // The request answers that one click: it lapses when the decision is already current or the researcher moves on,

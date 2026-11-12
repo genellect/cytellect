@@ -127,8 +127,9 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   const sourceRequest=useRef(0);
   const fileInput=useRef<HTMLInputElement>(null),folderInput=useRef<HTMLInputElement>(null);
   const field=fields.find(value=>value.id===selected)||fields[0];
-  // Nucleoli and nucleoplasm open on the nucleolar marker (the defined one, else the first other used stain) unless a stain was chosen.
-  const markerChannel=target==="nucleoli"||target==="nucleoplasm"?(field?.channels.find(value=>value.id===r.settings.nucleolarDefinition.marker&&value.id!==field?.nuclearChannelId&&value.role!=="nuclear")??field?.channels.find(value=>value.id!==field?.nuclearChannelId&&value.role!=="nuclear"&&value.role!=="unused"))?.id:undefined;
+  // Nucleoli and nucleoplasm open on the nucleolar marker (the defined one, else the first other used stain) unless a stain was chosen;
+  // so does the nucleolus-and-nucleoplasm colour mode, whose partition of a nuclear stain would say nothing (MV-05).
+  const markerChannel=target==="nucleoli"||target==="nucleoplasm"||(target==="nuclei"&&colorBy==="compartments")?(field?.channels.find(value=>value.id===r.settings.nucleolarDefinition.marker&&value.id!==field?.nuclearChannelId&&value.role!=="nuclear")??field?.channels.find(value=>value.id!==field?.nuclearChannelId&&value.role!=="nuclear"&&value.role!=="unused"))?.id:undefined;
   const actualChannel=field?.channels.find(value=>value.id===channelId)?.id||markerChannel||field?.nuclearChannelId||field?.channels.find(value=>value.role==="nuclear")?.id||field?.channels[0]?.id||"";
   const historicResult=historical?.target===target&&historical.result.field===field?.id?historical.result:undefined;
   const candidate=field&&!historicResult?r.candidateResult(field.id,target):undefined;
