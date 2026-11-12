@@ -268,3 +268,30 @@ def test_seed_keeps_label_arrays_of_recordings_unpacked_from_an_earlier_seed(tmp
     (first / list(arrays[0]["outputs"].values())[0]).unlink()
     with pytest.raises(SystemExit, match="showcase_recording_array_missing"):
         pack_recordings(first)
+
+
+def test_seed_restores_a_shared_field_whose_tiff_is_itself_a_copy(tmp_path):
+    """Scenes sharing a field: the second TIFF is a copy, restored before its array is decoded."""
+    from cytellect_showcase import seed
+
+    root = tmp_path / "build"
+    channel_arrays = {}
+    for workspace in ("a", "b"):
+        folder = root / "workspaces" / workspace / "fields" / "f"
+        folder.mkdir(parents=True)
+        (folder / "ch0.tif").write_bytes(tiff_bytes(image()))
+        np.save(folder / "channel-ch1.npy", image(), allow_pickle=False)
+        channel_arrays[f"workspaces/{workspace}/fields/f/channel-ch1.npy"] = f"workspaces/{workspace}/fields/f/ch0.tif"
+    files = {path.relative_to(root).as_posix(): path for path in root.rglob("*") if path.is_file()}
+    entries = seed.plan(files, channel_arrays, 0)
+    assert "workspaces/b/fields/f/ch0.tif" in {entry["path"] for entry in entries}
+    unpacked = tmp_path / "unpacked"
+    omitted = {entry["path"] for entry in entries}
+    for name, path in files.items():
+        if name not in omitted:
+            (unpacked / name).parent.mkdir(parents=True, exist_ok=True)
+            (unpacked / name).write_bytes(path.read_bytes())
+    (unpacked / "showcase.json").write_text(json.dumps({"regenerate": entries}))
+    assert seed.restore(unpacked) == len(entries)
+    for name, path in files.items():
+        assert (unpacked / name).read_bytes() == path.read_bytes()
