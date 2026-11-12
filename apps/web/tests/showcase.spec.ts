@@ -795,7 +795,9 @@ test("the statistics view states the premise once, in the basis line, and opens 
     // Statements of the premise visible on the whole statistics view (the method's disabled value 「記述統計」 is a state, not a statement).
     const statements = await page.locator("main").evaluate(root => [...root.querySelectorAll("p, li, h3, summary")]
       .filter(element => (element as HTMLElement).offsetParent !== null && !element.closest("details:not([open]) > :not(summary)"))
-      .map(element => element.textContent ?? "").filter(text => /独立|検定なし|記述のみ|記述統計/.test(text)));
+      .map(element => element.textContent ?? "")
+      // The folded counts table names its unit column (独立実験単位); it is a heading, not a statement of the premise.
+      .filter(text => /独立|検定なし|記述のみ|記述統計/.test(text) && !text.startsWith("数の内訳")));
     expect(statements, scene?.id).toHaveLength(1);
     expect(statements[0]).toMatch(/^記述統計/);
     // The basis line opens to the reason and the one place to fix it.
