@@ -337,13 +337,16 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   const [savedNote,setSavedNote]=useState("");
   useEffect(()=>{if(demo&&saved&&!saved.historical&&Math.abs(saved.plot.width_inches*25.4-width)>.5)void render();},[saved?.job]);// eslint-disable-line react-hooks/exhaustive-deps
   const openingTarget=useRef<ReviewTarget|null>(null);
-  const openLatestSaved=useEffectEvent((entry:Saved)=>{if(saved)return;restoreFigure(entry);const metric=entry.result.spec?.selection?.metric??entry.result.metric;if(metric)onOpening?.(metric,entry.result.spec?.selection?.channel_id??null);
+  const openLatestSaved=useEffectEvent((entry:Saved)=>{if(saved)return;restoreFigure(entry);
+    // The opening comparison (metric, channel, region) is for the first look only (DM-04): once the researcher has
+    // measured, it is not applied, even when the saved results load after the measurement.
+    if(measured)return;const metric=entry.result.spec?.selection?.metric??entry.result.metric;if(metric)onOpening?.(metric,entry.result.spec?.selection?.channel_id??null);
     // The opening result's region too, once the statistics view is shown (DM-04); the image view keeps its own
     // opening region until then (DM-03).
     if(!metric||!entry.target)return;const opening=metricStructure(metric,entry.target);
     // A deep link (step=statistics) shows the view before the saved results load: apply the region at once.
     if(shown&&mode==="statistics")(onOpeningTarget??onAnalysisTargetChange)?.(opening);else openingTarget.current=opening;});
-  useEffect(()=>{if(!shown||mode!=="statistics"||!openingTarget.current)return;(onOpeningTarget??onAnalysisTargetChange)?.(openingTarget.current);openingTarget.current=null;},[shown,mode,history]);// eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(()=>{if(measured)openingTarget.current=null;if(!shown||mode!=="statistics"||!openingTarget.current)return;(onOpeningTarget??onAnalysisTargetChange)?.(openingTarget.current);openingTarget.current=null;},[shown,mode,history]);// eslint-disable-line react-hooks/exhaustive-deps
   // The researcher measured before the statistics view was first shown: their new measurement is what they compare
   // next, so the opening region is no longer applied (DM-04 applies to the first look only).
   useEffect(()=>{if(measured)openingTarget.current=null;},[measured]);
