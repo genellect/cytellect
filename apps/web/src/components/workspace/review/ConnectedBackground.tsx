@@ -25,8 +25,8 @@ export function ConnectedBackground({fieldId,fieldLabel,channels,backgrounds,con
     <fieldset disabled={disabled||drawing||busy}><legend>同じ背景領域を使うチャンネル</legend>
       {available.map(channel=><label key={channel.id} style={{display:"block"}}><input type="checkbox" checked={selected.includes(channel.id)} onChange={event=>setChosen(previous=>{const current=previous??available.map(item=>item.id);return event.target.checked?[...current,channel.id]:current.filter(id=>id!==channel.id);})}/>{channel.id} · {channel.stain??"染色未設定"}{backgrounds[fieldId]?.[channel.id]&&confirmedChannelIds.includes(channel.id)?" · 保存済み":""}</label>)}
     </fieldset>
-    <button type="button" disabled={disabled||drawing||busy||!selected.length} onClick={()=>onDraw(selected)}>{drawing?"背景を描画中":"背景を描く"}</button>
-    <small>細胞や検出領域を含まない場所を囲み、画像上で保存します。対象チャンネルも一緒に記録します。</small>
+    <button type="button" disabled={disabled||drawing||busy||!selected.length} onClick={()=>onDraw(selected)}>{drawing?"背景ROIを描画中":"背景ROIを描画"}</button>
+    <small>細胞と検出領域を含まない範囲を囲みます。選択したチャンネルとともに保存します。</small>
     {!!existing.length&&<button type="button" disabled={disabled||drawing||busy} onClick={()=>void remove()}>選択した背景ROIを削除</button>}
     {error&&<ErrorText text={error}/>}
   </section>;

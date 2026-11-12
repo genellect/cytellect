@@ -17,7 +17,7 @@ test("local package starts without invitation, processes real GFP, and retains w
   // Fixed categories only: never emit cookies, response bodies, URLs or research-bearing DOM.
   try{
    const [loading,login,workspace,startEnabled,cookies]=await Promise.all([
-    page.getByText("ワークスペースを開いています…",{exact:true}).isVisible(),
+    page.getByText("ワークスペースを読み込み中…",{exact:true}).isVisible(),
     page.getByRole("heading",{name:"ワークスペース",exact:true}).isVisible(),
     page.getByRole("heading",{name:"実験ワークスペース",exact:true}).isVisible(),
     page.getByRole("button",{name:"解析を開始",exact:false}).evaluateAll(buttons=>buttons.some(button=>!(button as HTMLButtonElement).disabled)),
@@ -53,7 +53,7 @@ test("local package starts without invitation, processes real GFP, and retains w
  await page.getByLabel("独立実験単位",{exact:true}).fill("public-plate");
  await page.getByLabel("試料",{exact:true}).fill("A01");
  await page.getByLabel("撮影日／バッチ",{exact:true}).fill("public-acquisition");
- await page.getByLabel("登録する画像の染色とチャンネル対応を確認しました。").check();
+ await page.getByLabel("登録する画像の染色とチャンネル対応を確認済み").check();
  await page.getByRole("button",{name:"この視野を登録",exact:true}).click();
  await expect(page.getByLabel("レシピ",{exact:true})).toHaveValue("gfp-nuclear-2d");
  await page.getByRole("button",{name:"背景ROI",exact:true}).click();
@@ -75,7 +75,7 @@ test("local package starts without invitation, processes real GFP, and retains w
  const report=await response.json();expect(report.cells.length).toBeGreaterThan(100);expect(report.nucleoli).toHaveLength(0);
  await expectGfpPreview(page);
  if(screenshot)await page.screenshot({path:path.join(screenshot,"local-gfp-workbench.png"),fullPage:true});
- await page.getByLabel("領域、背景、対象選別、失敗・除外理由を確認しました。").check();
+ await page.getByLabel("領域、背景、対象選別、失敗・除外理由を確認済み").check();
  await mutation("/review",()=>page.getByRole("button",{name:"品質確認を完了",exact:true}).click());
  await page.getByRole("button",{name:/03 保存と履歴/}).click();
  const pending=page.waitForResponse(r=>r.url().includes("/export?")&&r.request().method()==="POST");

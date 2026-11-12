@@ -69,25 +69,25 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
 
   // E-01: the first screen offers one or two screens, each with a short description.
   await page.goto(entry);
-  const choice = page.getByRole("region", {name: "解析の形を選ぶ"});
-  await expect(choice.getByRole("heading", {name: "解析の形を選ぶ", level: 1})).toBeVisible();
+  const choice = page.getByRole("region", {name: "実験デザイン"});
+  await expect(choice.getByRole("heading", {name: "実験デザイン", level: 1})).toBeVisible();
   await expect(choice.getByRole("button", {name: /^1 画面/})).toBeEnabled();
-  await expect(choice.getByRole("button", {name: /^1 画面/})).toContainText("1 つの群を記述する");
+  await expect(choice.getByRole("button", {name: /^1 画面/})).toContainText("1 群の記述");
   await expect(choice.getByRole("button", {name: /^1 画面/})).toContainText("検定はしません。");
   await expect(choice.getByRole("button", {name: /^2 画面/})).toBeEnabled();
-  await expect(choice.getByRole("button", {name: /^2 画面/})).toContainText("2 つの群を比べる");
+  await expect(choice.getByRole("button", {name: /^2 画面/})).toContainText("2 群の比較");
   await expect(choice.getByRole("button", {name: /^2 画面/})).toContainText("同じ実験回の 2 群を対にして比べます。");
   await choice.getByLabel("最初の実験回の実施日").fill(PERFORMED.Run1);
   await choice.getByRole("button", {name: /^2 画面/}).click();
 
-  const setup = page.getByRole("region", {name: "実験の形"});
-  await expect(setup.getByRole("heading", {name: "2 画面：2 つの群を比べる", level: 1})).toBeVisible();
+  const setup = page.getByRole("region", {name: "実験デザイン"});
+  await expect(setup.getByRole("heading", {name: "2 画面：2 群の比較", level: 1})).toBeVisible();
   await expect(page).toHaveURL(/[?&]id=[^&]+/);
   const workspace = new URL(page.url()).searchParams.get("id")!;
   // Choosing the form saves the design only; nothing is detected or measured (requirements E-01).
   expect(writes.some(value => /\/runs|\/region-fields|\/proposal/.test(value))).toBe(false);
   const grid = setup.getByRole("table", {name: "群と実験回"});
-  const issues = setup.getByRole("list", {name: "統計の前に確かめること"});
+  const issues = setup.getByRole("list", {name: "統計の前の確認事項"});
 
   // E-02: name the two groups and choose the control. The control is a radio choice on one group.
   const headers = grid.getByRole("columnheader");
@@ -146,7 +146,7 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   await add("Run3", 1);
   await expect(issues.getByText(/の画像がありません。/)).toHaveCount(0);
   for (const [run, groupIndex] of combinations) await expect(cell(run, groupIndex)).toContainText(`${GROUPS[groupIndex].label} · ${SITES.length} 視野`);
-  await expect(setup.getByRole("region", {name: "群と実験回が決まっていない視野"})).toHaveCount(0);
+  await expect(setup.getByRole("region", {name: "群・実験回が未割り当ての視野"})).toHaveCount(0);
   // E-05: independence is the researcher's statement, never inferred from dates or plates.
   await expect(setup.getByRole("checkbox", {name: /各実験回は独立に行った/})).not.toBeChecked();
   await expect(issues).toContainText("独立性：未確認。群間比較は記述統計のみです。");
@@ -237,7 +237,7 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   const metadata = panel.locator("details").filter({has: page.getByText("実験情報", {exact: true})});
   // With a declared experiment the table starts folded; the researcher opens it to check the record.
   if (!await metadata.evaluate(element => (element as HTMLDetailsElement).open)) await metadata.getByText("実験情報", {exact: true}).click();
-  await expect(metadata.getByText("群・試料・独立実験単位・撮影日・対応ペアは、「実験」で入力した実験の形から決まります。")).toBeVisible();
+  await expect(metadata.getByText("群・試料・独立実験単位・撮影日・対応ペアは、実験デザインから決まります。")).toBeVisible();
   const conditions = metadata.locator('input[aria-label$=" condition"]'), units = metadata.locator('input[aria-label$=" experimental_unit"]'), pairs = metadata.locator('input[aria-label$=" pair"]');
   await expect(conditions).toHaveCount(registeredFields.length);
   const entered: Record<string, number> = {};
@@ -248,8 +248,8 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   }
   expect(entered).toEqual(Object.fromEntries(combinations.map(([run, groupIndex]) => [`${run} · ${GROUPS[groupIndex].label}|${GROUPS[groupIndex].label}|${run}`, SITES.length])));
 
-  await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認した", {exact: true}).check();
-  await panel.getByLabel("測定領域と採用する視野を確認した", {exact: true}).check();
+  await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み", {exact: true}).check();
+  await panel.getByLabel("測定領域と採用する視野を確認済み", {exact: true}).check();
   // E-05: without the independence statement the comparison is descriptive: run values and differences, no test or interval.
   await expect(panel.getByRole("status").filter({hasText: "検定と信頼区間は計算せず、実験回ごとの値と差を示します。"})).toBeVisible();
   await expect(panel.getByRole("combobox", {name: "解析", exact: true}).locator("option[value=association]")).toHaveAttribute("disabled", "");
@@ -301,8 +301,8 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   await page.getByRole("navigation", {name: "作業の切替"}).getByRole("button", {name: "統計", exact: true}).click();
   await expect(panel.getByRole("status").filter({hasText: "実験回ごとの値と差を示します"})).toHaveCount(0);
   await expect(panel.getByRole("combobox", {name: "解析", exact: true})).toHaveValue("comparison");
-  if (!await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認した", {exact: true}).isChecked()) await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認した", {exact: true}).check();
-  if (!await panel.getByLabel("測定領域と採用する視野を確認した", {exact: true}).isChecked()) await panel.getByLabel("測定領域と採用する視野を確認した", {exact: true}).check();
+  if (!await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み", {exact: true}).isChecked()) await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み", {exact: true}).check();
+  if (!await panel.getByLabel("測定領域と採用する視野を確認済み", {exact: true}).isChecked()) await panel.getByLabel("測定領域と採用する視野を確認済み", {exact: true}).check();
   await expect(panel.getByRole("button", {name: "計算", exact: true})).toBeEnabled();
   const accepted = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname.endsWith("/common-statistics"), {timeout: 300_000});
   await panel.getByRole("button", {name: "計算", exact: true}).click();

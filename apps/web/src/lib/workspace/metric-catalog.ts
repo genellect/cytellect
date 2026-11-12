@@ -27,7 +27,7 @@ export const METRIC_QUESTIONS: MetricQuestion[] = [
   ]},
   {question: "数が増えた・減ったか", metrics: [
     {id: "nucleus_count", label: "視野あたりの核数", target: "nuclei", channel: false,
-      definition: "採用した核の数（画像の端にかかる核を含む）。観測は視野ごとです。画像に写った核の数であり、細胞数・生存率・増殖率そのものではありません。視野の選び方と播種の密度に左右されます。"},
+      definition: "採用した核の数。画像の端にかかる核を含みます。観測は視野ごとです。画像に写った核の数であり、細胞数・生存率・増殖率そのものではありません。視野の選び方と播種の密度に左右されます。"},
     {id: "nucleus_density_per_mm2", label: "核の密度（mm² あたり）", target: "nuclei", channel: false, calibrated: true,
       definition: "視野あたりの核数 ÷ 撮影した視野の面積（mm²）。画素の大きさが確認された視野だけで計算します。観測は視野ごとです。"},
   ]},

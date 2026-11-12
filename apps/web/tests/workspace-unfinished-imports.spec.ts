@@ -48,7 +48,7 @@ test("a rejected image is named, kept in the record and left out only with a rea
   await loaded;
   await expect(page.getByRole("status").first()).toHaveText("");
   await page.getByTestId("file-input").setInputFiles([{name:"A01_c1.tif",mimeType:"image/tiff",buffer:Buffer.from([1,2,3])},{name:"A01-labels.tif",mimeType:"image/tiff",buffer:Buffer.from([4,5,6])},{name:"A02-labels.tif",mimeType:"image/tiff",buffer:Buffer.from([7,8,9])}]);
-  await page.getByRole("button",{name:/^形を決めずに登録/}).click();
+  await page.getByRole("button",{name:/^実験デザインなしで登録/}).click();
   // The researcher's own file names and the reason, stated once for both, never the private batch folder.
   const alert=page.getByRole("alert").filter({hasText:"登録できなかった画像が 2 件あります。"});
   await expect(alert).toContainText(/A0[12]-labels\.tif、A0[12]-labels\.tif：8-bit または 16-bit の画像ではありません/);
@@ -58,7 +58,7 @@ test("a rejected image is named, kept in the record and left out only with a rea
   expect(selection.entries.filter(entry=>entry.field_id==="accepted")).toHaveLength(1);
   // Statistics say where the comparison is blocked before it is attempted.
   await page.getByRole("button",{name:"統計",exact:true}).click();
-  await expect(page.getByRole("status").filter({hasText:"登録できなかった画像が 2 件あります。比較の前に、画面下の「取込」の一覧で理由を付けて除外してください。"})).toBeVisible();
+  await expect(page.getByRole("status").filter({hasText:"登録できなかった画像：2 件。比較の前に、画面下の「取込」で理由を付けて除外してください。"})).toBeVisible();
   await page.getByText("取込 2件",{exact:true}).click();
   await expect(page.getByText("A01-labels.tif",{exact:true})).toBeVisible();
   await expect(page.getByText("A02-labels.tif",{exact:true})).toBeVisible();
@@ -69,7 +69,7 @@ test("a rejected image is named, kept in the record and left out only with a rea
   await page.reload();
   await reloaded;
   await page.getByText("取込 2件",{exact:true}).click();
-  await expect(page.getByText("名前の記録がない登録",{exact:true})).toHaveCount(2);
+  await expect(page.getByText("名称不明",{exact:true})).toHaveCount(2);
   const reason=page.getByLabel("登録できなかった 2 件をまとめて除外の理由");
   await expect(reason).toHaveValue("");
   await expect(page.getByRole("button",{name:"まとめて除外",exact:true})).toBeDisabled();

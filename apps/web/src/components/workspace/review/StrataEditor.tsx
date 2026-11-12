@@ -18,7 +18,7 @@ export function StrataEditor({design,locked,readOnly,onSave}:{design:ExperimentD
   // Removing strata leaves their fields without a stratum: the researcher confirms with the count first.
   const confirmUnassign=(plan:StratifiedExperimentDesign,strataIds:string[],sentence:(count:number)=>string)=>{
     const count=fieldsInStrata(plan,strataIds).length;
-    return !strataIds.length||window.confirm(`${sentence(strataIds.length)}${count?`その ${count} 視野は層が未割り当てになり、選び直すまでどの層の比較にも入りません。`:""}保存した結果は再計算が必要になります。`);
+    return !strataIds.length||window.confirm(`${sentence(strataIds.length)}${count?`該当する ${count} 視野は層が未割り当てになり、選び直すまでどの層の比較にも含めません。`:""}保存済みの結果は再計算が必要です。`);
   };
   // A typed factor is checked only once something was typed; the reason is shown next to the disabled button.
   const factorIssue=factorLabel||levelLabels?factorProblem(design,factorLabel,levels(levelLabels)):null;
@@ -60,8 +60,8 @@ export function StrataEditor({design,locked,readOnly,onSave}:{design:ExperimentD
       </span>}
     </li>)}</ul>
     {!readOnly&&design.factors.length<3&&<details className={styles.addFactor}><summary>因子を追加（最大 3 つ）</summary>
-      {factorForm(async(label,values)=>confirmUnassign(design,design.strata.map(value=>value.id),count=>`因子を加えると、今の層 ${count} 件はすべての因子の水準を持たなくなるため外れます。`)&&onSave(addFactor(design,label,values)),"因子を追加")}
-      {design.strata.length>0&&<small>因子を加えると、今の層はすべての因子の水準を持たなくなるため外れます。層を宣言し直してください。</small>}
+      {factorForm(async(label,values)=>confirmUnassign(design,design.strata.map(value=>value.id),count=>`因子を追加します。既存の層 ${count} 件は新しい因子の水準を持たないため外れます。`)&&onSave(addFactor(design,label,values)),"因子を追加")}
+      {design.strata.length>0&&<small>因子の追加で既存の層は外れます。追加後に層を宣言し直してください。</small>}
     </details>}
     <table className={styles.strataTable} aria-label="宣言した層"><thead><tr><th>層</th>{design.factors.map(factor=><th key={factor.id}>{factor.label}</th>)}<th>視野</th><th/></tr></thead>
       <tbody>{design.strata.map(stratum=><tr key={stratum.id}><td>{stratum.label}</td>
@@ -69,14 +69,14 @@ export function StrataEditor({design,locked,readOnly,onSave}:{design:ExperimentD
         <td>{strata.find(value=>value.id===stratum.id)?.fieldIds.length??0}</td>
         <td>{!readOnly&&<button className={styles.link} disabled={locked} onClick={()=>{if(confirmUnassign(design,[stratum.id],()=>`層「${stratum.label}」を外します。`))void onSave(removeStrataById(design,[stratum.id]));}}>外す</button>}</td></tr>)}
       </tbody></table>
-    {design.strata.length===0&&<p role="status">層がまだありません。下で、各因子の水準を 1 つずつ選んで層を宣言してください。</p>}
+    {design.strata.length===0&&<p role="status">層：未宣言。各因子の水準を 1 つずつ選んで宣言してください。</p>}
     {!readOnly&&<div className={styles.addRun} aria-label="層を宣言">
       {design.factors.map(factor=><label key={factor.id}>{factor.label}<select value={combination[factor.id]??""} onChange={event=>choose(factor.id,event.target.value)}>
         <option value="">選ぶ…</option>{factor.levels.map(level=><option key={level.id} value={level.id}>{level.label}</option>)}</select></label>)}
       <label>層の名前<input value={comboLabel} maxLength={LABEL_LIMIT} onChange={event=>setComboLabel(event.target.value)}/></label>
       <button disabled={locked||!complete||!!comboIssue} onClick={()=>{void onSave(addStratumCombination(design,chosen,comboLabel)).then(saved=>{if(saved){setCombination({});setComboLabel("");}});}}>層を宣言</button>
       {comboIssue&&<small role="status">{comboIssue}</small>}
-      <button className={styles.link} disabled={locked} onClick={()=>{if(confirmUnassign(design,design.strata.map(value=>value.id),count=>`層の設定（因子・水準と層 ${count} 件）を外します。`))void onSave(removeStrata(design));}}>層を使わない</button>
+      <button className={styles.link} disabled={locked} onClick={()=>{if(confirmUnassign(design,design.strata.map(value=>value.id),count=>`層の設定（因子・水準と層 ${count} 件）を外します。`))void onSave(removeStrata(design));}}>層別を解除</button>
     </div>}
   </section>;
 }

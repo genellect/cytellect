@@ -106,7 +106,7 @@ export function AccountIndicator() {
   const [logoutError, setLogoutError] = useState<unknown>(null);
   if (!cloud) return null;
   // The first check can wait for the network; do not offer a sign-in that may already exist.
-  if (cloud.checking && !cloud.account) return <button className={styles.accountButton} disabled><span>確認しています</span></button>;
+  if (cloud.checking && !cloud.account) return <button className={styles.accountButton} disabled><span>確認中</span></button>;
   const {label, detail} = accountLabel(cloud.account);
   const account = cloud.account;
   if (account?.state === "allowed" || account?.state === "offline") {
@@ -120,7 +120,7 @@ export function AccountIndicator() {
       <summary><span>{label}</span>{detail && <small>{detail}</small>}</summary>
       <div className={styles.accountPanel}>
         <p className={styles.accountEmail}>{account.email}</p>
-        <p>{account.state === "allowed" ? "GPU による検出と解析提案が使えます。" : `クラウドに接続できません。${CLOUD_NETWORK_HINT}このPCでの解析は使えます。`}</p>
+        <p>{account.state === "allowed" ? "GPU による検出・解析提案：利用可" : `クラウドに接続できません。${CLOUD_NETWORK_HINT}`}</p>
         {gpuQuotaReached(account) && <p role="status">{gpuQuotaText(account)}</p>}
         {usage && <p className={styles.small}>今月の利用：{usage}{resets ? `（${resets}にリセット）` : ""}</p>}
         <p className={styles.small}>{GPU_TIME_NOTE}</p>
@@ -154,8 +154,8 @@ export function CloudNotices() {
     {pending && (pending.action || !collapsed) && <NoticeLine notice={pending} onAction={() => void continueLogin()}
       onClose={pending.action ? undefined : () => setCollapsed(true)} closeLabel="このPCでの解析を続ける"/>}
     {pending && !pending.action && collapsed && <div className={styles.notice} data-tone="info" role="status">
-      <p>承認待ち。このPCでの解析は使えます。</p>
-      <button className={styles.quiet} onClick={() => setCollapsed(false)}>詳しく</button>
+      <p>クラウド機能：承認待ち</p>
+      <button className={styles.quiet} onClick={() => setCollapsed(false)}>詳細</button>
     </div>}
     {continueError !== null && <div className={styles.notice} data-tone="problem" role="alert">
       <p>{accountErrorText(continueError)}</p><Details error={continueError}/>
@@ -266,7 +266,7 @@ export function GpuStatus() {
   return <div className={styles.inspectorNotice}><NoticeLine notice={notice} onAction={notice.action?.kind === "login" ? cloud.openLogin : cloud.startGpu}/></div>;
 }
 
-/** 「GPU を起動しています」→「検出しています」 while a Cellpose detection runs. */
+/** 「GPU を起動中…」→「検出中…」 while a Cellpose detection runs. */
 export function CloudPhase({running}: {running: boolean}) {
   const cloud = useCloudAccount();
   if (!cloud || !cloud.gpu || cloud.gpu.state === "unconfigured" || cloud.gpu.state === "idle") return null;
@@ -357,35 +357,35 @@ function LoginDialog() {
   const invalidEmail = error instanceof Error && error.message === "format";
   return <div className={styles.backdrop} onMouseDown={event => {if (event.target === event.currentTarget) cloud.closeLogin();}}>
     <section ref={dialog} className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby={title} onKeyDown={trapFocus}>
-      <h2 id={title} ref={heading} tabIndex={-1}>{step === "done" ? "クラウド機能が使えます" : approved ? "承認されました" : step === "pending" ? "承認を待っています" : step === "revoked" ? "利用が停止されています" : "クラウド機能を有効にする"}</h2>
+      <h2 id={title} ref={heading} tabIndex={-1}>{step === "done" ? "ログイン完了" : approved ? "承認済み" : step === "pending" ? "承認待ち" : step === "revoked" ? "利用停止" : "クラウド機能の有効化"}</h2>
       {step === "email" && <form onSubmit={submitEmail} noValidate>
-        <p>メールアドレスに 6 桁のコードを送ります。パスワードは使いません。初めて使うメールアドレスは、Cytellect のオーナーへの利用の申請になり、承認されると使えます。</p>
+        <p>メールアドレスに 6 桁のコードを送ります。パスワードは不要です。初めてのメールアドレスは Cytellect のオーナーへの利用申請となり、承認後に使えます。</p>
         <label>メールアドレス<input ref={first} type="email" autoComplete="email" inputMode="email" value={email}
           onChange={event => setEmail(event.target.value)} required maxLength={254} placeholder="name@example.ac.jp"/></label>
-        <p className={styles.small}>ログインすると、核小体・細胞の検出（Cellpose）では、検出に使う 1 チャンネルの画像（核小体では核の輪郭も）をクラウドの GPU（画像の計算に使う高速な計算機）に送ります。解析提案には画像を送りません。ほかの解析はこれまでどおりこのPCだけで行います。</p>
-        <button className={styles.primary} disabled={busy || !email.trim()}>{busy ? "送信しています" : "コードを送る"}</button>
+        <p className={styles.small}>ログイン後、核小体・細胞の検出（Cellpose）では、検出に使う 1 チャンネルの画像をクラウドの GPU に送ります。核小体の検出では核の輪郭も送ります。解析提案には画像を送りません。ほかの解析はこのPCだけで行います。</p>
+        <button className={styles.primary} disabled={busy || !email.trim()}>{busy ? "送信中" : "コードを送信"}</button>
       </form>}
       {step === "code" && <form onSubmit={event => void submitCode(event)}>
         <p role="status">{email} にコードを送りました。</p>
-        {exhausted ? <p>このコードで入力できる回数を使い切りました。「コードを再送」を押して、新しいコードを受け取ってください。</p> : <>
+        {exhausted ? <p>このコードの入力回数の上限に達しました。「コードを再送」で新しいコードを受け取ってください。</p> : <>
         <label>6 桁のコード<input ref={first} value={code} onChange={event => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
           inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required/></label>
-        <button className={styles.primary} disabled={busy || !plausibleCode(code)}>{busy ? "確認しています" : "ログイン"}</button>
+        <button className={styles.primary} disabled={busy || !plausibleCode(code)}>{busy ? "確認中" : "ログイン"}</button>
         </>}
-        <p className={styles.small}>届かない場合は、迷惑メールのフォルダーを確認してください。コードの有効期限は 10 分です。</p>
+        <p className={styles.small}>コードの有効期限：10 分。届かない場合は迷惑メールのフォルダーを確認してください。</p>
         <div className={styles.row}>
           <button type="button" className={styles.secondary} disabled={busy || wait > 0} onClick={() => void requestCode(email)}>{wait > 0 ? `コードを再送（${wait} 秒後）` : "コードを再送"}</button>
           <button type="button" className={styles.quiet} disabled={busy} onClick={() => {setError(null); setCode(""); setStep("email");}}>メールアドレスを修正</button>
         </div>
       </form>}
       {step === "pending" && (approved ? <>
-        <p>{email} の利用が承認されました。ログインを続けると、6 桁のコードをメールで送ります。</p>
+        <p>{email} の利用が承認されました。6 桁のコードをメールで受け取り、ログインします。</p>
         <button className={styles.primary} disabled={busy} onClick={() => void requestCode(email)}>ログインを続ける</button>
       </> : <>
-        <p>オーナーに利用を申請しました（{email}）。承認されるとメールでお知らせします。それまでも、このPCでの解析は使えます。</p>
+        <p>オーナーに利用を申請しました（{email}）。承認時にメールで通知します。</p>
         <button className={styles.quiet} onClick={() => {setError(null); setStep("email");}}>メールアドレスを修正</button>
       </>)}
-      {step === "revoked" && <p>このメールアドレスのクラウド機能は停止されています。オーナーにお問い合わせください。このPCでの解析は続けて使えます。</p>}
+      {step === "revoked" && <p>このメールアドレスのクラウド機能は停止されています。オーナーにお問い合わせください。</p>}
       {step === "done" && <>
         <p>{cloud.account?.email || email} でログインしました。GPU による検出と解析提案が使えます。</p>
         {cloud.account && usageText(cloud.account) && <p className={styles.small}>今月の利用：{usageText(cloud.account)}</p>}
@@ -402,14 +402,14 @@ function LoginDialog() {
 /** The first screen after installation: work on this PC, or turn on the cloud features. */
 export function FirstRun({busy, error, onChoose}: {busy: boolean; error: string; onChoose: (choice: "local" | "cloud") => void}) {
   return <section className={styles.firstRun} aria-labelledby="first-run-title">
-    <h2 id="first-run-title">インストールが完了しました</h2>
-    <p>画像の登録・検出・測定・統計・図は、このPCだけで使えます。どちらから始めるかを選んでください。</p>
+    <h2 id="first-run-title">インストール完了</h2>
+    <p>画像の登録・検出・測定・統計・図は、このPCだけで使えます。</p>
     <div className={styles.choices}>
       <button className={styles.choice} disabled={busy} onClick={() => onChoose("local")}>
-        <b>このPCで解析を始める</b><span>公開の練習画像で、核の検出から図までを試せます。ログインは不要です。</span>
+        <b>このPCで解析を開始</b><span>公開の練習画像で、核の検出から図までを試せます。ログイン不要。</span>
       </button>
       <button className={styles.choice} disabled={busy} onClick={() => onChoose("cloud")}>
-        <b>クラウド機能を有効にする</b><span>メールアドレスでログインし、クラウドの GPU（高速な計算機）による核小体・細胞の検出と、解析提案（AI による解析の設定の提案）を使えるようにします。</span>
+        <b>クラウド機能を有効化</b><span>メールアドレスでログインします。クラウドの GPU による核小体・細胞の検出と、AI による解析提案を使えます。</span>
       </button>
     </div>
     {error && <p role="alert" className={styles.error}>{error}</p>}

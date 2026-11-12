@@ -89,7 +89,7 @@ export function gpuQuotaReached(account: Account | null | undefined): boolean {
 /** The sentence for a used-up GPU allowance, with the date it resumes. */
 export function gpuQuotaText(account: Account, timeZone?: string): string {
   const date = formatDate(account.resets_at, timeZone);
-  return `今月の GPU の利用上限に達しました。${date ? `${date}から` : "来月から"}再び使えます。それまでも、このPCでの解析は使えます。`;
+  return `今月の GPU の利用上限に達しました。${date ? `${date}から` : "来月から"}再び使えます。`;
 }
 
 /** The header's short label. */
@@ -99,10 +99,10 @@ export function accountLabel(account: Account | null | undefined, timeZone?: str
       const date = formatDate(account.resets_at, timeZone);
       return {label: account.email || "ログイン中", detail: gpuQuotaReached(account) ? `GPU：今月の上限${date ? `（${date}に再開）` : ""}` : "GPU・解析提案：利用可"};
     }
-    case "pending_approval": return {label: account.approved ? "承認されました" : "承認待ち"};
+    case "pending_approval": return {label: account.approved ? "承認済み" : "承認待ち"};
     case "code_sent": return {label: "コードの入力待ち"};
     case "revoked": return {label: "クラウド機能：停止中"};
-    case "expired": return {label: "ログイン", detail: "もう一度ログインしてください"};
+    case "expired": return {label: "ログイン", detail: "期限切れ"};
     case "offline": return {label: account.email || "オフライン", detail: "クラウドに接続できません"};
     default: return {label: "ログイン"};
   }
@@ -122,13 +122,13 @@ export function usageText(account: Account): string {
 
 const accountMessages: Record<string, string> = {
   account_email_invalid: "メールアドレスの形式を確認してください。",
-  account_cloud_unreachable: `クラウドに接続できません。もう一度試してください。${CLOUD_NETWORK_HINT}このPCでの解析は使えます。`,
+  account_cloud_unreachable: `クラウドに接続できません。${CLOUD_NETWORK_HINT}`,
   account_cloud_failed: "クラウドで処理できませんでした。時間をおいてもう一度試してください。",
   account_mail_failed: "メールを送れませんでした。時間をおいてもう一度試してください。",
-  account_cloud_unavailable: "クラウドのログインが一時的に使えません。時間をおいてもう一度試してください。このPCでの解析は使えます。",
+  account_cloud_unavailable: "クラウドのログインが一時的に使えません。時間をおいてもう一度試してください。",
   account_cloud_misconfigured: "クラウドの接続先の設定が正しくありません。インストーラーをもう一度開いてください。研究データは保たれます。",
-  account_code_expired: "コードの有効期限が切れました。「コードを再送」を押して、新しいコードを受け取ってください。",
-  account_code_attempts_exhausted: "入力できる回数を超えました。「コードを再送」を押して、新しいコードを受け取ってください。",
+  account_code_expired: "コードの有効期限が切れました。「コードを再送」で新しいコードを受け取ってください。",
+  account_code_attempts_exhausted: "入力回数の上限に達しました。「コードを再送」で新しいコードを受け取ってください。",
   account_code_format_invalid: "メールに書かれた 6 桁の数字を入力してください。",
   account_code_not_requested: "コードの受け取りからやり直してください。",
   account_already_signed_in: "すでにログインしています。",
@@ -146,7 +146,7 @@ export function waitText(seconds: number): string {
 /** The researcher-facing sentence; the code itself is shown only under 詳細. */
 export function accountErrorText(error: unknown): string {
   if (!(error instanceof AccountRequestError)) return accountMessages.local_api_unreachable;
-  if (error.code === "account_rate_limited") return `しばらくしてからもう一度試してください（${waitText(error.retryAfterSeconds ?? 60)}）。このPCでの解析は続けて使えます。`;
+  if (error.code === "account_rate_limited") return `しばらくしてからもう一度試してください（${waitText(error.retryAfterSeconds ?? 60)}）。`;
   if (error.code === "account_code_invalid") return error.attemptsLeft === null || error.attemptsLeft === undefined
     ? "コードが一致しません。メールの 6 桁の数字を確かめてください。"
     : `コードが一致しません。あと ${error.attemptsLeft} 回入力できます。`;
@@ -159,21 +159,21 @@ export type Notice = {text: string; action?: {kind: "retry" | "login"; label: st
 /** What the GPU is doing and what to press next. Null when there is nothing to say. */
 export function gpuNotice(gpu: GpuState | null | undefined, timeZone?: string): Notice | null {
   switch (gpu?.state) {
-    case "starting": return gpu.busy ? {text: "GPU を準備しています。前の検出が終わると始まります。", tone: "progress"}
-      : {text: "GPU を起動しています。止まっていた場合は 1〜2 分かかります（起動を待つ時間も利用時間に数えます）。", tone: "progress"};
+    case "starting": return gpu.busy ? {text: "GPU を準備中… 前の検出が終わると始まります。", tone: "progress"}
+      : {text: "GPU を起動中… 停止中からの起動には 1〜2 分かかり、待ち時間も利用時間に含みます。", tone: "progress"};
     case "ready": return {text: "GPU の準備ができました。", tone: "ready"};
-    case "timeout": return {text: "GPU の起動が 2 分以内に終わりませんでした。GPU が混み合っていると時間がかかります。「もう一度試す」を押すと、もう一度起動します。", action: {kind: "retry", label: "もう一度試す"}, tone: "problem"};
+    case "timeout": return {text: "GPU の起動が 2 分以内に完了しませんでした。GPU の混雑時は起動に時間がかかります。", action: {kind: "retry", label: "再試行"}, tone: "problem"};
     case "quota_exceeded": {
       const date = formatDate(gpu.resets_at, timeZone);
       const whose = gpu.scope === "global" ? "クラウド GPU 全体の今月の利用上限" : "今月の GPU の利用上限";
-      return {text: `${whose}に達しました。${date ? `${date}から` : "来月から"}再び使えます。それまでも、このPCでの解析は使えます。`, tone: "problem"};
+      return {text: `${whose}に達しました。${date ? `${date}から` : "来月から"}再び使えます。`, tone: "problem"};
     }
-    case "revoked": return {text: "クラウド機能の利用が停止されています。オーナーにお問い合わせください。このPCでの解析は続けて使えます。", tone: "problem"};
+    case "revoked": return {text: "クラウド機能の利用が停止されています。オーナーにお問い合わせください。", tone: "problem"};
     case "auth_required": return {text: "ログインの有効期限が切れました。もう一度ログインしてください。", action: {kind: "login", label: "ログイン"}, tone: "problem"};
-    case "disabled": return {text: "クラウド GPU は現在停止しています。時間をおいてもう一度試してください。このPCでの解析は使えます。", action: {kind: "retry", label: "もう一度試す"}, tone: "problem"};
-    case "rejected": case "failed": return {text: "GPU に接続できませんでした。少し待ってから「もう一度試す」を押してください。このPCでの解析は使えます。", action: {kind: "retry", label: "もう一度試す"}, tone: "problem"};
-    case "offline": return {text: `クラウドに接続できません。${CLOUD_NETWORK_HINT}このPCでの解析は使えます。`, action: {kind: "retry", label: "もう一度試す"}, tone: "problem"};
-    case "unconfigured": return {text: "Cellpose の検出は、クラウドの GPU（画像の計算に使う高速な計算機）で行います。使うには、クラウド機能を有効にしてください。", action: {kind: "login", label: "ログイン"}, tone: "info"};
+    case "disabled": return {text: "クラウド GPU は現在停止しています。時間をおいてもう一度試してください。", action: {kind: "retry", label: "再試行"}, tone: "problem"};
+    case "rejected": case "failed": return {text: "GPU に接続できませんでした。少し待ってからもう一度試してください。", action: {kind: "retry", label: "再試行"}, tone: "problem"};
+    case "offline": return {text: `クラウドに接続できません。${CLOUD_NETWORK_HINT}`, action: {kind: "retry", label: "再試行"}, tone: "problem"};
+    case "unconfigured": return {text: "Cellpose の検出はクラウドの GPU で行うため、ログインが必要です。", action: {kind: "login", label: "ログイン"}, tone: "info"};
     default: return null;
   }
 }
@@ -190,22 +190,22 @@ export function restartGpuAfterSignIn(wasAllowed: boolean | null, allowed: boole
 /** The header's phase while a Cellpose detection runs. */
 export function inferencePhase(gpu: GpuState | null | undefined, running: boolean): string | null {
   if (!running) return null;
-  if (gpu?.state === "starting") return gpu.busy ? "GPU を準備しています" : "GPU を起動しています";
-  return "検出しています";
+  if (gpu?.state === "starting") return gpu.busy ? "GPU を準備中…" : "GPU を起動中…";
+  return "検出中…";
 }
 
 /** The top banner while an access request waits for the owner. */
 export function pendingNotice(account: Account | null | undefined, timeZone?: string): Notice | null {
   if (account?.state !== "pending_approval") return null;
-  if (account.approved) return {text: "承認されました。ログインを続けると、GPU と解析提案が使えます。", action: {kind: "login", label: "承認されました。ログインを続ける"}, tone: "ready"};
+  if (account.approved) return {text: "利用が承認されました。", action: {kind: "login", label: "ログインを続ける"}, tone: "ready"};
   const when = formatDate(account.requested_at ?? null, timeZone, true);
-  return {text: `承認待ち${when ? `（${when} に申請）` : ""}。オーナーが承認するとメールでお知らせします。それまでも、このPCでの解析は使えます。`, tone: "info"};
+  return {text: `承認待ち${when ? `（${when} に申請）` : ""}。承認時にメールで通知します。`, tone: "info"};
 }
 
 /** Account notices other than pending approval (revoked, expired). */
 export function accountNotice(account: Account | null | undefined): Notice | null {
-  if (account?.state === "revoked") return {text: "クラウド機能の利用が停止されています。オーナーにお問い合わせください。このPCでの解析は続けて使えます。", tone: "problem"};
-  if (account?.state === "expired") return {text: "クラウド機能を使うには、もう一度ログインしてください。", action: {kind: "login", label: "ログイン"}, tone: "info"};
+  if (account?.state === "revoked") return {text: "クラウド機能の利用が停止されています。オーナーにお問い合わせください。", tone: "problem"};
+  if (account?.state === "expired") return {text: "ログインの有効期限が切れました。もう一度ログインしてください。", action: {kind: "login", label: "ログイン"}, tone: "info"};
   return null;
 }
 
@@ -228,7 +228,7 @@ export const UPDATE_REMEMBERED: ReadonlySet<string> = new Set(["updated", "insta
 export function updateSignature(info: UpdateInfo): string {
   return [info.state ?? "", info.current ?? "", info.latest ?? "", info.error ?? ""].join(":");
 }
-export const UPDATE_JOBS_RUNNING_TEXT = "解析が終わってから更新してください。解析の途中では更新を始めません。";
+export const UPDATE_JOBS_RUNNING_TEXT = "解析が終わってから更新してください。";
 export const UPDATE_POLL_MS = 3_000;
 /** Downloading and installing a release can take a while; stop following after this and say so. */
 export const UPDATE_FOLLOW_MS = 20 * 60_000;
@@ -241,7 +241,7 @@ const RELEASE_NOTES = "https://github.com/genellect/cytellect/releases/tag/";
  */
 export const isUpdateVerificationError = (error: string | undefined) =>
   !!error && (error.startsWith("update_signature_") || error.startsWith("update_manifest_") || error === "update_installer_hash_mismatch");
-export const UPDATE_VERIFICATION_TEXT = "更新を止めました。新しい版のファイルが正しいことを確かめられなかったためです。今の版のまま使えます。別の方法で新しい版を入れずに、Cytellect のオーナーにお知らせください。";
+export const UPDATE_VERIFICATION_TEXT = "新しい版のファイルを検証できなかったため、更新を中止しました。今の版のまま使えます。ほかの方法で新しい版を入れず、Cytellect のオーナーにお知らせください。";
 /** Release notes link only to a release page of this project (never a download), after normalizing the URL. */
 export function safeNotesUrl(value: string | null | undefined): string | null {
   if (typeof value !== "string") return null;
@@ -253,7 +253,7 @@ export function safeNotesUrl(value: string | null | undefined): string | null {
 
 /** Sign-ins again after a 401 while following, before the banner asks to reopen the workspace. */
 export const UPDATE_RECONNECT_LIMIT = 3;
-export const UPDATE_SESSION_LOST_TEXT = "更新の状態を確かめられませんでした。作業画面を開き直してください。";
+export const UPDATE_SESSION_LOST_TEXT = "更新の状態を確認できませんでした。作業画面を開き直してください。";
 
 /**
  * Follow a started update until it settles. The local API restarts on the way, so a failed
@@ -297,24 +297,24 @@ export function updateNotice(info: UpdateInfo | null | undefined, following = fa
   const error = typeof info.error === "string" && info.error ? info.error : undefined;
   const version = info.latest ? `（${info.latest}）` : "";
   switch (info.state) {
-    case "downloading": case "installing": return {text: "更新しています。終わるまで、この画面を閉じずにお待ちください。", tone: "progress"};
-    case "restarting": return {text: "更新を終えて Cytellect を再起動しています。そのままお待ちください。", tone: "progress"};
+    case "downloading": case "installing": return {text: "更新中… 完了までこの画面を閉じないでください。", tone: "progress"};
+    case "restarting": return {text: "Cytellect を再起動中…", tone: "progress"};
     case "updated": return {text: `更新が完了しました${version}。`, tone: "ready"};
     // Installed, but an analysis that started meanwhile kept the current version running.
     case "installed": if (info.current && info.current === info.latest) return null; return {text: `更新の準備ができました${version}。次に Cytellect を起動したときに新しい版になります。`, tone: "ready"};
     case "failed": return {text: isUpdateVerificationError(error) ? UPDATE_VERIFICATION_TEXT : "更新できませんでした。今の版のまま使えます。あとでもう一度お試しください。", tone: "problem", error,
-      ...(info.available ? {action: {kind: "retry" as const, label: "もう一度更新する"}} : {})};
+      ...(info.available ? {action: {kind: "retry" as const, label: "再試行"}} : {})};
     case "rolled_back": return {text: "元の版で起動しました。あとでもう一度更新してください。", tone: "problem", error,
-      ...(info.available ? {action: {kind: "retry" as const, label: "もう一度更新する"}} : {})};
+      ...(info.available ? {action: {kind: "retry" as const, label: "再試行"}} : {})};
     // This version has no key to verify a release with: the newer one is installed with its installer.
     case "unsupported": return info.error === UPDATE_SIGNING_KEY_MISSING
       ? {text: `新しい版${version}があります。cytellect.app から新しい版のインストーラーをダウンロードして開いてください。研究データと設定は引き継がれます。`, tone: "info"} : null;
     default:
-      if (following) return {text: "更新しています。終わるまで、この画面を閉じずにお待ちください。", tone: "progress"};
-      return info.available ? {text: `更新があります${version}。研究データと設定は引き継がれます。`, tone: "info", action: {kind: "retry", label: "更新する"}} : null;
+      if (following) return {text: "更新中… 完了までこの画面を閉じないでください。", tone: "progress"};
+      return info.available ? {text: `更新があります${version}。研究データと設定は引き継がれます。`, tone: "info", action: {kind: "retry", label: "更新"}} : null;
   }
 }
-export const UPDATE_TIMEOUT_TEXT = "更新の完了を確認できませんでした。ブラウザでこのページを再読み込みすると、更新の状態を表示します。";
+export const UPDATE_TIMEOUT_TEXT = "更新の完了を確認できませんでした。ページを再読み込みして、更新の状態を確認してください。";
 export const UPDATE_SEEN_KEY = "cytellect.update.seen";
 
 /** Seconds until 「コードを再送」 is enabled. */
@@ -323,6 +323,6 @@ export const resendWait = (retryAt: number, now: number) => Math.max(0, Math.cei
 /** Poll interval for a pending request: 45 s, within the 30–60 s the owner's approval needs. */
 export const PENDING_POLL_MS = 45_000;
 /** Shown beside the usage: the cloud counts the wait for the GPU to start as GPU time. */
-export const GPU_TIME_NOTE = "GPU の起動を待つ時間も、GPU の利用時間に数えます。";
+export const GPU_TIME_NOTE = "GPU の利用時間には、起動の待ち時間を含みます。";
 export const GPU_POLL_MS = 3_000;
 export const FIRST_RUN_KEY = "cytellect.first-run.dismissed";

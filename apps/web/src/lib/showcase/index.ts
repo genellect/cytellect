@@ -52,9 +52,9 @@ export const showcaseNotices: Record<ShowcaseNoticeCode, string> = {
   showcase_detection_not_recorded: "公開デモでは、記録した検出条件だけを実行できます。一覧から条件を選んでください。",
   showcase_proposal_not_recorded: "公開デモのAIは、記録した指示の例だけに応答します。入力欄の上の例から選んでください。",
   showcase_upload_disabled: "公開デモでは画像を追加できません。Windows版・Docker版をご利用ください。",
-  showcase_engine_unavailable: "この操作の結果は公開デモで表示できません。保存済みの解析結果はそのまま試せます。",
+  showcase_engine_unavailable: "この操作の結果は公開デモでは表示できません。",
   showcase_unavailable: "公開デモのデータを読み込めませんでした。時間をおいて再読み込みしてください。",
-  showcase_action_not_recorded: "この操作の結果は公開デモに記録していません。「使い方」の手順、統計・図・測定・AIの例は、そのまま試せます。お手元の画像の解析は Windows 版で行えます。",
+  showcase_action_not_recorded: "この操作の結果は公開デモに記録していません。お手元の画像の解析は Windows 版で行えます。",
 };
 export const isShowcaseNoticeCode = (code: string): code is ShowcaseNoticeCode => (SHOWCASE_NOTICE_CODES as readonly string[]).includes(code);
 /** A displayed message that only reports a demo limitation (shown as information, not as an error). */

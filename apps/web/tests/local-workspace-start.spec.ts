@@ -21,7 +21,7 @@ test("the local workspace opens without a 401 or a console error", async ({page}
 
   await page.goto("/workspace");
   // A fresh installation offers two ways to begin; one that already holds work shows 「解析を開始」.
-  const start = page.getByRole("button", {name: /このPCで解析を始める|^解析を開始/}).first();
+  const start = page.getByRole("button", {name: /このPCで解析を開始|^解析を開始/}).first();
   await expect(start).toBeEnabled();
   await expect.poll(() => probes).toEqual([{status: 200, authenticated: false}]);
   const account = page.waitForResponse(response => new URL(response.url()).pathname === "/v1/account" && response.request().method() === "GET");

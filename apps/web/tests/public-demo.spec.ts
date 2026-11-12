@@ -22,10 +22,10 @@ test("unconfigured public build makes no analysis connection",async({page})=>{
   await download.click();
   const next=page.getByRole("dialog",{name:"ダウンロードを始めました"});
   if(/\/Cytellect-Setup-[^/]+\.exe$/.test(release)){
-   await expect(next.getByText(/「インストール」を押す/)).toBeVisible();
+   await expect(next.getByText(/「インストール」を押します/)).toBeVisible();
    await expect(next.getByText(/展開/)).toHaveCount(0);
   }else{
-   await expect(next.getByText("ダウンロードしたZIPを展開する",{exact:true})).toBeVisible();
+   await expect(next.getByText("ダウンロードしたZIPを展開します。",{exact:true})).toBeVisible();
    await expect(next.getByText(/「インストール」/)).toHaveCount(0);
   }
   await page.keyboard.press("Escape");
@@ -74,9 +74,9 @@ test("the install guide page shows what happens before and after the download",a
  await page.goto("/download");
  await expect(page.getByRole("heading",{level:1,name:"Windows版のインストール"})).toBeVisible();
  await expect(page.getByRole("link",{name:/Windows版をダウンロード/})).toHaveAttribute("href",release);
- await expect(page.getByRole("heading",{name:"インストールで起きること"})).toBeVisible();
- await expect(page.getByRole("heading",{name:"うまくいかないとき"})).toBeVisible();
- await expect(page.getByRole("heading",{name:"やめるとき"})).toBeVisible();
+ await expect(page.getByRole("heading",{name:"インストールの手順"})).toBeVisible();
+ await expect(page.getByRole("heading",{name:"トラブルシューティング"})).toBeVisible();
+ await expect(page.getByRole("heading",{name:"アンインストール"})).toBeVisible();
  // The guide is a page of its own: the download here does not open the LP's popover.
  const download=page.getByRole("link",{name:/Windows版をダウンロード/});
  await download.evaluate(a=>a.addEventListener("click",e=>e.preventDefault()));

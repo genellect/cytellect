@@ -74,8 +74,8 @@ test("unresolved nucleoli are confirmed by group, unit and reason, then kept as 
   await panel.getByLabel("独立実験単位",{exact:true}).fill("Transport independent units");
   for(let i=0;i<2;i++)for(const [key,value] of [["condition",i?"B":"A"],["sample",`sample-${i}`],["experimental_unit",`unit-${i}`]])await panel.locator(`input[aria-label$=" ${key}"]`).nth(i).fill(value);
   await panel.getByLabel("A / B",{exact:true}).check();
-  await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認した",{exact:true}).check();
-  await panel.getByLabel("測定領域と採用する視野を確認した",{exact:true}).check();
+  await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み",{exact:true}).check();
+  await panel.getByLabel("測定領域と採用する視野を確認済み",{exact:true}).check();
   // The list names each group and unit with its missing nuclei over all nuclei and the reason.
   const list=panel.getByRole("region",{name:"核小体を確定できない核"});
   await expect(list).toBeVisible();

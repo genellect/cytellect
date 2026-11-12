@@ -25,7 +25,7 @@ const OPENING = SCENES[0];
 const NUCLEOLAR = SCENES.find(scene => scene.regions.includes("nucleoli"));
 /** A scene with nuclei only (its fields hold hundreds of nuclei, so no deletion is recorded there). */
 const NUCLEI_ONLY = SCENES.find(scene => !scene.regions.includes("nucleoli"));
-const scopeText = (scene: Scene | undefined) => (scene?.assistantScope ?? "このデモは、記録した公開画像の解析だけに答えます。").slice(0, 20);
+const scopeText = (scene: Scene | undefined) => (scene?.assistantScope ?? "このデモは、記録済みの公開画像の解析にのみ応答します。").slice(0, 20);
 
 test.describe.configure({mode: "serial"});
 test.beforeEach(() => {
@@ -157,7 +157,7 @@ test("demo: image, outline, measurement, statistics and figure features run with
   await header.getByRole("button", {name: "使い方", exact: true}).click();
   await expect(guide).toBeVisible();
   // Outlines are corrected with the tools on each image, side by side too.
-  await expect(guide).toContainText("輪郭の修正は、各画像の左下の操作で行えます");
+  await expect(guide).toContainText("輪郭の修正は各画像の左下から行います");
   await guide.getByRole("button", {name: "次へ"}).click();
   await expect(page.getByRole("button", {name: /^測定値/})).toHaveAttribute("aria-expanded", "true");
   // The nucleus table step shows one field with its table of nuclei open.
@@ -457,9 +457,9 @@ async function calculate(page: Page) {
   const results = page.getByRole("region", {name: "測定結果の統計解析"});
   await fillIfEmpty(results.getByRole("textbox", {name: "独立実験単位", exact: true}), "公開画像の反復（デモ）");
   await fillIfEmpty(results.getByRole("textbox", {name: "対応の根拠", exact: true}), "同じ反復（Rep）内の 2 条件");
-  const confirm = results.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認した");
+  const confirm = results.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み");
   if (await confirm.count() && !await confirm.isChecked()) await confirm.check();
-  const reviewed = results.getByLabel("測定領域と採用する視野を確認した");
+  const reviewed = results.getByLabel("測定領域と採用する視野を確認済み");
   if (!await reviewed.isChecked()) await reviewed.check();
   // Nuclei without an established nucleolus are listed by group, run and reason once read (Q-05).
   const keep = results.getByLabel("この一覧を確認し、欠測として残して計算する", {exact: true});
@@ -555,8 +555,8 @@ test("operations the recording does not hold are explained at once, without the 
   // the background correction is chosen as in production (its modes without a drawn ROI are recorded).
   await expect(inspector.getByRole("combobox", {name: "背景補正", exact: true})).toHaveValue("automatic");
   await expect(inspector.getByRole("combobox", {name: "核染色", exact: true})).toHaveCount(0);
-  await expect(inspector.getByText(/記録した条件で検出しています/)).toBeVisible();
-  const recorded = inspector.locator("dl").filter({hasText: "確率閾値"});
+  await expect(inspector.getByText(/記録した条件による検出結果です/)).toBeVisible();
+  const recorded = inspector.locator("dl").filter({hasText: "確率しきい値"});
   await expect(recorded).toContainText("Hoechst · ");
   await expect(recorded).toContainText("0.5");
   await expect(inspector.getByRole("combobox", {name: "領域", exact: true}).locator("option[value=cell]")).toHaveCount(0);
@@ -775,7 +775,7 @@ test("a per-nucleus nucleolar result is read and checked on the nucleoli, and un
     await recorded.getByRole("button", {name}).click();
     await summary.getByText("n の内訳と除外").click();
     await expect(summary).toContainText(/核小体を確定できない核 \d+（欠測）/);
-    await expect(summary).not.toContainText("欠測はありません");
+    await expect(summary).not.toContainText("除外・欠測：なし");
   }
   // The eccentricity comes from the per-nucleus summary but is a shape of the nucleoli, and reads so everywhere.
   await expect(results.locator("[class*=current]")).toContainText("核小体（核ごとの値） · 核小体の離心率");
@@ -787,7 +787,7 @@ test("a per-nucleus nucleolar result is read and checked on the nucleoli, and un
   await header.getByRole("button", {name: "グラフ", exact: true}).click();
   await expect(page.getByRole("button", {name: /^グラフを選択/}).first()).toBeVisible({timeout: live});
   await expect(page.locator("label").filter({hasText: "図のレイアウト"}).locator("option[value=superplot]")).toHaveText("実験回ごと（視野・実験回・平均）");
-  await expect(page.getByText("検定なしの記述のため、信頼区間は描きません。")).toBeVisible();
+  await expect(page.getByText("記述統計のため、信頼区間は描きません。")).toBeVisible();
   // A run's point lists its nuclei with the field to open first; the identifiers are folded.
   const points = page.locator("[data-cytellect-source]");
   const unit = (await points.evaluateAll(elements => elements.map(element => {
@@ -992,18 +992,18 @@ test("the colour modes open positivity, the partition and the nucleus table from
 
   // The next step: the positive fraction in statistics, the compared fields judged again by the same rule (C-04).
   await color.selectOption("positivity");
-  await page.getByRole("button", {name: /^陽性率を群で比べる/}).click();
+  await page.getByRole("button", {name: /^陽性率を群間で比較/}).click();
   await expect(page.locator("header").getByRole("button", {name: "統計", exact: true})).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("complementary", {name: "解析対象"}).getByRole("combobox", {name: "指標", exact: true})).toHaveValue("positive_fraction");
   const results = page.getByRole("region", {name: "測定結果の統計解析"});
-  await expect(results.getByText(/の分類記録を確認しました。/)).toBeVisible({timeout: live});
+  await expect(results.getByText(/の分類記録：確認済み。/)).toBeVisible({timeout: live});
   await calculate(page);
   await expect(notRecorded(page)).toHaveCount(0);
   // The compared fields' decision stays with the comparison: the image keeps its own decision and colours (MV-10).
   await page.locator("header").getByRole("button", {name: "画像", exact: true}).click();
   await expect(page.getByRole("list", {name: /の色分け$/})).toHaveCount(2);
   for (const list of await page.getByRole("list", {name: /の色分け$/}).all()) await expect(list).toContainText("探索的（撮影日ごとの Otsu）");
-  await expect(page.getByText("保存した判定の記録が、今の核や視野と合いません。")).toHaveCount(0);
+  await expect(page.getByText("保存した判定が現在の核・視野と一致しません。")).toHaveCount(0);
   await noErrors(page, watch);
 });
 
