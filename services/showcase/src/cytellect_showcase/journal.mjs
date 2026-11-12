@@ -273,7 +273,10 @@ function measureScene(target) {
     if (target !== "nuclei") {await inspector.getByRole("combobox", {name: "領域", exact: true}).selectOption("nuclei"); await idle(page);}
     await tab(page, "統計");
     const operation = statistics(page).getByRole("combobox", {name: "解析", exact: true});
-    for (const kind of ["distribution", "comparison"]) {
+    // Only the analyses the panel offers: a stain with saturated pixels (Hoechst on the platinum scenes) offers no
+    // group comparison of its intensity (Q-04), as for a visitor.
+    const offered = await choices(operation);
+    for (const kind of ["distribution", "comparison"].filter(kind => offered.includes(kind))) {
       await operation.selectOption(kind);
       if (await calculate(page)) await figures(page, kind === "comparison");
     }
