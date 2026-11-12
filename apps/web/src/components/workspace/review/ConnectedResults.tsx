@@ -46,6 +46,8 @@ export interface ConnectedResultsProps {
   shown?:boolean;
   /** Counts the researcher's own measurements (the 「測定」 action), not previews. */
   measured?:number;
+  /** A next step's request to compare the groups (MV-09): the analysis is the group comparison, whatever the saved specification held. */
+  compareRequest?:number;
   /** The opening result's region, applied once the statistics view is shown (DM-04); defaults to onAnalysisTargetChange. */
   onOpeningTarget?:(target:ReviewTarget)=>void;
   onPrepareMissing?:()=>Promise<unknown>;
@@ -79,7 +81,7 @@ export function ConnectedResults(props:ConnectedResultsProps) {
   return <WorkspaceResults key={props.workspace} {...props}/>;
 }
 
-function WorkspaceResults({adapter,workspace,selection,items:allItems,target,metric,channel,mode,shown=true,measured=0,onOpening,onOpeningTarget,onSource,beforePrepare,disabled=false,gfp=null,channelGate=null,initialSpec,onSaveDraft,onMetricChange,onAnalysisTargetChange,onPrepareMissing,experiment=null,experimentSha256=null,onEditExperiment,reclassifyRequest=0}:ConnectedResultsProps) {
+function WorkspaceResults({adapter,workspace,selection,items:allItems,target,metric,channel,mode,shown=true,measured=0,compareRequest=0,onOpening,onOpeningTarget,onSource,beforePrepare,disabled=false,gfp=null,channelGate=null,initialSpec,onSaveDraft,onMetricChange,onAnalysisTargetChange,onPrepareMissing,experiment=null,experimentSha256=null,onEditExperiment,reclassifyRequest=0}:ConnectedResultsProps) {
   const derived=useMemo(()=>experiment?fieldMetadata(experiment):{},[experiment]);
   // A stratified design (1.1.0) is read one declared stratum at a time: only that stratum's fields enter,
   // and the API refuses a cohort, description or comparison that pools strata.
@@ -205,7 +207,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
     if(!initialSpec)return;const key=JSON.stringify(initialSpec);if(receivedSpec.current===key)return;receivedSpec.current=key;
     if(skipOwnSpec.current){skipOwnSpec.current=false;return;}
     const stat=initialSpec.statistics,figure=initialSpec.figure;
-    if(stat?.method){setOperation(stat.method.kind==="descriptive"?"distribution":stat.method.kind);setPaired(stat.design==="paired");setRank(["mann-whitney-u","wilcoxon"].includes(stat.method.test||"")||stat.method.association==="spearman");setUnit(stat.unit_definition);setPairing(stat.pairing_basis);setContrasts(stat.comparisons||[]);setMetadata(stat.field_metadata||{});setConfirmed(false);
+    if(stat?.method){setOperation(compareWanted.current?"comparison":stat.method.kind==="descriptive"?"distribution":stat.method.kind);setPaired(stat.design==="paired");setRank(["mann-whitney-u","wilcoxon"].includes(stat.method.test||"")||stat.method.association==="spearman");setUnit(stat.unit_definition);setPairing(stat.pairing_basis);setContrasts(stat.comparisons||[]);setMetadata(stat.field_metadata||{});setConfirmed(false);
       const restored=restoredMetric(stat);if(restored)onMetricChange?.(restored,stat.channel_id??null);
       const sx=stat as typeof stat & {x_metric?:string|null;x_channel_id?:string|null};if(stat.method.y)onMetricChange?.(displayMetric(stat.method.y.metric),stat.method.y.channel??null);if(stat.method.x){setXMetric(displayMetric(stat.method.x.metric));setXChannel(stat.method.x.channel??null);}else if(sx.x_metric){setXMetric(sx.x_metric);setXChannel(sx.x_channel_id??null);}
     }
@@ -260,6 +262,8 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   // The image's next step asked to judge the compared fields again (MV-09); it runs once the cohort is ready.
   const pendingReclassify=useRef(0);
   useEffect(()=>{if(reclassifyRequest)pendingReclassify.current=reclassifyRequest;},[reclassifyRequest]);
+  const compareWanted=useRef(false);
+  useEffect(()=>{if(!compareRequest)return;compareWanted.current=true;setOperation("comparison");setConfirmed(false);},[compareRequest]);
   const runPendingReclassify=useEffectEvent(()=>{pendingReclassify.current=0;void classifyForResults();});
   // The request answers that one click: it lapses when the decision is already current or the researcher moves on,
   // so a later change of the experiment or exclusions never judges again unasked.

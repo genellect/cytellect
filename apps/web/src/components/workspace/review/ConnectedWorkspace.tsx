@@ -102,6 +102,9 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   // A saved decision that no longer matches the nuclei and fields (MV-10), and a request to judge again in statistics (MV-09).
   const [gateStale,setGateStale]=useState(""),[reclassifyRequest,setReclassifyRequest]=useState(0);
   const explicitMetric=useRef(false);
+  /** The metric the opening result set (onOpening), while nobody has chosen another (DM-04). */
+  const openedMetric=useRef<string|null>(null);
+  const [compareRequest,setCompareRequest]=useState(0);
   // Whether the image leaves room for the table beside it (then the 測定値 button moves it below).
   const [sideRoom,setSideRoom]=useState(false);
   const [lastResultMode,setLastResultMode]=useState<"statistics"|"figure">("statistics");
@@ -285,7 +288,7 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   function chooseColorBy(value:ColorBy){setColorBy(value);if(value!=="outline"&&target!=="nuclei")changeTarget("nuclei");if(value==="positivity")dispatchPanel("settings");}
   /** The next step (MV-09): statistics with what the image shows; positivity judges the compared fields again by the same rule. */
   function compareGroups(next:NextComparison){
-    explicitMetric.current=true;setMetric(next.metric);if(next.channel)setChannel(next.channel);
+    explicitMetric.current=true;setMetric(next.metric);if(next.channel)setChannel(next.channel);setCompareRequest(Date.now());
     if(next.reclassify)setReclassifyRequest(Date.now());changeMode("statistics");
   }
   async function saveBackground(polygon:Point[]){
@@ -302,7 +305,11 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
     if(value==="cell"&&r.settings.cellDefinition?.source!=="cellpose"&&field&&!field.results.cell&&!busy)void act(()=>r.run("cell",field.id));
   }
   const [measured,setMeasured]=useState(0);
-  async function measure(){setMeasured(value=>value+1);await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
+  async function measure(){setMeasured(value=>value+1);
+    // Statistics then shows the measured region (DM-04 is for the first look only): an opening metric bound to another
+    // region (such as the nucleolar eccentricity) gives way to the default metric of the measured one.
+    if(!explicitMetric.current&&openedMetric.current&&metric===openedMetric.current&&metricTarget(metric,target)!==target){setMetric("mean");openedMetric.current=null;}
+await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
   function showSettings(){if(ai)setMode("image");dispatchPanel("settings");}
   async function send(){await sendInstruction(instruction);}
   // The demo answers any wording: it maps the request onto the closest recorded analysis, or explains what this dataset supports.
@@ -471,7 +478,7 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
 
         </>}
       </section>
-      <section className={styles.resultWork} hidden={mode==="image"||mode==="experiment"}>{r.unfinishedImports.length>0&&<p role="status" className={styles.unfinishedNotice}>登録できなかった画像が {r.unfinishedImports.length} 件あります。比較の前に、画面下の「取込」の一覧で理由を付けて除外してください。</p>}<ConnectedResults measured={measured} adapter={r.adapter} workspace={data?.workspaceId||""} selection={r.adapter.selection()} items={sources} target={sourceTarget} metric={metric} channel={metricUsesChannel(metric)?actualChannel||null:null} mode={mode==="image"||mode==="experiment"?lastResultMode:mode} shown={mode==="statistics"||mode==="figure"} onOpening={(openedMetric,openedChannel)=>{if(explicitMetric.current)return;if(metric==="mean")setMetric(openedMetric);if(openedChannel&&!channelId)setChannel(openedChannel);}} reclassifyRequest={reclassifyRequest} experiment={experiment} experimentSha256={r.experimentSha256()} onEditExperiment={()=>changeMode("experiment")} onSource={(id,n,revision,source,ch,structure)=>void openSource(id,n,revision,source,ch,structure)} onAnalysisTargetChange={setTarget} onOpeningTarget={opening=>{if(!explicitMetric.current)setTarget(opening);}} onPrepareMissing={()=>r.run(sourceTarget)} disabled={r.busy} gfp={gfpFilter} channelGate={channelFilter} initialSpec={storedSpec||undefined} onSaveDraft={draft=>r.saveResultDraft(draft)} onMetricChange={(nextMetric,nextChannel)=>{setMetric(nextMetric);if(nextChannel)setChannel(nextChannel);}}/></section>
+      <section className={styles.resultWork} hidden={mode==="image"||mode==="experiment"}>{r.unfinishedImports.length>0&&<p role="status" className={styles.unfinishedNotice}>登録できなかった画像が {r.unfinishedImports.length} 件あります。比較の前に、画面下の「取込」の一覧で理由を付けて除外してください。</p>}<ConnectedResults measured={measured} compareRequest={compareRequest} adapter={r.adapter} workspace={data?.workspaceId||""} selection={r.adapter.selection()} items={sources} target={sourceTarget} metric={metric} channel={metricUsesChannel(metric)?actualChannel||null:null} mode={mode==="image"||mode==="experiment"?lastResultMode:mode} shown={mode==="statistics"||mode==="figure"} onOpening={(opened,openedChannel)=>{if(explicitMetric.current)return;if(metric==="mean"){setMetric(opened);openedMetric.current=opened;}if(openedChannel&&!channelId)setChannel(openedChannel);}} reclassifyRequest={reclassifyRequest} experiment={experiment} experimentSha256={r.experimentSha256()} onEditExperiment={()=>changeMode("experiment")} onSource={(id,n,revision,source,ch,structure)=>void openSource(id,n,revision,source,ch,structure)} onAnalysisTargetChange={setTarget} onOpeningTarget={opening=>{if(!explicitMetric.current)setTarget(opening);}} onPrepareMissing={()=>r.run(sourceTarget)} disabled={r.busy} gfp={gfpFilter} channelGate={channelFilter} initialSpec={storedSpec||undefined} onSaveDraft={draft=>r.saveResultDraft(draft)} onMetricChange={(nextMetric,nextChannel)=>{setMetric(nextMetric);if(nextChannel)setChannel(nextChannel);}}/></section>
     </div>
 
     {(mode==="image"&&!!field||ai)&&(panel||ai)&&<aside className={styles.inspector} aria-label={ai?"AI":"画像解析"}><div className={styles.panelHeading}><h2>{ai?"AI":"画像解析"}</h2><button className={styles.icon} aria-label="パネルを閉じる" onClick={()=>dispatchPanel("close")}><Icon name="close"/></button></div><div className={styles.inspectorBody}>
