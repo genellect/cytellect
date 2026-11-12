@@ -44,6 +44,8 @@ export interface ConnectedResultsProps {
   shown?:boolean;
   /** Counts the researcher's own measurements (the 「測定」 action), not previews. */
   measured?:number;
+  /** The opening result's region, applied once the statistics view is shown (DM-04); defaults to onAnalysisTargetChange. */
+  onOpeningTarget?:(target:ReviewTarget)=>void;
   onPrepareMissing?:()=>Promise<unknown>;
   /** The declared experiment design; its derived metadata replaces per-field typing (E-08). */
   experiment?:ExperimentDesign|null;
@@ -75,7 +77,7 @@ export function ConnectedResults(props:ConnectedResultsProps) {
   return <WorkspaceResults key={props.workspace} {...props}/>;
 }
 
-function WorkspaceResults({adapter,workspace,selection,items:allItems,target,metric,channel,mode,shown=true,measured=0,onOpening,onSource,beforePrepare,disabled=false,gfp=null,channelGate=null,initialSpec,onSaveDraft,onMetricChange,onAnalysisTargetChange,onPrepareMissing,experiment=null,experimentSha256=null,onEditExperiment,reclassifyRequest=0}:ConnectedResultsProps) {
+function WorkspaceResults({adapter,workspace,selection,items:allItems,target,metric,channel,mode,shown=true,measured=0,onOpening,onOpeningTarget,onSource,beforePrepare,disabled=false,gfp=null,channelGate=null,initialSpec,onSaveDraft,onMetricChange,onAnalysisTargetChange,onPrepareMissing,experiment=null,experimentSha256=null,onEditExperiment,reclassifyRequest=0}:ConnectedResultsProps) {
   const derived=useMemo(()=>experiment?fieldMetadata(experiment):{},[experiment]);
   // A stratified design (1.1.0) is read one declared stratum at a time: only that stratum's fields enter,
   // and the API refuses a cohort, description or comparison that pools strata.
@@ -334,8 +336,8 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
     // opening region until then (DM-03).
     if(!metric||!entry.target)return;const opening=metricStructure(metric,entry.target);
     // A deep link (step=statistics) shows the view before the saved results load: apply the region at once.
-    if(shown&&mode==="statistics")onAnalysisTargetChange?.(opening);else openingTarget.current=opening;});
-  useEffect(()=>{if(!shown||mode!=="statistics"||!openingTarget.current)return;onAnalysisTargetChange?.(openingTarget.current);openingTarget.current=null;},[shown,mode,history]);// eslint-disable-line react-hooks/exhaustive-deps
+    if(shown&&mode==="statistics")(onOpeningTarget??onAnalysisTargetChange)?.(opening);else openingTarget.current=opening;});
+  useEffect(()=>{if(!shown||mode!=="statistics"||!openingTarget.current)return;(onOpeningTarget??onAnalysisTargetChange)?.(openingTarget.current);openingTarget.current=null;},[shown,mode,history]);// eslint-disable-line react-hooks/exhaustive-deps
   // The researcher measured before the statistics view was first shown: their new measurement is what they compare
   // next, so the opening region is no longer applied (DM-04 applies to the first look only).
   useEffect(()=>{if(measured)openingTarget.current=null;},[measured]);
