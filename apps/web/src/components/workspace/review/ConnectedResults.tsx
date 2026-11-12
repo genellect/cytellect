@@ -209,13 +209,16 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
     const stat=initialSpec.statistics,figure=initialSpec.figure;
     // A saved specification changes for many reasons (settings, measurement policy): only a changed statistics part
     // replaces the analysis, so a measurement or a background setting never brings back an earlier metric (DM-04).
-    const statKey=JSON.stringify(stat??null),statChanged=receivedStatistics.current!==statKey;receivedStatistics.current=statKey;
+    const statKey=JSON.stringify(stat??null),statChanged=receivedStatistics.current!==statKey,firstLook=receivedStatistics.current===null;receivedStatistics.current=statKey;
+    // The specification the workspace opens with sets the opening metric, under the same first-look rule as the opening
+    // result (DM-04): it is not applied after a measurement, and a later measurement of another region replaces it.
+    const chooseMetric=(value:string,stain:string|null)=>{if(!firstLook)onMetricChange?.(value,stain);else if(!measured)onOpening?.(value,stain);};
     if(stat?.method&&statChanged){setOperation(compareWanted.current?"comparison":stat.method.kind==="descriptive"?"distribution":stat.method.kind);setPaired(stat.design==="paired");setRank(["mann-whitney-u","wilcoxon"].includes(stat.method.test||"")||stat.method.association==="spearman");setUnit(stat.unit_definition);setPairing(stat.pairing_basis);setContrasts(stat.comparisons||[]);setMetadata(stat.field_metadata||{});setConfirmed(false);
-      const restored=restoredMetric(stat);if(restored)onMetricChange?.(restored,stat.channel_id??null);
-      const sx=stat as typeof stat & {x_metric?:string|null;x_channel_id?:string|null};if(stat.method.y)onMetricChange?.(displayMetric(stat.method.y.metric),stat.method.y.channel??null);if(stat.method.x){setXMetric(displayMetric(stat.method.x.metric));setXChannel(stat.method.x.channel??null);}else if(sx.x_metric){setXMetric(sx.x_metric);setXChannel(sx.x_channel_id??null);}
+      const restored=restoredMetric(stat);if(restored)chooseMetric(restored,stat.channel_id??null);
+      const sx=stat as typeof stat & {x_metric?:string|null;x_channel_id?:string|null};if(stat.method.y)chooseMetric(displayMetric(stat.method.y.metric),stat.method.y.channel??null);if(stat.method.x){setXMetric(displayMetric(stat.method.x.metric));setXChannel(stat.method.x.channel??null);}else if(sx.x_metric){setXMetric(sx.x_metric);setXChannel(sx.x_channel_id??null);}
     }
     if(figure?.plot){const p=figure.plot as typeof figure.plot & {style?:RenderPlot["style"];axes?:RenderPlot["axes"]};setFigureKind(p.kind);setWidth(p.width_inches*25.4);setHeight(p.height_inches*25.4);setFont(p.font_size);setXLabel(p.x_label);setYLabel(p.y_label);setYMin(p.y_min==null?"":String(p.y_min));setYMax(p.y_max==null?"":String(p.y_max));setColors(p.style?.series_colors||{});setLegend(p.style?.show_legend??true);setPointSize(p.point_size??18);setOrder(p.group_order||[]);setXAxis({min:p.axes?.x_min==null?"":String(p.axes.x_min),max:p.axes?.x_max==null?"":String(p.axes.x_max),step:p.axes?.x_tick_step==null?"":String(p.axes.x_tick_step),scale:p.axes?.x_scale||"linear"});setYAxis({min:"",max:"",step:p.y_tick_step==null?"":String(p.y_tick_step),scale:p.axes?.y_scale||"linear"});}
-  },[initialSpec,onMetricChange]);
+  },[initialSpec,onMetricChange]);// eslint-disable-line react-hooks/exhaustive-deps -- measured and onOpening are read for the first look only
   const requestIdentity=JSON.stringify(design);
   const stale=!!saved&&!saved.historical&&(saved.identity!==identity||saved.requestIdentity!==requestIdentity);
   const missing=items.filter(item=>!item.excluded&&!item.result).length;
