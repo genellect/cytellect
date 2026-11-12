@@ -124,8 +124,13 @@ async function clickRegion(page: Page, id: number) {
   await page.mouse.click(point.x, point.y);
 }
 async function selectRegion(page: Page, id: number) {
-  await clickRegion(page, id);
-  await expect(page.locator(`svg path[data-region="${id}"]`)).toHaveAttribute("aria-pressed", "true");
+  const region = page.locator(`svg path[data-region="${id}"]`);
+  // The pointer position is read from the outline as drawn: while the view still settles after 「画像全体を表示」, a
+  // click can land beside it, so it is clicked again (only while not selected) until the outline is selected.
+  await expect(async () => {
+    if (await region.getAttribute("aria-pressed") !== "true") await clickRegion(page, id);
+    await expect(region).toHaveAttribute("aria-pressed", "true", {timeout: 2_000});
+  }).toPass({timeout: 20_000});
 }
 
 test("demo: image, outline, measurement, statistics and figure features run without errors", async ({page}) => {
