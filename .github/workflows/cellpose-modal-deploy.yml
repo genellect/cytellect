@@ -15,8 +15,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with: {python-version: "3.12"}
       - run: python -m pip install --require-hashes --no-deps -r infra/modal-requirements.txt
       - name: Deploy and record the server URL
@@ -45,7 +45,7 @@ jobs:
         run: uv run --no-sync python scripts/cellpose_modal_check.py --receipt "$RUNNER_TEMP/cellpose-modal-check.json"
       - name: Keep only aggregate public-image execution evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: cellpose-modal-check
           path: ${{ runner.temp }}/cellpose-modal-check.json
