@@ -307,7 +307,7 @@ Ask only what cannot be derived, only when it is needed, once for the whole set,
 - The workspace connects explicit AI requests to validated processing settings and a representative-field trial. Preview transmission and device-token registration from the application remain separate work; the configured local service currently sends metadata and the bounded continuation described below.
 - Draft reuse is persisted privately across restarts. Only an executed recipe produces a scientific revision; reading a stored draft does not restart analysis.
 - `store: false` is not zero data retention; see [security](security.md#analysis-proposal-service).
-- Result discussions: the contract, local checks, local route, Worker route and prompt are implemented and tested with a stand-in model. The workspace panel and the demo's mock discussions are not yet. No model has been called; deploying and enabling the route in production needs the owner's permission.
+- Result discussions: the contract, local checks, local route, Worker route, prompt and workspace panel (`DiscussionPanel.tsx`: 「考察を作る」, what is sent, the optional purpose, the frame naming the model and day) are implemented and tested with a stand-in model. A stored discussion with `origin: "example"` is shown as the demo's example, not a model's output; the demo's examples are added with the demo scenes. No model has been called; deploying and enabling the route in production needs the owner's permission.
 # Structured execution settings (2026-10-07)
 
 Prompt `2026-10-07.1` adds optional `processing` version `1.0.0` to the

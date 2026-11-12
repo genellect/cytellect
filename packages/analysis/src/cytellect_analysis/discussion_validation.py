@@ -104,7 +104,8 @@ def _unclear(context: DiscussionContext) -> bool:
 
 
 def validate_discussion(raw: object, context: DiscussionContext, *, model: str,
-                        prompt_version: str = DISCUSSION_PROMPT_VERSION) -> ValidatedDiscussion:
+                        prompt_version: str = DISCUSSION_PROMPT_VERSION,
+                        origin: str = "model") -> ValidatedDiscussion:
     """Check a draft against the result it discusses; raise `DiscussionRejected` with reason codes."""
     try:
         draft = raw if isinstance(raw, DiscussionDraft) else DiscussionDraft.model_validate(raw)
@@ -124,4 +125,5 @@ def validate_discussion(raw: object, context: DiscussionContext, *, model: str,
         codes.append("discussion_claims_no_change")
     if codes:
         raise DiscussionRejected(codes)
-    return ValidatedDiscussion(context_sha256=context_sha256(context), prompt_version=prompt_version, model=model, draft=draft)
+    return ValidatedDiscussion(context_sha256=context_sha256(context), prompt_version=prompt_version, model=model,
+                               origin=origin, draft=draft)

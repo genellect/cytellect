@@ -383,6 +383,15 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       const view = descriptiveFigureView(figure.result);
       return {view, files: figure.result.figure.source_files};
     },
+    /** The stored discussion of one saved comparison, or null when none was made (AC-06). */
+    async discussion(job: string): Promise<DiscussionView | null> {
+      try {return await client.request<DiscussionView>(`/v1/jobs/${job}/discussion`);}
+      catch (error) {if (error instanceof ApiError && error.status === 404) return null; throw error;}
+    },
+    /** Sends the saved result (never images, file names or paths) after the researcher confirmed it (AC-02, AC-03). */
+    async draftDiscussion(job: string, experiment: ExperimentNote, retryFailed = false): Promise<DiscussionView> {
+      return client.post<DiscussionView>(`/v1/jobs/${job}/discussion`, {transmission_confirmed: true, experiment, ...(retryFailed ? {retry_failed: true} : {})});
+    },
     async draft(workspace: string, goal: string, retryFailed = false, continuation?: {current_processing: ProposalProcessing | null; previous_goal: string; previous_proposal: ProposalDraft | null;field_id?:string}) {
       // Called only after the one-time scope notice has been accepted in this workspace.
       const response = await client.post<{proposal: ValidatedProposal; channels: ProposalChannelLink[]}>(`/v1/workspaces/${workspace}/proposal-drafts`, {goal, transmission_confirmed: true, ...(retryFailed ? {retry_failed: true} : {}), ...continuation});
@@ -391,3 +400,5 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
   };
 }
 export type ApiAdapter = ReturnType<typeof createApiAdapter>;
+export type DiscussionView = components["schemas"]["DiscussionView"];
+export type ExperimentNote = components["schemas"]["ExperimentNote"];

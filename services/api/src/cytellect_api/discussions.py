@@ -34,6 +34,8 @@ class DiscussionRequest(BaseModel):
 
 class DiscussionView(BaseModel):
     job_id: str
+    # When the discussion was stored (seconds since the epoch), shown with the model's name (AC-06).
+    created: float
     discussion: ValidatedDiscussion
 
 
@@ -65,7 +67,7 @@ def register_discussion_routes(api, store, settings, owner, job_record, credenti
                 result_discussions.c.state == "complete").order_by(result_discussions.c.created.desc())).mappings().first()
         if row is None:
             raise HTTPException(404, "discussion_not_found")
-        return DiscussionView(job_id=jid, discussion=ValidatedDiscussion.model_validate(row["discussion"]))
+        return DiscussionView(job_id=jid, created=row["created"], discussion=ValidatedDiscussion.model_validate(row["discussion"]))
 
     @api.post("/v1/jobs/{jid}/discussion", response_model=DiscussionView)
     def draft_discussion(jid: str, body: DiscussionRequest, who: Owner):
@@ -95,7 +97,7 @@ def register_discussion_routes(api, store, settings, owner, job_record, credenti
             cached = conn.execute(select(result_discussions).where(
                 result_discussions.c.workspace_id == wid, result_discussions.c.cache_key == key)).mappings().first()
             if cached and cached["state"] == "complete":
-                return DiscussionView(job_id=jid, discussion=ValidatedDiscussion.model_validate(cached["discussion"]))
+                return DiscussionView(job_id=jid, created=cached["created"], discussion=ValidatedDiscussion.model_validate(cached["discussion"]))
             if cached:
                 if cached["state"] == "pending" and cached["lease_until"] > now:
                     raise HTTPException(409, "proposal_request_in_progress")
@@ -103,7 +105,7 @@ def register_discussion_routes(api, store, settings, owner, job_record, credenti
                     # A timeout may already have incurred cost; never silently pay again.
                     raise HTTPException(409, "proposal_explicit_retry_required")
                 conn.execute(update(result_discussions).where(result_discussions.c.id == cached["id"]).values(
-                    request_id=request_id, state="pending", lease_until=lease))
+                    request_id=request_id, state="pending", created=now, lease_until=lease))
             else:
                 conn.execute(result_discussions.insert().values(
                     id=str(uuid.uuid4()), workspace_id=wid, job_id=jid, cache_key=key, request_id=request_id,
@@ -138,4 +140,4 @@ def register_discussion_routes(api, store, settings, owner, job_record, credenti
                     state="complete", discussion=discussion.model_dump(mode="json")))
             if stored.rowcount != 1:
                 raise HTTPException(409, "proposal_request_superseded")
-        return DiscussionView(job_id=jid, discussion=discussion)
+        return DiscussionView(job_id=jid, created=now, discussion=discussion)

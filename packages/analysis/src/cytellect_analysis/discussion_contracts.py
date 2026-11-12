@@ -98,6 +98,8 @@ class DiscussionDraft(DiscussionModel):
 
 class ValidatedDiscussion(DiscussionModel):
     protocol: Literal["result-discussion/1.0.0"] = DISCUSSION_PROTOCOL
+    # "example": written for the public demo, not by a model, and shown as such (AC-08). It passes the same checks.
+    origin: Literal["model", "example"] = "model"
     context_sha256: Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
     prompt_version: str = DISCUSSION_PROMPT_VERSION
     model: Annotated[str, Field(min_length=1, max_length=80)]

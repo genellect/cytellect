@@ -2710,6 +2710,8 @@ export interface components {
         DiscussionView: {
             /** Job Id */
             job_id: string;
+            /** Created */
+            created: number;
             discussion: components["schemas"]["ValidatedDiscussion"];
         };
         /** DraftBackground */
@@ -6577,6 +6579,12 @@ export interface components {
              * @constant
              */
             protocol: "result-discussion/1.0.0";
+            /**
+             * Origin
+             * @default model
+             * @enum {string}
+             */
+            origin: "model" | "example";
             /** Context Sha256 */
             context_sha256: string;
             /**
