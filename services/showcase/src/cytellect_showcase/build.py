@@ -1709,7 +1709,7 @@ def scene_note(manifest: dict, scene: dict, examples: list[dict]) -> dict:
             "licence": dataset.get("license"), "licenceUrl": dataset.get("license_url"),
             "sourceUrl": dataset.get("source"), "doi": dataset.get("doi"), "citation": dataset.get("citation"),
             "description": dataset.get("scope"), "modifications": dataset.get("modifications"),
-            "caveats": dataset.get("caveats", []), "reportedChange": dataset.get("reported_change"),
+            "caveats": dataset.get("caveats", []), "reportedChange": dataset.get("reported_change"), "explainer": dataset.get("explainer"),
             "regions": scene_regions(manifest), "target": manifest["scenario"].get("final_target", "nuclei"),
             "gateChannels": manifest["scenario"].get("gate_channels", []),
             **opening_channel(manifest), "examples": examples, "assistantScope": manifest.get("assistant_scope"),
@@ -1775,7 +1775,7 @@ def write_manifest(args, manifests: list, state: dict) -> None:
             "id": manifest["id"],
             "dataset": {key: manifest.get("dataset", {}).get(key) for key in (
                 "name", "source", "doi", "license", "license_quoted", "license_url", "attribution", "citation", "scope",
-                "modifications", "caveats", "reported_change")},
+                "modifications", "caveats", "reported_change", "explainer")},
             "derivation_rule": manifest.get("derivation_rule"),
             "derivation_amendment": manifest.get("derivation_amendment"),
             "selection": {key: value for key, value in manifest.get("selection", {}).items()

@@ -14,6 +14,7 @@ import {metricStructure,metricUsesChannel} from "@/lib/workspace/metric-catalog"
 import {associationAxes,associationSupported,checkedPlot,comparisonKind,exploratoryPositivity,saturatedGroups,emptyMetadata,restoredMetric,resultRequest,resultSeries,runTable,seriesOrder,withMaskCorrections,type MaskCorrectionRow,type ResultDesign,type ResultOperation,type RenderPlot} from "./connected-results-model";
 import styles from "./connected-results.module.css";
 import {ErrorText,useShowcaseUi} from "./showcase-ui";
+import {METRIC_HINTS} from "../../../lib/showcase/terms";
 import type {ShowcaseDataset} from "@/lib/showcase";
 import {AxisControls,axisPlotOptions,emptyAxis,type AxisState} from "./AxisControls";
 import {ConnectedCsvResults} from "./ConnectedCsvResults";
@@ -523,8 +524,11 @@ function ResultSummaryCard({estimates,comparison,metricLabel,unit,warnings,count
   const summary=summarize(estimates,comparison,metricLabel,unit,{exploratory:warnings.includes(EXPLORATORY_WARNING),
     missing:missing&&unresolved?`核小体を確定できない核 ${unresolved} / ${nuclei} は欠測`:null});
   const cautions=[...summary.cautions,...warnings.filter(code=>READ_WARNINGS.has(code)).map(code=>comparisonWarnings[code]||commonWarnings[code]).filter((value):value is string=>!!value)];
+  // The demo says what the measured value means, for visitors who are not biologists (DM-11).
+  const hint=useShowcaseUi().enabled?METRIC_HINTS[estimates.metric]:undefined;
   return <section className={styles.summary} aria-label="結果のまとめ">
     <h3 className={styles.headline}>{summary.heading}</h3>
+    {hint&&<p className={styles.hint}>{hint}</p>}
     {summary.points.length>0&&<ul className={styles.points}>{summary.points.map(value=><li key={value}>{value}</li>)}</ul>}
     <ResultBasisLine basis={summary.basis} onEditExperiment={onEditExperiment}/>
     {missing?.warnings.map(warning=><p key={String(warning.run)} role="status" className={styles.missingWarning}>{warning.run?`実験回 ${warning.run} で、`:""}群の間の欠測の割合が {formatNumber(warning.difference_points)} ポイント違います（基準 {missing.warning_points} ポイント）。処理に関わる選別の偏りが残っている可能性があります。</p>)}

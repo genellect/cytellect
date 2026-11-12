@@ -1006,3 +1006,21 @@ test("the colour modes open positivity, the partition and the nucleus table from
   await expect(page.getByText("保存した判定の記録が、今の核や視野と合いません。")).toHaveCount(0);
   await noErrors(page, watch);
 });
+
+test("each scene explains itself in plain words, and stays closed once closed (DM-11, C-28)", async ({page}) => {
+  for (const scene of SCENES.length ? SCENES : [undefined]) {
+    await openDemo(page, sceneUrl(scene));
+    const intro = page.getByRole("region", {name: "この場面について"});
+    await expect(intro, scene?.id).toBeVisible({timeout: live});
+    for (const heading of ["何をした", "色", "分かったこと"]) await expect(intro.getByText(heading, {exact: true})).toBeVisible();
+    await intro.getByText("用語").click();
+    await expect(intro.getByText("核", {exact: true}).first()).toBeVisible();
+    await intro.getByRole("button", {name: "この場面の説明を閉じる"}).click();
+    await expect(intro).toBeHidden();
+    await page.reload();
+    await expect(page.getByRole("button", {name: "この場面について"})).toBeVisible({timeout: live});
+    await expect(page.getByRole("region", {name: "この場面について"})).toBeHidden();
+    await page.getByRole("button", {name: "この場面について"}).click();
+    await expect(page.getByRole("region", {name: "この場面について"})).toBeVisible();
+  }
+});

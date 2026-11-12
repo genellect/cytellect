@@ -175,6 +175,7 @@ Pyodide の CDN から読み込むパッケージ（再配布しない）:
 - `scenario.gate_channels`：公開デモで核を陽性・陰性に分類できるチャンネル。陽性・陰性に生物学的な意味がある染色だけを挙げ、理由を `gate_channels_note` に書く（核染色や常に発現する目印は挙げない）。空なら分類を出さない（2026-11-11、オーナーの判断）。`snapshot/scenes.json` の `gateChannels`。
 - `crop_rule`：視野の切り出し位置の規則。`nuclear-window` は、核染色だけを読み、Otsu の閾値を超える画素が最も多い窓（`size`、`step` 画素の格子、同点は中央に近い窓）を選ぶ。測定するチャンネルは読まないので、切り出しが結果に合わせて動くことはない。全チャンネルで同じ窓を使い、画素値は変えない。
 - `scene_label`・`assistant_scope`：場面の名前と、記録にない AI の指示への返答で、その画像で比べられることを示す文。
+- `dataset.explainer`：生物学が専門でない人への説明（要件 DM-11）。`what`（何の細胞に何をしたか）、`colors`（画像の色と線が何か）、`finding`（何が分かったか）をそれぞれ 1 文で、数値を使わずに書く。`terms` は、用語の補足（`apps/web/src/lib/showcase/terms.ts`）から出す語。画面は、場面の上に閉じられる枠で示し、閉じたことを場面ごとにブラウザに保つ（`snapshot/dataset.json` の `explainer`）。統計の結果の見出しの下には、指標の意味を 1 文で示す。
 - `dataset.reported_change`：出典が報告している変化（比べる条件・向き・量・範囲・実験回の独立性）。画面は、デモでの測定と分けて、結果のまとめの下に向きを 1 行で示し、量・範囲・独立性は折りたたむ（`snapshot/dataset.json` の `reportedChange`）。
 - Cellpose を使わないデータセット（NCL 陽性の核小体や細胞 ROI がない）では、Cellpose の実行環境は不要。
 
