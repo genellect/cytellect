@@ -22,16 +22,16 @@ export function DownloadStart({ url, installer, guide = true }: { url: string; i
     {open && <div className={lp.nextSteps} role="dialog" aria-modal="false" aria-labelledby={title}>
       <p id={title} ref={heading} tabIndex={-1} className={lp.nextStepsTitle}>ダウンロードを始めました</p>
       {installer ? <ol>
-        <li>ダウンロードしたファイルを開く</li>
-        <li>「PCが保護されました」と出たら、「詳細情報」→「実行」</li>
-        <li>「インストール」を押すと、5〜10分で使い始められます</li>
+        <li>ダウンロードしたファイルを開きます。</li>
+        <li>「PCが保護されました」と表示されたら、「詳細情報」→「実行」を押します。</li>
+        <li>「インストール」を押します（約5〜10分）。</li>
       </ol> : <ol>
-        <li>ダウンロードしたZIPを展開する</li>
-        <li>「Cytellect Setup」を開く</li>
-        <li>「セットアップ」を押し、終わったら「開く」</li>
+        <li>ダウンロードしたZIPを展開します。</li>
+        <li>「Cytellect Setup」を開きます。</li>
+        <li>「セットアップ」を押し、完了後に「開く」を押します。</li>
       </ol>}
       <div className={lp.nextStepsActions}>
-        <Link data-lp-event="install_guide" href="/download">インストールの流れ</Link>
+        <Link data-lp-event="install_guide" href="/download">インストールの手順</Link>
         <button type="button" onClick={() => setOpen(false)}>閉じる</button>
       </div>
     </div>}

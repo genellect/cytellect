@@ -117,10 +117,10 @@ export function FieldImage({ src, size, outlines, analyzed, selected, onSelect, 
         <button type="button" onClick={() => setZoom(value => Math.min(8, (value ?? fitZoom) * 1.5))} aria-label="拡大">＋</button>
         <button type="button" title="画像全体を表示" aria-label="画像全体を表示" onClick={() => {setZoom(null); if(viewport.current){viewport.current.scrollLeft=0;viewport.current.scrollTop=0;}}}><ToolIcon name="fit"/></button>
         {analyzed && <><button type="button" title="輪郭の表示・非表示" aria-label="輪郭の表示・非表示" aria-pressed={showOutlines} onClick={() => setShowOutlines(value => !value)}><ToolIcon name="layers"/></button><details className={viewer.displayMenu}><summary title="表示オプション" aria-label="表示オプション">⋯</summary><div><span>{uniqueRegionCount(outlines.filter(value => value.state !== "deleted").map(value => value.outline))} 領域</span><label><input type="checkbox" checked={showNumbers} onChange={event=>setShowNumbers(event.target.checked)}/>領域番号を表示</label></div></details></>}
-        {onDrawSave && !drawMode && <button type="button" title="画像上に領域を描く" aria-label="画像上に領域を描く" disabled={editDisabled} onClick={() => startDrawing("add")}><ToolIcon name="draw"/></button>}
-        {drawMode === "merge" && <><span>つなげる領域をクリック（{merged.length} 個選択）</span><button type="button" disabled={saving || editDisabled || !ready} onClick={() => void saveDrawing()}>{saving ? "保存中…" : "つなげて保存"}</button></>}
-        {drawMode && drawMode !== "merge" && <><span>{drawMode === "split" ? `領域 ${drawRegion} から切り離す部分を囲む` : "輪郭に沿ってクリック"}</span><button type="button" disabled={saving || !polygon.length} onClick={() => setPolygon(points => points.slice(0,-1))}>1点戻す</button><button type="button" disabled={saving || editDisabled || !ready} onClick={() => void saveDrawing()}>{saving ? "保存中…" : drawMode === "split" ? "分けて保存" : "輪郭を保存"}</button></>}
-        {drawMode && <><button type="button" disabled={saving} onClick={endDrawing}>描画を取り消す</button></>}
+        {onDrawSave && !drawMode && <button type="button" title="領域を描画" aria-label="領域を描画" disabled={editDisabled} onClick={() => startDrawing("add")}><ToolIcon name="draw"/></button>}
+        {drawMode === "merge" && <><span>結合する領域をクリック（{merged.length} 個選択）</span><button type="button" disabled={saving || editDisabled || !ready} onClick={() => void saveDrawing()}>{saving ? "保存中…" : "結合して保存"}</button></>}
+        {drawMode && drawMode !== "merge" && <><span>{drawMode === "split" ? `領域 ${drawRegion} から切り離す部分を囲む` : "輪郭に沿ってクリック"}</span><button type="button" disabled={saving || !polygon.length} onClick={() => setPolygon(points => points.slice(0,-1))}>1点戻す</button><button type="button" disabled={saving || editDisabled || !ready} onClick={() => void saveDrawing()}>{saving ? "保存中…" : drawMode === "split" ? "分割して保存" : "輪郭を保存"}</button></>}
+        {drawMode && <><button type="button" disabled={saving} onClick={endDrawing}>描画の取り消し</button></>}
       </div>
       <div className={[styles.imageSurface,viewer.surface].join(" ")}>
       <div ref={viewport} className={styles.imageViewport} style={{width:"100%",height:"100%",flex:"1 1 auto"}}
@@ -148,9 +148,9 @@ export function FieldImage({ src, size, outlines, analyzed, selected, onSelect, 
         {drawMode && polygon.map(([x,y], index) => <circle key={index} cx={x} cy={y} r={3/zoom} fill="#fbbf24" pointerEvents="none"/>)}
       </svg>
       </div>
-      {selected !== undefined && !drawMode && <div className={viewer.selectionTools} role="toolbar" aria-label={`領域 ${selected} の操作`}><span>{selected}</span>{onDrawSave && <><button type="button" title="選択した輪郭を描き直す" aria-label="選択した輪郭を描き直す" disabled={editDisabled} onClick={()=>startDrawing("replace")}><ToolIcon name="edit"/></button><button type="button" title="選択領域を分割" aria-label="選択領域を分割" disabled={editDisabled} onClick={()=>startDrawing("split")}><ToolIcon name="split"/></button><button type="button" title="別の領域と結合" aria-label="別の領域と結合" disabled={editDisabled} onClick={()=>startDrawing("merge")}><ToolIcon name="merge"/></button></>}{onClearSelection && <button type="button" title="選択を解除" aria-label="選択を解除" onClick={onClearSelection}><ToolIcon name="close"/></button>}</div>}
+      {selected !== undefined && !drawMode && <div className={viewer.selectionTools} role="toolbar" aria-label={`領域 ${selected} の操作`}><span>{selected}</span>{onDrawSave && <><button type="button" title="選択した輪郭を再描画" aria-label="選択した輪郭を再描画" disabled={editDisabled} onClick={()=>startDrawing("replace")}><ToolIcon name="edit"/></button><button type="button" title="選択領域を分割" aria-label="選択領域を分割" disabled={editDisabled} onClick={()=>startDrawing("split")}><ToolIcon name="split"/></button><button type="button" title="別の領域と結合" aria-label="別の領域と結合" disabled={editDisabled} onClick={()=>startDrawing("merge")}><ToolIcon name="merge"/></button></>}{onClearSelection && <button type="button" title="選択を解除" aria-label="選択を解除" onClick={onClearSelection}><ToolIcon name="close"/></button>}</div>}
       </div>
-      {analyzed && !outlines.length && <p className={styles.imageNote}>輪郭データなし（測定値は表・グラフで確認）</p>}
+      {analyzed && !outlines.length && <p className={styles.imageNote}>輪郭データなし</p>}
       {drawError && <p role="alert">{drawError}</p>}
     </div>
   );

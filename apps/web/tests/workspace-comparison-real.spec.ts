@@ -37,7 +37,7 @@ test("synthetic fields reach real independent-unit comparison and editable expor
     await expect(page.getByTestId("file-input")).toBeEnabled();
     await page.getByTestId("file-input").setInputFiles(files);
     // Unpaired groups with typed independent units: registered without a form, groups are entered in statistics.
-    await page.getByRole("button", {name: /^形を決めずに登録/}).click();
+    await page.getByRole("button", {name: /^実験デザインなしで登録/}).click();
     await expect(page.getByRole("complementary", {name:"視野一覧"}).getByRole("button").filter({hasText:/未測定/})).toHaveCount(4, {timeout:120000});
     // 染色対応 is in the image menu (⋯), out of the way of the image work (MV-08).
     await page.locator("summary[aria-label='画像の設定']").click();
@@ -76,8 +76,8 @@ test("synthetic fields reach real independent-unit comparison and editable expor
   await expect(panel.locator('input[aria-label$=" condition"]').first()).toHaveValue("A");
   expect(writes.filter(value => value.endsWith("/review"))).toHaveLength(0);
   await panel.getByLabel("A / B", {exact:true}).check();
-  await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認した", {exact:true}).check();
-  await panel.getByLabel("測定領域と採用する視野を確認した", {exact:true}).check();
+  await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み", {exact:true}).check();
+  await panel.getByLabel("測定領域と採用する視野を確認済み", {exact:true}).check();
   await panel.getByRole("button", {name:"計算", exact:true}).click();
   // Include operation errors rather than reporting only a missing-table timeout.
   await expect.poll(async()=>{

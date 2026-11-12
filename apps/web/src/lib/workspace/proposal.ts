@@ -68,7 +68,7 @@ export function buildProposal(grouping: Grouping, design: DesignInfo = { conditi
       regions.push("核小体候補", "核質");
       const ncl = measured.find((channel) => channel.stain === "NCL")!;
       metrics.push({ key: `${ncl.token}:log2_nucleoplasm_over_nucleoli`, label: "NCL 核質/核小体 log₂比", unit: "", channel: ncl.token });
-      notes.push("核小体候補はNCL像から定義（条件別の検出率・面積も出力）");
+      notes.push("核小体候補はNCL像から定義します。条件別の検出率と面積も出力します。");
     }
     for (const channel of measured) {
       if (channel.stain === "NCL") continue;

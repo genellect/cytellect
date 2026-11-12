@@ -116,7 +116,7 @@ class TerminalJobError extends Error {}
 export const refusedWrite = (error: unknown) => error instanceof ApiError && error.status >= 400 && error.status < 500 && error.status !== 408;
 export function assertWorkspaceConnection(host: string, origin: string) {
   const loopback = (name: string) => ["localhost", "127.0.0.1", "[::1]", "::1"].includes(name);
-  if (origin && loopback(new URL(origin, `https://${host}`).hostname) && !loopback(host)) throw new Error("公開サイトからローカルの解析サーバーには接続できません。ランチャーから開いてください。");
+  if (origin && loopback(new URL(origin, `https://${host}`).hostname) && !loopback(host)) throw new Error("公開サイトからはローカルの解析サーバーに接続できません。デスクトップの「Cytellect」から開いてください。");
 }
 
 export function channelSpecification(channel: ChannelDefinition) {
@@ -126,8 +126,8 @@ export function channelSpecification(channel: ChannelDefinition) {
 }
 
 export function nuclearRecipe(channel: ChannelDefinition, detectionMaxSide?: number | null): Recipe {
-  if (channel.role !== "nuclear") throw new Error("核検出に使うチャンネルを選択してください");
-  if (detectionMaxSide != null && (!Number.isInteger(detectionMaxSide) || detectionMaxSide < 64 || detectionMaxSide > 2048)) throw new Error("検出用画像の長辺は64〜2048pxで指定してください");
+  if (channel.role !== "nuclear") throw new Error("核検出に使うチャンネルを選択してください。");
+  if (detectionMaxSide != null && (!Number.isInteger(detectionMaxSide) || detectionMaxSide < 64 || detectionMaxSide > 2048)) throw new Error("検出用画像の長辺は64〜2048pxで指定してください。");
   // Without an explicit size the detection copy follows the estimated nucleus size (nuclear-size/1.0.0),
   // so high-resolution images are not split into nuclear texture.
   return {id: "region-2d", version: detectionMaxSide == null ? "1.7.0" : "1.5.0", region_set_id: "nuclei", label: "核", source: "stardist_nuclear",
@@ -144,7 +144,7 @@ export interface FieldSummary { field: string; n: number; excluded: number; medi
 /** Map saved values for interactive selection; never calculate summaries in the browser. */
 export function savedDistribution(figure: SavedFigure): {points: DistributionPoint[]; summaries: FieldSummary[]} {
   const points = (figure.result.plot_data ?? []).map(row => {
-    if (typeof row.field_id !== "string" || !Number.isInteger(row.region_id) || typeof row.value !== "number" || !Number.isFinite(row.value)) throw new Error("図の出典を確認できません");
+    if (typeof row.field_id !== "string" || !Number.isInteger(row.region_id) || typeof row.value !== "number" || !Number.isFinite(row.value)) throw new Error("図の出典を確認できません。");
     return {field: row.field_id, region: row.region_id as number, value: row.value, state: "included" as const};
   });
   return {points, summaries: figure.result.field_summary.map(row => ({field: row.field_id, n: row.selected_rows,
@@ -187,20 +187,20 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       const jobs = await client.request<Job[]>(`/v1/workspaces/${workspace}/jobs`);
       const job = jobs.find(item => item.id === id);
       if (job) onState?.(job.state);
-      if (!job) throw new Error("処理が見つかりません。作業の保存期限を確認してください");
+      if (!job) throw new Error("処理が見つかりません。作業の保存期限を確認してください。");
       if (job.state === "succeeded") return job;
-      if (job.state === "failed" || job.state === "cancelled") throw new TerminalJobError(job.error ? errorCodeMessage(job.error) : "処理を中止しました");
+      if (job.state === "failed" || job.state === "cancelled") throw new TerminalJobError(job.error ? errorCodeMessage(job.error) : "処理を中止しました。");
       await client.wait();
     }
   }
   async function readResult(revision: string, field: string, recipe?: Recipe): Promise<SavedResult> {
     if (recipe) revisionRecipes.set(revision, recipe);
     const report = await client.request<Report>(`/v1/revisions/${revision}/region-measurements`);
-    if (report.revision_id !== revision) throw new Error("保存された測定値の解析版が一致しません");
+    if (report.revision_id !== revision) throw new Error("保存された測定値と解析版が一致しません。");
     const failure = report.field_failures.find(item => item.field_id === field);
-    if (failure) throw new Error(`この視野の解析に失敗しました (${failure.reason})`);
+    if (failure) throw new Error(`この視野の解析に失敗しました（${failure.reason}）。`);
     const table = report.field_tables[field];
-    if (!table) throw new Error("この視野の測定値がありません");
+    if (!table) throw new Error("この視野の測定値がありません。");
     const masks = await client.request<SavedResult["masks"]>(`/v1/revisions/${revision}/region-masks?field_id=${encodeURIComponent(field)}`);
     const record=revisionConfigs.has(revision)?{config:revisionConfigs.get(revision)}:await client.request<{config?:RevisionRecord["config"]}>(`/v1/revisions/${revision}`);
     return {regionSet: revisionRecipes.get(revision)?.region_set_id || "nuclei", revision, field, rows: table.rows, masks, exclusions: report.exclusions, protocol: report.protocol_version,
@@ -238,7 +238,7 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       return entry;
     },
     async upload(workspace: string, field: GroupedField, channels: Grouping["channels"], files: Map<string, File>, entryId?: string) {
-      if (channels.length > 4) throw new Error("1視野につき4チャンネルまで取り込めます");
+      if (channels.length > 4) throw new Error("1視野のチャンネルは4つまでです。");
       const data = new FormData();
       const presentChannels = channels.filter(channel => field.files[channel.token]);
       const modes = new Set(presentChannels.map(channel => field.files[channel.token].inputMode || "native"));
@@ -246,7 +246,7 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       presentChannels.forEach((channel, index) => {
         const added = field.files[channel.token];
         const file = added && files.get(added.path);
-        if (!file) throw new Error(`チャンネル ${channel.stain || channel.token} の画像がありません`);
+        if (!file) throw new Error(`チャンネル ${channel.stain || channel.token} の画像がありません。`);
         data.set(`ch${index}`, file);
       });
       const key = `${workspace}:${field.key}`;
@@ -276,7 +276,7 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       await assertSelection(workspace);
       const key = `${workspace}:${field}:${JSON.stringify(recipe)}:${measurement.mode}:${options.adopt !== false}`;
       let created = runs.get(key);
-      if (created === "uncertain") throw new Error("受付状態を確認できません。再読み込みで保存済みの処理状態を確認してください。");
+      if (created === "uncertain") throw new Error("受付状態を確認できません。再読み込みして処理状態を確認してください。");
       if (created && created.recipe !== JSON.stringify(recipe)) throw new Error("受付済みの解析条件が異なります。再読み込みして処理状態を確認してください。");
       if (!created) {
         runs.set(key, "uncertain");
@@ -326,7 +326,7 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       return adopt(workspace, await readResult(revision, field));
     },
     async editMask(workspace: string, result: SavedResult, recipe: Recipe, operation: MaskOperation, polygon: Point[], region?: number, merged: number[] = []) {
-      if (operation === "merge" ? merged.length < 2 : polygon.length < 3 || (operation !== "add" && !region)) throw new Error("修正する領域と輪郭を指定してください");
+      if (operation === "merge" ? merged.length < 2 : polygon.length < 3 || (operation !== "add" && !region)) throw new Error("修正する領域と輪郭を指定してください。");
       await assertSelection(workspace);
       await client.post(`/v1/workspaces/${workspace}/current`, {revision_id: result.revision});
       const created = await client.post<{job_id: string; revision_id: string}>(`/v1/revisions/${result.revision}/region-edits`, {
@@ -376,7 +376,7 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       });
       await waitJob(workspace, created.job_id);
       const saved = await client.request<DescriptiveResult>(`/v1/jobs/${created.job_id}/result`);
-      if (saved.revision_id !== result.revision) throw new Error("図と測定値の解析版が一致しません");
+      if (saved.revision_id !== result.revision) throw new Error("図と測定値の解析版が一致しません。");
       return {job: created.job_id, revision: result.revision, choice, result: saved};
     },
     figureFiles(figure: SavedFigure) {

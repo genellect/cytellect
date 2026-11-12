@@ -57,7 +57,7 @@ export function comparisonSelection(regionSet: string, metric: ComparisonMetric,
   if(gfp&&channelGate)throw new Error("核の分類を一つ選んでください。");
   if (isFieldSummaryMetric(metric)) {
     if(metric.startsWith("positive_")){
-      if(!channelGate)throw new Error("チャンネルによる核の分類を行ってから、陽性核数・陽性率を選んでください。");
+      if(!channelGate)throw new Error("陽性核数・陽性率には、チャンネルによる核の分類が必要です。");
       return {source:"field-summary",version:"1.0.0",region_set_id:regionSet,metric,positivity:channelGate};
     }
     if (gfp) throw new Error("視野あたりの核数には、GFP による核の選別を使えません。");

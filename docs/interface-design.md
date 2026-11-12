@@ -64,6 +64,10 @@ workspace is redesigned as one image-centred workspace described in
 
 - Use operation names, field labels and concise instructions. Do not put
   advertising headlines or emotive copy in forms, panels or error messages.
+- Write Japanese UI text as research software does: short noun headings and
+  buttons, states as 「項目：値」, one-sentence reasons, no conditional coaching,
+  stacked negatives or explanations in parentheses (UC-01–UC-07 in the
+  [result-statement requirements](drafts/results-and-demo-story/requirements.md#e-ui-の文言uc)).
 - Keep image, region tools, settings and measurements visually distinct.
 - Put region-editing controls near the image and expose the next available
   operation without requiring a long explanatory paragraph.

@@ -3,7 +3,7 @@ import { InstallGuide } from "@/components/InstallGuide";
 
 export const metadata: Metadata = {
   title: "Windows版のインストール | Cytellect",
-  description: "Cytellect の Windows 版をダウンロードしてから、作業画面が開くまでの流れ。",
+  description: "Cytellect Windows 版のダウンロードから作業画面の起動までの手順。",
 };
 
 export default function DownloadPage() {

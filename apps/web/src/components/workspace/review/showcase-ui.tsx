@@ -63,7 +63,7 @@ export function UploadDialog({kind, onClose}: {kind: "image" | "csv" | null; onC
   return <div className={styles.backdrop} onClick={event => {if (event.target === event.currentTarget) onClose();}}>
     <div className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby="showcase-upload-title">
       <h2 id="showcase-upload-title">{kind === "csv" ? "数値表の追加" : "画像の追加"}</h2>
-      <p>公開デモでは、登録済みの公開画像だけを解析できます。手元の{kind === "csv" ? "数値表" : "画像"}は、PCで動くWindows版またはDocker版で追加・解析できます。画像はPCの外へ送信されません。</p>
+      <p>公開デモで解析できるのは、登録済みの公開画像だけです。手元の{kind === "csv" ? "数値表" : "画像"}は、PC で動く Windows 版・Docker 版で解析できます。画像は PC の外へ送信されません。</p>
       <div className={styles.actions}>
         <a className={styles.primary} href={DOWNLOAD_HREF} data-lp-event="demo_download">ダウンロードの案内</a>
         <button ref={close} type="button" onClick={onClose}>閉じる</button>
@@ -102,11 +102,11 @@ export function DemoBadge({dataset, onGuide}: {dataset: ShowcaseDataset | null; 
 function guideSteps(dataset: ShowcaseDataset | null): Array<{mode: DemoStep; title: string; text: string; table?: boolean; nucleus?: boolean}> {
   const nucleolar = !!dataset?.regions?.includes("nucleoli");
   return [
-  {mode: "image", title: "画像と輪郭", text: `2 つの群を並べ、検出した輪郭を重ねています。輪郭を選ぶと、その値が表で分かります。輪郭の修正は、各画像の左下の操作で行えます（公開デモでは修正を記録しないため、試すと案内が出ます）。${nucleolar ? "「領域」で核・核小体・核質を切り替えられます。" : ""}`},
-  {mode: "image", title: "測定値", text: "輪郭ごとの面積と輝度を、各画像の下の表で確認できます。", table: true},
-  {mode: "image", title: "核ごとの表", text: `1 つの視野の核を、1 行ずつ確かめます。核の面積と各染色の輝度${nucleolar ? "、核小体の数・面積・形" : ""}を同じ核の行に並べ、行を選ぶと画像のその核に移ります。表は ZIP（CSV と列の定義）で保存できます。${nucleolar ? "画像の上の「色分け」を「核小体と核質」にすると、同じ核の中で核質と核小体に含まれる信号の比を、表で比べられます。" : ""}`, table: true, nucleus: true},
-  {mode: "statistics", title: "統計", text: `視野や群をまとめて計算します。${dataset?.gateChannels?.length ? "「画像」の上の「色分け」を「陽性・陰性」にして核を分けると、ここで陽性率も比べられます。" : ""}`},
-  {mode: "figure", title: "グラフと書き出し", text: "論文用の図を編集し、ZIPで保存できます。"},
+  {mode: "image", title: "画像と輪郭", text: `2 群の画像に、検出した輪郭を重ねています。輪郭を選び、表で値を確認します。輪郭の修正は各画像の左下から行います。公開デモでは修正を記録しません。${nucleolar ? "「領域」で核・核小体・核質を切り替えます。" : ""}`},
+  {mode: "image", title: "測定値", text: "輪郭ごとの面積と輝度を、各画像の下の表に示します。", table: true},
+  {mode: "image", title: "核ごとの表", text: `1 視野の核を 1 行ずつ示します。核の面積、各染色の輝度${nucleolar ? "、核小体の数・面積・形" : ""}を核ごとに並べます。行を選ぶと、画像の該当する核に移動します。表は ZIP（CSV と列の定義）で保存します。${nucleolar ? "画像の上の「色分け」の「核小体と核質」で、核ごとの核質と核小体の信号の比を表に示します。" : ""}`, table: true, nucleus: true},
+  {mode: "statistics", title: "統計", text: `視野と群を集計して計算します。${dataset?.gateChannels?.length ? "陽性率の比較には、「画像」の「色分け」の「陽性・陰性」での核の分類が必要です。" : ""}`},
+  {mode: "figure", title: "グラフと書き出し", text: "論文用の図を編集し、ZIP で保存します。"},
   ];
 }
 

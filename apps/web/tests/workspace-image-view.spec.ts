@@ -153,8 +153,8 @@ test("side by side, each pane offers the outline tools of one field",async({page
   const control=page.getByRole("region",{name:"対照（対照）",exact:true});
   await expect(control.getByRole("toolbar",{name:/の領域編集$/})).toBeVisible();
   await control.getByRole("region",{name:/の測定値$/}).locator("tbody button").first().click();
-  for(const name of ["領域を描く","輪郭を描き直す","領域を分割","領域を結合","選択領域を削除"])await expect(control.getByRole("button",{name,exact:true})).toBeVisible();
-  await expect(page.getByRole("region",{name:"処理",exact:true}).getByRole("button",{name:"領域を描く",exact:true})).toBeVisible();
+  for(const name of ["領域を描画","輪郭を再描画","領域を分割","領域を結合","選択領域を削除"])await expect(control.getByRole("button",{name,exact:true})).toBeVisible();
+  await expect(page.getByRole("region",{name:"処理",exact:true}).getByRole("button",{name:"領域を描画",exact:true})).toBeVisible();
   expect(fixture.unexpected).toEqual([]);
 });
 
