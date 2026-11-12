@@ -1131,6 +1131,46 @@ def rederive_in_browser(seed_zip: Path, seed_data: Path, work: Path) -> dict:
     return {key: result[key] for key in ("statistics", "figure_render")}
 
 
+def pack_recordings(recordings: Path) -> dict[str, Path | bytes]:
+    """Seed entries for the detector recordings: index, label arrays (``.npz``) and engine files.
+
+    Recordings made by this build hold ``.npy`` arrays, packed here; recordings unpacked from an
+    earlier seed already hold ``.npz`` and are published as they are. A missing array fails the
+    build when the archive is written, so a seed never lists an array it does not contain.
+    """
+    import numpy as np
+
+    index = json.loads((recordings / "index.json").read_text())
+    entries: dict[str, Path | bytes] = {}
+    used = set()
+    for entry in index["entries"].values():
+        # Label arrays are published compressed (.npz) so unpacking the seed stays small.
+        for name, relative in list(entry["outputs"].items()):
+            if relative.endswith(".npy"):
+                packed = relative[:-4] + ".npz"
+                if f"recordings/{packed}" not in entries:
+                    buffer = io.BytesIO()
+                    np.savez_compressed(buffer, array=np.load(recordings / relative, allow_pickle=False))
+                    entries[f"recordings/{packed}"] = buffer.getvalue()
+                entry["outputs"][name] = packed
+            elif relative.endswith(".npz"):
+                if not (recordings / relative).is_file():
+                    raise SystemExit(f"showcase_recording_array_missing: {relative}")
+                entries[f"recordings/{relative}"] = recordings / relative
+            else:
+                raise SystemExit(f"showcase_recording_array_unknown: {relative}")
+        for item in entry["files"]:
+            if item.get("omitted") or item["bytes"] > ENGINE_FILE_LIMIT:
+                item.pop("file", None)
+                item["omitted"] = True
+            else:
+                used.add(item["file"])
+    entries["recordings/index.json"] = (json.dumps(index, sort_keys=True, indent=1) + "\n").encode()
+    for relative in sorted(used):
+        entries[f"recordings/{relative}"] = recordings / relative
+    return entries
+
+
 def export_seed(data_dir: Path, recordings: Path, proposals: dict, showcase: dict, target: Path) -> dict:
     staging = data_dir.parent / "seed-db.sqlite"
     sqlite_copy(data_dir / "cytellect.sqlite", staging)
@@ -1145,29 +1185,7 @@ def export_seed(data_dir: Path, recordings: Path, proposals: dict, showcase: dic
             omitted.append({"path": relative.as_posix(), "sha256": sha256_file(path), "bytes": path.stat().st_size})
             continue
         entries[relative.as_posix()] = path
-    index = json.loads((recordings / "index.json").read_text())
-    used = set()
-    import numpy as np
-
-    for entry in index["entries"].values():
-        # Label arrays are published compressed (.npz) so unpacking the seed stays small.
-        for name, relative in list(entry["outputs"].items()):
-            if relative.endswith(".npy"):
-                packed = relative[:-4] + ".npz"
-                if f"recordings/{packed}" not in entries:
-                    buffer = io.BytesIO()
-                    np.savez_compressed(buffer, array=np.load(recordings / relative, allow_pickle=False))
-                    entries[f"recordings/{packed}"] = buffer.getvalue()
-                entry["outputs"][name] = packed
-        for item in entry["files"]:
-            if item.get("omitted") or item["bytes"] > ENGINE_FILE_LIMIT:
-                item.pop("file", None)
-                item["omitted"] = True
-            else:
-                used.add(item["file"])
-    entries["recordings/index.json"] = (json.dumps(index, sort_keys=True, indent=1) + "\n").encode()
-    for relative in sorted(used):
-        entries[f"recordings/{relative}"] = recordings / relative
+    entries.update(pack_recordings(recordings))
     from cytellect_api.db import Store, fields
 
     from .seed import plan
