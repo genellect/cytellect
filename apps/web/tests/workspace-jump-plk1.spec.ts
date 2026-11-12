@@ -149,7 +149,7 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   await expect(setup.getByRole("region", {name: "群と実験回が決まっていない視野"})).toHaveCount(0);
   // E-05: independence is the researcher's statement, never inferred from dates or plates.
   await expect(setup.getByRole("checkbox", {name: /各実験回は独立に行った/})).not.toBeChecked();
-  await expect(issues).toContainText("実験回が独立に行われたこと（別々に播種・処理・染色したこと）を確認すると、群間比較の検定と信頼区間に進めます。");
+  await expect(issues).toContainText("独立性：未確認。群間比較は記述統計のみです。");
   await noAlerts();
 
   // N-02: every field has the four channels, grouped from the file names only (no stain from names).
@@ -294,10 +294,10 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
 
   // A separate path: after the researcher confirms independence, the declared paired t test is offered.
   // This checks the inferential route only; the JUMP source does not state that the runs are independent.
-  await panel.getByRole("button", {name: "実験の形で確認する", exact: true}).first().click();
+  await panel.getByRole("button", {name: "実験デザインを編集", exact: true}).first().click();
   await setup.getByRole("checkbox", {name: /各実験回は独立に行った/}).check();
   await expect(setup.getByRole("checkbox", {name: /各実験回は独立に行った/})).toBeChecked();
-  await expect(issues).not.toContainText("実験回が独立に行われたこと");
+  await expect(issues).not.toContainText("独立性：未確認");
   await page.getByRole("navigation", {name: "作業の切替"}).getByRole("button", {name: "統計", exact: true}).click();
   await expect(panel.getByRole("status").filter({hasText: "実験回ごとの値と差を示します"})).toHaveCount(0);
   await expect(panel.getByRole("combobox", {name: "解析", exact: true})).toHaveValue("comparison");

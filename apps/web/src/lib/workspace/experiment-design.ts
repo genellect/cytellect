@@ -174,7 +174,7 @@ export function issueText(design:ExperimentDesign, issue:ReadinessIssue, fieldLa
     case "experiment_design_no_strata": return "層がまだ宣言されていません。各因子の水準を 1 つずつ選んで層を宣言してください。";
     case "experiment_design_empty_stratum": return `層「${stratumLabel(design, issue.stratum_id)}」に視野がありません。`;
     case "experiment_design_acquisition_dates_missing": return `撮影日が入っていない視野があります（${issue.field_ids.map(fieldLabel).join("、")}）。輝度を比べるには撮影日が必要です（面積や数には不要）。`;
-    case "experiment_design_independence_unconfirmed": return "実験回が独立に行われたこと（別々に播種・処理・染色したこと）を確認すると、群間比較の検定と信頼区間に進めます。確認がなくても、実験回ごとの値と差は示します。";
+    case "experiment_design_independence_unconfirmed": return "独立性：未確認。群間比較は記述統計のみです。";
   }
 }
 
