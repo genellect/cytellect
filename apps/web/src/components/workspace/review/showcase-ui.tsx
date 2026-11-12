@@ -131,15 +131,26 @@ export function DemoGuide({open, onClose, onStep, dataset}: {open: boolean; onCl
 const introKey = (scene: string) => `cytellect.demo.intro.closed.${scene}`;
 function introClosed(scene: string) {try {return window.localStorage.getItem(introKey(scene)) === "1";} catch {return false;}}
 /** The scene in brief for visitors who are not biologists (DM-11, UC-01–UC-07): conditions, display, result. It
- * stays closed once closed for this scene (per browser); 「場面の概要」 opens it again. */
-export function SceneIntro({scene, dataset}: {scene: string; dataset: ShowcaseDataset | null}) {
+ * stays closed once closed for this scene (per browser); 「場面の概要」 opens it again. On a short screen it starts
+ * closed, so the images and their tables keep their rows (N-08). */
+export interface SceneIntroState {open: boolean; close: () => void; reopen: () => void}
+export function useSceneIntro(scene: string | undefined): SceneIntroState {
   const [open, setOpen] = useState(false);
-  useEffect(() => {setOpen(!introClosed(scene));}, [scene]);
+  useEffect(() => {setOpen(!!scene && !introClosed(scene) && window.innerHeight >= 800);}, [scene]);
+  return {
+    open,
+    close: () => {setOpen(false); if (scene) try {window.localStorage.setItem(introKey(scene), "1");} catch {/* Closing still works for this page. */}},
+    reopen: () => {setOpen(true); if (scene) try {window.localStorage.removeItem(introKey(scene));} catch {/* Opening still works for this page. */}},
+  };
+}
+/** 「場面の概要」 while the overview is closed: a small mark next to the scene in the header, so it takes no row. */
+export function SceneIntroButton({intro, dataset}: {intro: SceneIntroState; dataset: ShowcaseDataset | null}) {
+  if (intro.open || !dataset?.explainer) return null;
+  return <button type="button" className={styles.introButton} aria-label="場面の概要" title="場面の概要" onClick={intro.reopen}>i</button>;
+}
+export function SceneIntro({intro, dataset}: {intro: SceneIntroState; dataset: ShowcaseDataset | null}) {
   const explainer = dataset?.explainer;
-  if (!explainer) return null;
-  const close = () => {setOpen(false); try {window.localStorage.setItem(introKey(scene), "1");} catch {/* Closing still works for this page. */}};
-  const reopen = () => {setOpen(true); try {window.localStorage.removeItem(introKey(scene));} catch {/* Opening still works for this page. */}};
-  if (!open) return <button type="button" className={styles.introButton} onClick={reopen}>場面の概要</button>;
+  if (!explainer || !intro.open) return null;
   const terms = explainer.terms.filter(term => TERMS[term]);
   return <section className={styles.intro} aria-label="場面の概要">
     <dl>
@@ -148,7 +159,7 @@ export function SceneIntro({scene, dataset}: {scene: string; dataset: ShowcaseDa
       <div><dt>結果</dt><dd>{explainer.finding}</dd></div>
     </dl>
     {terms.length > 0 && <details><summary>用語</summary><dl className={styles.terms}>{terms.map(term => <div key={term}><dt>{term}</dt><dd>{TERMS[term]}</dd></div>)}</dl></details>}
-    <button type="button" className={styles.introClose} aria-label="場面の概要を閉じる" onClick={close}>閉じる</button>
+    <button type="button" className={styles.introClose} aria-label="場面の概要を閉じる" onClick={intro.close}>閉じる</button>
   </section>;
 }
 
