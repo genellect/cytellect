@@ -143,7 +143,7 @@ const sidebar = page => page.getByRole("complementary", {name: "解析対象"});
 const expected = new Set();
 async function calculate(page, refusal = null) {
   const results = statistics(page);
-  for (const label of ["独立実験単位、撮影・画素条件、採否と欠測の扱いを確認した", "測定領域と採用する視野を確認した"]) {
+  for (const label of ["独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み", "測定領域と採用する視野を確認済み"]) {
     const box = results.getByLabel(label);
     if (await box.count() && !await box.isChecked()) await box.check();
   }
@@ -396,13 +396,13 @@ function walksOf(demo) {
     if (values === "raw" && kept === "positive") scenes[`positivity-${channel}-next`] = async page => {
       await classify(page, channel, values);
       await closePanel(page);
-      await nextStep(page, /^陽性率を群で比べる/);
+      await nextStep(page, /^陽性率を群間で比較/);
     };
   }
   // The nucleolus-and-nucleoplasm colour mode and its next step (the nucleoplasm ÷ nucleolus ratio).
   if (REGIONS.includes("nucleoli") && REGIONS.includes("nucleoplasm")) scenes["compartments-next"] = async page => {
     await colorMode(page).selectOption("compartments"); await idle(page);
-    await nextStep(page, /^核質／核小体の比を群で比べる/);
+    await nextStep(page, /^核質／核小体の比を群間で比較/);
   };
   // Background correction chosen in the settings panel (the modes that need nothing drawn), then every region
   // measured again with its statistics; the scene's own mode is what the measure-* walks record.
