@@ -130,8 +130,8 @@ export function DemoGuide({open, onClose, onStep, dataset}: {open: boolean; onCl
 
 const introKey = (scene: string) => `cytellect.demo.intro.closed.${scene}`;
 function introClosed(scene: string) {try {return window.localStorage.getItem(introKey(scene)) === "1";} catch {return false;}}
-/** What this scene is about, in plain words, for visitors who are not biologists (DM-11). It stays closed once
- * closed for this scene (per browser); "この場面について" opens it again. */
+/** The scene in brief for visitors who are not biologists (DM-11, UC-01–UC-07): conditions, display, result. It
+ * stays closed once closed for this scene (per browser); 「場面の概要」 opens it again. */
 export function SceneIntro({scene, dataset}: {scene: string; dataset: ShowcaseDataset | null}) {
   const [open, setOpen] = useState(false);
   useEffect(() => {setOpen(!introClosed(scene));}, [scene]);
@@ -139,16 +139,16 @@ export function SceneIntro({scene, dataset}: {scene: string; dataset: ShowcaseDa
   if (!explainer) return null;
   const close = () => {setOpen(false); try {window.localStorage.setItem(introKey(scene), "1");} catch {/* Closing still works for this page. */}};
   const reopen = () => {setOpen(true); try {window.localStorage.removeItem(introKey(scene));} catch {/* Opening still works for this page. */}};
-  if (!open) return <button type="button" className={styles.introButton} onClick={reopen}>この場面について</button>;
+  if (!open) return <button type="button" className={styles.introButton} onClick={reopen}>場面の概要</button>;
   const terms = explainer.terms.filter(term => TERMS[term]);
-  return <section className={styles.intro} aria-label="この場面について">
+  return <section className={styles.intro} aria-label="場面の概要">
     <dl>
-      <div><dt>何をした</dt><dd>{explainer.what}</dd></div>
-      <div><dt>色</dt><dd>{explainer.colors}</dd></div>
-      <div><dt>分かったこと</dt><dd>{explainer.finding}</dd></div>
+      <div><dt>条件</dt><dd>{explainer.what}</dd></div>
+      <div><dt>表示</dt><dd>{explainer.colors}</dd></div>
+      <div><dt>結果</dt><dd>{explainer.finding}</dd></div>
     </dl>
     {terms.length > 0 && <details><summary>用語</summary><dl className={styles.terms}>{terms.map(term => <div key={term}><dt>{term}</dt><dd>{TERMS[term]}</dd></div>)}</dl></details>}
-    <button type="button" className={styles.introClose} aria-label="この場面の説明を閉じる" onClick={close}>閉じる</button>
+    <button type="button" className={styles.introClose} aria-label="場面の概要を閉じる" onClick={close}>閉じる</button>
   </section>;
 }
 

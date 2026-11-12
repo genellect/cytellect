@@ -31,9 +31,9 @@
    "デモのAI解析案は、例文に対して用意した設定案を返します（外部AIは呼び出しません）。"
   ],
   "explainer": {
-   "what": "ヒトの骨肉腫の細胞（U2OS）で、細胞の分裂に欠かせない遺伝子 PLK1 をノックアウトし、何も壊さない対照と並べています。",
-   "colors": "光っているのは核の DNA（Hoechst）です。線は、Cytellect が見つけた核の輪郭です。",
-   "finding": "PLK1 をノックアウトすると、1 枚の画像に写る核の数は、3 回の実験のすべてで大きく減りました。分裂に欠かせない遺伝子を壊すと細胞が増えない、という予想と合う結果です。",
+   "what": "ヒト骨肉腫細胞（U2OS）。CRISPR で PLK1 をノックアウトし、非標的ガイドの対照と比較。",
+   "colors": "核＝Hoechst（DNA）。線＝検出した輪郭。",
+   "finding": "視野あたりの核数は 3 回とも大きく減少。分裂に必須の遺伝子の欠失で細胞が増えないことと整合。",
    "terms": [
     "核",
     "Hoechst",
@@ -797,15 +797,15 @@
   "presentation_amendment": "Presentation amended 2026-10-26 by the owner, after the scene was published: the display comparing the adopted nuclei with the CellProfiler objects JUMP published for the same images is withdrawn, because its purpose was not clear to visitors. It was display only; no field, rule, measurement or comparison changes, and the planned comparison (nuclei per field) is unchanged.",
   "discussion_example": {
    "implications": [
-    "PLK1 を壊すと、どの実験回でも視野あたりの細胞が減っており、細胞が分裂して増えるのに PLK1 が要ることと整合する。"
+    "PLK1 の欠失で視野あたりの細胞数が全実験回で減少しており、PLK1 の増殖への必要性と整合する。"
    ],
    "alternatives": [
-    "細胞が死んで減ったのか、分裂が止まって増えなかったのかは、核の数だけでは区別できない。",
-    "実験回の独立性が確認されていないため、回の間のばらつきを過小に見ている可能性がある。"
+    "細胞死による減少か増殖停止によるものかは、核数のみでは区別できない。",
+    "実験回の独立性が未確認で、回間のばらつきを過小評価している可能性がある。"
    ],
    "next_steps": [
-    "分裂中の細胞や細胞死の目印を染め、細胞が減った理由を確かめる。",
-    "別のガイドでも同じように減るかを確かめ、ガイドごとの効き方の偏りを除く。"
+    "分裂期と細胞死のマーカーで、細胞数減少の機序を調べる。",
+    "別のガイド配列で再現性を確認し、ガイド依存の効果を除く。"
    ]
   }
  },
