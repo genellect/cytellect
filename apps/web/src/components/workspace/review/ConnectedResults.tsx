@@ -41,6 +41,10 @@ export interface ConnectedResultsProps {
   onAnalysisTargetChange?:(target:ReviewTarget)=>void;
   /** The view opened on the latest saved result: its metric and channel, for a view nobody has changed yet. */
   onOpening?:(metric:string,channel:string|null)=>void;
+  /** False while the workspace shows the images: the results view is mounted but not on screen. */
+  shown?:boolean;
+  /** Counts the researcher's own measurements (the 「測定」 action), not previews. */
+  measured?:number;
   onPrepareMissing?:()=>Promise<unknown>;
   /** The declared experiment design; its derived metadata replaces per-field typing (E-08). */
   experiment?:ExperimentDesign|null;
@@ -72,7 +76,7 @@ export function ConnectedResults(props:ConnectedResultsProps) {
   return <WorkspaceResults key={props.workspace} {...props}/>;
 }
 
-function WorkspaceResults({adapter,workspace,selection,items:allItems,target,metric,channel,mode,onOpening,onSource,beforePrepare,disabled=false,gfp=null,channelGate=null,initialSpec,onSaveDraft,onMetricChange,onAnalysisTargetChange,onPrepareMissing,experiment=null,experimentSha256=null,onEditExperiment,reclassifyRequest=0}:ConnectedResultsProps) {
+function WorkspaceResults({adapter,workspace,selection,items:allItems,target,metric,channel,mode,shown=true,measured=0,onOpening,onSource,beforePrepare,disabled=false,gfp=null,channelGate=null,initialSpec,onSaveDraft,onMetricChange,onAnalysisTargetChange,onPrepareMissing,experiment=null,experimentSha256=null,onEditExperiment,reclassifyRequest=0}:ConnectedResultsProps) {
   const derived=useMemo(()=>experiment?fieldMetadata(experiment):{},[experiment]);
   // A stratified design (1.1.0) is read one declared stratum at a time: only that stratum's fields enter,
   // and the API refuses a cohort, description or comparison that pools strata.
@@ -325,7 +329,15 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   }
   const [savedNote,setSavedNote]=useState("");
   useEffect(()=>{if(demo&&saved&&!saved.historical&&Math.abs(saved.plot.width_inches*25.4-width)>.5)void render();},[saved?.job]);// eslint-disable-line react-hooks/exhaustive-deps
-  const openLatestSaved=useEffectEvent((entry:Saved)=>{if(saved)return;restoreFigure(entry);const metric=entry.result.spec?.selection?.metric??entry.result.metric;if(metric)onOpening?.(metric,entry.result.spec?.selection?.channel_id??null);});
+  const openingTarget=useRef<ReviewTarget|null>(null);
+  const openLatestSaved=useEffectEvent((entry:Saved)=>{if(saved)return;restoreFigure(entry);const metric=entry.result.spec?.selection?.metric??entry.result.metric;if(metric)onOpening?.(metric,entry.result.spec?.selection?.channel_id??null);
+    // The opening result's region too, once the statistics view is shown (DM-04); the image view keeps its own
+    // opening region until then (DM-03).
+    if(metric&&entry.target)openingTarget.current=metricStructure(metric,entry.target);});
+  useEffect(()=>{if(!shown||mode!=="statistics"||!openingTarget.current)return;onAnalysisTargetChange?.(openingTarget.current);openingTarget.current=null;},[shown,mode,history]);// eslint-disable-line react-hooks/exhaustive-deps
+  // The researcher measured before the statistics view was first shown: their new measurement is what they compare
+  // next, so the opening region is no longer applied (DM-04 applies to the first look only).
+  useEffect(()=>{if(measured)openingTarget.current=null;},[measured]);
   useEffect(()=>{if(openedSaved.current||!history[0])return;openedSaved.current=true;openLatestSaved(history[0]);},[history]);
   const shownTarget=saved?.historical?saved.target:target;const shownMetric=saved?.historical?(saved.result.metric||saved.result.y_source?.metric||saved.result.spec?.selection?.metric||""):metric;const shownChannel=saved?.historical?(saved.result.channel?.channel_id||saved.result.y_source?.channel?.channel_id||saved.result.spec?.selection?.channel_id||null):channel;
   // The shown result differs from the side panel's choice in region, metric or channel.
