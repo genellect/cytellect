@@ -166,7 +166,8 @@ async function calculate(page, refusal = null) {
   await page.waitForFunction(() => [...document.querySelectorAll("button")].some(button => button.textContent === "計算" && !button.disabled), null, {timeout: LIVE});
   await idle(page);
   const refused = (await results.getByRole("alert").allTextContents()).filter(text => text.trim());
-  if (refusal && refused.length && refused.every(text => text.includes(refusal))) {expected.add(refused[0].trim().slice(0, 300)); return false;}
+  const allowed = [refusal ?? []].flat();
+  if (allowed.length && refused.length && refused.every(text => allowed.some(reason => text.includes(reason)))) {expected.add(refused[0].trim().slice(0, 300)); return false;}
   if (refused.length) throw new Error(`calculation refused: ${refused.join(" / ")}`);
   return true;
 }
@@ -209,7 +210,7 @@ const offered = (region, metric) => !FIXED[metric] || FIXED[metric] === region;
 const choices = select => select.locator("option:not([disabled])").evaluateAll(options => options.map(option => option.value).filter(Boolean));
 // Every statistic the panel offers for one region and metric, from the seed: each stain, each
 // analysis it allows and, for an association, each horizontal axis, with their figures.
-// `refusal`: a refusal the shared analysis gives on purpose (e.g. saturated pixels in an intensity comparison);
+// `refusal`: a refusal (or several) the shared analysis gives on purpose (e.g. saturated pixels in an intensity comparison);
 // it is recorded as the visitor would see it, and the walk goes on without a figure.
 function statisticsScene(region, metric, kinds = null, refusal = null) {
   return async page => {
@@ -390,9 +391,12 @@ function walksOf(demo) {
     scenes[`positivity-${channel}-${values}${kept === "negative" ? "-negative" : ""}`] = async page => {
       await classify(page, channel, values, kept);
       await closePanel(page);
-      for (const metric of ["positive_fraction", "positive_count"]) await statisticsScene("nuclei", metric)(page);
+      // A run whose fields hold no nucleus of the kept class (all positive, say) has nothing to measure: the shared
+      // analysis refuses the comparison, and the refusal is recorded as the visitor would see it.
+      const empty = "選別後に測定できる核がない実験単位";
+      for (const metric of ["positive_fraction", "positive_count"]) await statisticsScene("nuclei", metric, null, empty)(page);
       // Among the positive nuclei a stain may hold saturated pixels; comparing their intensity is then refused (Q-04).
-      for (const metric of ["area_px", "area_um2", "mean", "mean_corrected"]) await statisticsScene("nuclei", metric, ["distribution", "comparison"], "上限値または飽和した画素")(page);
+      for (const metric of ["area_px", "area_um2", "mean", "mean_corrected"]) await statisticsScene("nuclei", metric, ["distribution", "comparison"], ["上限値または飽和した画素", empty])(page);
     };
     // The image's next step: the positive fraction, after the compared fields are judged again by the same rule.
     if (values === "raw" && kept === "positive") scenes[`positivity-${channel}-next`] = async page => {
