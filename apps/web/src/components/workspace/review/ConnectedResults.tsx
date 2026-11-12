@@ -334,7 +334,9 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   const openLatestSaved=useEffectEvent((entry:Saved)=>{if(saved)return;restoreFigure(entry);const metric=entry.result.spec?.selection?.metric??entry.result.metric;if(metric)onOpening?.(metric,entry.result.spec?.selection?.channel_id??null);
     // The opening result's region too, once the statistics view is shown (DM-04); the image view keeps its own
     // opening region until then (DM-03).
-    if(metric&&entry.target)openingTarget.current=metricStructure(metric,entry.target);});
+    if(!metric||!entry.target)return;const opening=metricStructure(metric,entry.target);
+    // A deep link (step=statistics) shows the view before the saved results load: apply the region at once.
+    if(shown&&mode==="statistics")onAnalysisTargetChange?.(opening);else openingTarget.current=opening;});
   useEffect(()=>{if(!shown||mode!=="statistics"||!openingTarget.current)return;onAnalysisTargetChange?.(openingTarget.current);openingTarget.current=null;},[shown,mode,history]);// eslint-disable-line react-hooks/exhaustive-deps
   // The researcher measured before the statistics view was first shown: their new measurement is what they compare
   // next, so the opening region is no longer applied (DM-04 applies to the first look only).
