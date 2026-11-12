@@ -751,8 +751,8 @@ test("the statistics view states the premise once, in the basis line, and opens 
     expect(statements[0]).toMatch(/^記述統計/);
     // The basis line opens to the reason and the one place to fix it.
     await summary.locator("summary").filter({hasText: /^記述統計/}).click();
-    await expect(summary).toContainText("独立に行われたことが確認されていない");
-    await expect(summary.getByRole("button", {name: "実験の形で確認する"})).toBeVisible();
+    await expect(summary).toContainText("実験回の独立性が未確認のため、検定と信頼区間は算出していません。");
+    await expect(summary.getByRole("button", {name: "実験デザインを編集"})).toBeVisible();
     // The always-visible text of the summary (without the run table and the folded parts) stays short.
     const visible = await summary.evaluate(root => [...root.querySelectorAll(":scope > h3, :scope > ul, :scope > p")].map(element => element.textContent ?? "").join("").length);
     expect(visible, scene?.id).toBeLessThanOrEqual(230);

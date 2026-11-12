@@ -9,7 +9,7 @@ import contract from "./contract.json";
 import { matchesSchema } from "./schema";
 import { structuredCall, type ModelResult, type ModelSettings } from "./openai";
 
-export const DISCUSSION_PROMPT_VERSION = "2026-11-12.1";
+export const DISCUSSION_PROMPT_VERSION = "2026-11-12.2";
 export const DISCUSSION_PROTOCOL = "result-discussion/1.0.0";
 
 export const DISCUSSION_SYSTEM_PROMPT = `You write a short discussion of one saved microscopy comparison for Cytellect, in Japanese.
@@ -25,7 +25,7 @@ Rules, all checked after your answer:
 - When runs disagree in direction, say so and do not choose one.
 - Do not cite papers, authors, DOIs or links, and do not name genes, pathways or drugs that are not in the input.
 - Warning codes describe limits of the data (few independent runs, independence not confirmed, exploratory threshold, missing values); use them in alternatives rather than repeating them.
-- Write for a wet-lab biologist: short sentences, no statistics jargon beyond the input's own terms, each item at most 120 characters.`;
+- Style: concise academic Japanese, as in the discussion section of a paper. End with である or a noun; about 60 characters per item; no polite form, no filler such as 「〜と言えるでしょう」, no repeated caveats across items. Use standard terms (独立性, 信頼区間, 記述統計, 層別).`;
 
 const SCHEMA = contract.discussion_draft_schema;
 

@@ -6590,7 +6590,7 @@ export interface components {
             context_sha256: string;
             /**
              * Prompt Version
-             * @default 2026-11-12.1
+             * @default 2026-11-12.2
              */
             prompt_version: string;
             /** Model */

@@ -28,8 +28,8 @@ const reasons: Record<string, string> = {
   ratio_not_applicable: "この指標では比を示しません。",
 };
 /** Why a comparison is descriptive (NT-01): the one sentence behind 「記述統計」. */
-const DESCRIPTIVE_REASON = "実験回が独立に行われたことが確認されていないため、検定と信頼区間は計算せず、実験回ごとの値と差を示しています。";
-const EXPLORATORY_REASON = "陰性対照で決めたしきい値ではない（手動・Otsu）ため、陽性率と陽性の核数は、検定と信頼区間を計算せず、実験回ごとの値と差を示しています。";
+const DESCRIPTIVE_REASON = "実験回の独立性が未確認のため、検定と信頼区間は算出していません。";
+const EXPLORATORY_REASON = "陽性判定のしきい値が陰性対照に基づかないため（手動・Otsu）、検定と信頼区間は算出していません。";
 
 /** Three significant digits without trailing zeros or exponent notation for ordinary values. */
 export function formatNumber(value: number): string {

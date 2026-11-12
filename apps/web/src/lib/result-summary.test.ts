@@ -42,7 +42,7 @@ describe("result summary", () => {
     expect(summary.heading).toBe("PLK1 KO で、視野あたりの核数が 79〜84% 減少");
     expect(summary.points).toEqual(["3 回の実験すべてで減少", "平均：418 → 74.4 個／視野", "実験回ごとの変化：Run1 −82.5%、Run2 −79%、Run3 −84.4%"]);
     expect(summary.basis.label).toBe("記述統計 · n = 3 回");
-    expect(summary.basis.reason).toContain("独立に行われたことが確認されていない");
+    expect(summary.basis.reason).toBe("実験回の独立性が未確認のため、検定と信頼区間は算出していません。");
     expect(summary.basis.action).toBe("experiment");
     // The premise is not repeated in the heading, the points or the cautions.
     for (const text of [summary.heading, ...summary.points, ...summary.cautions]) expect(text).not.toMatch(/独立|検定なし|記述のみ|記述統計/);
