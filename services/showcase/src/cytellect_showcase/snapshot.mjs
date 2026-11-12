@@ -201,15 +201,16 @@ for (const [key, entry] of Object.entries({...entries})) {
   }
 }
 // The statistics view reads the discussion of the saved comparison it shows (AC-08): the scene's example for its
-// opening comparison, none for the others. The walk leaves the view before that read always lands, so each saved
-// comparison's discussion is read here.
+// opening comparison, none for the others. It asks by the job it shows, which is a figure redrawn from the
+// comparison when the scene's figure was drawn again (the API answers with the comparison's discussion). The walk
+// leaves the view before that read always lands, so each saved comparison's and each redrawn figure's is read here.
 report.discussions = 0;
 for (const [key, entry] of Object.entries({...entries})) {
-  const job = /^GET \/v1\/jobs\/([^/]+)\/(?:result|common-statistics)$/.exec(key)?.[1];
+  const [, job, kind] = /^GET \/v1\/jobs\/([^/]+)\/(result|common-statistics|figure-render)$/.exec(key) ?? [];
   if (!job || !bodies.get(entry.file)) continue;
   let estimates;
   try {estimates = JSON.parse(bodies.get(entry.file).toString("utf8")).estimates;} catch {continue;}
-  if (!estimates) continue;
+  if (!estimates && kind !== "figure-render") continue;
   const status = await recordRead(`/v1/jobs/${job}/discussion`);
   if (status === 200) report.discussions++;
   else report.alerts.push(`discussion ${job}: ${status}`);
