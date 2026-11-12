@@ -15,6 +15,7 @@ import {associationAxes,associationSupported,checkedPlot,comparisonKind,explorat
 import styles from "./connected-results.module.css";
 import {ErrorText,useShowcaseUi} from "./showcase-ui";
 import {METRIC_HINTS} from "../../../lib/showcase/terms";
+import {DiscussionPanel} from "./DiscussionPanel";
 import type {ShowcaseDataset} from "@/lib/showcase";
 import {AxisControls,axisPlotOptions,emptyAxis,type AxisState} from "./AxisControls";
 import {ConnectedCsvResults} from "./ConnectedCsvResults";
@@ -414,6 +415,8 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
           counts={breakdown(Array.isArray(saved.result.counts)?saved.result.counts as CountRow[]:[],saved.result.source_field_ledger??[],saved.result.spec?.selection?.source==="field-summary"?null:saved.target==="nuclei"||saved.target==="nucleoplasm"?"核":saved.target==="nucleoli"?"核小体":"領域",
             saved.result.compartment_missing?{rows:saved.result.compartment_missing.rows,perNucleus:saved.result.spec?.selection?.source==="compartment-summary"}:null)}
           missing={saved.result.compartment_missing??null}/>}
+            {/* The discussion is a separate, AI-made (or demo example) frame under the computed result (AC-01). */}
+            {mode==="statistics"&&saved.result.estimates&&!saved.historical&&<DiscussionPanel adapter={adapter} job={saved.job} demo={demo}/>}
             {mode==="statistics"&&saved.operation==="distribution"&&experiment&&<RunMedians onEditExperiment={onEditExperiment} design={experiment} summary={saved.result.field_summary??[]} metricLabel={resultMetricLabel(saved.result,saved.result.metric||"")} unit={unitLabel(saved.result.unit)} reported={showcaseDataset?.reported??null} missing={saved.result.compartment_missing??null}/>}
             {/* Without a summary card the denominators still stand beside the result (Q-05). */}
             {mode==="statistics"&&saved.result.compartment_missing&&!saved.result.estimates&&!(saved.operation==="distribution"&&experiment)&&<><MissingLead summary={saved.result.compartment_missing}/><MissingNucleoli summary={saved.result.compartment_missing}/></>}

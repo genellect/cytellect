@@ -493,6 +493,7 @@
     21629,
     21644,
     21697,
+    21766,
     21839,
     22120,
     22235,
@@ -540,6 +541,7 @@
     23478,
     23481,
     23494,
+    23519,
     23544,
     23550,
     23554,
@@ -1035,8 +1037,9 @@
     "apps/web/src/components/workspace/review/ConnectedCsvResults.tsx": "62a573f56c57257ca4e3b25462a5b1f9bac8db06fdb2fb087a7bd83b341d2855",
     "apps/web/src/components/workspace/review/ConnectedGfp.tsx": "0926f65d333bb3901780472ef0de6ce95cf3fa39656e716fb6d43daec8f7bee8",
     "apps/web/src/components/workspace/review/ConnectedPartition.tsx": "62c0ab913ace867fb5ace4a71f3a4d1b46fe2d07d243b705ec5f037e1a0b3e0b",
-    "apps/web/src/components/workspace/review/ConnectedResults.tsx": "de94da49dea63eeae288871099a89b1a01e5170bd55c776e6ca47fc18278f5cc",
+    "apps/web/src/components/workspace/review/ConnectedResults.tsx": "38ab649f1e5766cdfc5d0fd8bf4b4cb0c452a90aca12b3a6e0d5a4186a197dbf",
     "apps/web/src/components/workspace/review/ConnectedWorkspace.tsx": "fd45ff743a87e07525b7adb036ad5d0c4357ff5ef4f164ce423e48b6a8a5b8d2",
+    "apps/web/src/components/workspace/review/DiscussionPanel.tsx": "f314aff3c87564a50be06aee89c91881fcc0eea8877759ef3ab048b5a3a7313c",
     "apps/web/src/components/workspace/review/EditableFigure.tsx": "d17ca18f6da7cd8b74b4ba38fe05113ef404404dc29f1894f198a6b826c40c52",
     "apps/web/src/components/workspace/review/ExperimentSetup.tsx": "fbfcc38d664077a139b097b3d5ccb4de6293e7a9e61ad905526b63516412f5c7",
     "apps/web/src/components/workspace/review/MeasurementTable.tsx": "989f20fe99d9d4c360237b9579cb3b65fa3dcb12254881f06228511771c7a918",
@@ -1096,7 +1099,7 @@
     "apps/web/src/lib/types.ts": "5c48d068e41f23823caed8d97b5c6d93c0af5314155b3818fe9ee9dbb23176f5",
     "apps/web/src/lib/usePrivateImage.ts": "f48d9522da84df8a56ab86a0abf3afcf426b6143c270dbf87e6ff9fc6f171b1e",
     "apps/web/src/lib/usePrivatePreview.ts": "a74e5fb913da55677a0d8f2ed963059e78c370189b86d939026dac4c43992a34",
-    "apps/web/src/lib/workspace/api-adapter.ts": "8fa15522355bcf0ec2de81fbb241ea3612aec24c5b27ef49c7c02b699b112b14",
+    "apps/web/src/lib/workspace/api-adapter.ts": "43ec063889901a0c9f5b4c4097b655643bf5e55a4f0ae64f09d5603726c2656c",
     "apps/web/src/lib/workspace/cellpose-settings.ts": "192cef6a02fff481db640a9b07b5945b295bfbbaa3379d0ae955ce8ff031a7f6",
     "apps/web/src/lib/workspace/channel-assignments.ts": "2685de3fb6d52362debe5108bb2d9235352df9469615fa140031fe9266bdff3f",
     "apps/web/src/lib/workspace/channel-gate.ts": "78f7fb96499e7ac752d9aaa5dc6003f2a32945af61ab76edd971f41ae763bfc4",
@@ -1124,5 +1127,5 @@
     "services/showcase/datasets/zenodo-6643470-oxaliplatin.json": "0b8edca9157fcddf45ff76e0fe53d4c1f3208e5668a673cf6a182a93f23c7a0c",
     "services/showcase/datasets/zenodo-6643470.json": "8122f156f63c0f70bcac1f1463359e26be53c10aaf9399636629c35a5bc3a37e"
   },
-  "output_sha256": "114c4310af22828739128b6c5248ce7624b36fa85de5286f11d6a397f5fdbb9f"
+  "output_sha256": "37d9c611b9cd6aae7a5cb104b0086f4cfae23e7502e5c91065e5f30e20d72ef6"
 }

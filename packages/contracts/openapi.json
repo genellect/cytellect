@@ -2898,6 +2898,101 @@
         }
       }
     },
+    "/v1/jobs/{jid}/discussion": {
+      "get": {
+        "summary": "Saved Discussion",
+        "description": "The latest stored discussion of this result, or null: a recalculated result has its own job and none\nyet. \"None yet\" is an answer, not an error, so the page reads it without a failed request.",
+        "operationId": "saved_discussion_v1_jobs__jid__discussion_get",
+        "parameters": [
+          {
+            "name": "jid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Jid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/DiscussionView"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Saved Discussion V1 Jobs  Jid  Discussion Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Draft Discussion",
+        "operationId": "draft_discussion_v1_jobs__jid__discussion_post",
+        "parameters": [
+          {
+            "name": "jid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Jid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscussionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscussionView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/workspaces/{wid}/selection": {
       "get": {
         "summary": "Get Selection",
@@ -7387,6 +7482,100 @@
         ],
         "title": "DescriptiveRequest"
       },
+      "DiscussionDraft": {
+        "properties": {
+          "protocol": {
+            "type": "string",
+            "const": "result-discussion/1.0.0",
+            "title": "Protocol",
+            "default": "result-discussion/1.0.0"
+          },
+          "implications": {
+            "items": {
+              "type": "string",
+              "maxLength": 200,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 3,
+            "minItems": 1,
+            "title": "Implications"
+          },
+          "alternatives": {
+            "items": {
+              "type": "string",
+              "maxLength": 200,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 2,
+            "title": "Alternatives"
+          },
+          "next_steps": {
+            "items": {
+              "type": "string",
+              "maxLength": 200,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 3,
+            "title": "Next Steps"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "implications"
+        ],
+        "title": "DiscussionDraft",
+        "description": "The three headings of the discussion (AC-04), one sentence per item."
+      },
+      "DiscussionRequest": {
+        "properties": {
+          "experiment": {
+            "$ref": "#/components/schemas/ExperimentNote",
+            "default": {
+              "stains": []
+            }
+          },
+          "transmission_confirmed": {
+            "type": "boolean",
+            "title": "Transmission Confirmed",
+            "default": false
+          },
+          "retry_failed": {
+            "type": "boolean",
+            "title": "Retry Failed",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "DiscussionRequest",
+        "description": "`transmission_confirmed` records that the researcher chose to send this result to the AI (L03)."
+      },
+      "DiscussionView": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "created": {
+            "type": "number",
+            "title": "Created"
+          },
+          "discussion": {
+            "$ref": "#/components/schemas/ValidatedDiscussion"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "created",
+          "discussion"
+        ],
+        "title": "DiscussionView"
+      },
       "DraftBackground": {
         "properties": {
           "mode": {
@@ -8142,6 +8331,50 @@
           "label"
         ],
         "title": "ExperimentGroup"
+      },
+      "ExperimentNote": {
+        "properties": {
+          "purpose": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purpose"
+          },
+          "cells": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cells"
+          },
+          "stains": {
+            "items": {
+              "type": "string",
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Stains"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ExperimentNote",
+        "description": "What the researcher wrote about the experiment; optional, short, and never a file or path."
       },
       "ExperimentRun": {
         "properties": {
@@ -18273,6 +18506,52 @@
         ],
         "title": "TableChannel",
         "description": "The recorded identity of one channel, so a saved table names the stain of every column."
+      },
+      "ValidatedDiscussion": {
+        "properties": {
+          "protocol": {
+            "type": "string",
+            "const": "result-discussion/1.0.0",
+            "title": "Protocol",
+            "default": "result-discussion/1.0.0"
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "model",
+              "example"
+            ],
+            "title": "Origin",
+            "default": "model"
+          },
+          "context_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Context Sha256"
+          },
+          "prompt_version": {
+            "type": "string",
+            "title": "Prompt Version",
+            "default": "2026-11-12.1"
+          },
+          "model": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Model"
+          },
+          "draft": {
+            "$ref": "#/components/schemas/DiscussionDraft"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "context_sha256",
+          "model",
+          "draft"
+        ],
+        "title": "ValidatedDiscussion"
       },
       "ValidatedProposal": {
         "properties": {
