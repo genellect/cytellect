@@ -334,6 +334,11 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
     // opening region until then (DM-03).
     if(metric&&entry.target)openingTarget.current=metricStructure(metric,entry.target);});
   useEffect(()=>{if(!shown||mode!=="statistics"||!openingTarget.current)return;onAnalysisTargetChange?.(openingTarget.current);openingTarget.current=null;},[shown,mode,history]);// eslint-disable-line react-hooks/exhaustive-deps
+  // A field measured again before the statistics view is first shown: the researcher's new measurement is what
+  // they compare next, so the opening region is no longer applied (DM-04 applies to the first look only).
+  const measuredRevisions=useRef(new Map<string,string>());
+  useEffect(()=>{for(const item of allItems){if(!item.result)continue;const key=`${target}:${item.fieldId}`,before=measuredRevisions.current.get(key);
+    if(before&&before!==item.result.revision)openingTarget.current=null;measuredRevisions.current.set(key,item.result.revision);}},[allItems,target]);
   useEffect(()=>{if(openedSaved.current||!history[0])return;openedSaved.current=true;openLatestSaved(history[0]);},[history]);
   const shownTarget=saved?.historical?saved.target:target;const shownMetric=saved?.historical?(saved.result.metric||saved.result.y_source?.metric||saved.result.spec?.selection?.metric||""):metric;const shownChannel=saved?.historical?(saved.result.channel?.channel_id||saved.result.y_source?.channel?.channel_id||saved.result.spec?.selection?.channel_id||null):channel;
   // The shown result differs from the side panel's choice in region, metric or channel.
