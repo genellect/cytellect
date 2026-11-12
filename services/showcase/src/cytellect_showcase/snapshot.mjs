@@ -200,6 +200,20 @@ for (const [key, entry] of Object.entries({...entries})) {
     report.sources++;
   }
 }
+// The statistics view reads the discussion of the saved comparison it shows (AC-08): the scene's example for its
+// opening comparison, none for the others. The walk leaves the view before that read always lands, so each saved
+// comparison's discussion is read here.
+report.discussions = 0;
+for (const [key, entry] of Object.entries({...entries})) {
+  const job = /^GET \/v1\/jobs\/([^/]+)\/(?:result|common-statistics)$/.exec(key)?.[1];
+  if (!job || !bodies.get(entry.file)) continue;
+  let estimates;
+  try {estimates = JSON.parse(bodies.get(entry.file).toString("utf8")).estimates;} catch {continue;}
+  if (!estimates) continue;
+  const status = await recordRead(`/v1/jobs/${job}/discussion`);
+  if (status === 200) report.discussions++;
+  else report.alerts.push(`discussion ${job}: ${status}`);
+}
 // The statistics view reads each source's list of nuclei without an established nucleolus (Q-05)
 // for any region a visitor chooses there: one read per shown revision and field, kept when the
 // revision has compartments (a nuclear one answers 409 and is never read).
