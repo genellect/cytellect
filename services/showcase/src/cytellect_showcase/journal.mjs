@@ -217,9 +217,11 @@ function statisticsScene(region, metric, kinds = null, refusal = null) {
     await statistics(page).waitFor({timeout: LIVE});
     const metrics = sidebar(page).getByRole("combobox", {name: "指標", exact: true});
     if (!(await choices(metrics)).includes(metric)) return;
-    const regions = sidebar(page).getByRole("combobox", {name: "領域", exact: true});
-    if (await regions.count()) {await regions.selectOption(region); await idle(page);}
+    // The metric first: after a metric of a fixed region (a positive count, a nucleolar measure) the panel shows
+    // no region choice, so a region chosen before the metric would be skipped and the previous region kept.
     await metrics.selectOption(metric); await idle(page);
+    const regions = sidebar(page).getByRole("combobox", {name: "領域", exact: true});
+    if (await regions.count() && await regions.inputValue() !== region) {await regions.selectOption(region); await idle(page);}
     const stain = sidebar(page).getByRole("combobox", {name: "染色", exact: true});
     const stains = await stain.count() && await stain.isEnabled() ? await choices(stain) : [null];
     for (const channel of stains) {
