@@ -57,11 +57,18 @@ def _context(store, job, experiment: ExperimentNote):
 def register_discussion_routes(api, store, settings, owner, job_record, credentials=None):
     Owner = Annotated[str, Depends(owner)]
 
+    def result_job(jid: str, who: str):
+        """A discussion belongs to the result (AC-06): a redrawn figure of a saved comparison reads and writes the
+        discussion of the statistics job it was drawn from."""
+        job = job_record(jid, who)
+        source = job["payload"].get("source_job_id") if job["kind"] == "figure-render" else None
+        return (source, job_record(source, who)) if isinstance(source, str) and source else (jid, job)
+
     @api.get("/v1/jobs/{jid}/discussion", response_model=DiscussionView | None)
     def saved_discussion(jid: str, who: Owner):
         """The latest stored discussion of this result, or null: a recalculated result has its own job and none
         yet. "None yet" is an answer, not an error, so the page reads it without a failed request."""
-        job = job_record(jid, who)
+        jid, job = result_job(jid, who)
         with store.engine.connect() as conn:
             row = conn.execute(select(result_discussions).where(
                 result_discussions.c.workspace_id == job["workspace_id"], result_discussions.c.job_id == jid,
@@ -72,7 +79,7 @@ def register_discussion_routes(api, store, settings, owner, job_record, credenti
 
     @api.post("/v1/jobs/{jid}/discussion", response_model=DiscussionView)
     def draft_discussion(jid: str, body: DiscussionRequest, who: Owner):
-        job = job_record(jid, who)
+        jid, job = result_job(jid, who)
         wid = job["workspace_id"]
         if body.transmission_confirmed is not True:
             raise HTTPException(428, "proposal_transmission_not_confirmed")
