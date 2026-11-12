@@ -6,7 +6,12 @@ from cytellect_analysis.discussion_contracts import (
     DiscussionDraft,
     draft_json_schema,
 )
-from cytellect_analysis.discussion_validation import DiscussionRejected, allowed_numbers, context_sha256, validate_discussion
+from cytellect_analysis.discussion_validation import (
+    DiscussionRejected,
+    allowed_numbers,
+    context_sha256,
+    validate_discussion,
+)
 
 # The public demo's JUMP comparison as the result summary states it (descriptive: independence not confirmed).
 DESCRIPTIVE = DiscussionContext(
