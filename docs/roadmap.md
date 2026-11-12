@@ -89,7 +89,7 @@ M2 は元画像での解像・対象同定・校正を開始条件とする。M3
 | 単位 | 担当 | 内容 | 主なファイル |
 |---|---|---|---|
 | 考察の画面の残り | Claude A | AC-02（有効かどうかを押す前に示す 1 行）、AC-03（設定画面での開示）、AC-06（「前の結果の考察」の表示と再生成）、試験 C-11・C-14・C-15 | `apps/web/src/components/workspace/review/DiscussionPanel.tsx`、`ProposalPanels.tsx`、`api-adapter.ts`、`services/api/src/cytellect_api/discussions.py`・`db.py` と試験 |
-| 公開サイズの自動検査 | Codex | DM-10：公開デモが 700 MB を超えたら CI で止める | `scripts/check_public_tree.py` と試験 |
+| 公開サイズの自動検査 | Claude A（genellect/cytellect#202、`main` から並行で作成済み） | DM-10：公開デモが 700 MB を超えたら CI で止める（MB を 10 進と 2 進のどちらで読むかはオーナーが確認） | `scripts/check_public_tree.py` と試験 |
 | 文書の移し替え | Claude B | 要件定義書 §9 の移し替え（S-01・S-05・X-01・X-02・D-10 を群間比較の要件へ）、場面の順序の記述をそろえる、この節を完了の状態に更新する | `docs/drafts/group-comparison/requirements.md`、`docs/drafts/results-and-demo-story/requirements.md`、`docs/showcase.md`、この文書 |
 
 段 3（オーナーの判断の後）：GFP の場面の登録（Claude B、[候補調査](https://github.com/genellect/cytellect/pull/201) の判断の後）、考察の本番での有効化（AC-09、デプロイ・有効化・有料の呼び出しの確認をそれぞれオーナーの許可を得て行う）。
