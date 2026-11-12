@@ -405,9 +405,9 @@ test("phones run the guided operations from the recorded tour", async ({page}) =
   expect((await download).suggestedFilename()).toBe("Cytellect-publication.zip");
   expect(await alerts(page)).toEqual([]);
 
-  // Free figure sizes cannot be recorded, so the demo offers the recorded widths only.
-  await expect(figure.getByRole("combobox", {name: "図の幅", exact: true}).locator("option[value=custom]")).toHaveCount(0);
-  await expect(figure.getByRole("spinbutton", {name: "幅 / mm"})).toBeDisabled();
+  // The figure's free sizes are offered as in production; a size the recording does not hold is explained when drawn.
+  await expect(figure.getByRole("combobox", {name: "図の幅", exact: true}).locator("option[value=custom]")).toHaveCount(1);
+  await expect(figure.getByRole("spinbutton", {name: "幅 / mm"})).toBeEnabled();
   // The phone never downloaded the in-browser API.
   expect(watch.requests.filter(url => /\/showcase\/(runtime\/|seed\.zip)/.test(url))).toEqual([]);
   await noErrors(page, watch);
@@ -528,15 +528,14 @@ test("operations the recording does not hold are explained at once, without the 
   const header = page.locator("header");
   await expect(regions(page).first()).toBeAttached({timeout: live});
   const inspector = await openSettings(page);
-  // Conditions the recording cannot cover are shown as the recorded settings, with a note, not as
-  // controls that cannot answer.
-  await expect(inspector.getByRole("combobox", {name: "背景補正", exact: true})).toHaveCount(0);
+  // Detection conditions are shown as the recorded ones (the engines do not run), not as controls that cannot answer;
+  // the background correction is chosen as in production (its modes without a drawn ROI are recorded).
+  await expect(inspector.getByRole("combobox", {name: "背景補正", exact: true})).toHaveValue("automatic");
   await expect(inspector.getByRole("combobox", {name: "核染色", exact: true})).toHaveCount(0);
   await expect(inspector.getByText(/記録した条件で検出しています/)).toBeVisible();
   const recorded = inspector.locator("dl").filter({hasText: "確率閾値"});
   await expect(recorded).toContainText("Hoechst · ");
   await expect(recorded).toContainText("0.5");
-  await expect(inspector.locator("dl").filter({hasText: "背景補正"})).toContainText("自動推定");
   await expect(inspector.getByRole("combobox", {name: "領域", exact: true}).locator("option[value=cell]")).toHaveCount(0);
   // A scene without a stain worth classifying by offers no classification.
   if (OPENING?.gateChannels && !OPENING.gateChannels.length) await expect(page.getByRole("toolbar", {name: "画像の表示"}).getByRole("combobox", {name: "色分け", exact: true}).locator("option[value=positivity]")).toHaveAttribute("disabled", "");
@@ -565,6 +564,85 @@ test("operations the recording does not hold are explained at once, without the 
   expect(Date.now() - started).toBeLessThan(5000);
   await expect(header.locator("[data-showcase-engine=idle]")).toBeAttached();
   expect(watch.requests.filter(url => /\/showcase\/(runtime\/|seed\.zip)/.test(url))).toEqual([]);
+  await noErrors(page, watch);
+});
+
+test("deleting one region of an opening field and taking it back is answered from the recording", async ({page}) => {
+  test.skip(SCENES.length > 0 && !NUCLEOLAR, "No published scene has nucleoli.");
+  const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
+  await expect(regions(page).first()).toBeAttached({timeout: live});
+  // Any nucleolus (the scene opens on nucleoli) or nucleus of both opening fields; the outline and the table follow.
+  const pane = page.getByRole("region", {name: /の測定値$/}).first();
+  const section = pane.locator("xpath=ancestor::section[1]");
+  const rows = pane.locator("table tbody tr");
+  await expect(rows.first()).toBeVisible({timeout: live});
+  // Once the opening fields have settled (an edit while they still load is not taken).
+  await page.waitForLoadState("networkidle");
+  await expect(page.locator("header [role=status]").first()).toHaveText("", {timeout: live});
+  await page.waitForTimeout(1000);
+  const before = await section.locator("svg path[data-region]").count();
+  const choose = async (row: Locator) => {
+    await row.getByRole("button").first().click();
+    await expect(section.locator("svg path[data-region][aria-pressed=true]")).toHaveCount(1);
+  };
+  await choose(rows.last());
+  await section.getByRole("button", {name: "選択領域を削除", exact: true}).click();
+  await expect.poll(() => section.locator("svg path[data-region]").count(), {timeout: live}).toBe(before - 1);
+  await expect(notRecorded(page)).toHaveCount(0);
+  await section.getByRole("button", {name: "元に戻す", exact: true}).click();
+  await expect.poll(() => section.locator("svg path[data-region]").count(), {timeout: live}).toBe(before);
+  await expect(notRecorded(page)).toHaveCount(0);
+  // The recording holds one deletion from the opening fields; a further one (after taking one back too) is explained at once.
+  await choose(rows.first());
+  const started = Date.now();
+  await section.getByRole("button", {name: "選択領域を削除", exact: true}).click();
+  await expect(notRecorded(page)).toBeVisible({timeout: 5000});
+  expect(Date.now() - started).toBeLessThan(5000);
+  expect(await section.locator("svg path[data-region]").count()).toBe(before);
+  expect(watch.requests.filter(url => /\/showcase\/(runtime\/|seed\.zip)/.test(url))).toEqual([]);
+  await noErrors(page, watch);
+});
+
+test("negative nuclei are classified from the recording; a method it does not hold is explained as information", async ({page}) => {
+  test.skip(SCENES.length > 0 && !NUCLEOLAR, "No published scene has nucleoli.");
+  const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
+  await expect(regions(page).first()).toBeAttached({timeout: live});
+  await page.getByRole("toolbar", {name: "画像の表示"}).getByRole("combobox", {name: "色分け", exact: true}).selectOption("positivity");
+  const gate = page.getByRole("complementary", {name: "画像解析"}).getByRole("region", {name: "チャンネルによる核の分類"});
+  await gate.getByRole("combobox", {name: "測定値の集計対象", exact: true}).selectOption("negative");
+  await gate.getByRole("button", {name: "チャンネルで分類", exact: true}).click();
+  await expect(gate.locator("output")).toContainText("陰性", {timeout: live});
+  await expect(notRecorded(page)).toHaveCount(0);
+  await gate.getByLabel("判定方法").selectOption("manual");
+  await gate.getByLabel("核内平均輝度のしきい値").fill("1234");
+  await gate.getByRole("button", {name: "チャンネルで分類", exact: true}).click();
+  await expect(gate.getByRole("status").filter({hasText: "公開デモに記録していません"})).toBeVisible({timeout: 5000});
+  await expect(gate.getByRole("alert")).toHaveCount(0);
+  // Back to the recorded method: answered again, and the notice is gone.
+  await gate.getByLabel("判定方法").selectOption("batch_otsu");
+  await gate.getByRole("button", {name: "チャンネルで分類", exact: true}).click();
+  await expect(gate.locator("output")).toContainText("陰性", {timeout: live});
+  await expect(notRecorded(page)).toHaveCount(0);
+  await noErrors(page, watch);
+});
+
+test("measuring again with another background correction is answered from the recording", async ({page}) => {
+  test.skip(SCENES.length > 0 && !NUCLEOLAR, "No published scene has nucleoli.");
+  const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
+  await expect(regions(page).first()).toBeAttached({timeout: live});
+  const inspector = await openSettings(page);
+  // In the recorded order, each step once the previous one has settled: the correction (its preview of the opening
+  // region), the region, then the second field measured (the first field's nuclei were measured by the preview).
+  const settle = async () => {await page.waitForLoadState("networkidle"); await expect(page.locator("header [role=status]").first()).toHaveText("", {timeout: live}); await page.waitForTimeout(1000);};
+  await inspector.getByRole("combobox", {name: "背景補正", exact: true}).selectOption("raw");
+  await settle();
+  await inspector.getByRole("combobox", {name: "領域", exact: true}).selectOption("nuclei");
+  await settle();
+  await page.locator("[class*=fieldCard]").nth(1).click();
+  await settle();
+  await page.locator("header").getByRole("button", {name: "測定", exact: true}).click();
+  await expect(page.locator("header [role=status]").first()).toHaveText("", {timeout: live});
+  await expect(notRecorded(page)).toHaveCount(0);
   await noErrors(page, watch);
 });
 
@@ -820,10 +898,11 @@ test("the colour modes open positivity, the partition and the nucleus table from
   // Positive and negative nuclei: the classification opens beside the image with the method the demo records (MV-04).
   await color.selectOption("positivity");
   const gate = page.getByRole("complementary", {name: "画像解析"}).getByRole("region", {name: "チャンネルによる核の分類"});
-  expect(await gate.getByLabel("判定方法").locator("option").evaluateAll(options => options.map(option => (option as HTMLOptionElement).value))).toEqual(["batch_otsu"]);
+  expect(await gate.getByLabel("判定方法").locator("option").evaluateAll(options => options.map(option => (option as HTMLOptionElement).value))).toEqual(["negative_control", "batch_otsu", "manual"]);
+  await expect(gate.getByLabel("判定方法")).toHaveValue("batch_otsu");
   const offered = await gate.getByRole("combobox", {name: "判定するチャンネル", exact: true}).locator("option").evaluateAll(options => options.map(option => (option as HTMLOptionElement).value).filter(Boolean));
   if (NUCLEOLAR?.gateChannels) expect(offered).toEqual(NUCLEOLAR.gateChannels);
-  expect(await gate.getByRole("combobox", {name: "測定値の集計対象", exact: true}).locator("option").evaluateAll(options => options.map(option => (option as HTMLOptionElement).value))).toEqual(["positive"]);
+  expect(await gate.getByRole("combobox", {name: "測定値の集計対象", exact: true}).locator("option").evaluateAll(options => options.map(option => (option as HTMLOptionElement).value))).toEqual(["positive", "negative"]);
   await gate.getByRole("button", {name: "チャンネルで分類", exact: true}).click();
   await expect(gate.locator("output")).toContainText("陽性", {timeout: live});
   await expect(notRecorded(page)).toHaveCount(0);
