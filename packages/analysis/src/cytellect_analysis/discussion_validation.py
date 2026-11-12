@@ -10,6 +10,7 @@ import hashlib
 import json
 import math
 import re
+from typing import Literal
 
 from pydantic import ValidationError
 
@@ -88,11 +89,25 @@ def allowed_numbers(context: DiscussionContext) -> list[float]:
 
 
 def _known(value: float, allowed: list[float]) -> bool:
-    """A stated number matches a saved one as it would be rounded for reading (two significant digits)."""
+    """A stated number matches a saved one only as that value or as it is rounded for reading.
+
+    Accepted forms: the value within 5 % (two significant digits), or the value rounded to 1–3 significant digits
+    or to 0–3 decimals. There is no absolute tolerance, so a small number (a p value, an effect near 0) never
+    matches another small number it was not rounded from; 0 matches only 0.
+    """
+    stated = abs(value)
     for candidate in allowed:
-        for shown in (candidate, abs(candidate)):
-            if math.isclose(abs(value), abs(shown), rel_tol=0.05, abs_tol=0.5 if abs(shown) >= 10 else 0.05):
+        saved = abs(candidate)
+        if saved == 0:
+            if stated == 0:
                 return True
+            continue
+        if math.isclose(stated, saved, rel_tol=0.05):
+            return True
+        if any(stated == float(f"{saved:.{digits}g}") for digits in (1, 2, 3)):
+            return True
+        if any(stated == round(saved, decimals) and stated != 0 for decimals in (0, 1, 2, 3)):
+            return True
     return False
 
 
@@ -105,7 +120,7 @@ def _unclear(context: DiscussionContext) -> bool:
 
 def validate_discussion(raw: object, context: DiscussionContext, *, model: str,
                         prompt_version: str = DISCUSSION_PROMPT_VERSION,
-                        origin: str = "model") -> ValidatedDiscussion:
+                        origin: Literal["model", "example"] = "model") -> ValidatedDiscussion:
     """Check a draft against the result it discusses; raise `DiscussionRejected` with reason codes."""
     try:
         draft = raw if isinstance(raw, DiscussionDraft) else DiscussionDraft.model_validate(raw)

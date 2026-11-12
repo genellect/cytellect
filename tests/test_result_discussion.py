@@ -105,3 +105,14 @@ def test_the_allowed_numbers_include_the_summary_forms():
     for value in (418, 74.4, -376, 3, 79, 84, 82.5):
         assert any(abs(abs(value) - abs(candidate)) < 0.6 for candidate in allowed), value
     assert isinstance(DiscussionDraft.model_validate(draft("x")), DiscussionDraft)
+
+
+def test_a_small_number_matches_only_what_it_was_rounded_from():
+    """A p value of 0.3 does not admit 「p = 0.000001」; 0 matches only 0 (Codex review, #199)."""
+    from cytellect_analysis.discussion_validation import _known
+    allowed = [0.0, 0.3, 0.07417990022744854, 566.5, -2.0]
+    assert not _known(0.000001, allowed)
+    assert not _known(0.01, allowed)
+    assert _known(0.07, allowed) and _known(0.074, allowed) and _known(0.3, allowed)
+    assert _known(567, allowed) and _known(2, allowed) and _known(0, allowed)
+    assert not _known(0.5, [0.3])
