@@ -120,7 +120,8 @@ def test_a_draft_with_a_new_number_is_not_stored_and_needs_an_explicit_retry(tmp
     response = post(client, job)
     assert response.status_code == 502
     assert response.json()["detail"] == {"code": "discussion_rejected", "reasons": ["discussion_number_not_in_result"]}
-    assert client.get(f"/v1/jobs/{job}/discussion").status_code == 404
+    none = client.get(f"/v1/jobs/{job}/discussion")
+    assert none.status_code == 200 and none.json() is None
     # A failed call may already have cost money; it is repeated only on an explicit retry (L05).
     assert post(client, job).json()["detail"] == "proposal_explicit_retry_required"
     assert post(client, job, retry_failed=True).status_code == 200

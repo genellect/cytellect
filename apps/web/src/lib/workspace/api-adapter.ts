@@ -385,8 +385,7 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
     },
     /** The stored discussion of one saved comparison, or null when none was made (AC-06). */
     async discussion(job: string): Promise<DiscussionView | null> {
-      try {return await client.request<DiscussionView>(`/v1/jobs/${job}/discussion`);}
-      catch (error) {if (error instanceof ApiError && error.status === 404) return null; throw error;}
+      return client.request<DiscussionView | null>(`/v1/jobs/${job}/discussion`);
     },
     /** Sends the saved result (never images, file names or paths) after the researcher confirmed it (AC-02, AC-03). */
     async draftDiscussion(job: string, experiment: ExperimentNote, retryFailed = false): Promise<DiscussionView> {

@@ -984,7 +984,8 @@ export interface paths {
         };
         /**
          * Saved Discussion
-         * @description The latest stored discussion of this result; a recalculated result has its own job and none yet.
+         * @description The latest stored discussion of this result, or null: a recalculated result has its own job and none
+         *     yet. "None yet" is an answer, not an error, so the page reads it without a failed request.
          */
         get: operations["saved_discussion_v1_jobs__jid__discussion_get"];
         put?: never;
@@ -9144,7 +9145,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DiscussionView"];
+                    "application/json": components["schemas"]["DiscussionView"] | null;
                 };
             };
             /** @description Validation Error */

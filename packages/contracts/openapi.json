@@ -2901,7 +2901,7 @@
     "/v1/jobs/{jid}/discussion": {
       "get": {
         "summary": "Saved Discussion",
-        "description": "The latest stored discussion of this result; a recalculated result has its own job and none yet.",
+        "description": "The latest stored discussion of this result, or null: a recalculated result has its own job and none\nyet. \"None yet\" is an answer, not an error, so the page reads it without a failed request.",
         "operationId": "saved_discussion_v1_jobs__jid__discussion_get",
         "parameters": [
           {
@@ -2920,7 +2920,15 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DiscussionView"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/DiscussionView"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Saved Discussion V1 Jobs  Jid  Discussion Get"
                 }
               }
             }

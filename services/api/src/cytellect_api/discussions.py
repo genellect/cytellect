@@ -57,16 +57,17 @@ def _context(store, job, experiment: ExperimentNote):
 def register_discussion_routes(api, store, settings, owner, job_record, credentials=None):
     Owner = Annotated[str, Depends(owner)]
 
-    @api.get("/v1/jobs/{jid}/discussion", response_model=DiscussionView)
+    @api.get("/v1/jobs/{jid}/discussion", response_model=DiscussionView | None)
     def saved_discussion(jid: str, who: Owner):
-        """The latest stored discussion of this result; a recalculated result has its own job and none yet."""
+        """The latest stored discussion of this result, or null: a recalculated result has its own job and none
+        yet. "None yet" is an answer, not an error, so the page reads it without a failed request."""
         job = job_record(jid, who)
         with store.engine.connect() as conn:
             row = conn.execute(select(result_discussions).where(
                 result_discussions.c.workspace_id == job["workspace_id"], result_discussions.c.job_id == jid,
                 result_discussions.c.state == "complete").order_by(result_discussions.c.created.desc())).mappings().first()
         if row is None:
-            raise HTTPException(404, "discussion_not_found")
+            return None
         return DiscussionView(job_id=jid, created=row["created"], discussion=ValidatedDiscussion.model_validate(row["discussion"]))
 
     @api.post("/v1/jobs/{jid}/discussion", response_model=DiscussionView)
