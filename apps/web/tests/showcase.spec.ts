@@ -20,9 +20,20 @@ const SCENES: Scene[] = (() => {
   catch {return [];}
 })();
 const sceneUrl = (scene: Scene | undefined, query = "") => scene ? `/demo?id=${scene.workspaceId}${query ? `&${query}` : ""}` : `/demo${query ? `?${query}` : ""}`;
+/**
+ * The scene the demo opens on, oxaliplatin (DM-06). It is the one recorded in full (`scenario.journal` "full",
+ * docs/showcase.md), so the checks of operations outside a scene's story run on it; scenes.json does not carry
+ * the recording depth, so the first scene stands for it.
+ */
 const OPENING = SCENES[0];
-/** The scene with nucleoli and a measured stain besides the nuclear one, for the nucleolar checks. */
-const NUCLEOLAR = SCENES.find(scene => scene.regions.includes("nucleoli"));
+const OPENING_ID = "zenodo-6643470-oxaliplatin";
+/** Whether the opening scene has nucleoli (with no scenes.json, the single-scene demo is assumed to). */
+const OPENING_NUCLEOLAR = !SCENES.length || OPENING.regions.includes("nucleoli");
+/**
+ * The ActD nucleolar scene, recorded for its story only (`scenario.journal` "story"): its own checks use the
+ * operations a story recording holds (the opening comparison, its companion, saved results and figures).
+ */
+const ACTD = SCENES.find(scene => scene.id === "zenodo-6643470-nucleolar");
 /** A scene with nuclei only (its fields hold hundreds of nuclei, so no deletion is recorded there). */
 const NUCLEI_ONLY = SCENES.find(scene => !scene.regions.includes("nucleoli"));
 const scopeText = (scene: Scene | undefined) => (scene?.assistantScope ?? "このデモは、記録済みの公開画像の解析にのみ応答します。").slice(0, 20);
@@ -226,7 +237,7 @@ test("demo: image, outline, measurement, statistics and figure features run with
   await expect(page.locator(`svg path[data-region="${tableId}"]`)).toHaveAttribute("aria-pressed", "true");
 
   // A correction the recording does not hold is explained at once, never waited for. One deletion from an
-  // opening field of a nucleolar scene is recorded; the next one is not.
+  // opening field of the fully recorded nucleolar scene is recorded; the next one is not.
   const count = async () => (await regionBoxes(page)).length;
   const remove = async () => {await selectRegion(page, (await largestRegion(page)).id); await page.getByRole("button", {name: "選択領域を削除", exact: true}).click();};
   let initial = await count();
@@ -287,8 +298,10 @@ test("demo: image, outline, measurement, statistics and figure features run with
   await noErrors(page, watch);
 });
 
-test("the demo opens on a scene of several stains, its nuclei side by side with every value of each nucleus (DM-02, DM-03, C-21)", async ({page}) => {
-  test.skip(SCENES.length > 0 && !OPENING.regions.includes("nucleoli"), "The published demo does not open on a scene with nucleoli.");
+test("the demo opens on a scene of several stains, its nuclei side by side with every value of each nucleus (DM-02, DM-03, DM-06, C-21)", async ({page}) => {
+  // The story's lead, oxaliplatin, comes first; the other checks of this file rely on that order.
+  if (SCENES.length > 1) expect(OPENING.id).toBe(OPENING_ID);
+  test.skip(!OPENING_NUCLEOLAR, "The published demo does not open on a scene with nucleoli.");
   const watch = await openDemo(page, "/demo");
   await expect(page.locator("[class*=channelBar]").getByRole("combobox", {name: "領域", exact: true})).toHaveValue("nuclei", {timeout: live});
   await expect(page.getByRole("button", {name: "2 画面", exact: true})).toHaveAttribute("aria-pressed", "true");
@@ -368,8 +381,8 @@ test("deep links open the requested step without the guide", async ({page}) => {
 });
 
 test("closing the guide on the nucleus table step gives back the view the visitor had", async ({page}) => {
-  test.skip(!NUCLEOLAR, "No scene with nucleoli is published.");
-  const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
+  test.skip(!OPENING_NUCLEOLAR, "The fully recorded opening scene has no nucleoli.");
+  const watch = await openDemo(page, sceneUrl(OPENING));
   const header = page.locator("header");
   const bar = page.locator("[class*=channelBar]");
   const pair = page.getByRole("button", {name: "2 画面", exact: true});
@@ -515,9 +528,9 @@ for (const scene of SCENES.length ? SCENES : [undefined]) test(`every field, reg
 
 test("measuring nucleoli or nucleoplasm, then statistics of the nuclei, shows recorded results", async ({page}) => {
   test.setTimeout(600_000);
-  test.skip(SCENES.length > 0 && !NUCLEOLAR, "No published scene has nucleoli.");
+  test.skip(!OPENING_NUCLEOLAR, "The fully recorded opening scene has no nucleoli.");
   for (const [target, label] of [["nucleoli", "核小体"], ["nucleoplasm", "核質"]]) {
-    const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
+    const watch = await openDemo(page, sceneUrl(OPENING));
     const header = page.locator("header");
     await expect(regions(page).first()).toBeAttached({timeout: live});
     const inspector = await openSettings(page);
@@ -591,8 +604,8 @@ test("operations the recording does not hold are explained at once, without the 
 });
 
 test("deleting one region of an opening field and taking it back is answered from the recording", async ({page}) => {
-  test.skip(SCENES.length > 0 && !NUCLEOLAR, "No published scene has nucleoli.");
-  const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
+  test.skip(!OPENING_NUCLEOLAR, "The fully recorded opening scene has no nucleoli.");
+  const watch = await openDemo(page, sceneUrl(OPENING));
   await expect(regions(page).first()).toBeAttached({timeout: live});
   // Any nucleolus (the scene opens on nucleoli) or nucleus of both opening fields; the outline and the table follow.
   const pane = page.getByRole("region", {name: /の測定値$/}).first();
@@ -627,8 +640,8 @@ test("deleting one region of an opening field and taking it back is answered fro
 });
 
 test("negative nuclei are classified from the recording; a method it does not hold is explained as information", async ({page}) => {
-  test.skip(SCENES.length > 0 && !NUCLEOLAR, "No published scene has nucleoli.");
-  const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
+  test.skip(!OPENING_NUCLEOLAR, "The fully recorded opening scene has no nucleoli.");
+  const watch = await openDemo(page, sceneUrl(OPENING));
   await expect(regions(page).first()).toBeAttached({timeout: live});
   await page.getByRole("toolbar", {name: "画像の表示"}).getByRole("combobox", {name: "色分け", exact: true}).selectOption("positivity");
   const gate = page.getByRole("complementary", {name: "画像解析"}).getByRole("region", {name: "チャンネルによる核の分類"});
@@ -650,8 +663,8 @@ test("negative nuclei are classified from the recording; a method it does not ho
 });
 
 test("measuring again with another background correction is answered from the recording", async ({page}) => {
-  test.skip(SCENES.length > 0 && !NUCLEOLAR, "No published scene has nucleoli.");
-  const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
+  test.skip(!OPENING_NUCLEOLAR, "The fully recorded opening scene has no nucleoli.");
+  const watch = await openDemo(page, sceneUrl(OPENING));
   await expect(regions(page).first()).toBeAttached({timeout: live});
   const inspector = await openSettings(page);
   // In the recorded order, each step once the previous one has settled: the correction (its preview of the opening
@@ -674,8 +687,8 @@ test("measuring again with another background correction is answered from the re
 });
 
 test("one field of several stains opens as a colour merge, each stain in its own colour, with the nuclei outlined around nucleoli", async ({page}) => {
-  test.skip(SCENES.length > 0 && !NUCLEOLAR, "No published scene has nucleoli.");
-  const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
+  test.skip(!OPENING_NUCLEOLAR, "The fully recorded opening scene has no nucleoli.");
+  const watch = await openDemo(page, sceneUrl(OPENING));
   await expect(regions(page).first()).toBeAttached({timeout: live});
   const pair = page.getByRole("button", {name: "2 画面", exact: true});
   if (await pair.getAttribute("aria-pressed") === "true") await pair.click();
@@ -696,10 +709,10 @@ test("one field of several stains opens as a colour merge, each stain in its own
   await noErrors(page, watch);
 });
 
-test("statistics of nucleoli, nucleoplasm and nucleolar measures show results, descriptively while independence is unconfirmed", async ({page}) => {
-  test.setTimeout(600_000);
-  test.skip(SCENES.length > 0 && !NUCLEOLAR, "No published scene has nucleoli.");
-  const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
+test("the ActD scene's statistics open on the nucleolar 5-EU and switch to the eccentricity the source also reports", async ({page}) => {
+  // Only the opening comparison and its companion (the story a "story" recording holds).
+  test.skip(!ACTD, "The ActD nucleolar scene is not published.");
+  const watch = await openDemo(page, sceneUrl(ACTD));
   const header = page.locator("header");
   await expect(regions(page).first()).toBeAttached({timeout: live});
   await header.getByRole("button", {name: "統計", exact: true}).click();
@@ -717,6 +730,38 @@ test("statistics of nucleoli, nucleoplasm and nucleolar measures show results, d
   await expect(page.getByRole("complementary", {name: "解析対象"}).getByRole("combobox", {name: "指標", exact: true})).toHaveValue("nucleolar_eccentricity");
   await recorded.getByRole("button", {name: /eu5/}).click();
   await expect(sentence).toContainText("平均輝度");
+  await expect(results.getByRole("status").filter({hasText: /前の結果|記録した結果/})).toHaveCount(0);
+  await expect(notRecorded(page)).toHaveCount(0);
+  await noErrors(page, watch);
+});
+
+test("statistics of nucleoli, nucleoplasm and nucleolar measures show results, descriptively while independence is unconfirmed", async ({page}) => {
+  test.setTimeout(600_000);
+  // Every metric of every region: the fully recorded opening scene (oxaliplatin).
+  test.skip(!OPENING_NUCLEOLAR, "The fully recorded opening scene has no nucleoli.");
+  const watch = await openDemo(page, sceneUrl(OPENING));
+  const header = page.locator("header");
+  await expect(regions(page).first()).toBeAttached({timeout: live});
+  await header.getByRole("button", {name: "統計", exact: true}).click();
+  const results = page.getByRole("region", {name: "測定結果の統計解析"});
+  await expect(shownTable(results)).toBeVisible({timeout: live});
+  // The opening comparison and the two other changes planned before measurement are one click apart (goals C7).
+  const recorded = results.getByRole("group", {name: "保存した比較"});
+  await expect(recorded.getByRole("button")).toHaveCount(3, {timeout: live});
+  const sentence = results.getByRole("region", {name: "結果のまとめ"}).getByRole("heading", {level: 3});
+  const metric = page.getByRole("complementary", {name: "解析対象"}).getByRole("combobox", {name: "指標", exact: true});
+  // The opening comparison names its measure (the nucleolar eccentricity), and the side panel already agrees with it.
+  await expect(sentence).toContainText("核小体の離心率");
+  await expect(results.getByRole("status").filter({hasText: /前の結果|記録した結果/})).toHaveCount(0);
+  await recorded.getByRole("button", {name: /総面積/}).click();
+  await expect(sentence).toContainText("総面積");
+  await expect(metric).toHaveValue("nucleolar_area_px");
+  await recorded.getByRole("button", {name: /eu5/}).click();
+  await expect(sentence).toContainText("平均輝度");
+  await expect(metric).toHaveValue("mean");
+  await recorded.getByRole("button", {name: /離心率/}).click();
+  await expect(sentence).toContainText("離心率");
+  await expect(metric).toHaveValue("nucleolar_eccentricity");
   await expect(results.getByRole("status").filter({hasText: /前の結果|記録した結果/})).toHaveCount(0);
   const operation = results.getByRole("combobox", {name: "解析", exact: true});
   const cases: Array<[string, string, string | null, string]> = [
@@ -765,8 +810,9 @@ test("the statistics view states the premise once, in the basis line, and opens 
 
 test("a per-nucleus nucleolar result is read and checked on the nucleoli, and unresolved nuclei stay counted as missing", async ({page}) => {
   test.setTimeout(300_000);
-  test.skip(SCENES.length > 0 && !NUCLEOLAR, "No published scene has nucleoli.");
-  const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
+  // The ActD scene's opening comparison (nucleolar 5-EU) and its companion (eccentricity), as its story recording holds them.
+  test.skip(!ACTD, "The ActD nucleolar scene is not published.");
+  const watch = await openDemo(page, sceneUrl(ACTD));
   const header = page.locator("header");
   await expect(regions(page).first()).toBeAttached({timeout: live});
   await header.getByRole("button", {name: "統計", exact: true}).click();
@@ -840,8 +886,8 @@ test("phones keep the guide and the download in the demo menu", async ({page}) =
 
 test("an AI example on another field, then measuring and statistics of each region, keep showing results", async ({page}) => {
   test.setTimeout(900_000);
-  test.skip(SCENES.length > 0 && !NUCLEOLAR, "No published scene has nucleoli.");
-  const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
+  test.skip(!OPENING_NUCLEOLAR, "The fully recorded opening scene has no nucleoli.");
+  const watch = await openDemo(page, sceneUrl(OPENING));
   const header = page.locator("header");
   await expect(regions(page).first()).toBeAttached({timeout: live});
   const results = page.getByRole("region", {name: "測定結果の統計解析"});
@@ -932,13 +978,13 @@ for (const scene of SCENES.length ? SCENES : [undefined]) test(`each preset AI i
 });
 
 test("the colour modes open positivity, the partition and the nucleus table from the recording, and lead to statistics (MV-01–MV-09)", async ({page}) => {
-  test.skip(SCENES.length > 0 && !NUCLEOLAR, "No published scene has nucleoli.");
+  test.skip(!OPENING_NUCLEOLAR, "The fully recorded opening scene has no nucleoli.");
   test.setTimeout(600_000);
-  const watch = await openDemo(page, sceneUrl(NUCLEOLAR));
+  const watch = await openDemo(page, sceneUrl(OPENING));
   await expect(regions(page).first()).toBeAttached({timeout: live});
   const bar = page.getByRole("toolbar", {name: "画像の表示"});
   const color = bar.getByRole("combobox", {name: "色分け", exact: true});
-  // Every colour mode is offered on the nucleolar scene; both groups stay side by side.
+  // Every colour mode is offered on the fully recorded nucleolar scene (oxaliplatin); both groups stay side by side.
   expect(await color.locator("option:not([disabled])").evaluateAll(options => options.map(option => (option as HTMLOptionElement).value))).toEqual(["outline", "positivity", "compartments"]);
   await expect(bar.getByRole("button", {name: "2 画面", exact: true})).toHaveAttribute("aria-pressed", "true");
   const panes = page.getByRole("region", {name: /の測定値$/});
@@ -950,7 +996,7 @@ test("the colour modes open positivity, the partition and the nucleus table from
   expect(await gate.getByLabel("判定方法").locator("option").evaluateAll(options => options.map(option => (option as HTMLOptionElement).value))).toEqual(["negative_control", "batch_otsu", "manual"]);
   await expect(gate.getByLabel("判定方法")).toHaveValue("batch_otsu");
   const offered = await gate.getByRole("combobox", {name: "判定するチャンネル", exact: true}).locator("option").evaluateAll(options => options.map(option => (option as HTMLOptionElement).value).filter(Boolean));
-  if (NUCLEOLAR?.gateChannels) expect(offered).toEqual(NUCLEOLAR.gateChannels);
+  if (OPENING?.gateChannels) expect(offered).toEqual(OPENING.gateChannels);
   expect(await gate.getByRole("combobox", {name: "測定値の集計対象", exact: true}).locator("option").evaluateAll(options => options.map(option => (option as HTMLOptionElement).value))).toEqual(["positive", "negative"]);
   await gate.getByRole("button", {name: "チャンネルで分類", exact: true}).click();
   await expect(gate.locator("output")).toContainText("陽性", {timeout: live});
@@ -968,6 +1014,7 @@ test("the colour modes open positivity, the partition and the nucleus table from
     expect(keys.filter(key => key !== "exploratory").sort()).toEqual(drawn);
     expect(legend.at(-1)).toBe("探索的（撮影日ごとの Otsu）");
     // The table names what it lists: per nucleus, the stain and the method (C-02); each nucleus has its decision.
+    // The opening scene classifies by 5-EU (its gate_channels: eu5), as the other DS6a scenes do.
     await expect(pane.getByRole("heading", {level: 3})).toContainText("核ごと · 5-EUで判定");
     await expect(pane.getByRole("table", {name: "核ごとの表"}).locator("thead")).toContainText("判定");
   }
