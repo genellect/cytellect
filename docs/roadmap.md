@@ -62,24 +62,37 @@ M2 は元画像での解像・対象同定・校正を開始条件とする。M3
 
 ### 結果の表現とデモの素材
 
-統計の結果とデモの見せ方を見直す（2026-11-12、オーナーが方向性と 7 つの判断を承認。[要件定義書（案）](drafts/results-and-demo-story/requirements.md)、[実装案](drafts/results-and-demo-story/implementation.md)）。4 本の PR に分け、次の順でマージする。
+統計の結果とデモの見せ方を見直す（2026-11-12、オーナーが方向性と 7 つの判断を承認。[要件定義書（案）](drafts/results-and-demo-story/requirements.md)、[実装案](drafts/results-and-demo-story/implementation.md)）。3 本の PR に分け、次の順でマージする。デモの記録を 1 回で済ませるため、全画面の文言（`claude/ui-copy`）は 3 に含める（2026-11-12、オーナーの判断）。
 
 | 順 | PR・ブランチ | 内容 | 状態（2026-11-12） |
 |---|---|---|---|
 | 1 | genellect/cytellect#198 `claude/affectionate-knuth-vbir8l` | 結果の見出し・要点・根拠の 1 行、前提の 1 回の表示、デモを複数染色の核小体の場面から開く、UI の文言の規則（UC） | 統計画面の領域の同期を修正し、デモの記録を作り直し中 |
 | 2 | genellect/cytellect#199 `claude/result-discussion` | 考察（LLM）の契約・検証・API・提案サービスの経路・画面の枠。有料の呼び出しはしない | #198 の取り込み待ち |
-| 3 | `claude/demo-platinum-story` | オキサリプラチン・シスプラチンの場面、場面の概要（DM-11）、デモの考察のモック（AC-08） | 4 場面でデモを作り直して PR |
-| 4 | `claude/ui-copy` | 全画面の文言を UC-01〜UC-07 で統一 | 3 の後に PR |
+| 3 | `claude/demo-platinum-story` | オキサリプラチン・シスプラチンの場面、場面の概要（DM-11）、デモの考察のモック（AC-08）、全画面の文言（UC-01〜UC-07） | 4 場面でデモを作り直して PR |
+
+1 が `main` に入ったら、2 の宛先を `main` に変え、`main` を取り込んで CI を通してからマージする。3 も同じ。取り込みで `apps/web/public/showcase/**` が衝突したら、後に積んだ側を採る。
 
 #### 並行作業の分担
 
 同じファイルを同時に変えないため、担当ごとに触れる範囲を決める（2026-11-12）。範囲の外を変える必要が出たら、変える前に、その範囲の担当の PR にコメントで知らせる。どの担当も、`main` へのマージ・デプロイ・有料 API の呼び出しをせず、他の担当のブランチを rebase・force-push しない。
 
+段 1（上の 3 本を仕上げる間）：
+
 | 担当 | ブランチ | 変えてよい範囲 | 変えない範囲 |
 |---|---|---|---|
-| Claude A（最初のセッション） | 1・2・4 | `apps/web/src/**`、`apps/web/tests/**`、`packages/analysis/src/cytellect_analysis/discussion_*`、`services/api/src/cytellect_api/discussions.py`、`services/proposal-worker/**`、`docs/drafts/results-and-demo-story/**`、画面の文言を引用する文書 | `services/showcase/**`、`apps/web/public/showcase/**` |
-| Claude B（別のクラウドセッション） | 3 | `services/showcase/**`、`apps/web/public/showcase/**`、`apps/web/public/fonts/**`、`fixtures/public/allowlist.json`、`scripts/security-tools.lock.json`（フォントの記録の確認済みの値の追加だけ）、`docs/showcase.md` | `apps/web/src/**` と `apps/web/tests/**`（デモの作り直しで見つかった不具合は、Claude A に PR のコメントで知らせる） |
-| Codex | `main` から `codex/<topic>` | `.github/workflows/**`（Node.js 20 の非推奨への対応）、`docs/drafts/gfp-scene/**`（GFP の場面の候補調査） | 上の 4 本の PR が触るすべてのファイル。考察の残り（AC-02 の有効かどうかの事前の案内、AC-06 の「前の結果の考察」）は、2 と 4 が `main` に入ってから着手する |
+| Claude A（最初のセッション） | 1・2、`claude/ui-copy`（3 に取り込む文言の修正） | `apps/web/src/**`、`apps/web/tests/**`、`packages/analysis/src/cytellect_analysis/discussion_*`、`services/api/src/cytellect_api/discussions.py`、`services/proposal-worker/**`、`docs/requirements.md`、`docs/drafts/results-and-demo-story/**`、画面の文言を引用する文書。1・2 のブランチでは `apps/web/public/showcase/**` も（記録と実行環境の作り直し） | 3 のブランチの `services/showcase/**`・`apps/web/public/showcase/**` |
+| Claude B（別のクラウドセッション） | 3 | `services/showcase/**`、`apps/web/public/showcase/**`、`apps/web/public/fonts/**`、`fixtures/public/allowlist.json`、`scripts/security-tools.lock.json`（フォントの記録の確認済みの値の追加だけ）、`docs/showcase.md` | `apps/web/src/**` と `apps/web/tests/**`（デモの作り直しで見つかった不具合は Claude A に知らせ、Claude A が `claude/ui-copy` で直す） |
+| Codex | `main` から `codex/<topic>` | `.github/workflows/**`（Node.js 24 への対応、検出を手動で走らせる Actions）、`docs/drafts/gfp-scene/**`（GFP の場面の候補調査） | 上の 3 本の PR が触るすべてのファイル |
+
+段 2（3 本が `main` に入った後。互いに重ならない 3 つを並行で進める）：
+
+| 単位 | 担当 | 内容 | 主なファイル |
+|---|---|---|---|
+| 考察の画面の残り | Claude A | AC-02（有効かどうかを押す前に示す 1 行）、AC-03（設定画面での開示）、AC-06（「前の結果の考察」の表示と再生成）、試験 C-11・C-14・C-15 | `apps/web/src/components/workspace/review/DiscussionPanel.tsx`、`ProposalPanels.tsx`、`api-adapter.ts`、`services/api/src/cytellect_api/discussions.py`・`db.py` と試験 |
+| 公開サイズの自動検査 | Claude A（genellect/cytellect#202、`main` から並行で作成済み） | DM-10：公開デモが 700 MB を超えたら CI で止める（MB を 10 進と 2 進のどちらで読むかはオーナーが確認） | `scripts/check_public_tree.py` と試験 |
+| 文書の移し替え | Claude B | 要件定義書 §9 の移し替え（S-01・S-05・X-01・X-02・D-10 を群間比較の要件へ）、場面の順序の記述をそろえる、この節を完了の状態に更新する | `docs/drafts/group-comparison/requirements.md`、`docs/drafts/results-and-demo-story/requirements.md`、`docs/showcase.md`、この文書 |
+
+段 3（オーナーの判断の後）：GFP の場面の登録（Claude B、[候補調査](https://github.com/genellect/cytellect/pull/201) の判断の後）、考察の本番での有効化（AC-09、デプロイ・有効化・有料の呼び出しの確認をそれぞれオーナーの許可を得て行う）。
 
 ### 評価する項目
 
