@@ -91,23 +91,33 @@ def download(source: dict, cache: Path) -> Path:
     cache.mkdir(parents=True, exist_ok=True)
     name = ("md5-" + source["md5"]) if source.get("md5") else source["sha256"]
     target = cache / name
+
+    def intact(path: Path) -> bool:
+        return not (("bytes" in source and path.stat().st_size != source["bytes"])
+                    or ("md5" in source and _md5_file(path) != source["md5"])
+                    or ("sha256" in source and sha256_file(path) != source["sha256"]))
+
     if not target.exists():
         partial = cache / (name + ".partial")
+        # A response cut short by the network ends without an error; the digest check retries it.
         for attempt in range(4):
             try:
                 log("download", source["url"])
                 request = urllib.request.Request(source["url"], headers={"User-Agent": "cytellect-showcase-build"})
                 with urllib.request.urlopen(request, timeout=300) as response, partial.open("wb") as stream:
                     shutil.copyfileobj(response, stream, 1024 * 1024)
-                break
+                if intact(partial):
+                    break
+                log("download incomplete, retrying", source["url"])
             except OSError:
                 if attempt == 3:
                     raise
-                time.sleep(10 * (attempt + 1))
+            if attempt == 3:
+                partial.unlink(missing_ok=True)
+                raise SystemExit(f"source integrity mismatch: {source['url']}")
+            time.sleep(10 * (attempt + 1))
         os.replace(partial, target)
-    if (("bytes" in source and target.stat().st_size != source["bytes"])
-            or ("md5" in source and _md5_file(target) != source["md5"])
-            or ("sha256" in source and sha256_file(target) != source["sha256"])):
+    if not intact(target):
         target.unlink()
         raise SystemExit(f"source integrity mismatch: {source['url']}")
     source.setdefault("sha256", sha256_file(target))
@@ -1729,7 +1739,8 @@ def main(argv: list[str] | None = None) -> None:
              "regions": scene_regions(manifest),
              "examples": len((manifest["scenario"].get("proposals") or {}).get("presets", [])),
              "rank": rank_examples(manifest),
-             "gateChannels": manifest["scenario"].get("gate_channels", [])} for _, manifest in manifests])
+             "gateChannels": manifest["scenario"].get("gate_channels", []),
+             "scope": journal_scope(manifest), "story": story_metrics(manifest)} for _, manifest in manifests])
         save()
         write_manifest(args, manifests, state)
     if "manifest" in stages:
@@ -1740,6 +1751,27 @@ def main(argv: list[str] | None = None) -> None:
                                work / "qa" / manifest["id"], scenes[manifest["id"]]["scenario"]["fields"])
             log("qa overlays", manifest["id"], len(written))
     log("done", round(time.perf_counter() - started, 1), "s")
+
+
+def journal_scope(manifest: dict) -> str:
+    """``full`` records every operation the screen offers; ``story`` only what tells the scene (journal.mjs)."""
+    scope = manifest["scenario"].get("journal", "full")
+    if scope not in ("full", "story"):
+        raise SystemExit(f"unknown journal scope: {scope}")
+    return scope
+
+
+def story_metrics(manifest: dict) -> list[dict]:
+    """The region and metric of the opening analyses and the companions, whose statistics a story scene records."""
+    plan = manifest["scenario"]
+    items = list((plan.get("statistics") or {}).values()) + list(plan.get("companions") or [])
+    seen, story = set(), []
+    for item in items:
+        key = (item["target"], item["metric"])
+        if key not in seen:
+            seen.add(key)
+            story.append({"region": item["target"], "metric": item["metric"]})
+    return story
 
 
 def opening_channel(manifest: dict) -> dict:
