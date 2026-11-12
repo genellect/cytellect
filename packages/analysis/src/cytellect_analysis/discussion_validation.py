@@ -13,7 +13,12 @@ import re
 
 from pydantic import ValidationError
 
-from .discussion_contracts import DiscussionContext, DiscussionDraft, ValidatedDiscussion
+from .discussion_contracts import (
+    DISCUSSION_PROMPT_VERSION,
+    DiscussionContext,
+    DiscussionDraft,
+    ValidatedDiscussion,
+)
 
 
 class DiscussionRejected(ValueError):
@@ -53,7 +58,8 @@ def _text_numbers(text: str) -> list[float]:
 def allowed_numbers(context: DiscussionContext) -> list[float]:
     """Every number the result states, and the forms the summary writes them in (%, points, fold, counts)."""
     result = context.result
-    values: list[float] = [result.n_control, result.n_treatment, len(result.runs), 95.0]
+    # 0 is the reference every difference is read against ("区間が 0 を含む"), not a value of its own.
+    values: list[float] = [0.0, result.n_control, result.n_treatment, len(result.runs), 95.0]
     if result.n_runs is not None:
         values.append(result.n_runs)
     if result.p_value is not None:
@@ -73,11 +79,10 @@ def allowed_numbers(context: DiscussionContext) -> list[float]:
         values += [run.control, run.treatment, run.difference]
         if run.ratio is not None:
             values += [run.ratio, (run.ratio - 1) * 100]
-    values += _text_numbers(result.heading)
+    if result.heading:
+        values += _text_numbers(result.heading)
     # What the researcher wrote (a dose, a time) may be repeated.
     for text in (context.experiment.purpose or "", context.experiment.cells or "", *context.experiment.stains):
-        values += _text_numbers(text)
-    for text in result.cautions:
         values += _text_numbers(text)
     return [value for value in values if math.isfinite(value)]
 
@@ -98,7 +103,8 @@ def _unclear(context: DiscussionContext) -> bool:
     return result.test in ("mann-whitney-u", "wilcoxon") and (result.p_value is None or result.p_value >= 0.05)
 
 
-def validate_discussion(raw: object, context: DiscussionContext, *, model: str) -> ValidatedDiscussion:
+def validate_discussion(raw: object, context: DiscussionContext, *, model: str,
+                        prompt_version: str = DISCUSSION_PROMPT_VERSION) -> ValidatedDiscussion:
     """Check a draft against the result it discusses; raise `DiscussionRejected` with reason codes."""
     try:
         draft = raw if isinstance(raw, DiscussionDraft) else DiscussionDraft.model_validate(raw)
@@ -118,4 +124,4 @@ def validate_discussion(raw: object, context: DiscussionContext, *, model: str) 
         codes.append("discussion_claims_no_change")
     if codes:
         raise DiscussionRejected(codes)
-    return ValidatedDiscussion(context_sha256=context_sha256(context), model=model, draft=draft)
+    return ValidatedDiscussion(context_sha256=context_sha256(context), prompt_version=prompt_version, model=model, draft=draft)

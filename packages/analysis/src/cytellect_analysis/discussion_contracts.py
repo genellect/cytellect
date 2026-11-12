@@ -19,6 +19,7 @@ DISCUSSION_PROMPT_VERSION = "2026-11-12.1"
 Label = Annotated[str, Field(min_length=1, max_length=80)]
 Note = Annotated[str, Field(min_length=1, max_length=500)]
 Item = Annotated[str, Field(min_length=1, max_length=200)]
+WarningCode = Annotated[str, Field(pattern=r"^[a-z0-9_]{1,120}$")]
 
 
 class DiscussionModel(BaseModel):
@@ -73,9 +74,11 @@ class DiscussionResult(DiscussionModel):
     difference: Interval | None = None
     ratio: Interval | None = None
     runs: list[RunValue] = Field(default_factory=list, max_length=12)
-    # The result's heading as the summary shows it, so the discussion builds on the same statement.
-    heading: Annotated[str, Field(min_length=1, max_length=200)]
-    cautions: list[Item] = Field(default_factory=list, max_length=6)
+    # The saved result's warning codes (fixed identifiers such as `few_independent_units_…`), never prose.
+    warnings: list[WarningCode] = Field(default_factory=list, max_length=16)
+    # The result's heading as the summary shows it. The API leaves it out: it never forwards text from the
+    # browser as part of the result, because every number in it would become a number the draft may state.
+    heading: Annotated[str, Field(min_length=1, max_length=200)] | None = None
 
 
 class DiscussionContext(DiscussionModel):

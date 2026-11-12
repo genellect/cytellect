@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from cytellect_analysis.discussion_contracts import DISCUSSION_PROMPT_VERSION
 from cytellect_analysis.proposal_contracts import PROPOSAL_PROMPT_VERSION
 
 from .public_uploads import load_allowlist
@@ -70,6 +71,9 @@ class Settings:
     proposal_timeout_seconds: int = 300
     proposal_model: str = "gpt-6.1-sol"
     proposal_prompt_version: str = PROPOSAL_PROMPT_VERSION
+    # Result discussions use the same service and credential (requirements AC-07).
+    discussion_model: str = "gpt-6.1-sol"
+    discussion_prompt_version: str = DISCUSSION_PROMPT_VERSION
     desktop_owner: bool = False
     workspace_retention_mode: str = "ttl"
     # Digests of the registered public files a shared development environment accepts (public_uploads.py).
@@ -119,6 +123,8 @@ class Settings:
             proposal_timeout_seconds=int(os.environ.get("CYTELLECT_PROPOSAL_TIMEOUT_SECONDS", "300")),
             proposal_model=os.environ.get("CYTELLECT_PROPOSAL_MODEL", "gpt-6.1-sol"),
             proposal_prompt_version=os.environ.get("CYTELLECT_PROPOSAL_PROMPT_VERSION", PROPOSAL_PROMPT_VERSION),
+            discussion_model=os.environ.get("CYTELLECT_DISCUSSION_MODEL", "gpt-6.1-sol"),
+            discussion_prompt_version=os.environ.get("CYTELLECT_DISCUSSION_PROMPT_VERSION", DISCUSSION_PROMPT_VERSION),
             desktop_owner=os.environ.get("CYTELLECT_DESKTOP_OWNER", "false").lower() == "true",
             upload_allowlist=(load_allowlist(os.environ["CYTELLECT_UPLOAD_ALLOWLIST"])
                               if os.environ.get("CYTELLECT_UPLOAD_ALLOWLIST") else None),

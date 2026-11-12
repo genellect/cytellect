@@ -975,6 +975,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/jobs/{jid}/discussion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Saved Discussion
+         * @description The latest stored discussion of this result; a recalculated result has its own job and none yet.
+         */
+        get: operations["saved_discussion_v1_jobs__jid__discussion_get"];
+        put?: never;
+        /** Draft Discussion */
+        post: operations["draft_discussion_v1_jobs__jid__discussion_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/workspaces/{wid}/selection": {
         parameters: {
             query?: never;
@@ -2645,6 +2666,52 @@ export interface components {
             group_by: "field";
             plot?: components["schemas"]["DescriptivePlot"];
         };
+        /**
+         * DiscussionDraft
+         * @description The three headings of the discussion (AC-04), one sentence per item.
+         */
+        DiscussionDraft: {
+            /**
+             * Protocol
+             * @default result-discussion/1.0.0
+             * @constant
+             */
+            protocol: "result-discussion/1.0.0";
+            /** Implications */
+            implications: string[];
+            /** Alternatives */
+            alternatives?: string[];
+            /** Next Steps */
+            next_steps?: string[];
+        };
+        /**
+         * DiscussionRequest
+         * @description `transmission_confirmed` records that the researcher chose to send this result to the AI (L03).
+         */
+        DiscussionRequest: {
+            /**
+             * @default {
+             *       "stains": []
+             *     }
+             */
+            experiment: components["schemas"]["ExperimentNote"];
+            /**
+             * Transmission Confirmed
+             * @default false
+             */
+            transmission_confirmed: boolean;
+            /**
+             * Retry Failed
+             * @default false
+             */
+            retry_failed: boolean;
+        };
+        /** DiscussionView */
+        DiscussionView: {
+            /** Job Id */
+            job_id: string;
+            discussion: components["schemas"]["ValidatedDiscussion"];
+        };
         /** DraftBackground */
         DraftBackground: {
             /**
@@ -2864,6 +2931,18 @@ export interface components {
             id: string;
             /** Label */
             label: string;
+        };
+        /**
+         * ExperimentNote
+         * @description What the researcher wrote about the experiment; optional, short, and never a file or path.
+         */
+        ExperimentNote: {
+            /** Purpose */
+            purpose?: string | null;
+            /** Cells */
+            cells?: string | null;
+            /** Stains */
+            stains?: string[];
         };
         /**
          * ExperimentRun
@@ -6490,6 +6569,25 @@ export interface components {
              */
             role: "nuclear_stain" | "measure";
         };
+        /** ValidatedDiscussion */
+        ValidatedDiscussion: {
+            /**
+             * Protocol
+             * @default result-discussion/1.0.0
+             * @constant
+             */
+            protocol: "result-discussion/1.0.0";
+            /** Context Sha256 */
+            context_sha256: string;
+            /**
+             * Prompt Version
+             * @default 2026-11-12.1
+             */
+            prompt_version: string;
+            /** Model */
+            model: string;
+            draft: components["schemas"]["DiscussionDraft"];
+        };
         /** ValidatedProposal */
         ValidatedProposal: {
             /**
@@ -9008,6 +9106,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProposalDraftResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    saved_discussion_v1_jobs__jid__discussion_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscussionView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    draft_discussion_v1_jobs__jid__discussion_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiscussionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscussionView"];
                 };
             };
             /** @description Validation Error */
