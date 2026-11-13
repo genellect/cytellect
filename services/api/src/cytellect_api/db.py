@@ -178,6 +178,20 @@ proposal_drafts = Table(
     Column("proposal", JSON),
     Index("uq_proposal_workspace_key", "workspace_id", "cache_key", unique=True),
 )
+# Model-drafted discussions of one saved comparison, with the result job they discuss (requirements AC-06).
+result_discussions = Table(
+    "result_discussions", meta,
+    Column("id", String, primary_key=True),
+    Column("workspace_id", String, nullable=False, index=True),
+    Column("job_id", String, nullable=False, index=True),
+    Column("cache_key", String, nullable=False),
+    Column("request_id", String, nullable=False),
+    Column("state", String, nullable=False),
+    Column("created", Float, nullable=False),
+    Column("lease_until", Float, nullable=False),
+    Column("discussion", JSON),
+    Index("uq_result_discussion_workspace_key", "workspace_id", "cache_key", unique=True),
+)
 events = Table(
     "events",
     meta,

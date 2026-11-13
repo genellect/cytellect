@@ -50,7 +50,7 @@ test("images added before the form wait for it and go to the chosen group of two
   const loaded=page.waitForResponse(response=>new URL(response.url()).pathname==="/v1/workspaces"&&response.request().method()==="GET");
   await page.goto("/workspace");
   await loaded;
-  await expect(page.getByRole("heading",{name:"解析の形を選ぶ",exact:true,level:1})).toBeVisible();
+  await expect(page.getByRole("heading",{name:"実験デザイン",exact:true,level:1})).toBeVisible();
   await page.getByTestId("file-input").setInputFiles([{name:"A01_c1.tif",mimeType:"image/tiff",buffer:Buffer.from([1,2,3])},{name:"A01_c2.tif",mimeType:"image/tiff",buffer:Buffer.from([4,5,6])}]);
   // Nothing is registered until the form is chosen.
   await expect(page.getByRole("status").filter({hasText:"画像 2 件を受け取りました。"})).toBeVisible();

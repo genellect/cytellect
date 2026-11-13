@@ -97,8 +97,8 @@ test("failed saved entries remain visible until explicitly excluded from compari
   await panel.getByLabel("独立実験単位",{exact:true}).fill("Transport independent units");
   for(let i=0;i<2;i++)for(const key of ["condition","sample","experimental_unit"])await panel.locator(`input[aria-label$=" ${key}"]`).nth(i).fill(`${key}-${i}`);
   await panel.getByLabel("condition-0 / condition-1",{exact:true}).check();
-  await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認した",{exact:true}).check();
-  await panel.getByLabel("測定領域と採用する視野を確認した",{exact:true}).check();
+  await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み",{exact:true}).check();
+  await panel.getByLabel("測定領域と採用する視野を確認済み",{exact:true}).check();
   await expect(panel.getByRole("button",{name:"計算",exact:true})).toBeEnabled();
   await panel.getByRole("button",{name:"計算",exact:true}).click();
   await expect.poll(()=>fixture.cohort()).not.toBeNull();

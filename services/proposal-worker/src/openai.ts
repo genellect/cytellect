@@ -270,6 +270,15 @@ export function inputTokenCeiling(settings: ModelSettings, context: unknown, pre
 
 /** One call, plus at most one repair call for unusable output (requirement L05). */
 export async function draftProposal(settings: ModelSettings, context: unknown, previews: Preview[]): Promise<ModelResult & { calls: number }> {
+  const version = settings.promptVersion ?? PROMPT_VERSION;
+  return structuredCall(settings, (repair) => requestPayload(settings, context, previews, repair),
+    inputTokenCeiling(settings, context, previews), (value) => hasDraftShape(value, version));
+}
+
+/** The Responses API loop shared by every drafting route: one call and at most one repair call,
+ * usage bounded by `ceiling` input tokens and `maxOutputTokens`, output accepted only when `valid`. */
+export async function structuredCall(settings: ModelSettings, payload: (repair?: string) => unknown, ceiling: number,
+  valid: (value: unknown) => boolean): Promise<ModelResult & { calls: number }> {
   const fetcher = settings.fetcher ?? fetch;
   let inputTokens = 0;
   let outputTokens = 0;
@@ -287,7 +296,7 @@ export async function draftProposal(settings: ModelSettings, context: unknown, p
         redirect: "manual",
         signal: AbortSignal.timeout(120_000),
         headers: { authorization: `Bearer ${settings.apiKey}`, "content-type": "application/json" },
-        body: JSON.stringify(requestPayload(settings, context, previews, repair)),
+        body: JSON.stringify(payload(repair)),
       });
     } catch {
       throw new ModelError("model_unavailable");
@@ -312,12 +321,12 @@ export async function draftProposal(settings: ModelSettings, context: unknown, p
       inputTokens += input;
       outputTokens += output;
       cachedInputTokens += cached;
-      if (input > inputTokenCeiling(settings, context, previews) || output > settings.maxOutputTokens) {
+      if (input > ceiling || output > settings.maxOutputTokens) {
         // Stop repairs, but preserve a completed schema-valid draft for the relay
         // to return only after the accounting incident has been committed.
         let usable: unknown;
         if (body.status === "completed") {
-          try { const value = JSON.parse(outputText(body)); if (hasDraftShape(value, settings.promptVersion ?? PROMPT_VERSION)) usable = value; } catch { /* Invalid/refused output stays rejected. */ }
+          try { const value = JSON.parse(outputText(body)); if (valid(value)) usable = value; } catch { /* Invalid/refused output stays rejected. */ }
         }
         throw new ModelError("model_usage_exceeded", undefined, { inputTokens, outputTokens, cachedInputTokens, calls: call }, usable);
       }
@@ -334,7 +343,7 @@ export async function draftProposal(settings: ModelSettings, context: unknown, p
       repair = "output was not valid JSON";
       continue;
     }
-    if (hasDraftShape(draft, settings.promptVersion ?? PROMPT_VERSION)) return { draft, inputTokens, outputTokens, cachedInputTokens, usageComplete, calls: call };
+    if (valid(draft)) return { draft, inputTokens, outputTokens, cachedInputTokens, usageComplete, calls: call };
     repair = "output did not satisfy the registered schema";
   }
   throw new ModelError("model_output_invalid");

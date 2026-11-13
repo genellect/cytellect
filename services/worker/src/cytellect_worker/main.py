@@ -24,6 +24,7 @@ from cytellect_api.db import (
     fields,
     jobs,
     proposal_drafts,
+    result_discussions,
     revisions,
     sessions,
     tables,
@@ -456,7 +457,7 @@ def cleanup(store):
                 run = store.safe_path("runs", record["id"])
                 if run.exists():
                     shutil.rmtree(run)
-            for table in (attempts, tables, fields, revisions, jobs, proposal_drafts, workspace_selections, workspace_channel_assignments, workspace_analysis_specs, workspace_analysis_runs, workspace_field_links):
+            for table in (attempts, tables, fields, revisions, jobs, proposal_drafts, result_discussions, workspace_selections, workspace_channel_assignments, workspace_analysis_specs, workspace_analysis_runs, workspace_field_links):
                 conn.execute(delete(table).where(table.c.workspace_id == wid))
             conn.execute(
                 update(workspaces)

@@ -79,12 +79,12 @@ test("first launch offers this PC or the cloud features, and local analysis need
   const unauthorized: string[] = [];
   page.on("response", response => {if (response.status() === 401) unauthorized.push(new URL(response.url()).pathname);});
   await page.goto(origin + "/workspace");
-  await expect(page.getByRole("heading", {name: "インストールが完了しました"})).toBeVisible();
+  await expect(page.getByRole("heading", {name: "インストール完了"})).toBeVisible();
   // The opening check is the local route, which says "not yet" without a 401 (a browser console error).
   expect(mock.calls).toContain("GET /v1/local/session");
   expect(mock.calls).not.toContain("GET /v1/session");
-  await expect(page.getByRole("button", {name: /クラウド機能を有効にする/})).toBeVisible();
-  await page.getByRole("button", {name: /このPCで解析を始める/}).click();
+  await expect(page.getByRole("button", {name: /クラウド機能を有効化/})).toBeVisible();
+  await page.getByRole("button", {name: /このPCで解析を開始/}).click();
   await expect(page.getByText(/公開の練習画像（BBBC013）/)).toBeVisible();
   await expect(page.getByRole("link", {name: "練習画像をダウンロード"})).toHaveAttribute("href", /Cytellect-BBBC013-practice-v1\.zip$/);
   await expect(page.getByRole("button", {name: "ログイン", exact: true})).toBeVisible();
@@ -94,17 +94,17 @@ test("first launch offers this PC or the cloud features, and local analysis need
   mock.session = false;
   await page.reload();
   await expect(page.getByRole("button", {name: "解析を開始"})).toBeVisible();
-  await expect(page.getByRole("heading", {name: "インストールが完了しました"})).toHaveCount(0);
+  await expect(page.getByRole("heading", {name: "インストール完了"})).toHaveCount(0);
 });
 
 test("sign-in with an e-mail code: resend waits, wrong codes count down, success shows availability", async ({page}) => {
   await page.clock.install();
   await mockLocalApi(page);
   await page.goto(origin + "/workspace");
-  await page.getByRole("button", {name: /クラウド機能を有効にする/}).click();
-  const dialog = page.getByRole("dialog", {name: "クラウド機能を有効にする"});
+  await page.getByRole("button", {name: /クラウド機能を有効化/}).click();
+  const dialog = page.getByRole("dialog", {name: "クラウド機能を有効化"});
   await dialog.getByLabel("メールアドレス").fill(" Researcher@Example.org ");
-  await dialog.getByRole("button", {name: "コードを送る"}).click();
+  await dialog.getByRole("button", {name: "コードを送信"}).click();
   await expect(dialog.getByText(`${EMAIL} にコードを送りました。`)).toBeVisible();
   await expect(dialog.getByText(/迷惑メール/)).toBeVisible();
   const resend = dialog.getByRole("button", {name: /コードを再送/});
@@ -122,10 +122,10 @@ test("sign-in with an e-mail code: resend waits, wrong codes count down, success
   await expect(dialog.getByRole("alert").locator("code")).toHaveText("account_code_invalid");
   await dialog.getByRole("button", {name: "メールアドレスを修正"}).click();
   await expect(dialog.getByLabel("メールアドレス")).toBeVisible();
-  await dialog.getByRole("button", {name: "コードを送る"}).click();
+  await dialog.getByRole("button", {name: "コードを送信"}).click();
   await dialog.getByLabel("6 桁のコード").fill("123456");
   await dialog.getByRole("button", {name: "ログイン", exact: true}).click();
-  await expect(page.getByRole("heading", {name: "クラウド機能が使えます"})).toBeVisible();
+  await expect(page.getByRole("heading", {name: "ログイン完了"})).toBeVisible();
   await page.getByRole("button", {name: "作業に戻る"}).click();
   await expect(page.getByText("GPU・解析提案：利用可")).toBeVisible();
   await expect(page.getByText(EMAIL).first()).toBeVisible();
@@ -140,24 +140,24 @@ test("an unapproved address waits at the top and switches to continuing the logi
   await page.getByRole("button", {name: "ログイン", exact: true}).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("メールアドレス").fill("newcomer@example.org");
-  await dialog.getByRole("button", {name: "コードを送る"}).click();
+  await dialog.getByRole("button", {name: "コードを送信"}).click();
   await expect(dialog.getByText(/オーナーに利用を申請しました/)).toBeVisible();
-  await expect(dialog.getByRole("heading", {name: "承認を待っています"})).toBeFocused();
+  await expect(dialog.getByRole("heading", {name: "承認待ち"})).toBeFocused();
   await dialog.getByRole("button", {name: "このPCでの解析を続ける"}).click();
   // Focus returns to the header control that opened the dialog.
   await expect(page.getByRole("button", {name: "承認待ち"})).toBeFocused();
   await expect(page.getByText(/^承認待ち（.*に申請）/)).toBeVisible();
   // The request can be folded to one line but stays at the top.
   await page.getByRole("button", {name: "このPCでの解析を続ける"}).click();
-  await expect(page.getByText("承認待ち。このPCでの解析は使えます。")).toBeVisible();
+  await expect(page.getByText("クラウド機能：承認待ち")).toBeVisible();
   await page.getByRole("button", {name: "承認待ち"}).click();
-  await expect(page.getByRole("dialog").getByRole("heading", {name: "承認を待っています"})).toBeVisible();
+  await expect(page.getByRole("dialog").getByRole("heading", {name: "承認待ち"})).toBeVisible();
   mock.account = {...mock.account, approved: true};
   await page.clock.fastForward(46_000);
   // The open dialog switches to continuing the login as well.
-  await expect(page.getByRole("dialog").getByRole("heading", {name: "承認されました"})).toBeVisible();
+  await expect(page.getByRole("dialog").getByRole("heading", {name: "承認済み"})).toBeVisible();
   await page.keyboard.press("Escape");
-  const resume = page.getByRole("button", {name: "承認されました。ログインを続ける"});
+  const resume = page.getByRole("button", {name: "ログインを続ける"});
   await expect(resume).toBeVisible();
   await resume.click();
   await expect(page.getByRole("dialog").getByText("newcomer@example.org にコードを送りました。")).toBeVisible();
@@ -171,7 +171,7 @@ test("a used-up GPU allowance names the date it resumes, and an update is offere
   await expect(page.getByText("GPU：今月の上限（12月1日に再開）")).toBeVisible();
   await page.getByRole("group").filter({hasText: EMAIL}).locator("summary").click();
   await expect(page.getByText(/今月の GPU の利用上限に達しました。12月1日から再び使えます/)).toBeVisible();
-  await expect(page.getByText("GPU の起動を待つ時間も、GPU の利用時間に数えます。")).toBeVisible();
+  await expect(page.getByText("GPU の利用時間には、起動の待ち時間を含みます。")).toBeVisible();
   mock.logoutFails = true;
   await page.getByRole("button", {name: "ログアウト"}).click();
   await expect(page.getByRole("alert").filter({hasText: "ログアウトできませんでした"})).toBeVisible();
@@ -187,8 +187,8 @@ test("an update is followed through the restart until it completes", async ({pag
     updateAfter: [{...LATEST, state: "installing"}, null, {...LATEST, available: false, current: "0.1.0-local.22", state: "updated"}]});
   await page.goto(origin + "/workspace");
   await expect(page.getByRole("link", {name: "変更内容"})).toHaveAttribute("href", LATEST.notes_url);
-  await page.getByRole("button", {name: "更新する"}).click();
-  await expect(page.getByText(/^更新しています。/)).toBeVisible();
+  await page.getByRole("button", {name: "更新"}).click();
+  await expect(page.getByText(/^更新中… /)).toBeVisible();
   expect(mock.calls).toContain("POST /v1/app/update");
   for (let step = 0; step < 4; step++) await page.clock.fastForward(3_100);
   await expect(page.getByText("更新が完了しました（0.1.0-local.22）。")).toBeVisible();
@@ -199,8 +199,8 @@ test("after the restart revokes the session, the banner opens it again and shows
   const mock = await mockLocalApi(page, {session: true, firstRun: false, update: {status: 200, body: LATEST}, updateNeedsSession: true,
     updateAfter: [{...LATEST, state: "installing"}, "restart", {...LATEST, available: false, current: "0.1.0-local.22", state: "updated"}]});
   await page.goto(origin + "/workspace");
-  await page.getByRole("button", {name: "更新する"}).click();
-  await expect(page.getByText(/^更新しています。/)).toBeVisible();
+  await page.getByRole("button", {name: "更新"}).click();
+  await expect(page.getByText(/^更新中… /)).toBeVisible();
   for (let step = 0; step < 6; step++) await page.clock.fastForward(3_100);
   await expect(page.getByText("更新が完了しました（0.1.0-local.22）。")).toBeVisible();
   const after = mock.calls.slice(mock.calls.indexOf("POST /v1/app/update"));
@@ -215,7 +215,7 @@ test("a session that cannot be opened again after the restart asks to reopen the
     updateAfter: [{...LATEST, state: "installing"}, "restart", {...LATEST, available: false, current: "0.1.0-local.22", state: "updated"}]});
   await page.goto(origin + "/workspace");
   mock.localSessionRefused = true;
-  await page.getByRole("button", {name: "更新する"}).click();
+  await page.getByRole("button", {name: "更新"}).click();
   for (let step = 0; step < 6; step++) await page.clock.fastForward(3_100);
   await expect(page.getByRole("alert").filter({hasText: "作業画面を開き直してください"})).toBeVisible();
   await expect(page.getByText(/更新できませんでした/)).toHaveCount(0);
@@ -228,7 +228,7 @@ test("a failed update says so with its code under 詳細, and an unsafe notes li
   await page.goto(origin + "/workspace");
   await expect(page.getByText(/更新があります/)).toBeVisible();
   await expect(page.getByRole("link", {name: "変更内容"})).toHaveCount(0);
-  await page.getByRole("button", {name: "更新する"}).click();
+  await page.getByRole("button", {name: "更新"}).click();
   const failure = page.getByRole("alert").filter({hasText: "更新できませんでした。今の版のまま使えます。あとでもう一度お試しください。"});
   await expect(failure).toBeVisible();
   // The banner never sends the researcher to download a release by hand.
@@ -244,13 +244,13 @@ test("an update waits while analyses run, and an installed version starts at the
   const mock = await mockLocalApi(page, {session: true, firstRun: false, update: {status: 200, body: LATEST},
     updateStarted: {status: 409, body: {detail: "update_jobs_running"}}});
   await page.goto(origin + "/workspace");
-  await page.getByRole("button", {name: "更新する"}).click();
+  await page.getByRole("button", {name: "更新"}).click();
   await expect(page.getByText(/^解析が終わってから更新してください。/)).toBeVisible();
   await expect(page.getByRole("alert").filter({hasText: /更新/})).toHaveCount(0);
-  await expect(page.getByRole("button", {name: "更新する"})).toBeEnabled();
+  await expect(page.getByRole("button", {name: "更新"})).toBeEnabled();
   mock.updateStarted = {status: 202, body: {...LATEST, state: "installing"}};
   mock.updateAfter = [{...LATEST, available: false, state: "installed"}];
-  await page.getByRole("button", {name: "更新する"}).click();
+  await page.getByRole("button", {name: "更新"}).click();
   await page.clock.fastForward(3_100);
   await expect(page.getByText("更新の準備ができました（0.1.0-local.22）。次に Cytellect を起動したときに新しい版になります。")).toBeVisible();
 });
@@ -261,8 +261,8 @@ test("an update started elsewhere is followed, and refusals that are not failure
     updateStarted: {status: 409, body: {detail: "update_in_progress"}},
     updateAfter: [{...LATEST, state: "installing"}, {...LATEST, available: false, current: "0.1.0-local.22", state: "updated"}]});
   await page.goto(origin + "/workspace");
-  await page.getByRole("button", {name: "更新する"}).click();
-  await expect(page.getByText(/^更新しています。/)).toBeVisible();
+  await page.getByRole("button", {name: "更新"}).click();
+  await expect(page.getByText(/^更新中… /)).toBeVisible();
   for (let step = 0; step < 3; step++) await page.clock.fastForward(3_100);
   await expect(page.getByText("更新が完了しました（0.1.0-local.22）。")).toBeVisible();
   expect(mock.calls.filter(call => call === "POST /v1/app/update")).toHaveLength(1);
@@ -279,15 +279,15 @@ test("an unsupported installation hides the banner and an offer gone stale is re
   const mock = await mockLocalApi(page, {session: true, firstRun: false, update: {status: 200, body: LATEST},
     updateStarted: {status: 409, body: {detail: "update_not_available"}}});
   await page.goto(origin + "/workspace");
-  await expect(page.getByRole("button", {name: "更新する"})).toBeVisible();
+  await expect(page.getByRole("button", {name: "更新"})).toBeVisible();
   mock.update = {status: 200, body: {...LATEST, available: false}};
-  await page.getByRole("button", {name: "更新する"}).click();
+  await page.getByRole("button", {name: "更新"}).click();
   await expect(page.getByText(/更新があります/)).toHaveCount(0);
   await expect(page.getByText(/更新できませんでした/)).toHaveCount(0);
   mock.update = {status: 200, body: LATEST};
   mock.updateStarted = {status: 409, body: {detail: "update_unsupported"}};
   await page.reload();
-  await page.getByRole("button", {name: "更新する"}).click();
+  await page.getByRole("button", {name: "更新"}).click();
   await expect(page.getByText(/更新があります/)).toHaveCount(0);
   await expect(page.getByText(/更新できませんでした/)).toHaveCount(0);
 });
@@ -316,7 +316,7 @@ test("a version without a signing key asks for the new installer instead of upda
   await page.goto(origin + "/workspace");
   await expect(page.getByText("新しい版（0.1.0-local.22）があります。cytellect.app から新しい版のインストーラーをダウンロードして開いてください。研究データと設定は引き継がれます。")).toBeVisible();
   await expect(page.getByRole("link", {name: "変更内容"})).toHaveAttribute("href", LATEST.notes_url);
-  await expect(page.getByRole("button", {name: "更新する"})).toHaveCount(0);
+  await expect(page.getByRole("button", {name: "更新"})).toHaveCount(0);
   expect(mock.calls).not.toContain("POST /v1/app/update");
 });
 
@@ -333,7 +333,7 @@ test("while the first account check waits for the network, the header offers no 
   const mock = await mockLocalApi(page, {session: true, firstRun: false, account: {state: "allowed", email: EMAIL},
     accountHeld: new Promise<void>(resolve => {release = resolve;})});
   await page.goto(origin + "/workspace");
-  await expect(page.getByRole("button", {name: "確認しています"})).toBeDisabled();
+  await expect(page.getByRole("button", {name: "確認中"})).toBeDisabled();
   await expect(page.getByRole("button", {name: "ログイン", exact: true})).toHaveCount(0);
   release();
   await expect(page.getByText("GPU・解析提案：利用可")).toBeVisible();
@@ -346,7 +346,7 @@ test("a code with no attempts left offers only a new code, also after reopening"
   await page.goto(origin + "/workspace");
   await page.getByRole("button", {name: "コードの入力待ち"}).click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog.getByText(/入力できる回数を使い切りました/)).toBeVisible();
+  await expect(dialog.getByText(/入力回数の上限に達しました/)).toBeVisible();
   await expect(dialog.getByLabel("6 桁のコード")).toHaveCount(0);
   await dialog.getByRole("button", {name: "コードを再送"}).click();
   await expect(dialog.getByLabel("6 桁のコード")).toBeVisible();

@@ -16,7 +16,7 @@ function Diagnostic({label,value,disabled,onInspectRegion}:{label:string;value:Q
  if(value.status!=="measured")return <p className={styles.diagnostic}>{label}：{value.status==="not_measured"?"未測定（面積のみ）":value.status==="no_regions"?"領域なし":label==="取得時飽和"?"取得上限不明":"不明"}</p>;
  const count=(value.includedCount??0)+(value.excludedCount??0);
  return <div className={styles.diagnostic}>
-  <span className={count?styles.warning:undefined}>{label}：{count?`採用対象 ${value.includedCount} / 除外対象 ${value.excludedCount} 領域`:"この診断で該当なし"}</span>
+  <span className={count?styles.warning:undefined}>{label}：{count?`採用対象 ${value.includedCount} / 除外対象 ${value.excludedCount} 領域`:"該当なし"}</span>
   {!!value.items.length&&<details><summary>{label}の領域と値</summary><div className={styles.issues}>{value.items.map(issue=><div key={issue.regionId}>
    <span>領域 {issue.regionId} · {issue.excluded?"除外対象":"採用対象"}{typeof issue.value==="number"?` · 画素の割合 ${formatValue(issue.value)}`:""}</span>
    {!!issue.exclusionReasons.length&&<small>除外理由：{issue.exclusionReasons.join(" / ")}</small>}
@@ -54,9 +54,9 @@ export default function RegionQualityOverview({report,revision,revisionLabel,fie
  const order=new Map(fieldOrder.map((id,index)=>[id,index]));
  return <section className={styles.overview} aria-label="全視野の品質一覧">
   <div className={styles.heading}><h3>全視野の品質一覧</h3><span>{revisionLabel} · この解析版全体：{revision.reviewed?"品質確認済み":"品質確認前"}</span></div>
-  <p>保存済みの測定にある診断です。警告の有無だけで、品質や採否は確定しません。</p>
-  {nav.disabled&&<p className={styles.notice}>処理中、または未保存の領域・設定があります。画像を切り替える前に保存・反映してください。</p>}
-  {!overview.ok?<p className={styles.notice} role="status">保存済みの品質情報と出典を確認できません。測定条件と処理履歴をご確認ください。</p>:<>
+  <p>保存済みの測定の診断です。警告の有無だけでは、品質と採否は確定しません。</p>
+  {nav.disabled&&<p className={styles.notice}>処理中または未保存の領域・設定があります。画像の切り替えには、保存または反映が必要です。</p>}
+  {!overview.ok?<p className={styles.notice} role="status">保存済みの品質情報と出典を確認できません。測定条件と処理履歴を確認してください。</p>:<>
    {overview.mode==="area_only"&&<p>面積のみの測定です。画像のチャンネルは領域確認用で、輝度の測定対象ではありません。</p>}
    <div className={styles.tableWrap} tabIndex={0} role="region" aria-label="全視野の診断表"><table><thead><tr><th>視野・処理状態</th><th>領域と採否</th><th>既存の診断と画像</th></tr></thead><tbody>{overview.fields.toSorted((a,b)=>(order.get(a.fieldId)??Infinity)-(order.get(b.fieldId)??Infinity)).map(field=><QualityField key={field.fieldId} field={field} label={fieldLabels[field.fieldId]||"保存済みの視野"} name={[revision.config.field_snapshot?.[field.fieldId]?.metadata.condition,revision.config.field_snapshot?.[field.fieldId]?.metadata.sample].filter(Boolean).join(" · ")} areaOnly={overview.mode==="area_only"} {...nav}/>)}</tbody></table></div>
    <p className={styles.footnote}>同じ領域を複数チャンネルで測定しても、領域数を重複して数えません。閲覧による視野ごとの確認記録は作りません。</p>

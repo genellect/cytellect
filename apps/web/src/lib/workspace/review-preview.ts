@@ -125,7 +125,7 @@ export async function loadReviewPreview(workspaceId?: string, fieldIds?: readonl
         if (!target) return;
         const mapped = entry?.target_revisions?.[target];
         if (mapped && mapped !== id) return;
-        if (revision.state !== "succeeded") {errors.push("採用した解析版はまだ完了していません。"); return;}
+        if (revision.state !== "succeeded") {errors.push("採用した解析版が未完了です。"); return;}
         try {
           field.results[target] = await adapter.readResult(id, input.id, revision.config.recipe);
           recipes[target] = revision.config.recipe;

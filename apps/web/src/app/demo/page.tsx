@@ -5,7 +5,7 @@ import {LandingAnalytics} from "@/components/LandingAnalytics";
 import {PUBLIC_SHOWCASE} from "@/lib/api";
 import {SITE_URL, sharePreview} from "@/lib/site";
 
-const TITLE = "公開デモ | Cytellect", DESCRIPTION = "公開顕微鏡画像の検出・測定・統計・グラフ作成を、本番と同じ解析画面で試せます。";
+const TITLE = "公開デモ | Cytellect", DESCRIPTION = "公開顕微鏡画像で、検出・測定・統計・グラフ作成を本番と同じ解析画面で試用できます。";
 
 export const metadata: Metadata = {
   title: TITLE,
