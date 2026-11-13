@@ -96,7 +96,8 @@ type Plate = { id: PanelId; group: THREE.Group; plate: THREE.ShaderMaterial; sha
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const lerp3 = (a: V3, b: V3, t: number): V3 => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
-const ease = (t: number) => { const x = Math.min(1, Math.max(0, (t - 0.08) / 0.84)); return x * x * (3 - 2 * x); };
+/** Each shot holds while its chapter is read; the move between shots is short, so plates never linger half-seen over the text. */
+const ease = (t: number) => { const x = Math.min(1, Math.max(0, (t - 0.22) / 0.56)); return x * x * (3 - 2 * x); };
 
 export async function mountExperience(host: HTMLElement, panels: ExperiencePanel[], signal: AbortSignal): Promise<ExperienceController> {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
@@ -180,7 +181,7 @@ export async function mountExperience(host: HTMLElement, panels: ExperiencePanel
       item.group.rotation.y = lerp(from.ry, to.ry, t);
       item.group.visible = o > 0.005;
       // Close-ups leave quickly, so the camera never passes through a plate that is still clear.
-      const shown = SCREENS.includes(item.id) ? Math.min(1, o * 1.4) : o ** 4;
+      const shown = SCREENS.includes(item.id) ? Math.min(1, o * 1.4) : THREE.MathUtils.smoothstep(o, 0.6, 1);
       item.plate.uniforms.opacity.value = shown;
       item.plate.uniforms.dim.value = SCREENS.includes(item.id) ? 1 - Math.min(1, o) : 0;
       item.shadow.uniforms.opacity.value = shown;
