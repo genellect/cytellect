@@ -40,7 +40,7 @@ Cytellect の文書の一覧。利用者は「利用ガイド」から、開発�
 - [群間比較の UX 改善：目標定義書（案）](drafts/group-comparison/goals.md)、[要件定義書（案）](drafts/group-comparison/requirements.md)、[開発体制（案）](drafts/group-comparison/development.md)：レビュー中の下書き
 - [画像の測定ビュー：要件定義書（案）](drafts/image-measurement-view/requirements.md)、[実装案](drafts/image-measurement-view/implementation.md)：画像の色分けを測定の入口にし、何を測っているかと次の一手を画面で示す。2026-11-11 承認、実装中
 - [結果の表現とデモの素材：要件定義書（案）](drafts/results-and-demo-story/requirements.md)、[実装案](drafts/results-and-demo-story/implementation.md)：統計の結果を見出しと箇条書きにし、前提の表示を 1 か所にまとめ、考察を LLM に分け、デモの素材を物語で選ぶ。2026-11-12 に方向性を承認、個々の判断は未決
-- [LP の刷新：実装案](drafts/lp-renewal/implementation.md)：新機能（結果の要約と考察、測れる指標）を現行の画面で示し、世界観をページ全体に延ばす。オーナーの承認待ち
+- [LP の刷新：実装案](drafts/lp-renewal/implementation.md)：「できること」の節で、新機能（結果の要約と考察、測れる指標）を現行デモの画面で示す。オーナーの承認待ち
 - [クラウド開発環境：実装計画（案）](drafts/cloud-development/plan.md)：オーナーの承認待ち
 - [本番構成での動作確認と研究者 UX 評価：実施計画（案）](drafts/cloud-development/verification.md)：オーナーの承認待ち
 - [エージェントによる画面の評価：2026-10-27](drafts/cloud-development/agent-evaluation-2026-10-27.md)：研究者による評価ではない
