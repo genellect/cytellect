@@ -43,7 +43,7 @@ export default function PublicLanding() {
         <HeroFilm />
         <div className={lp.heroShade} />
         <div className={lp.heroCopy}>
-          <h1 id="hero-title" lang="en" aria-label="Get your microscopy publication-ready."><span>Get your</span>{" "}<span>microscopy</span>{" "}<span><em>publication-<br className={lp.mobileBreak} />ready.</em></span></h1>
+          <h1 id="hero-title" lang="en" aria-label="Get your microscopy publication-ready."><span>Get your</span>{" "}<span>microscopy</span>{" "}<span>publication-<br className={lp.mobileBreak} />ready.</span></h1>
           <p className={lp.heroLead}>蛍光顕微鏡の画像をアップロードするだけで、測定・統計から、結論と考察、論文の図まで。</p>
           <div className={lp.heroActions}><Link data-lp-event="example" href="/demo" className={lp.primary}>デモを体験する <Forward /></Link><a data-lp-event="download_section" href="#download" className={lp.heroSecondary}>ダウンロード <span aria-hidden="true">↓</span></a></div>
         </div>

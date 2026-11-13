@@ -91,7 +91,7 @@ Lila は品質の参照先であり、その素材、画面、配色を複製し
 
 幅の広い画面では、4 章が Three.js の 3D 空間の上を流れ、デモの画面をガラスの板として置いた空間を、スクロールに合わせてカメラが進む。動きを減らす設定やスマートフォンでは、同じ画面を重ねた静止の構成で見せる。製品の画面は、公開デモから `apps/web/scripts/capture-lp-evidence.mjs` で撮り、`apps/web/public/marketing/lp-evidence.json` に記録する。
 
-ページ全体では、地を実験室の白と淡い灰に、差し色を培地の桃色 1 色にした。主張の文を明朝体（Noto Serif JP）、英字の見出しをセリフ体（Instrument Serif）、章のラベルを等幅（IBM Plex Mono）にした。使命の地は WebGL のシェーダーで光が流れる面にし、理由の節はピペットの写真を全面に敷き、誘いは冒頭と同じ映像で閉じる。
+ページ全体では、地を実験室の白と淡い灰に、差し色を培地の桃色 1 色にした。書体は現行の Inter と Noto Sans JP のまま。使命の地は WebGL のシェーダーで光が流れる面にし、理由の節はピペットの写真を全面に敷き、誘いは冒頭と同じ映像で閉じる。
 
 **患者へつながる将来性のカード（レビュー案）**
 
@@ -137,7 +137,7 @@ Lila は品質の参照先であり、その素材、画面、配色を複製し
 | 本文 | `px-p-8940473` | 研究の営みの場面（`lp-pipetting.webp`。記録は `photo-provenance.json`）。シャーレの写真（`us-dst8x5ScJPE`）は 2026-10-24 にオーナーの判定で LP から外した | Pexels、Unsplash |
 | 予備 | `us-WCEOtVmk2VY`、`px-p-18959104`（水滴。却下）、`us-6Uu8CSP38AI`（光とガラス。不採用）、`us-tGYrlchfObE`、`us-lQGJCMY5qcM`、`us-UeBFFAPwuj8` | 研究の営みの章と、カットの差し替え候補 | Pexels、Unsplash |
 
-2026-11-13 の刷新（オーナーの判定待ち）では、新しい写真や映像は取得していない。冒頭のヒーロー映像を誘いでも使い、ピペットの写真（`lp-pipetting.webp`）を理由の節の全面に敷く。使命の地は、素材ではなくシェーダーで描く。LP の見出しの書体 3 種（OFL）は `scripts/build_lp_fonts.py` が Google Fonts の配布物から取得し、LP の文字だけに絞る。
+2026-11-13 の刷新（オーナーの判定待ち）では、新しい写真や映像は取得していない。冒頭のヒーロー映像を誘いでも使い、ピペットの写真（`lp-pipetting.webp`）を理由の節の全面に敷く。使命の地は、素材ではなくシェーダーで描く。
 
 LP で既に使っている写真（`photo-lab-automation.webp`、`photo-pipetting.webp`、`photo-microscope.webp`）は [`photo-provenance.json`](../apps/web/public/marketing/photo-provenance.json) に記録がある。
 
@@ -258,6 +258,7 @@ Pexels と Unsplash の素材は、出典表示は不要だが、写っている
 | 構造の限定 | 測る構造（核、核小体）を限定すると、利用者を限定する。パラメータは並べる。「0% → 90%」「92%」と核ごとの表は、一例として載せる |
 | 作り方 | 参照サイトの水準は、制作した映像や 3D、演出した動き、選び抜いた書体から来ている。HTML と CSS だけで絵を作らない。実写素材、WebGL、Three.js など、使える手段を制約せずに選ぶ |
 | 美術方針の扱い | この文書は議論の集積で、固定の要件ではない |
+| 書体 | 現行の書体（Inter と Noto Sans JP）が最も洗練されている。明朝体やセリフ体に替えない |
 
 ## 12. 未決事項
 

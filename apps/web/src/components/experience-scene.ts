@@ -41,7 +41,7 @@ const facing = (pose: Pose, distance: number, right = 0): Pick<Shot, "cam" | "lo
 /** One shot per scroll anchor in LandingExperience: the overview, then each chapter. Measurement has two
  *  shots, so the wide table passes across the frame. */
 const SHOTS: Shot[] = [
-  { cam: [-1.9, 1.35, 9.6], look: [1.3, 0.2, -1.5], shift: 0.23, warm: 0.15, show: [...SCREENS] },
+  { cam: [-1.9, 1.35, 9.6], look: [1.3, 0.2, -1.5], shift: 0.31, warm: 0.15, show: [...SCREENS] },
   { ...facing(AI, 7.2, 0.45), shift: 0.17, warm: 0.2, show: [...SCREENS, "ask"], move: { stats: { o: 0 }, figure: { o: 0 } } },
   { cam: [-0.75, -2.45, 5.3], look: [-0.75, -2.75, 1.1], shift: 0.17, warm: 0.25, show: [...SCREENS, "table"] },
   { cam: [1.55, -2.45, 5.3], look: [1.55, -2.75, 1.1], shift: 0.17, warm: 0.35, show: [...SCREENS, "table"] },

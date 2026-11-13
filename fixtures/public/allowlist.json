@@ -1623,45 +1623,5 @@
     "sha256": "61345285181a8518c5e75a71a9686307039cca30e182799f283c2db31db41017",
     "source": "https://github.com/broadinstitute/cellpainting-gallery",
     "license": "CC0-1.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
-  },
-  "apps/web/public/fonts/lp/IBMPlexMono-LP.woff2": {
-    "sha256": "49a5ea29acffdbf2494420d6cc89eb2931c1987190b1978136b1e14525ceaed4",
-    "source": "https://github.com/google/fonts/tree/main/ofl/ibmplexmono",
-    "license": "OFL-1.1"
-  },
-  "apps/web/public/fonts/lp/IBMPlexMono-OFL.txt": {
-    "sha256": "37784b44044a4ffd9256702b7c0982c37e5c8887ba90c6dca0479aea93dc898d",
-    "source": "https://github.com/google/fonts/tree/main/ofl/ibmplexmono",
-    "license": "OFL-1.1"
-  },
-  "apps/web/public/fonts/lp/InstrumentSerif-Italic.woff2": {
-    "sha256": "dc69b6244d2483d7a6511870d24766a10c913860141502328cbfe35513a71491",
-    "source": "https://github.com/google/fonts/tree/main/ofl/instrumentserif",
-    "license": "OFL-1.1"
-  },
-  "apps/web/public/fonts/lp/InstrumentSerif-OFL.txt": {
-    "sha256": "129ed7618959716959f2941fdd5b49e0ad6e6c1d78726761786a00253d865521",
-    "source": "https://github.com/google/fonts/tree/main/ofl/instrumentserif",
-    "license": "OFL-1.1"
-  },
-  "apps/web/public/fonts/lp/InstrumentSerif-Regular.woff2": {
-    "sha256": "45b10594c671ea3563530badf55085cff364cc8654997b23885b4da826d5c31b",
-    "source": "https://github.com/google/fonts/tree/main/ofl/instrumentserif",
-    "license": "OFL-1.1"
-  },
-  "apps/web/public/fonts/lp/NotoSerifJP-LP.woff2": {
-    "sha256": "8ff09248b0488efcf9f22e04cfd342204e5691c2bdfbf5505cc1b591a6638d0d",
-    "source": "https://github.com/google/fonts/tree/main/ofl/notoserifjp",
-    "license": "OFL-1.1"
-  },
-  "apps/web/public/fonts/lp/NotoSerifJP-OFL.txt": {
-    "sha256": "5e0da210fb04058a8c0087985d2d456b931c2579811a49655721d3cf0c36b6d6",
-    "source": "https://github.com/google/fonts/tree/main/ofl/notoserifjp",
-    "license": "OFL-1.1"
-  },
-  "apps/web/public/fonts/lp/manifest.json": {
-    "sha256": "98ef9638c42b571059b5a14a3f1bd07cbd1ccb82e8c70eb53bf49dd591377648",
-    "source": "https://github.com/google/fonts (subset by scripts/build_lp_fonts.py)",
-    "license": "OFL-1.1"
   }
 }
