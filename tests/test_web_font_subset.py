@@ -25,3 +25,4 @@ def test_font_subset_covers_ui_text():
             if ord(char) not in covered:
                 missing.setdefault(char, path.relative_to(ROOT).as_posix())
     assert not missing, f"Regenerate the font subset; missing: {missing}"
+

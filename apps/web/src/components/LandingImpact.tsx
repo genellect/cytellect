@@ -8,7 +8,7 @@ const PATH = [
 ];
 
 export function LandingImpact() {
-  return <section id="impact" className={lp.impact} aria-labelledby="impact-title">
+  return <section id="impact" className={lp.impact} data-tone="dark" aria-labelledby="impact-title">
     <div className={lp.wide}>
       <div className={lp.impactPanel}>
         <h2 id="impact-title" className={lp.impactTitle} aria-label="研究の先に、待っている患者さんがいる。"><span>研究の先に、</span><span><span>待っている</span><span>患者さんがいる。</span></span></h2>
