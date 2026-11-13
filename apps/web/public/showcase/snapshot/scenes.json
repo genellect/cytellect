@@ -28,7 +28,7 @@
    "reportedChange": {
     "source": "Schmidt ら 2022、Cell Reports、Figure 5A–B と本文：“we detected a comparable nucleolar 5-EU signal (normalized to nucleolar area) in oxaliplatin-treated cells despite a decrease in nucleolar eccentricity”。Figure 1：臨床濃度（約 10 µM）のオキサリプラチンで、核小体（FBL と NPM1）が丸くなる",
     "comparison": "未処理と オキサリプラチン（1 時間）の後、5-EU を 30 分取り込ませた U2OS",
-    "direction": "オキサリプラチンで核小体が丸くなる（離心率が下がる）。核小体の 5-EU（面積あたり）は未処理と同程度で、1 時間では転写はまだ続いている",
+    "direction": "オキサリプラチンで核小体が丸くなる（離心率が下がる）。核小体の 5-EU（面積あたり）は未処理と同程度",
     "quantity": "論文は箱ひげ図（各条件 713 個以上の核小体）で示す。図 5B の各条件の濃度は図の中にあり、本文は「oxaliplatin」とだけ書く。デモは臨床濃度の 10 µM（ファイル名 Ox10）を比べる",
     "scope": "核小体は NPM1 で決め、5-EU は別のチャンネルで測ります。論文の図の 5-EU は核小体の面積あたり（著者のコードでは NPM1 で割った値）で、デモの平均 5-EU とは定義が異なります。",
     "independence": "Rep1–Rep3 は同じ日に連番で撮影されており、独立した実験であることは出典で確認できません。このため、この場面では検定をせず、群ごとの分布と実験回ごとの値を示します。"
