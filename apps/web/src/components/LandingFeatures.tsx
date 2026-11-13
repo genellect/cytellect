@@ -6,40 +6,63 @@ import lp from "./optical-landing.module.css";
 
 const Forward = () => <span aria-hidden="true">→</span>;
 
-type Feature = { id: string; label: string; title: string; lead: string; extra?: ReactNode; link: ReactNode; visual: ReactNode };
+/** Where each tab's evidence opens in the demo (resolved on the server, see lib/showcase/scene-links). */
+export type FeatureLinks = { discussion: string; table: string; figure: string; ask: string };
 
-/** An example instruction and the settings it fills in. */
-const proposal = [
-  ["測る場所", "核"],
-  ["測る値", "GFPの核内平均輝度と、陽性細胞の割合"],
-  ["比べる群", "薬の濃度ごと"],
-  ["統計", "実験の繰り返しを単位にした比較"],
-];
+type Feature = { id: string; label: string; title: string; lead: string; extra?: ReactNode; link: ReactNode; stage: ReactNode };
 
-/** Each tab states one thing Cytellect does in a line, and shows it. */
-const features: Feature[] = [
+const shot = (file: string) => `/marketing/${file}`;
+
+/** The whole screen: it tells the visitor which screen this is. Captured at 1600 × 790. */
+function Screen({ file, alt }: { file: string; alt: string }) {
+  return <img className={lp.stageScreen} src={shot(file)} alt={alt} width={1600} height={790} loading="lazy" />;
+}
+/** The part that carries the claim, in front and large enough to read. Sizes are the capture's CSS pixels. */
+function Focus({ file, alt, width, height }: { file: string; alt: string; width: number; height: number }) {
+  return <img className={lp.stageFocus} src={shot(file)} alt={alt} width={width} height={height} loading="lazy" />;
+}
+
+/** Each tab states one thing Cytellect does in a line, and shows it on one large stage. Every image is a
+ *  capture of the public demo (scripts/capture-lp-evidence.mjs, public/marketing/lp-evidence.json).
+ *  The summary and discussion come first: of everything here, they are worth the most to a researcher. */
+const features = (links: FeatureLinks): Feature[] => [
+  {
+    id: "discussion",
+    label: "要約と考察",
+    title: "結果を読み解く時間を、次の実験を考える時間に。",
+    lead: "解析が終わると、結論の一文と考察が並びます。解釈も、ほかの説明も、次に確かめることも。",
+    link: <Link data-lp-event="demo_statistics" href={links.discussion} className={lp.button}>この結果をデモで開く <Forward /></Link>,
+    stage: <figure className={lp.stage} data-kind="layers">
+      <Screen file="lp-screen-statistics.webp" alt="Cytellectの統計の画面。結果のまとめ、図、解析の設定が並ぶ" />
+      <div className={lp.stageFront} data-width="reading">
+        <Focus file="lp-focus-conclusion.webp" alt="結果のまとめ。「PLK1 KO で、視野あたりの核数が 79〜84% 減少」という結論の一文と、3 回の実験すべてで減少したことを示す要点" width={426} height={180} />
+        <Focus file="lp-focus-discussion.webp" alt="結果の考察。解釈、限界・代替説明、追加検証の 3 つの見出しに、それぞれ箇条書きが並ぶ" width={426} height={305} />
+      </div>
+    </figure>,
+  },
   {
     id: "flow",
     label: "解析の流れ",
     title: "画像を入れるだけ。検出から論文の図まで、一つの画面で。",
     lead: "輪郭を手で描く、表に写す、統計ソフトに移す。その作業がなくなります。",
-    extra: <ol className={lp.flow} aria-label="解析の流れ"><li>画像を読み込む</li><li>細胞構造を自動検出</li><li>統計</li><li>論文の図</li></ol>,
+    extra: <ol className={lp.flow} aria-label="解析の流れ"><li>画像を読み込む</li><li>細胞構造を自動検出</li><li>統計</li><li>結論と考察</li><li>論文の図</li></ol>,
     link: <Link data-lp-event="example" href="/demo" className={lp.button}>デモで操作する <Forward /></Link>,
-    visual: <figure className={lp.screen}><picture><source media="(max-width: 760px)" srcSet="/marketing/lp-workspace-mobile.webp" width={1080} height={871} /><img src="/marketing/lp-workspace.webp" alt="Cytellectのデモ。視野の一覧、核の輪郭を重ねた蛍光画像、核ごとの測定値、解析の設定が一つの画面に並ぶ" width={2880} height={1800} /></picture></figure>,
+    stage: <figure className={lp.stage} data-kind="screen">
+      <Screen file="lp-screen-statistics.webp" alt="Cytellectの画面。実験、画像、統計、グラフの順に進み、統計では結果のまとめと図が並ぶ" />
+    </figure>,
   },
   {
-    id: "nucleoli",
-    label: "自動検出",
-    title: "汎用のAIでは見つからない構造も、検出できます。",
-    lead: "たとえば核小体。汎用のAIでは見つからなかった核小体を、Cytellectは見分けます。",
+    id: "measure",
+    label: "検出と測定",
+    title: "測りたい値が、細胞ひとつひとつに並びます。",
+    lead: "汎用のAIでは見つからなかった核小体まで、輪郭を描かずに検出。細胞ごとに、測った値が一行に並びます。",
     extra: <div className={lp.numbers}>
       <p><strong>0% → 90%</strong><span>核小体の検出率<br />（汎用のAI → Cytellect）</span></p>
       <p><strong>92%</strong><span>核の検出精度</span></p>
     </div>,
-    link: <Link data-lp-event="demo_image" href="/demo?step=image" className={lp.button}>この画像をデモで解析する <Forward /></Link>,
-    visual: <figure className={lp.specimen}>
-      <picture><source media="(max-width: 760px)" srcSet="/marketing/lp-field-mobile.webp" width={1080} height={1080} /><img src="/marketing/lp-field.webp" alt="公開の蛍光画像。青い核と桃色の核小体を、Cytellectが検出した輪郭が囲んでいる" width={1536} height={864} /></picture>
-      <figcaption>公開画像と、Cytellectが検出した核（青）と核小体（桃）の輪郭。数値は研究室の画像と正解付きの公開画像で測ったもので、この画像の結果ではありません。画像：Schmidt, Rohatgi, Brandman (2022), Zenodo, CC BY 4.0</figcaption>
+    link: <Link data-lp-event="demo_image" href={links.table} className={lp.button}>この表をデモで開く <Forward /></Link>,
+    stage: <figure className={lp.stage} data-kind="strip">
+      <div className={lp.stageScroll}><Focus file="lp-focus-table.webp" alt="核ごとの表。1 つの核の行に、核面積、3 つの染色それぞれの積算・平均と背景補正値、核小体の数・面積・核に占める割合・離心率が並ぶ" width={1750} height={373} /></div>
     </figure>,
   },
   {
@@ -47,13 +70,12 @@ const features: Feature[] = [
     label: "AIによる設定",
     title: "やりたいことを一文で。解析の設定は、AIが組み立てます。",
     lead: "どの値を、どの群で、どの検定で比べるか。メニューを一つずつ選ぶ必要はありません。",
-    link: <Link data-lp-event="example" href="/demo" className={lp.button}>デモを体験する <Forward /></Link>,
-    visual: <figure className={lp.prompt}>
-      <p className={lp.before}><span>これまで</span>処理の選択、組み合わせ、条件の調整を、研究者が自分で行ってきた。</p>
-      <p className={lp.ask}><span>Cytellect</span>GFPが核に移った細胞の割合を、薬の濃度ごとに比べたい</p>
-      <span className={lp.arrow} aria-hidden="true">↓</span>
-      <dl className={lp.answer} aria-label="AIが組み立てた設定">{proposal.map(([name, value]) => <div key={name}><dt>{name}</dt><dd>{value}</dd></div>)}</dl>
-      <figcaption>一文から組み立てた設定の例。採用するかはあなたが決め、計算はCytellectの解析処理が行います。</figcaption>
+    link: <Link data-lp-event="example" href={links.ask} className={lp.button}>デモで指示する <Forward /></Link>,
+    stage: <figure className={lp.stage} data-kind="layers">
+      <Screen file="lp-screen-ai.webp" alt="Cytellectの統計の画面。右に AI のパネルが開いている" />
+      <div className={lp.stageFront} data-width="ask">
+        <Focus file="lp-focus-ai.webp" alt="AI への指示「核の数と面積を視野ごとに確認したい」と、組み立てた設定の説明" width={320} height={132} />
+      </div>
     </figure>,
   },
   {
@@ -62,20 +84,24 @@ const features: Feature[] = [
     title: "統計の検定も、論文に載せる図も、クリックだけで。",
     lead: "nは細胞の数ではなく、独立した実験の数。統計の落とし穴を、Cytellectが避けます。",
     extra: <ul className={lp.formats} aria-label="書き出せる形式"><li>SVG</li><li>PDF</li><li>CSV</li></ul>,
-    link: <Link data-lp-event="example" href="/demo" className={lp.button}>デモを体験する <Forward /></Link>,
-    visual: <figure className={lp.paper}>
-      <a href="/marketing/lp-figure.svg" aria-label="図を拡大"><img src="/marketing/lp-figure.svg" alt="公開画像から書き出した図。反復ごとに、未処理とアクチノマイシンD処理の核のNPM1平均輝度を線で結んでいる" width={518.74} height={283.46} /></a>
-      <figcaption>公開画像（Schmidt ら 2022）から書き出した図（核のNPM1平均輝度、反復ごとに未処理とActD処理を結んだもの、n = 3）。この公開データの反復は同じ日の撮影で、独立性は出典に記載がありません。</figcaption>
+    link: <Link data-lp-event="demo_figure" href={links.figure} className={lp.button}>この図をデモで開く <Forward /></Link>,
+    stage: <figure className={lp.stage} data-kind="layers">
+      <Screen file="lp-screen-figure.webp" alt="Cytellectのグラフの画面。実験回ごとの図と、図の設定が並ぶ" />
+      <div className={lp.stageFront} data-width="controls">
+        <Focus file="lp-focus-figure-layout.webp" alt="グラフの設定。図の幅は「2段幅 · 183 mm」、図のレイアウトは「実験回ごと（視野・実験回・平均）」" width={288} height={226} />
+        <Focus file="lp-focus-figure-size.webp" alt="グラフの設定。幅 183 mm、高さ 100 mm、文字 7 pt" width={288} height={250} />
+      </div>
     </figure>,
   },
 ];
 
-export function LandingFeatures() {
+export function LandingFeatures({ links }: { links: FeatureLinks }) {
   const [active, setActive] = useState(0);
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
+  const list = features(links);
   const select = (index: number) => { setActive(index); tabs.current[index]?.focus(); };
   const onKeyDown = (event: KeyboardEvent) => {
-    const last = features.length - 1;
+    const last = list.length - 1;
     const next = event.key === "ArrowRight" ? (active === last ? 0 : active + 1)
       : event.key === "ArrowLeft" ? (active === 0 ? last : active - 1)
       : event.key === "Home" ? 0 : event.key === "End" ? last : null;
@@ -85,19 +111,21 @@ export function LandingFeatures() {
   };
   return <div className={[lp.wide, lp.tabs].join(" ")}>
     <div role="tablist" aria-label="Cytellectでできること" className={lp.tablist} onKeyDown={onKeyDown}>
-      {features.map((feature, index) => <button key={feature.id} ref={node => { tabs.current[index] = node; }} type="button" role="tab"
+      {list.map((feature, index) => <button key={feature.id} ref={node => { tabs.current[index] = node; }} type="button" role="tab"
         id={`feature-tab-${feature.id}`} aria-controls={`feature-${feature.id}`} aria-selected={index === active} tabIndex={index === active ? 0 : -1}
         className={lp.tab} onClick={() => setActive(index)}>{feature.label}</button>)}
     </div>
-    {features.map((feature, index) => <div key={feature.id} role="tabpanel" id={`feature-${feature.id}`} aria-labelledby={`feature-tab-${feature.id}`}
+    {list.map((feature, index) => <div key={feature.id} role="tabpanel" id={`feature-${feature.id}`} aria-labelledby={`feature-tab-${feature.id}`}
       hidden={index !== active} className={lp.panel}>
-      <div>
+      <div className={lp.panelHead}>
         <h3 className={lp.panelTitle}>{feature.title}</h3>
-        <p className={lp.panelLead}>{feature.lead}</p>
-        {feature.extra}
-        {feature.link}
+        <div>
+          <p className={lp.panelLead}>{feature.lead}</p>
+          {feature.extra}
+          {feature.link}
+        </div>
       </div>
-      <div>{feature.visual}</div>
+      {feature.stage}
     </div>)}
   </div>;
 }

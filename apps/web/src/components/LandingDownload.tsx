@@ -16,14 +16,14 @@ export function LandingDownload() {
       <ol className={lp.journey}>
         <li className={lp.stop}>
           <h3>Windows版は無料。</h3>
-          <p>核のセグメンテーションから統計、論文の図まで。画像はPCの外に出ません。</p>
+          <p>検出と測定から、統計、結論の一文、論文の図まで。画像はPCの外に出ません。</p>
           {WINDOWS_RELEASE_URL ? <DownloadStart url={WINDOWS_RELEASE_URL} installer={INSTALLER} />
             : <Link data-lp-event="example" href="/demo" className={lp.primary}>デモを体験する <span aria-hidden="true">→</span></Link>}
           {WINDOWS_RELEASE_URL && <p className={lp.meta}>{INSTALLER ? "インストーラー" : "ZIP"}{PUBLISHED_RELEASE?.url === WINDOWS_RELEASE_URL ? ` ${releaseSize(PUBLISHED_RELEASE.size_bytes)}（v${PUBLISHED_RELEASE.version}）` : ""}<br />Windows 10／11（64ビット）<br /><Link data-lp-event="install_guide" href="/download">インストールの流れ</Link></p>}
         </li>
         <li className={lp.stop}>
           <h3>研究室のクラウドは応相談。</h3>
-          <p>GPU推論とLLMで、核小体や細胞の検出も、解析の設定も。大学内での試験導入は、基本無料です。</p>
+          <p>GPU推論とLLMで、核小体や細胞の検出も、解析の設定も、結果の考察も。大学内での試験導入は、基本無料です。</p>
           <a className={lp.secondary} data-lp-event="consult" href={CONTACT_URL} target="_blank" rel="noopener noreferrer">研究室で導入を相談 <Out /></a>
         </li>
       </ol>
