@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { ExperienceController, ExperiencePanel } from "./experience-scene";
 import lp from "./optical-landing.module.css";
 
@@ -84,9 +84,9 @@ const chapters = (links: FeatureLinks): Chapter[] => [
   },
 ];
 
-/** What Cytellect does, one tab at a time: detection and measurement first, then the summary and discussion. On a wide screen with motion
- *  allowed, the tabs sit beside one 3D space and the camera flies to the chosen screen; elsewhere (phones,
- *  reduced motion, no WebGL) the chosen tab shows the same screens as glass plates. */
+/** What Cytellect does, one feature at a time: detection and measurement first, then the summary and discussion. On a wide screen with motion
+ *  allowed, the list sits beside one 3D space and the camera flies to the chosen screen; elsewhere (phones,
+ *  reduced motion, no WebGL) the open feature shows the same screens as glass plates. */
 export function LandingExperience({ links }: { links: FeatureLinks }) {
   const host = useRef<HTMLDivElement>(null);
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -129,8 +129,8 @@ export function LandingExperience({ links }: { links: FeatureLinks }) {
     return () => { wide.removeEventListener("change", sync); still.removeEventListener("change", sync); stop(); };
   }, [links]);
 
-  // With the 3D space, the tour plays by itself: each card fills a line along its top, then the next one opens.
-  // It pauses while the pointer rests on the cards, the tour is off screen or the tab is hidden, and stops for
+  // With the 3D space, the tour plays by itself: the open feature fills a line down its edge, then the next one
+  // opens. It pauses while the pointer rests on the list, the tour is off screen or the tab is hidden, and stops for
   // good once the visitor chooses a card.
   const tour = useRef<HTMLDivElement>(null);
   const [auto, setAuto] = useState(true);
@@ -154,21 +154,8 @@ export function LandingExperience({ links }: { links: FeatureLinks }) {
     activeRef.current = index;
     if (chosen) setAuto(false);
     if (focus) tabs.current[index]?.focus();
-    // On a phone the cards scroll sideways; bring the chosen one into view.
-    const tab = tabs.current[index], rail = tab?.parentElement;
-    if (tab && rail && rail.scrollWidth > rail.clientWidth) rail.scrollTo({ left: tab.offsetLeft - parseFloat(getComputedStyle(rail).paddingLeft), behavior: "smooth" });
     scene.current?.show(list[index].shot, list[index].then);
   };
-  const onKeyDown = (event: KeyboardEvent) => {
-    const last = list.length - 1;
-    const next = ["ArrowRight", "ArrowDown"].includes(event.key) ? (active === last ? 0 : active + 1)
-      : ["ArrowLeft", "ArrowUp"].includes(event.key) ? (active === 0 ? last : active - 1)
-      : event.key === "Home" ? 0 : event.key === "End" ? last : null;
-    if (next === null) return;
-    event.preventDefault();
-    select(next, true);
-  };
-
   return <section id="workflow" className={lp.experience} data-mode={mode} aria-labelledby="workflow-title">
     <header className={lp.experienceIntro}>
       <p className={lp.eyebrow}><span>Cytellect</span>画像から、論文まで</p>
@@ -178,34 +165,35 @@ export function LandingExperience({ links }: { links: FeatureLinks }) {
     <div ref={tour} className={lp.tour}>
       <div className={lp.experienceStage} aria-hidden="true"><div ref={host} className={lp.experienceCanvas} /><div className={lp.experienceVeil} /></div>
       <div className={lp.tourInner}>
-        <div role="tablist" aria-label="Cytellectでできること" aria-orientation="horizontal" className={lp.tablist} onKeyDown={onKeyDown}
-          onPointerEnter={() => setHover(true)} onPointerLeave={() => setHover(false)}>
-          {list.map((chapter, index) => <button key={chapter.id} ref={node => { tabs.current[index] = node; }} type="button" role="tab"
-            id={`feature-tab-${chapter.id}`} aria-controls={`feature-${chapter.id}`} aria-selected={index === active} tabIndex={index === active ? 0 : -1}
-            aria-label={chapter.label} className={lp.tab} onClick={() => select(index)}>
-            <span className={lp.tabNumber} aria-hidden="true">{chapter.number}</span>
-            <b>{chapter.label}</b>
-            <span className={lp.tabTeaser}>{chapter.teaser}</span>
-            {playing && index === active && <span key={active} className={lp.tabProgress} aria-hidden="true" data-running={running}
+        {/* One list is both the switch and the content: each feature opens in place to its claim and its way
+            into the demo, and the others stay visible, each saying in a line what is behind it. */}
+        <ol className={lp.features} aria-label="Cytellectでできること" onPointerEnter={() => setHover(true)} onPointerLeave={() => setHover(false)}>
+          {list.map((chapter, index) => <li key={chapter.id} className={lp.feature} data-open={index === active} data-chapter={chapter.id}>
+            <button ref={node => { tabs.current[index] = node; }} type="button" id={`feature-tab-${chapter.id}`} aria-expanded={index === active}
+              aria-controls={`feature-${chapter.id}`} className={lp.featureHead} onClick={() => select(index)}>
+              <span className={lp.featureNumber} aria-hidden="true">{chapter.number}</span>
+              <b>{chapter.label}</b>
+              <span className={lp.featureTeaser}>{chapter.teaser}</span>
+              <span className={lp.featureIcon} aria-hidden="true" />
+            </button>
+            {playing && index === active && <span key={active} className={lp.featureProgress} aria-hidden="true" data-running={running}
               onAnimationEnd={() => select((active + 1) % list.length, false, false)} />}
-          </button>)}
-        </div>
-        {list.map((chapter, index) => <div key={chapter.id} role="tabpanel" id={`feature-${chapter.id}`} aria-labelledby={`feature-tab-${chapter.id}`}
-          hidden={index !== active} className={lp.chapter} data-chapter={chapter.id}>
-          <div className={lp.chapterText}>
-            <h3 className={lp.chapterTitle}>{chapter.title}</h3>
-            <p className={lp.chapterLead}>{chapter.lead}</p>
-            {chapter.extra}
-            {chapter.link}
-          </div>
-          <figure className={lp.plates} data-kind={chapter.kind}>
-            {chapter.back && <Img plate={chapter.back} className={lp.plateBack} />}
-            {chapter.kind === "strip"
-              ? <div className={lp.plateScroll}><Img plate={chapter.front[0]} className={lp.plateWide} /></div>
-              : <div className={lp.plateFront}>{chapter.front.map(plate => <Img key={plate.file} plate={plate} className={lp.plate} />)}</div>}
-          </figure>
-          <button type="button" className={lp.next} onClick={() => select((index + 1) % list.length)}>次は、{list[(index + 1) % list.length].label} <Forward /></button>
-        </div>)}
+            <div role="region" id={`feature-${chapter.id}`} aria-labelledby={`feature-tab-${chapter.id}`} hidden={index !== active} className={lp.chapter}>
+              <div className={lp.chapterText}>
+                <h3 className={lp.chapterTitle}>{chapter.title}</h3>
+                <p className={lp.chapterLead}>{chapter.lead}</p>
+                {chapter.extra}
+                {chapter.link}
+              </div>
+              <figure className={lp.plates} data-kind={chapter.kind}>
+                {chapter.back && <Img plate={chapter.back} className={lp.plateBack} />}
+                {chapter.kind === "strip"
+                  ? <div className={lp.plateScroll}><Img plate={chapter.front[0]} className={lp.plateWide} /></div>
+                  : <div className={lp.plateFront}>{chapter.front.map(plate => <Img key={plate.file} plate={plate} className={lp.plate} />)}</div>}
+              </figure>
+            </div>
+          </li>)}
+        </ol>
       </div>
     </div>
   </section>;
