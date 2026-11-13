@@ -37,18 +37,7 @@ type Chapter = {
 
 const chapters = (links: FeatureLinks): Chapter[] => [
   {
-    id: "discussion", number: "01", label: "要約と考察", shot: 4, kind: "layers",
-    title: "結果を読み解く時間を、次の実験を考える時間に。",
-    lead: "解析が終わると、結論の一文と考察が並びます。解釈も、ほかの説明も、次に確かめることも。",
-    link: <Link data-lp-event="demo_statistics" href={links.discussion} className={lp.button}>この結果をデモで開く <Forward /></Link>,
-    back: { file: "lp-screen-statistics.webp", alt: "Cytellectの統計の画面。結果のまとめ、図、解析の設定が並ぶ", width: 1600, height: 790 },
-    front: [
-      { file: "lp-focus-conclusion.webp", alt: "結果のまとめ。「PLK1 KO で、視野あたりの核数が 79〜84% 減少」という結論の一文と、3 回の実験すべてで減少したことを示す要点", width: 426, height: 180 },
-      { file: "lp-focus-discussion.webp", alt: "結果の考察。解釈、限界・代替説明、追加検証の 3 つの見出しに、それぞれ箇条書きが並ぶ", width: 426, height: 305 },
-    ],
-  },
-  {
-    id: "measure", number: "02", label: "検出と測定", shot: 2, then: 3, kind: "strip",
+    id: "measure", number: "01", label: "検出と測定", shot: 2, then: 3, kind: "strip",
     title: "測りたい値が、細胞ひとつひとつに並びます。",
     lead: "汎用のAIでは見つからない構造まで、輪郭を一つも描かずに。測った値は、細胞ごとに一行に並びます。",
     extra: <>
@@ -63,6 +52,17 @@ const chapters = (links: FeatureLinks): Chapter[] => [
     </>,
     link: <Link data-lp-event="demo_image" href={links.table} className={lp.button}>この表をデモで開く <Forward /></Link>,
     front: [{ file: "lp-focus-table.webp", alt: "核ごとの表。1 つの核の行に、核面積、3 つの染色それぞれの積算・平均と背景補正値、核小体の数・面積・核に占める割合・離心率が並ぶ", width: 1750, height: 373 }],
+  },
+  {
+    id: "discussion", number: "02", label: "要約と考察", shot: 4, kind: "layers",
+    title: "結果を読み解く時間を、次の実験を考える時間に。",
+    lead: "解析が終わると、結論の一文と考察が並びます。解釈も、ほかの説明も、次に確かめることも。",
+    link: <Link data-lp-event="demo_statistics" href={links.discussion} className={lp.button}>この結果をデモで開く <Forward /></Link>,
+    back: { file: "lp-screen-statistics.webp", alt: "Cytellectの統計の画面。結果のまとめ、図、解析の設定が並ぶ", width: 1600, height: 790 },
+    front: [
+      { file: "lp-focus-conclusion.webp", alt: "結果のまとめ。「PLK1 KO で、視野あたりの核数が 79〜84% 減少」という結論の一文と、3 回の実験すべてで減少したことを示す要点", width: 426, height: 180 },
+      { file: "lp-focus-discussion.webp", alt: "結果の考察。解釈、限界・代替説明、追加検証の 3 つの見出しに、それぞれ箇条書きが並ぶ", width: 426, height: 305 },
+    ],
   },
   {
     id: "ask", number: "03", label: "AIによる設定", shot: 1, kind: "layers",
@@ -85,7 +85,7 @@ const chapters = (links: FeatureLinks): Chapter[] => [
   },
 ];
 
-/** What Cytellect does, one tab at a time, the summary and discussion first. On a wide screen with motion
+/** What Cytellect does, one tab at a time: detection and measurement first, then the summary and discussion. On a wide screen with motion
  *  allowed, the tabs sit beside one 3D space and the camera flies to the chosen screen; elsewhere (phones,
  *  reduced motion, no WebGL) the chosen tab shows the same screens as glass plates. */
 export function LandingExperience({ links }: { links: FeatureLinks }) {
@@ -130,6 +130,16 @@ export function LandingExperience({ links }: { links: FeatureLinks }) {
     return () => { wide.removeEventListener("change", sync); still.removeEventListener("change", sync); stop(); };
   }, [links]);
 
+  // The segmented control's filled pill slides under the chosen tab.
+  const [pill, setPill] = useState<{ left: number; width: number } | null>(null);
+  useEffect(() => {
+    const place = () => { const tab = tabs.current[active]; if (tab) setPill({ left: tab.offsetLeft, width: tab.offsetWidth }); };
+    place();
+    addEventListener("resize", place);
+    document.fonts?.ready.then(place);
+    return () => removeEventListener("resize", place);
+  }, [active, mode]);
+
   const select = (index: number, focus = false) => {
     setActive(index);
     activeRef.current = index;
@@ -155,7 +165,8 @@ export function LandingExperience({ links }: { links: FeatureLinks }) {
     <div className={lp.tour}>
       <div className={lp.experienceStage} aria-hidden="true"><div ref={host} className={lp.experienceCanvas} /><div className={lp.experienceVeil} /></div>
       <div className={lp.tourInner}>
-        <div role="tablist" aria-label="Cytellectでできること" aria-orientation={mode === "space" ? "vertical" : "horizontal"} className={lp.tablist} onKeyDown={onKeyDown}>
+        <div role="tablist" aria-label="Cytellectでできること" aria-orientation="horizontal" className={lp.tablist} onKeyDown={onKeyDown}>
+          {pill && <span className={lp.tabPill} style={{ transform: `translateX(${pill.left}px)`, width: pill.width }} aria-hidden="true" />}
           {list.map((chapter, index) => <button key={chapter.id} ref={node => { tabs.current[index] = node; }} type="button" role="tab"
             id={`feature-tab-${chapter.id}`} aria-controls={`feature-${chapter.id}`} aria-selected={index === active} tabIndex={index === active ? 0 : -1}
             className={lp.tab} onClick={() => select(index)}><span aria-hidden="true">{chapter.number}</span>{chapter.label}</button>)}

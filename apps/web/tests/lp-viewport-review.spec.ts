@@ -13,6 +13,7 @@ test('hero actions remain reachable and the film poster fills the hero in every 
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);if(dir)await page.screenshot({path:path.join(dir,`hero-${width}x${height}.png`)});
  }
  await expect(page.getByText('© 2026 Genellect Inc. All rights reserved.',{exact:true})).toBeVisible();
+ await page.getByRole('tab',{name:'要約と考察'}).click();
  for(const width of [1440,390]){await page.setViewportSize({width,height:900});const screen=page.getByAltText(/^結果の考察。/);await screen.scrollIntoViewIfNeeded();await expect.poll(()=>screen.evaluate((img:HTMLImageElement)=>img.complete&&img.naturalWidth>0)).toBe(true);expect(await screen.evaluate((img:HTMLImageElement)=>{const s=getComputedStyle(img),x=parseFloat(s.paddingLeft)+parseFloat(s.paddingRight),y=parseFloat(s.paddingTop)+parseFloat(s.paddingBottom);return Math.abs((img.clientWidth-x)/(img.clientHeight-y)-img.naturalWidth/img.naturalHeight);})).toBeLessThan(.01);expect(await screen.evaluate((img:HTMLImageElement)=>img.getBoundingClientRect().right<=innerWidth)).toBe(true);if(dir)await page.screenshot({path:path.join(dir,`evidence-${width}.png`)});}
  if(dir){await page.locator('footer').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(dir,'footer-mobile.png')});}
 });

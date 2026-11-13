@@ -141,7 +141,6 @@ test("the analysis workspace and other routes, standalone frame, localhost and p
 test("blocking Google leaves navigation usable", async ({page, baseURL}) => {
   await isolatedSite(page, baseURL!, true);
   await page.goto(origin + "/");
-  await page.getByRole("tab", { name: "検出と測定" }).click();
   await page.locator('[data-lp-event="demo_image"]').click();
   await expect(page).toHaveURL(url => url.origin === origin && url.pathname === "/demo" && url.searchParams.get("step") === "image" && /^[0-9a-f-]{36}$/.test(url.searchParams.get("id") ?? ""));
   await expect(page.getByRole("link", { name: "cytellect" }).first()).toBeVisible();
