@@ -251,7 +251,9 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み", {exact: true}).check();
   await panel.getByLabel("測定領域と採用する視野を確認済み", {exact: true}).check();
   // E-05: without the independence statement the comparison is descriptive: run values and differences, no test or interval.
-  await expect(panel.getByRole("status").filter({hasText: "検定と信頼区間は計算せず、実験回ごとの値と差を示します。"})).toBeVisible();
+  const method = panel.getByRole("combobox", {name: "方法", exact: true});
+  await expect(method).toHaveValue("none");
+  await expect(method).toBeDisabled();
   await expect(panel.getByRole("combobox", {name: "解析", exact: true}).locator("option[value=association]")).toHaveAttribute("disabled", "");
   await expect(panel.getByRole("button", {name: "計算", exact: true})).toBeEnabled();
   const described = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname.endsWith("/common-statistics"), {timeout: 300_000});
@@ -261,7 +263,8 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   const describedJob = ((await describedResponse.json()) as {job_id: string}).job_id;
   const descriptive = panel.getByRole("region", {name: "結果のまとめ"});
   // The premise is stated once, in the basis line (RS-04, NT-01); the points carry the runs (RS-03).
-  await expect(descriptive.locator("summary").filter({hasText: /^記述統計 · n = 3 回/})).toBeVisible({timeout: 300_000});
+  const descriptiveBasis = descriptive.locator("summary").filter({hasText: /^記述統計 · n = 3 回/});
+  await expect(descriptiveBasis).toBeVisible({timeout: 300_000});
   await expect(descriptive.getByRole("listitem").filter({hasText: /^3 回の実験すべてで減少$/})).toBeVisible();
   await expect(descriptive).toContainText("n は記録した実験回の数です。核や視野の数は n ではありません。");
   await expect(descriptive).not.toContainText("95% 信頼区間");
@@ -294,12 +297,15 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
 
   // A separate path: after the researcher confirms independence, the declared paired t test is offered.
   // This checks the inferential route only; the JUMP source does not state that the runs are independent.
-  await panel.getByRole("button", {name: "実験デザインを編集", exact: true}).first().click();
+  await descriptiveBasis.click();
+  await expect(descriptive.getByText(/実験回の独立性が未確認のため、検定と信頼区間は算出していません。/)).toBeVisible();
+  await descriptive.getByRole("button", {name: "実験デザインを編集", exact: true}).click();
   await setup.getByRole("checkbox", {name: /各実験回は独立に行った/}).check();
   await expect(setup.getByRole("checkbox", {name: /各実験回は独立に行った/})).toBeChecked();
   await expect(issues).not.toContainText("独立性：未確認");
   await page.getByRole("navigation", {name: "作業の切替"}).getByRole("button", {name: "統計", exact: true}).click();
-  await expect(panel.getByRole("status").filter({hasText: "実験回ごとの値と差を示します"})).toHaveCount(0);
+  await expect(method).toHaveValue("parametric");
+  await expect(method).toBeEnabled();
   await expect(panel.getByRole("combobox", {name: "解析", exact: true})).toHaveValue("comparison");
   if (!await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み", {exact: true}).isChecked()) await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み", {exact: true}).check();
   if (!await panel.getByLabel("測定領域と採用する視野を確認済み", {exact: true}).isChecked()) await panel.getByLabel("測定領域と採用する視野を確認済み", {exact: true}).check();
