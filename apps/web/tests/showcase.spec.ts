@@ -23,6 +23,8 @@ const sceneUrl = (scene: Scene | undefined, query = "") => scene ? `/demo?id=${s
 const OPENING = SCENES[0];
 /** The scene with nucleoli and a measured stain besides the nuclear one, for the nucleolar checks. */
 const NUCLEOLAR = SCENES.find(scene => scene.regions.includes("nucleoli"));
+/** A scene with nuclei only (its fields hold hundreds of nuclei, so no deletion is recorded there). */
+const NUCLEI_ONLY = SCENES.find(scene => !scene.regions.includes("nucleoli"));
 const scopeText = (scene: Scene | undefined) => (scene?.assistantScope ?? "このデモは、記録した公開画像の解析だけに答えます。").slice(0, 20);
 
 test.describe.configure({mode: "serial"});
@@ -111,8 +113,13 @@ async function clickRegion(page: Page, id: number) {
   await page.mouse.click(point.x, point.y);
 }
 async function selectRegion(page: Page, id: number) {
-  await clickRegion(page, id);
-  await expect(page.locator(`svg path[data-region="${id}"]`)).toHaveAttribute("aria-pressed", "true");
+  const region = page.locator(`svg path[data-region="${id}"]`);
+  // The pointer position is read from the outline as drawn: while the view still settles after 「画像全体を表示」, a
+  // click can land beside it, so it is clicked again (only while not selected) until the outline is selected.
+  await expect(async () => {
+    if (await region.getAttribute("aria-pressed") !== "true") await clickRegion(page, id);
+    await expect(region).toHaveAttribute("aria-pressed", "true", {timeout: 2_000});
+  }).toPass({timeout: 20_000});
 }
 
 test("demo: image, outline, measurement, statistics and figure features run without errors", async ({page}) => {
@@ -223,12 +230,15 @@ test("demo: image, outline, measurement, statistics and figure features run with
   await tableButton.click();
   await expect(page.locator(`svg path[data-region="${tableId}"]`)).toHaveAttribute("aria-pressed", "true");
 
-  // A correction the visitor draws is not recorded: it is explained at once, never waited for.
+  // A correction the recording does not hold is explained at once, never waited for. One deletion from an
+  // opening field of a nucleolar scene is recorded; the next one is not.
   const count = async () => (await regionBoxes(page)).length;
-  const initial = await count();
-  await selectRegion(page, (await largestRegion(page)).id);
+  const remove = async () => {await selectRegion(page, (await largestRegion(page)).id); await page.getByRole("button", {name: "選択領域を削除", exact: true}).click();};
+  let initial = await count();
+  await remove();
+  await expect.poll(async () => await notRecorded(page).count() > 0 || await count() < initial, {timeout: live}).toBe(true);
+  if (!await notRecorded(page).count()) {initial = await count(); await remove();}
   const started = Date.now();
-  await page.getByRole("button", {name: "選択領域を削除", exact: true}).click();
   await expect(notRecorded(page)).toBeVisible({timeout: 5000});
   expect(Date.now() - started).toBeLessThan(5000);
   expect(await count()).toBe(initial);
@@ -279,6 +289,23 @@ test("demo: image, outline, measurement, statistics and figure features run with
   await expect(notRecorded(page)).toHaveCount(0);
 
   await noOverflow(page);
+  await noErrors(page, watch);
+});
+
+test("the demo opens on a scene of several stains, its nuclei side by side with every value of each nucleus (DM-02, DM-03, C-21)", async ({page}) => {
+  test.skip(SCENES.length > 0 && !OPENING.regions.includes("nucleoli"), "The published demo does not open on a scene with nucleoli.");
+  const watch = await openDemo(page, "/demo");
+  await expect(page.locator("[class*=channelBar]").getByRole("combobox", {name: "領域", exact: true})).toHaveValue("nuclei", {timeout: live});
+  await expect(page.getByRole("button", {name: "2 画面", exact: true})).toHaveAttribute("aria-pressed", "true");
+  const tables = page.getByRole("table", {name: "核ごとの表"});
+  await expect(tables).toHaveCount(2, {timeout: live});
+  const heads = (await tables.first().locator("thead th").allTextContents()).join(" ");
+  // Each nucleus's row holds three stains and its nucleoli.
+  for (const stain of ["Hoechst", "NPM1", "5-EU"]) expect(heads).toContain(stain);
+  for (const column of ["核小体数", "核小体の面積", "離心率"]) expect(heads).toContain(column);
+  // Statistics still open on the scene's story.
+  await page.locator("header").getByRole("button", {name: "統計", exact: true}).click();
+  await expect(page.getByRole("region", {name: "結果のまとめ"}).getByRole("heading", {level: 3})).toContainText("核小体", {timeout: live});
   await noErrors(page, watch);
 });
 
@@ -524,7 +551,8 @@ test("measuring nucleoli or nucleoplasm, then statistics of the nuclei, shows re
 });
 
 test("operations the recording does not hold are explained at once, without the in-browser API", async ({page}) => {
-  const watch = await openDemo(page);
+  // The nuclei-only scene: its fields hold hundreds of nuclei, so no deletion is recorded there.
+  const watch = await openDemo(page, sceneUrl(NUCLEI_ONLY ?? OPENING));
   const header = page.locator("header");
   await expect(regions(page).first()).toBeAttached({timeout: live});
   const inspector = await openSettings(page);
@@ -538,7 +566,7 @@ test("operations the recording does not hold are explained at once, without the 
   await expect(recorded).toContainText("0.5");
   await expect(inspector.getByRole("combobox", {name: "領域", exact: true}).locator("option[value=cell]")).toHaveCount(0);
   // A scene without a stain worth classifying by offers no classification.
-  if (OPENING?.gateChannels && !OPENING.gateChannels.length) await expect(page.getByRole("toolbar", {name: "画像の表示"}).getByRole("combobox", {name: "色分け", exact: true}).locator("option[value=positivity]")).toHaveAttribute("disabled", "");
+  if (NUCLEI_ONLY?.gateChannels && !NUCLEI_ONLY.gateChannels.length) await expect(page.getByRole("toolbar", {name: "画像の表示"}).getByRole("combobox", {name: "色分け", exact: true}).locator("option[value=positivity]")).toHaveAttribute("disabled", "");
   // A hand correction of an outline side by side is explained at once, as in one field: each pane has the same tools.
   const pair = page.getByRole("button", {name: "2 画面", exact: true});
   if (await pair.getAttribute("aria-pressed") === "true") {
@@ -643,6 +671,10 @@ test("measuring again with another background correction is answered from the re
   await page.locator("header").getByRole("button", {name: "測定", exact: true}).click();
   await expect(page.locator("header [role=status]").first()).toHaveText("", {timeout: live});
   await expect(notRecorded(page)).toHaveCount(0);
+  // The statistics view then compares the new measurement: the opening result's region is for the first look only.
+  await page.locator("header").getByRole("button", {name: "統計", exact: true}).click();
+  await expect(page.getByRole("complementary", {name: "解析対象"}).getByRole("combobox", {name: "領域", exact: true})).toHaveValue("nuclei");
+  await expect(notRecorded(page)).toHaveCount(0);
   await noErrors(page, watch);
 });
 
@@ -681,7 +713,7 @@ test("statistics of nucleoli, nucleoplasm and nucleolar measures show results, d
   // Both changes the source reports, recorded before measurement, are one click apart (goals C7).
   const recorded = results.getByRole("group", {name: "保存した比較"});
   await expect(recorded.getByRole("button")).toHaveCount(2, {timeout: live});
-  const sentence = results.getByRole("region", {name: "結果のまとめ"}).locator("p").first();
+  const sentence = results.getByRole("region", {name: "結果のまとめ"}).getByRole("heading", {level: 3});
   // The opening comparison names its region and channel, and the side panel already agrees with it.
   await expect(sentence).toContainText("核小体の平均輝度（eu5）");
   await expect(results.getByRole("status").filter({hasText: /前の結果|記録した結果/})).toHaveCount(0);
@@ -706,12 +738,36 @@ test("statistics of nucleoli, nucleoplasm and nucleolar measures show results, d
     await expect(notRecorded(page)).toHaveCount(0);
   }
   // Without confirmed independence the comparison is descriptive and an association is not offered (E-05).
-  await expect(results.getByRole("region", {name: "結果のまとめ"})).toContainText("検定なし（記述のみ）");
+  await expect(results.getByRole("region", {name: "結果のまとめ"})).toContainText("記述統計 · n = 3 回");
   await expect(operation.locator("option[value=association]")).toHaveAttribute("disabled", "");
   // The last result's figure.
   await header.getByRole("button", {name: "グラフ", exact: true}).click();
   await renderFigure(page);
   await noErrors(page, watch);
+});
+
+test("the statistics view states the premise once, in the basis line, and opens it to why (NT-01, NT-02, C-04, C-05, C-07)", async ({page}) => {
+  for (const scene of SCENES.length ? SCENES : [undefined]) {
+    await openDemo(page, sceneUrl(scene, "step=statistics"));
+    const results = page.getByRole("region", {name: "測定結果の統計解析"});
+    const summary = results.getByRole("region", {name: "結果のまとめ"});
+    await expect(summary).toBeVisible({timeout: live});
+    // Statements of the premise visible on the whole statistics view (the method's disabled value 「記述統計」 is a state, not a statement).
+    const statements = await page.locator("main").evaluate(root => [...root.querySelectorAll("p, li, h3, summary")]
+      .filter(element => (element as HTMLElement).offsetParent !== null && !element.closest("details:not([open]) > :not(summary)"))
+      .map(element => element.textContent ?? "")
+      // The folded counts table names its unit column (独立実験単位); it is a heading, not a statement of the premise.
+      .filter(text => /独立|検定なし|記述のみ|記述統計/.test(text) && !text.startsWith("数の内訳")));
+    expect(statements, scene?.id).toHaveLength(1);
+    expect(statements[0]).toMatch(/^記述統計/);
+    // The basis line opens to the reason and the one place to fix it.
+    await summary.locator("summary").filter({hasText: /^記述統計/}).click();
+    await expect(summary).toContainText("実験回の独立性が未確認のため、検定と信頼区間は算出していません。");
+    await expect(summary.getByRole("button", {name: "実験デザインを編集"})).toBeVisible();
+    // The always-visible text of the summary (without the run table and the folded parts) stays short.
+    const visible = await summary.evaluate(root => [...root.querySelectorAll(":scope > h3, :scope > ul, :scope > p")].map(element => element.textContent ?? "").join("").length);
+    expect(visible, scene?.id).toBeLessThanOrEqual(230);
+  }
 });
 
 test("a per-nucleus nucleolar result is read and checked on the nucleoli, and unresolved nuclei stay counted as missing", async ({page}) => {

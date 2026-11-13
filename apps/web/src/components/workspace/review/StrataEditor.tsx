@@ -23,7 +23,7 @@ export function StrataEditor({design,locked,readOnly,onSave}:{design:ExperimentD
   // A typed factor is checked only once something was typed; the reason is shown next to the disabled button.
   const factorIssue=factorLabel||levelLabels?factorProblem(design,factorLabel,levels(levelLabels)):null;
   const factorForm=(apply:(label:string,values:string[])=>Promise<boolean>,button:string)=><div className={styles.addRun}>
-    <label>何で分けるか<input value={factorLabel} maxLength={LABEL_LIMIT} placeholder="例：細胞株、時点" onChange={event=>setFactorLabel(event.target.value)}/></label>
+    <label>因子<input value={factorLabel} maxLength={LABEL_LIMIT} placeholder="例：細胞株、時点" onChange={event=>setFactorLabel(event.target.value)}/></label>
     <label>水準（「、」区切り）<input value={levelLabels} placeholder="例：条件 A、条件 B" onChange={event=>setLevelLabels(event.target.value)}/></label>
     <button disabled={locked||!factorLabel||!levelLabels||!!factorIssue}
       onClick={()=>{void apply(factorLabel,levels(levelLabels)).then(saved=>{if(saved){setFactorLabel("");setLevelLabels("");}});}}>{button}</button>
@@ -32,9 +32,9 @@ export function StrataEditor({design,locked,readOnly,onSave}:{design:ExperimentD
 
   // Most designs hold nothing else fixed: the option stays folded until the researcher opens it.
   if(!isStratified(design))return <section className={styles.strata} aria-label="層">
-    <details><summary><h2 className={styles.inlineHeading}>層で分けて比べる（任意。例：細胞株、時点）</h2></summary>
-      <p>層ごとに 2 つの群を比べます。層をまたいで値を合わせたり、層どうしを比べたりはしません。各視野の層は、ここで宣言し、表で選んだものだけを使います。</p>
-      {!readOnly&&factorForm((label,values)=>onSave(declareStrata(design,label,values)),"層を宣言（各水準を 1 つの層にする）")}
+    <details><summary><h2 className={styles.inlineHeading}>層別（任意）</h2></summary>
+      <p>層（細胞株、時点など）ごとに 2 群を比較します。層の統合・層間の比較はしません。</p>
+      {!readOnly&&factorForm((label,values)=>onSave(declareStrata(design,label,values)),"層を宣言")}
     </details>
   </section>;
 
@@ -45,8 +45,8 @@ export function StrataEditor({design,locked,readOnly,onSave}:{design:ExperimentD
   const complete=Object.keys(chosen).length===design.factors.length;
   const comboIssue=complete?stratumProblem(design,chosen,comboLabel):null;
   return <section className={styles.strata} aria-label="層">
-    <h2>層（比較の中で固定する条件）</h2>
-    <p>層ごとに 2 つの群を比べます。層をまたいで値を合わせたり、層どうしを比べたりはしません。層は、それぞれの因子の水準を 1 つずつ選んで宣言します。</p>
+    <h2>層別</h2>
+    <p>層ごとに 2 群を比較します。層の統合・層間の比較はしません。層は各因子の水準の組み合わせで宣言します。</p>
     <ul className={styles.factors} aria-label="因子と水準">{design.factors.map(factor=><li key={factor.id}>
       <strong>{factor.label}</strong>：{factor.levels.map(level=><span key={level.id} className={styles.level}>{level.label}
         {!readOnly&&factor.levels.length>1&&<button className={styles.remove} aria-label={`水準 ${level.label} を外す`} disabled={locked}
