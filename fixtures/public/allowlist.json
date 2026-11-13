@@ -120,7 +120,7 @@
     "license": "Unsplash License"
   },
   "apps/web/public/marketing/photo-provenance.json": {
-    "sha256": "a011ff282c88d80aa9cdd7228daf06dfeb15ccbe53179eed8f85ce2b90d27f7a",
+    "sha256": "2b4358c5a6076b41f715144e5cf4d38d412c87cf644fd8282ec666f909912497",
     "source": "https://unsplash.com/license",
     "license": "Source metadata; image-specific licenses recorded in manifest"
   },
@@ -1623,5 +1623,10 @@
     "sha256": "61345285181a8518c5e75a71a9686307039cca30e182799f283c2db31db41017",
     "source": "https://github.com/broadinstitute/cellpainting-gallery",
     "license": "CC0-1.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/lp-atmosphere.webp": {
+    "sha256": "82f274457cde0d655e48f0c4374c6800720b3b59596609be866f74ab90f2cc56",
+    "source": "https://www.pexels.com/photo/person-doing-an-experiment-3992927/",
+    "license": "Pexels License"
   }
 }
