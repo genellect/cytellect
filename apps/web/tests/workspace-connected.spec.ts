@@ -99,7 +99,7 @@ for (const viewport of [{width:1920,height:1080},{width:1440,height:900},{width:
   await expect(page.getByRole("button", {name: /^2 画面/})).toBeEnabled();
   await page.getByTestId("file-input").setInputFiles([{name: "A01_c1.tif", mimeType: "image/tiff", buffer: Buffer.from([1, 2, 3])}, {name: "A01_c2.tif", mimeType: "image/tiff", buffer: Buffer.from([4, 5, 6])}]);
   // Images added before the form is chosen wait for it; one screen takes them and opens on them.
-  await expect(page.getByRole("status").filter({hasText: "画像 2 件を受け取りました。"})).toBeVisible();
+  await expect(page.getByRole("status").filter({hasText: "受け取った画像：2 件。"})).toBeVisible();
   expect(writes.some(value => /region-fields/.test(value))).toBe(false);
   await page.getByRole("button", {name: /^1 画面/}).click();
   await expect(page.getByRole("toolbar",{name:"画像の表示"}).getByRole("combobox",{name:"領域",exact:true})).toBeEnabled();
