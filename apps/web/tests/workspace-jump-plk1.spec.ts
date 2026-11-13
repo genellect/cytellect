@@ -76,7 +76,7 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   await expect(choice.getByRole("button", {name: /^1 画面/})).toContainText("検定はしません。");
   await expect(choice.getByRole("button", {name: /^2 画面/})).toBeEnabled();
   await expect(choice.getByRole("button", {name: /^2 画面/})).toContainText("2 群の比較");
-  await expect(choice.getByRole("button", {name: /^2 画面/})).toContainText("同じ実験回の 2 群を対にして比べます。");
+  await expect(choice.getByRole("button", {name: /^2 画面/})).toContainText("同じ実験回で対にして比較します。");
   await choice.getByLabel("最初の実験回の実施日").fill(PERFORMED.Run1);
   await choice.getByRole("button", {name: /^2 画面/}).click();
 
