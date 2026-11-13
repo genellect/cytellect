@@ -309,7 +309,7 @@
   .chapter[data-chapter] .plateFront{width:100%}
   .chapter[data-chapter="figure"] .plateFront{grid-template-columns:1fr 1fr;width:100%}
   .plateBack{border-radius:12px;padding:4px}.plate{border-radius:12px;padding:4px}
-  .numbers{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.numbers strong{font-size:clamp(38px,11vw,48px)}
+  .numbers{gap:16px 28px}.numbers strong{font-size:clamp(30px,8.4vw,38px)}
   .reasons{min-height:0;padding-bottom:24px}
   .reasonsPhoto{height:62%;top:auto;bottom:0;mask-image:linear-gradient(180deg,#0000 0%,#000 30%)}
   .loop{grid-template-columns:1fr;gap:12px;margin-top:220px}
