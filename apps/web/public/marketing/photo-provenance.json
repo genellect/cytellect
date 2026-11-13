@@ -82,23 +82,6 @@
       "source_sha256": "4bfa7e56395a8030e6596f085285c3c4ef6a83e9a0d6cc5155a136b7e44ca89d",
       "source_record": "scripts/lp_film/sources.json#px-p-8940473",
       "processing": "Downscaled to 2400 px wide and re-encoded as WebP (quality 80). No crop, retouching or generative editing."
-    },
-    {
-      "path": "apps/web/public/marketing/lp-atmosphere.webp",
-      "sha256": "82f274457cde0d655e48f0c4374c6800720b3b59596609be866f74ab90f2cc56",
-      "bytes": 5698,
-      "width": 1600,
-      "height": 704,
-      "creator": "CDC",
-      "source_url": "https://www.pexels.com/photo/person-doing-an-experiment-3992927/",
-      "title": "Light and culture medium, abstracted",
-      "alt_ja": "培地の桃色とガラスの光をぼかした面",
-      "license": "Pexels License",
-      "license_url": "https://www.pexels.com/license/",
-      "license_verified_on": "2026-10-23",
-      "source_context": "Stock photograph. Not the developer laboratory, user research data or Cytellect hardware.",
-      "source_record": "scripts/lp_film/sources.json#px-p-3992927",
-      "processing": "Lower part of apps/web/public/marketing/hero-film-poster.webp (the culture plate), Gaussian blur, brightened and blended with the page's ground colour until no object is recognisable; WebP quality 72. Used as a background texture only."
     }
   ]
 }

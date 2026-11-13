@@ -25,3 +25,12 @@ def test_font_subset_covers_ui_text():
             if ord(char) not in covered:
                 missing.setdefault(char, path.relative_to(ROOT).as_posix())
     assert not missing, f"Regenerate the font subset; missing: {missing}"
+
+
+def test_lp_display_subset_covers_landing_text():
+    """The LP's serif statements are set in a Noto Serif JP subset built by scripts/build_lp_fonts.py."""
+    manifest = json.loads((ROOT / "apps/web/public/fonts/lp/manifest.json").read_text(encoding="utf-8"))
+    covered = set(manifest["requested_codepoints"])
+    sources = [*WEB.glob("components/Landing*.tsx"), WEB / "components/PublicLanding.tsx"]
+    missing = {char: path.name for path in sources for char in path.read_text(encoding="utf-8") if ord(char) not in covered}
+    assert not missing, f"Rerun scripts/build_lp_fonts.py; missing: {missing}"

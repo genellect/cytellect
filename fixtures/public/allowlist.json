@@ -20,12 +20,12 @@
     "license": "OFL-1.1"
   },
   "apps/web/public/fonts/NotoSansJPVariable.woff2": {
-    "sha256": "d0b49ecb47daa8c3d053005c604b3298a32eadf5c52e377b9a6b7b110b2209ad",
+    "sha256": "2de2cac1b82f7d7a10f8d7e7559e6d477408af72cf2f6b519f1042866ebb575d",
     "source": "https://github.com/google/fonts/tree/main/ofl/notosansjp",
     "license": "OFL-1.1"
   },
   "apps/web/public/fonts/subset-manifest.json": {
-    "sha256": "ef439226ebf1bbd80b87d9a50ff220e21b9327fe6409dfb23a7ad8ae185c5163",
+    "sha256": "eff9009f6afe0106400edecb467bf86b740614871fb8d3ed1aedf54638957d47",
     "source": "https://github.com/google/fonts/tree/main/ofl/notosansjp",
     "license": "OFL-1.1"
   },
@@ -120,7 +120,7 @@
     "license": "Unsplash License"
   },
   "apps/web/public/marketing/photo-provenance.json": {
-    "sha256": "2b4358c5a6076b41f715144e5cf4d38d412c87cf644fd8282ec666f909912497",
+    "sha256": "a011ff282c88d80aa9cdd7228daf06dfeb15ccbe53179eed8f85ce2b90d27f7a",
     "source": "https://unsplash.com/license",
     "license": "Source metadata; image-specific licenses recorded in manifest"
   },
@@ -1624,9 +1624,44 @@
     "source": "https://github.com/broadinstitute/cellpainting-gallery",
     "license": "CC0-1.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
   },
-  "apps/web/public/marketing/lp-atmosphere.webp": {
-    "sha256": "82f274457cde0d655e48f0c4374c6800720b3b59596609be866f74ab90f2cc56",
-    "source": "https://www.pexels.com/photo/person-doing-an-experiment-3992927/",
-    "license": "Pexels License"
+  "apps/web/public/fonts/lp/IBMPlexMono-LP.woff2": {
+    "sha256": "182fbc279bfec5b94663c11588d0442b7db1358fab9148a9975be695feda8659",
+    "source": "https://github.com/google/fonts/tree/main/ofl/ibmplexmono",
+    "license": "OFL-1.1"
+  },
+  "apps/web/public/fonts/lp/IBMPlexMono-OFL.txt": {
+    "sha256": "7e6b2818edbd8f6a01ae80641cc8f16a51080d08fb4e532be3a0b6f74adb07da",
+    "source": "https://github.com/google/fonts/tree/main/ofl/ibmplexmono",
+    "license": "OFL-1.1"
+  },
+  "apps/web/public/fonts/lp/InstrumentSerif-Italic.woff2": {
+    "sha256": "bc2f9d22474eafe9ecda487231e39cbce3d399a3c8530510aa450cd0342390b0",
+    "source": "https://github.com/google/fonts/tree/main/ofl/instrumentserif",
+    "license": "OFL-1.1"
+  },
+  "apps/web/public/fonts/lp/InstrumentSerif-OFL.txt": {
+    "sha256": "129ed7618959716959f2941fdd5b49e0ad6e6c1d78726761786a00253d865521",
+    "source": "https://github.com/google/fonts/tree/main/ofl/instrumentserif",
+    "license": "OFL-1.1"
+  },
+  "apps/web/public/fonts/lp/InstrumentSerif-Regular.woff2": {
+    "sha256": "d9c5e03ffbd74f7cca0c9df662324d097fada5b3b843f91211e124f8397a938f",
+    "source": "https://github.com/google/fonts/tree/main/ofl/instrumentserif",
+    "license": "OFL-1.1"
+  },
+  "apps/web/public/fonts/lp/NotoSerifJP-LP.woff2": {
+    "sha256": "5a5b28b2b70cd4d36361c7e1b2ba54dcbaaec64ad9ce815a528f92f35a9b6cd4",
+    "source": "https://github.com/google/fonts/tree/main/ofl/notoserifjp",
+    "license": "OFL-1.1"
+  },
+  "apps/web/public/fonts/lp/NotoSerifJP-OFL.txt": {
+    "sha256": "5e0da210fb04058a8c0087985d2d456b931c2579811a49655721d3cf0c36b6d6",
+    "source": "https://github.com/google/fonts/tree/main/ofl/notoserifjp",
+    "license": "OFL-1.1"
+  },
+  "apps/web/public/fonts/lp/manifest.json": {
+    "sha256": "98ef9638c42b571059b5a14a3f1bd07cbd1ccb82e8c70eb53bf49dd591377648",
+    "source": "https://github.com/google/fonts (subset by scripts/build_lp_fonts.py)",
+    "license": "OFL-1.1"
   }
 }

@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { LandingClosingFilm } from "./LandingClosingFilm";
 import lp from "./optical-landing.module.css";
 
-/** The page's last invitation: the demo first, the free Windows version next. */
+/** The page's last invitation, on the footage it opened with: the demo first, the free Windows version next. */
 export function LandingInvite() {
-  return <section id="start" className={lp.invite} aria-labelledby="invite-title">
+  return <section id="start" className={lp.invite} data-tone="dark" aria-labelledby="invite-title">
+    <LandingClosingFilm />
     <div className={lp.inviteInner}>
       <h2 id="invite-title" className={lp.inviteTitle} aria-label="その未来を、あなたの研究から。"><span>その未来を、</span><span>あなたの研究から。</span></h2>
       <p className={lp.inviteLead}>画像を入れるところから、結論と考察、論文の図まで。</p>
