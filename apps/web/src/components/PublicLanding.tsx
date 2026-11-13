@@ -44,14 +44,8 @@ export default function PublicLanding() {
         <div className={lp.heroShade} />
         <div className={lp.heroCopy}>
           <h1 id="hero-title" lang="en" aria-label="Get your microscopy publication-ready."><span>Get your</span>{" "}<span>microscopy</span>{" "}<span>publication-<br className={lp.mobileBreak} />ready.</span></h1>
-          <p className={lp.heroLead}>蛍光顕微鏡の画像をアップロードするだけで、測定・統計から、結論と考察、論文の図まで。</p>
           <div className={lp.heroActions}><Link data-lp-event="example" href="/demo" className={lp.primary}>デモを体験する <Forward /></Link><a data-lp-event="download_section" href="#download" className={lp.heroSecondary}>ダウンロード <span aria-hidden="true">↓</span></a></div>
         </div>
-        <figure className={lp.heroResult}>
-          <figcaption><span aria-hidden="true" />解析の結論</figcaption>
-          <img src="/marketing/lp-focus-conclusion.webp" alt="解析の結論。「PLK1 KO で、視野あたりの核数が 79〜84% 減少」という一文と、3 回の実験すべてで減少したことを示す要点" width={426} height={180} />
-        </figure>
-        <ol className={lp.heroPath} aria-label="解析の流れ">{["画像", "検出と測定", "統計", "結論と考察", "論文の図"].map(step => <li key={step}>{step}</li>)}</ol>
       </section>
 
       <section className={lp.mission} aria-labelledby="mission-title">

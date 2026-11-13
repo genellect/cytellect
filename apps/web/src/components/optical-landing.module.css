@@ -40,35 +40,21 @@
 .eyebrow>span{display:inline-flex;align-items:center;gap:14px;font-size:12px;font-weight:600;letter-spacing:.14em;font-variant-numeric:tabular-nums;text-transform:uppercase;color:var(--fg)}
 .eyebrow>span::after{content:"";width:36px;height:1px;background:currentColor;opacity:.45}
 
-/* Hero: the film, the promise, and the result it leads to. */
-.hero{position:relative;isolation:isolate;min-height:640px;height:100svh;max-height:1160px;display:flex;flex-direction:column;padding:120px var(--gutter) 34px;background:#1b2622;color:#f6f6f3}
-.heroShade{position:absolute;z-index:1;inset:0;pointer-events:none;background:linear-gradient(0deg,#08100ecc 0%,#08100e66 32%,#08100e00 60%),linear-gradient(90deg,#08100e8c 0%,#08100e33 40%,#08100e00 66%)}
-.heroCopy{position:relative;z-index:2;width:100%;max-width:1640px;margin:auto auto 0;pointer-events:none}
+/* Hero: the approved composition, unchanged: the film, the promise and two actions. */
+.hero{position:relative;isolation:isolate;min-height:620px;height:100svh;max-height:1100px;display:flex;align-items:center;padding:112px var(--gutter) 72px;background:#1b2622;color:#f6f6f3}
+.heroShade{position:absolute;z-index:1;inset:0;pointer-events:none;background:linear-gradient(90deg,#0a1311a6 0%,#0a131166 34%,#0a131100 64%)}
+.heroCopy{position:relative;z-index:2;width:100%;max-width:1500px;margin-inline:auto;pointer-events:none}
 .hero h1{margin:0;font-size:clamp(58px,min(6.2vw,10svh),104px);font-weight:450;line-height:1.075;letter-spacing:-.055em}
 .hero h1 span{display:block}
 .mobileBreak{display:none}
-.heroLead{max-width:34em;margin:clamp(22px,3svh,34px) 0 0;font-size:clamp(16px,1.2vw,19px);line-height:1.8;color:#f6f6f3e6;word-break:auto-phrase}
-.heroActions{display:flex;align-items:center;flex-wrap:wrap;gap:14px;margin-top:clamp(26px,3.6svh,40px);pointer-events:auto}
+.heroActions{display:flex;align-items:center;flex-wrap:wrap;gap:14px;margin-top:36px;pointer-events:auto}
 .hero .primary{border-color:#f6f6f3;background:#f6f6f3;color:var(--green)!important}
 .hero .primary:hover{background:#fff}
-.heroResult{position:absolute;z-index:2;right:var(--gutter);bottom:calc(34px + 84px);width:clamp(300px,26vw,430px);padding:10px;border-radius:22px;background:linear-gradient(135deg,#ffffff4d,#ffffff14);border:1px solid #ffffff59;box-shadow:0 50px 90px -30px #000000b3,inset 0 1px 0 #ffffff80;backdrop-filter:blur(20px) saturate(1.3);-webkit-backdrop-filter:blur(20px) saturate(1.3)}
-.heroResult figcaption{display:flex;align-items:center;gap:10px;padding:4px 6px 12px;font-size:12px;font-weight:600;letter-spacing:.08em;color:#f6f6f3}
-.heroResult figcaption span{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 16px 4px #e7b8a499}
-.heroResult img{width:100%;height:auto;border-radius:13px}
-/* The path from the image to the figure, which the patient section later carries on. */
-.heroPath{--node:16px;position:relative;z-index:2;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));width:100%;max-width:1640px;margin:clamp(36px,6svh,72px) auto 0;padding:calc(var(--node) + 16px) 0 0;list-style:none;font-size:12px;letter-spacing:.06em;color:#f6f6f3bf}
-.heroPath::before{content:"";position:absolute;top:calc(var(--node) / 2 - 5px);left:3px;right:20%;height:10px;background:linear-gradient(90deg,#f6f6f333,#f6f6f3a6 62%,var(--accent));clip-path:polygon(0 45%,100% 0,100% 100%,0 55%)}
-.heroPath li{position:relative}
-.heroPath li::before{content:"";position:absolute;left:0;top:calc(-16px - var(--node) / 2 - 3px);width:7px;height:7px;border-radius:50%;background:#f6f6f3}
-.heroPath li:nth-child(4){color:#f6d7c9;font-weight:600}
-.heroPath li:nth-child(4)::before{left:-5px;top:calc(-16px - var(--node) + 1px);width:var(--node);height:var(--node);background:var(--accent);box-shadow:0 0 30px 8px #e7b8a480}
-@keyframes lpFloat{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:none}}
-@media(prefers-reduced-motion:no-preference){.heroResult{animation:lpFloat 1.1s cubic-bezier(.2,.7,.1,1) .7s both}}
 .film{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none;background:#e8e5de}
 .filmPoster,.page .filmPoster,.filmVideo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:62% center}
 .filmVideo{opacity:0;transition:opacity 900ms}
 .filmVideo[data-visible="true"]{opacity:1}
-.hero .motionToggle{position:absolute;bottom:auto;top:96px}
+.hero .motionToggle{position:absolute}
 .motionToggle{position:fixed;z-index:60;bottom:30px;right:var(--gutter);width:40px;height:40px;display:grid;place-items:center;padding:0;border:1px solid #ffffff50;border-radius:50%;background:#0b1018b3;color:#fff;cursor:pointer;pointer-events:auto}
 .optical{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;height:100svh}
 .poster,.canvas{position:absolute;inset:0;width:100%;height:100%}
@@ -94,50 +80,58 @@
 .lightField{position:absolute;z-index:-1;inset:0;width:100%;height:100%;opacity:0;transition:opacity 1.2s}
 .lightField[data-state="ready"]{opacity:1}
 
-/* The product experience: chapters over one 3D space, or layered glass plates without it. */
-.experience{position:relative;background:var(--ground)}
-.experienceTrack{position:relative}
-.experienceStage{display:none;position:sticky;top:0;height:100svh;margin-bottom:-100svh;overflow:hidden}
-.experienceCanvas,.experienceCanvas canvas{position:absolute;inset:0;display:block;width:100%;height:100%}
-.experienceVeil{position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,var(--ground) 0%,#f3f4f1f2 35%,#f3f4f1a6 45%,#f3f4f100 57%),linear-gradient(180deg,var(--ground) 0%,#f3f4f100 12%,#f3f4f100 80%,var(--ground) 100%)}
-.experienceIntro,.chapter{position:relative;z-index:1;width:min(100% - 2 * var(--gutter),1360px);margin-inline:auto}
-.experienceIntro{padding:var(--section-space) 0 clamp(64px,7vw,112px)}
-.experienceLead{max-width:30em;margin:28px 0 0;font-size:clamp(17px,1.3vw,20px);line-height:1.85;color:#2b3d36;word-break:auto-phrase}
-.chapter{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:clamp(40px,5vw,96px);align-items:center;padding:clamp(56px,6vw,96px) 0}
+/* The product: tabs, the summary and discussion first. Beside one 3D space on a wide screen, or with the
+   chosen tab's screens as glass plates without it. */
+.experience{position:relative;padding-bottom:clamp(40px,5vw,80px);background:var(--ground)}
+.experienceIntro{width:min(100% - 2 * var(--gutter),1360px);margin-inline:auto;padding-top:var(--section-space)}
+.experienceLead{max-width:30em;margin:24px 0 0;font-size:clamp(17px,1.3vw,20px);line-height:1.85;color:#2b3d36;word-break:auto-phrase}
+.tour{position:relative;margin-top:clamp(36px,4vw,64px)}
+.tourInner{position:relative;z-index:1;width:min(100% - 2 * var(--gutter),1360px);margin-inline:auto}
+.tablist{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none}
+.tablist::-webkit-scrollbar{display:none}
+.tab{flex:none;display:inline-flex;align-items:center;gap:10px;min-height:44px;padding:0 18px;border:1px solid #14231e26;border-radius:999px;background:#ffffffa6;color:var(--muted);font-size:15px;font-weight:500;line-height:1.4;white-space:nowrap;cursor:pointer;transition:background .2s,color .2s,border-color .2s}
+.tab>span{font-size:12px;font-weight:600;letter-spacing:.08em;font-variant-numeric:tabular-nums;opacity:.6}
+.tab:hover{border-color:#14231e66;color:var(--fg)}
+.tab[aria-selected="true"]{border-color:var(--green);background:var(--green);color:#f6f6f3}
+.tab[aria-selected="true"]>span{opacity:.75}
+.chapter{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:clamp(40px,5vw,96px);align-items:center;padding-top:clamp(36px,4vw,56px)}
+.chapter[hidden]{display:none!important}
 .chapterTitle{margin:0;font-size:var(--t-h3);font-weight:500;line-height:1.42;letter-spacing:-.01em;word-break:auto-phrase;text-wrap:pretty}
-.chapterLead{max-width:30em;margin:20px 0 0;font-size:clamp(16px,1.15vw,18px);line-height:1.9;color:#2b3d36;word-break:auto-phrase}
-.params{display:flex;flex-wrap:wrap;gap:8px;margin:26px 0 0;padding:0;list-style:none}
+.chapterLead{max-width:30em;margin:18px 0 0;font-size:clamp(16px,1.15vw,18px);line-height:1.9;color:#2b3d36;word-break:auto-phrase}
+.params{display:flex;flex-wrap:wrap;gap:8px;margin:24px 0 0;padding:0;list-style:none}
 .params li{padding:6px 14px;border:1px solid #14231e2b;border-radius:999px;background:#ffffff8c;font-size:14px;line-height:1.5}
-.example{margin-top:32px;padding-top:18px;border-top:1px solid var(--rule)}
+.example{margin-top:28px;padding-top:18px;border-top:1px solid var(--rule)}
 .exampleLabel{margin:0;font-size:12px;font-weight:600;letter-spacing:.06em;color:var(--muted)}
 .numbers{display:grid;grid-template-columns:repeat(2,max-content);gap:20px clamp(32px,3.4vw,56px);margin-top:14px}
 .numbers p{margin:0}
 .numbers strong{display:block;font-size:clamp(36px,3.3vw,54px);font-weight:400;line-height:1.1;letter-spacing:-.03em;white-space:nowrap}
 .numbers span{display:block;margin-top:10px;font-size:13px;line-height:1.6;color:#2b3d36}
 /* Plates: the demo's screens as frosted glass, the whole screen behind and the part that matters in front. */
-.plates{position:relative}
+.plates{position:relative;margin-bottom:6%}
 .plateBack,.plate,.plateWide{padding:6px;border:1px solid #ffffffe6;background:var(--glass);box-shadow:var(--lift)}
 .plateBack{width:100%;height:auto;border-radius:18px;opacity:.8}
 .plateFront{position:absolute;right:-2%;bottom:-10%;display:grid;gap:14px;width:52%}
 .plate{width:100%;height:auto;border-radius:16px}
-.plates[data-kind="strip"]{padding:clamp(16px,2vw,28px);border-radius:28px;background:radial-gradient(70% 90% at 90% 100%,#eebfab66,#eebfab00 70%),var(--paper)}
+.plates[data-kind="strip"]{margin-bottom:0;padding:clamp(16px,2vw,28px);border-radius:28px;background:radial-gradient(70% 90% at 90% 100%,#eebfab66,#eebfab00 70%),var(--paper)}
 .plateScroll{overflow-x:auto;border-radius:16px;scrollbar-width:thin}
 .page .plateWide{width:max(100%,1100px);max-width:none;height:auto;border-radius:16px}
 .chapter[data-chapter="discussion"] .plateFront{width:58%}
 .chapter[data-chapter="figure"] .plateFront{width:30%;right:4%}
-/* With the 3D space, the plates are drawn by experience-scene and the text holds still while the camera moves. */
+/* With the 3D space: one screen-high stage; the tabs and the chosen claim on the left, the space on the right. */
+.experienceStage{display:none;position:absolute;inset:0;overflow:hidden}
+.experienceCanvas,.experienceCanvas canvas{position:absolute;inset:0;display:block;width:100%;height:100%}
+.experienceVeil{position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,var(--ground) 0%,#f3f4f1f2 35%,#f3f4f1a6 45%,#f3f4f100 57%),linear-gradient(180deg,var(--ground) 0%,#f3f4f100 14%,#f3f4f100 84%,var(--ground) 100%)}
+.experience[data-mode="space"] .tour{height:min(100svh,900px);min-height:640px}
 .experience[data-mode="space"] .experienceStage{display:block}
-.experience[data-mode="space"] :is(.experienceIntro,.chapter){display:flex;align-items:center;min-height:100svh;padding:0}
-.experience[data-mode="space"] .experienceIntro{min-height:92svh}
-.experience[data-mode="space"] .chapter[data-chapter="measure"]{min-height:180svh}
-.experience[data-mode="space"] .chapter[data-chapter="discussion"]{min-height:150svh}
-.experience[data-mode="space"] .chapterText{max-width:min(470px,34vw)}
-.experience[data-mode="space"] .experienceIntro>*{max-width:min(720px,50vw)}
-.experience[data-mode="space"] .experienceIntro{flex-direction:column;justify-content:center;align-items:flex-start}
+.experience[data-mode="space"] .tourInner{display:flex;flex-direction:column;justify-content:center;height:100%}
+.experience[data-mode="space"] .tablist{flex-direction:column;gap:2px;width:min(440px,34vw);overflow:visible}
+.experience[data-mode="space"] .tab{justify-content:flex-start;gap:16px;min-height:42px;padding:0 0 0 18px;border:0;border-left:2px solid #14231e1f;border-radius:0;background:none;font-size:16px}
+.experience[data-mode="space"] .tab[aria-selected="true"]{border-left-color:var(--green);background:none;color:var(--fg);font-weight:600}
+.experience[data-mode="space"] .chapter{display:block;width:min(440px,34vw);padding-top:32px}
+.experience[data-mode="space"] .chapterText{animation:lpFloat .6s cubic-bezier(.2,.7,.1,1) both}
 .experience[data-mode="space"] .plates{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
-.experience[data-mode="space"] :is(.experienceIntro,.chapterText){transition:opacity .7s,transform .7s cubic-bezier(.2,.7,.1,1)}
-.experience[data-mode="space"] [data-active="false"]:is(.experienceIntro),.experience[data-mode="space"] [data-active="false"] .chapterText{opacity:.12;transform:translateY(18px)}
-.experience[data-mode="space"] .chapterText{position:sticky;top:calc(50svh - 240px)}
+@keyframes lpFloat{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.experience[data-mode="space"] .chapterText{animation:none}}
 
 /* Reasons: on a full-bleed photograph of the bench, in glass. */
 .reasons{position:relative;isolation:isolate;display:flex;min-height:clamp(820px,108svh,1100px);padding:var(--section-space) 0 clamp(40px,5vw,80px);overflow:hidden}
@@ -281,8 +275,7 @@
   .header>div>nav{position:absolute;top:54px;right:0;display:grid;width:min(310px,calc(100vw - 48px));padding:12px 22px;background:var(--green);color:#f6f6f3;border:1px solid #ffffff40;border-radius:22px}
   .header>div>nav a{padding:15px 0;border-bottom:1px solid #ffffff2e;font-size:16px}
   .header>div>nav .navDownload{justify-content:center;margin:10px 0 6px;background:#f6f6f3;color:var(--green)!important}
-  .heroResult{display:none}
-  .chapter{grid-template-columns:1fr;gap:40px}
+  .chapter{grid-template-columns:1fr;gap:56px}
   .plateFront{width:46%}
   .loop{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
@@ -290,22 +283,23 @@
 @media(max-width:760px){
   .page{--gutter:22px;--section-space:104px;--t-body:17px}
   .header{top:10px;left:12px;right:12px;height:56px;padding:0 8px 0 20px}.wordmark{font-size:26px}
-  .hero{height:100svh;min-height:600px;max-height:940px;padding:0 var(--gutter) 40px}
-  .heroCopy{margin:clamp(132px,20svh,190px) 0 auto}
+  .hero{height:100svh;min-height:600px;max-height:940px;align-items:flex-start;padding-top:clamp(152px,21svh,202px);padding-bottom:48px}
+  .heroCopy{max-width:520px}
   .hero h1{font-size:clamp(44px,13.8vw,68px);line-height:1.025}
   .mobileBreak{display:initial}
-  .heroLead{font-size:15px;margin-top:20px}
-  .heroActions{margin-top:26px;gap:10px}
+  .heroActions{margin-top:28px;gap:10px}
   .primary,.heroSecondary{min-height:50px;padding:0 18px;gap:12px}
-  .heroShade{background:linear-gradient(180deg,#08100eb3 0%,#08100e73 46%,#08100e26 76%,#08100e99 100%)}
-  .heroPath{display:none}
-  .motionToggle{bottom:22px}.hero .motionToggle{top:auto;bottom:22px}
+  .heroShade{background:linear-gradient(180deg,#0a1311b3 0%,#0a131173 42%,#0a131100 74%)}
+  .motionToggle{bottom:22px}
   .manifesto,.impactTitle,.inviteTitle{font-size:clamp(25px,7.2vw,31px);line-height:1.42;letter-spacing:-.01em}
   .statement,.display{font-size:clamp(25px,6.8vw,30px);line-height:1.4;letter-spacing:-.01em}
   .mission{min-height:0;padding-block:112px}
   /* Phones: the claim, then the part of the screen that proves it, then the way into the demo. The whole
      screen is too small to read here, so only the part that matters is shown, on its own lit stage. */
-  .chapter{display:flex;flex-direction:column;align-items:stretch;gap:0;padding:56px 0}
+  .tour{margin-top:32px}
+  .tablist{margin:0 calc(-1 * var(--gutter));padding:0 var(--gutter)}
+  .tab{min-height:42px;padding:0 16px;font-size:14px}
+  .chapter{display:flex;flex-direction:column;align-items:stretch;gap:0;padding-top:28px}
   .chapterText{display:contents}
   .chapterTitle{font-size:clamp(22px,6vw,26px)}
   .chapter .plates{order:5;margin-top:28px}
@@ -341,6 +335,6 @@
   .demoBar a{display:flex;align-items:center;justify-content:space-between;min-height:54px;padding:14px 22px;border:1px solid #ffffff20;border-radius:999px;background:#13221dee;color:#f5f5f2!important;font-size:15px;font-weight:550;backdrop-filter:blur(20px)}
   .demoBar a span{font-size:20px}
 }
-@media(min-width:761px) and (max-aspect-ratio:1/1){.hero h1{font-size:clamp(64px,8vw,88px)}}
-@media(max-height:620px) and (min-width:761px){.hero{min-height:480px;padding-top:96px;padding-bottom:24px}.hero h1{font-size:clamp(40px,8.8svh,60px)}.heroLead{margin-top:14px}.heroActions{margin-top:18px}.heroPath{margin-top:24px}.heroResult{display:none}}
+@media(min-width:761px) and (max-aspect-ratio:1/1){.hero{align-items:flex-start;padding-top:150px}.hero h1{font-size:clamp(64px,8vw,88px)}.heroShade{background:linear-gradient(180deg,#0a1311b3 0%,#0a131166 38%,#0a131100 70%)}}
+@media(max-height:600px) and (min-width:761px){.hero{min-height:480px;padding-top:108px;padding-bottom:32px}.hero h1{font-size:clamp(40px,8.8svh,60px)}.heroActions{margin-top:22px}}
 @media(prefers-reduced-motion:reduce){.page *,.page *::before,.page *::after{transition:none!important}}

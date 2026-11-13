@@ -10,33 +10,41 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
  await page.goto("/");
  const hero=page.getByRole("region",{name:"Get your microscopy publication-ready.",exact:true});
  await expect(hero.getByRole("heading",{level:1})).toHaveText("Get your microscopy publication-ready.");
- // The promise, one line on what Cytellect returns, and the conclusion it leads to.
- await expect(hero.locator("p")).toHaveText(["蛍光顕微鏡の画像をアップロードするだけで、測定・統計から、結論と考察、論文の図まで。"]);
- await expect(hero.getByRole("list",{name:"解析の流れ",exact:true}).getByRole("listitem")).toHaveText(["画像","検出と測定","統計","結論と考察","論文の図"]);
- await expect(hero.getByAltText(/^解析の結論。/)).toHaveCount(1);
+ await expect(hero.locator("p")).toHaveCount(0);
+ await expect(hero.locator("figure")).toHaveCount(0);await expect(hero.getByRole("list")).toHaveCount(0);
  await expect(hero.locator("video")).toHaveCount(0);await expect(hero.locator("canvas")).toHaveCount(0);
  await expect(hero.getByRole("link",{name:"ダウンロード",exact:true})).toHaveAttribute("href","#download");
  await expect(hero.getByRole("link",{name:"デモを体験する",exact:true})).toHaveAttribute("href","/demo");
  await expect(hero.getByRole("button",{name:/領域/})).toHaveCount(0);
- // The product runs as four chapters in the order of the work, none hidden behind a tab. Without the 3D space
- // (reduced motion here) each chapter shows its demo captures as glass plates and opens the same demo screen.
+ // What Cytellect does is split into tabs, the summary and discussion first, so the page stays short. Without the
+ // 3D space (reduced motion here) each tab shows its demo captures as glass plates and opens the same demo screen.
  const experience=page.locator("#workflow");
  await expect(experience).toHaveAttribute("data-mode","plates");
- await expect(page.getByRole("tab")).toHaveCount(0);
+ const features=page.getByRole("tablist",{name:"Cytellectでできること",exact:true});
+ await expect(features.getByRole("tab")).toHaveText(["01要約と考察","02検出と測定","03AIによる設定","04統計と論文の図"]);
+ await expect(features.getByRole("tab",{name:"要約と考察"})).toHaveAttribute("aria-selected","true");
+ await expect(page.getByRole("tabpanel").getByAltText(/^結果の考察。/)).toBeVisible();
  const scenes:{id:string;workspaceId:string}[]=(await (await page.request.get("/showcase/snapshot/scenes.json")).json()).scenes;
  const scene=(id:string,step:string)=>`/demo?id=${scenes.find(item=>item.id===id)!.workspaceId}&step=${step}`;
  const plk1="cpg0016-jump-source13-plk1",oxaliplatin="zenodo-6643470-oxaliplatin";
- const chapters=experience.getByRole("article");
- await expect(chapters.getByRole("heading",{level:3})).toHaveText([/^やりたいことを一文で。/,/^測りたい値が、/,/^結果を読み解く時間を、/,/^統計の検定も、論文に載せる図も、/]);
- for(const [index,link,href,images] of [[0,"デモで指示する",scene(plk1,"statistics"),2],[1,"この表をデモで開く",scene(oxaliplatin,"image"),1],[2,"この結果をデモで開く",scene(plk1,"statistics"),3],[3,"この図をデモで開く",scene(plk1,"figure"),3]] as const){
-  const chapter=chapters.nth(index);
-  await expect(chapter.getByRole("link",{name:link,exact:true})).toHaveAttribute("href",href);
-  await expect(chapter.locator('figure img[src^="/marketing/lp-"]')).toHaveCount(images);
+ for(const [tab,title,link,href,images] of [["検出と測定",/^測りたい値が、/,"この表をデモで開く",scene(oxaliplatin,"image"),1],["AIによる設定",/^やりたいことを一文で。/,"デモで指示する",scene(plk1,"statistics"),2],["統計と論文の図",/^統計の検定も、論文に載せる図も、/,"この図をデモで開く",scene(plk1,"figure"),3],["要約と考察",/^結果を読み解く時間を、/,"この結果をデモで開く",scene(plk1,"statistics"),3]] as const){
+  await features.getByRole("tab",{name:tab}).click();
+  const panel=page.getByRole("tabpanel");
+  await expect(panel).toHaveCount(1);
+  await expect(panel.getByRole("heading",{name:title})).toBeVisible();
+  await expect(panel.getByRole("link",{name:link,exact:true})).toHaveAttribute("href",href);
+  await expect(panel.locator('figure img[src^="/marketing/lp-"]')).toHaveCount(images);
  }
- await expect(chapters.nth(2).getByAltText(/^結果の考察。/)).toBeVisible();
+ await features.getByRole("tab",{name:"要約と考察"}).press("ArrowLeft");
+ await expect(features.getByRole("tab",{name:"統計と論文の図"})).toBeFocused();
+ await expect(features.getByRole("tab",{name:"統計と論文の図"})).toHaveAttribute("aria-selected","true");
+ await features.getByRole("tab",{name:"統計と論文の図"}).press("Home");
+ await expect(features.getByRole("tab",{name:"要約と考察"})).toHaveAttribute("aria-selected","true");
  // Measurements are not tied to one structure; the nucleolus figures are one example.
- await expect(chapters.nth(1).getByRole("list",{name:"測れる値",exact:true}).getByRole("listitem")).toHaveCount(6);
- await expect(chapters.nth(1).getByText("一例：核小体の研究",{exact:true})).toBeVisible();
+ await features.getByRole("tab",{name:"検出と測定"}).click();
+ await expect(page.getByRole("tabpanel").getByRole("list",{name:"測れる値",exact:true}).getByRole("listitem")).toHaveCount(6);
+ await expect(page.getByRole("tabpanel").getByText("一例：核小体の研究",{exact:true})).toBeVisible();
+ await features.getByRole("tab",{name:"要約と考察"}).click();
  // The latter half runs from research to the patients waiting, then invites to the demo before the reference material.
  const impact=page.getByRole("region",{name:"研究の先に、待っている患者さんがいる。",exact:true});
  const impactSteps=impact.getByRole("list",{name:"研究から患者さんまで",exact:true}).getByRole("listitem");
@@ -72,13 +80,14 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
  const images=page.locator('main img[src^="/marketing/"]').filter({visible:true});
  for(const img of await images.all()){await img.scrollIntoViewIfNeeded();await expect.poll(()=>img.evaluate((node:HTMLImageElement)=>node.complete&&node.naturalWidth>0)).toBe(true);}
  // The wide table scrolls inside its own frame on a phone; the page itself never scrolls sideways.
+ await features.getByRole("tab",{name:"検出と測定"}).click();
  const table=page.getByAltText(/^核ごとの表。/);await table.scrollIntoViewIfNeeded();
  expect(await table.evaluate((img:HTMLImageElement)=>img.clientWidth>img.parentElement!.clientWidth)).toBe(true);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  expect(errors).toEqual([]);
 });
 
-test("on a wide screen the chapters scroll over one 3D space of the demo's screens",async({page})=>{
+test("on a wide screen the tabs sit beside one 3D space of the demo's screens",async({page})=>{
  const errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));
  await page.setViewportSize({width:1440,height:900});await page.emulateMedia({reducedMotion:"no-preference"});
  await page.goto("/");
@@ -86,12 +95,15 @@ test("on a wide screen the chapters scroll over one 3D space of the demo's scree
  const experience=page.locator("#workflow");
  await expect(experience).toHaveAttribute("data-mode","space");
  await expect(experience.locator("canvas")).toHaveCount(1);
- const discussion=page.locator("#feature-discussion");
- await discussion.evaluate(node=>node.scrollIntoView({block:"center"}));
- await expect(discussion).toHaveAttribute("data-active","true");
- await expect(discussion.getByRole("link",{name:"この結果をデモで開く",exact:true})).toBeInViewport();
+ // The whole tour fits in one screen: the section does not grow with the number of features.
+ expect(await experience.evaluate(node=>node.getBoundingClientRect().height)).toBeLessThan(900*1.9);
+ const features=page.getByRole("tablist",{name:"Cytellectでできること",exact:true});
+ await expect(features).toHaveAttribute("aria-orientation","vertical");
+ await features.getByRole("tab",{name:"統計と論文の図"}).click();
+ const panel=page.getByRole("tabpanel");
+ await expect(panel.getByRole("link",{name:"この図をデモで開く",exact:true})).toBeVisible();
  // The plates stay in the page for assistive technology, drawn by the 3D space instead.
- await expect(discussion.getByAltText(/^結果の考察。/)).toHaveCount(1);
+ await expect(panel.getByAltText(/^グラフの設定。幅/)).toHaveCount(1);
  await page.emulateMedia({reducedMotion:"reduce"});
  await expect(experience).toHaveAttribute("data-mode","plates");await expect(experience.locator("canvas")).toHaveCount(0);
  expect(errors).toEqual([]);

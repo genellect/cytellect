@@ -1,12 +1,13 @@
 import * as THREE from "three";
 
-/** The product experience on the landing page: Cytellect's screens, captured from the public demo, stand as
- *  glass plates in one bright space, and the camera travels between them as the visitor scrolls (question →
- *  measurement → conclusion and discussion → figure). Each plate shows a capture as it is; nothing is drawn
- *  over the interface. */
+/** The product tour on the landing page: Cytellect's screens, captured from the public demo, stand as glass
+ *  plates in one bright space, and the camera flies to the screen of the tab the visitor chooses (summary and
+ *  discussion, detection and measurement, AI set-up, statistics and figures). Each plate shows a capture as it
+ *  is; nothing is drawn over the interface. */
 export type PanelId = "stats" | "ai" | "figure" | "ask" | "table" | "conclusion" | "discussion" | "layout" | "size";
 export type ExperiencePanel = { id: PanelId; src: string };
-export type ExperienceController = { setProgress(keyframe: number): void; dispose(): void };
+/** `show` flies to one shot; `then` continues to a second, slower one (the table gliding past). */
+export type ExperienceController = { show(shot: number, then?: number): void; dispose(): void };
 
 type V3 = [number, number, number];
 type Pose = { p: V3; ry: number; o: number };
@@ -38,17 +39,16 @@ const facing = (pose: Pose, distance: number, right = 0): Pick<Shot, "cam" | "lo
   return { look, cam: along(look, pose.ry, distance, 0, 0.12) };
 };
 
-/** One shot per scroll anchor in LandingExperience: the overview, then each chapter. Measurement has two
- *  shots, so the wide table passes across the frame. */
+/** The overview, then one shot per tab (EXPERIENCE_SHOT in LandingExperience). Measurement has two shots, so
+ *  the wide table glides across the frame after the camera arrives. */
 const SHOTS: Shot[] = [
   { cam: [-1.9, 1.35, 9.6], look: [1.3, 0.2, -1.5], shift: 0.31, warm: 0.15, show: [...SCREENS] },
   { ...facing(AI, 7.2, 0.45), shift: 0.17, warm: 0.2, show: [...SCREENS, "ask"], move: { stats: { o: 0 }, figure: { o: 0 } } },
-  { cam: [-0.75, -2.45, 5.3], look: [-0.75, -2.75, 1.1], shift: 0.17, warm: 0.25, show: [...SCREENS, "table"] },
-  { cam: [1.55, -2.45, 5.3], look: [1.55, -2.75, 1.1], shift: 0.17, warm: 0.35, show: [...SCREENS, "table"] },
+  { cam: [-0.75, -2.45, 5.3], look: [-0.75, -2.75, 1.1], shift: 0.25, warm: 0.25, show: [...SCREENS, "table"] },
+  { cam: [1.55, -2.45, 5.3], look: [1.55, -2.75, 1.1], shift: 0.25, warm: 0.35, show: [...SCREENS, "table"] },
   { cam: [0.7, 0.32, 8.4], look: [0.95, 0.22, 1.6], shift: 0.17, warm: 1, show: [...SCREENS, "conclusion", "discussion"], move: { stats: { p: [0.2, 0.05, -1.3], o: 0.42 } } },
   { ...facing(FIGURE, 6.6, 0.35), shift: 0.17, warm: 0.3, show: [...SCREENS, "layout", "size"] },
 ];
-export const EXPERIENCE_SHOTS = SHOTS.length;
 
 const hidden = (id: PanelId): Pose => {
   const home = HOME[id];
@@ -96,8 +96,14 @@ type Plate = { id: PanelId; group: THREE.Group; plate: THREE.ShaderMaterial; sha
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const lerp3 = (a: V3, b: V3, t: number): V3 => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
-/** Each shot holds while its chapter is read; the move between shots is short, so plates never linger half-seen over the text. */
-const ease = (t: number) => { const x = Math.min(1, Math.max(0, (t - 0.22) / 0.56)); return x * x * (3 - 2 * x); };
+const ease = (t: number) => t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
+
+/** Where everything stands: a shot, or a moment between two. */
+type View = { cam: V3; look: V3; shift: number; warm: number; poses: Record<PanelId, Pose> };
+const viewOf = (shot: Shot): View => ({ cam: shot.cam, look: shot.look, shift: shot.shift, warm: shot.warm,
+  poses: Object.fromEntries((Object.keys(HOME) as PanelId[]).map(id => [id, poseIn(shot, id)])) as Record<PanelId, Pose> });
+const mix = (a: View, b: View, t: number): View => ({ cam: lerp3(a.cam, b.cam, t), look: lerp3(a.look, b.look, t), shift: lerp(a.shift, b.shift, t), warm: lerp(a.warm, b.warm, t),
+  poses: Object.fromEntries((Object.keys(HOME) as PanelId[]).map(id => { const x = a.poses[id], y = b.poses[id]; return [id, { p: lerp3(x.p, y.p, t), ry: lerp(x.ry, y.ry, t), o: lerp(x.o, y.o, t) }]; })) as Record<PanelId, Pose> });
 
 export async function mountExperience(host: HTMLElement, panels: ExperiencePanel[], signal: AbortSignal): Promise<ExperienceController> {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
@@ -142,7 +148,10 @@ export async function mountExperience(host: HTMLElement, panels: ExperiencePanel
     return { id: panel.id, group, plate, shadow, seed: index * 1.7 };
   });
 
-  let keyframe = 0, width = 0, height = 0, frame = 0, visible = true;
+  let width = 0, height = 0, frame = 0, visible = true;
+  // The camera rests on a view, or flies from one view to a shot.
+  let view = viewOf(SHOTS[0]);
+  let flight: { from: View; to: View; start: number; duration: number; then?: number } | null = null;
   const pointer = { x: 0, y: 0, tx: 0, ty: 0 };
   const start = performance.now();
   const target = new THREE.Vector3();
@@ -161,26 +170,25 @@ export async function mountExperience(host: HTMLElement, panels: ExperiencePanel
   const draw = () => {
     frame = 0;
     if (!visible) return;
-    const time = (performance.now() - start) / 1000;
-    const i = Math.min(SHOTS.length - 2, Math.max(0, Math.floor(keyframe)));
-    const t = ease(Math.min(1, Math.max(0, keyframe - i)));
-    const a = SHOTS[i], b = SHOTS[i + 1];
+    const now = performance.now(), time = (now - start) / 1000;
+    if (flight) {
+      const t = Math.min(1, (now - flight.start) / flight.duration);
+      view = mix(flight.from, flight.to, ease(t));
+      if (t >= 1) { const next = flight.then; flight = null; if (next !== undefined) fly(next, 7000); }
+    }
     pointer.x += (pointer.tx - pointer.x) * 0.05; pointer.y += (pointer.ty - pointer.y) * 0.05;
-    const cam = lerp3(a.cam, b.cam, t), look = lerp3(a.look, b.look, t);
-    camera.position.set(cam[0] + pointer.x * 0.18, cam[1] + pointer.y * 0.1 + Math.sin(time * 0.3) * 0.03, cam[2]);
-    camera.lookAt(target.set(...look));
+    camera.position.set(view.cam[0] + pointer.x * 0.18, view.cam[1] + pointer.y * 0.1 + Math.sin(time * 0.3) * 0.03, view.cam[2]);
+    camera.lookAt(target.set(...view.look));
     // Shift the frame to the right of the text column.
-    const shift = lerp(a.shift, b.shift, t);
-    camera.setViewOffset(width, height, -width * shift, 0, width, height);
-    room.uniforms.warm.value = lerp(a.warm, b.warm, t);
+    camera.setViewOffset(width, height, -width * view.shift, 0, width, height);
+    room.uniforms.warm.value = view.warm;
     room.uniforms.time.value = time;
     for (const item of plates) {
-      const from = poseIn(a, item.id), to = poseIn(b, item.id);
-      const p = lerp3(from.p, to.p, t), o = lerp(from.o, to.o, t);
+      const { p, ry, o } = view.poses[item.id];
       item.group.position.set(p[0], p[1] + Math.sin(time * 0.45 + item.seed) * 0.025, p[2]);
-      item.group.rotation.y = lerp(from.ry, to.ry, t);
+      item.group.rotation.y = ry;
       item.group.visible = o > 0.005;
-      // Close-ups leave quickly, so the camera never passes through a plate that is still clear.
+      // Close-ups appear only as the camera arrives and leave at once, so no plate lingers half-seen.
       const shown = SCREENS.includes(item.id) ? Math.min(1, o * 1.4) : THREE.MathUtils.smoothstep(o, 0.6, 1);
       item.plate.uniforms.opacity.value = shown;
       item.plate.uniforms.dim.value = SCREENS.includes(item.id) ? 1 - Math.min(1, o) : 0;
@@ -190,6 +198,12 @@ export async function mountExperience(host: HTMLElement, panels: ExperiencePanel
     if (!matchMedia("(prefers-reduced-motion: reduce)").matches) frame = requestAnimationFrame(draw);
   };
   const request = () => { if (!frame) frame = requestAnimationFrame(draw); };
+  const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function fly(shot: number, duration = 1600, then?: number) {
+    const to = viewOf(SHOTS[Math.min(SHOTS.length - 1, Math.max(0, shot))]);
+    if (still()) { view = to; flight = null; } else flight = { from: view, to, start: performance.now(), duration, then };
+    request();
+  }
 
   const resizeObserver = new ResizeObserver(() => { resize(); request(); });
   resizeObserver.observe(host);
@@ -201,7 +215,7 @@ export async function mountExperience(host: HTMLElement, panels: ExperiencePanel
   request();
 
   return {
-    setProgress(value) { keyframe = Math.min(SHOTS.length - 1, Math.max(0, value)); request(); },
+    show(shot, then) { fly(shot, 1600, then); },
     dispose() {
       cancelAnimationFrame(frame);
       resizeObserver.disconnect(); visibility.disconnect();
