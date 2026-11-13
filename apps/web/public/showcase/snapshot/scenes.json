@@ -3,9 +3,482 @@
  "scenes": [
   {
    "version": 1,
+   "id": "zenodo-6643470-oxaliplatin",
+   "label": "核小体：オキサリプラチンで核小体の総面積が減る（U2OS）",
+   "workspaceId": "180f19d9-2af3-4e94-ae11-faa54d7ee6a7",
+   "title": "DS6a_5EU_Pulse_RawData (Schmidt, Rohatgi, Brandman 2022)",
+   "attribution": "Images: Schmidt HB, Rohatgi R, Brandman O (2022), DS6a_5EU_Pulse_RawData, Zenodo, doi:10.5281/zenodo.6643470, CC BY 4.0; 640 x 640 crops placed on the Hoechst stain, channels Hoechst, NPM1 and 5-EU.",
+   "licence": "CC-BY-4.0",
+   "licenceUrl": "https://creativecommons.org/licenses/by/4.0/",
+   "sourceUrl": "https://zenodo.org/records/6643470",
+   "doi": "10.5281/zenodo.6643470",
+   "citation": "Schmidt HB et al. Oxaliplatin disrupts nucleolar function through biophysical disintegration. Cell Reports 2022. doi:10.1016/j.celrep.2022.111629",
+   "description": "U2OS cells with endogenous FBL-sfGFP and NPM1-mTagRFP knock-ins, 1 h untreated or Oxaliplatin 10 µM, then a 30 min 5-EU pulse labelled with Alexa Fluor 647 azide; Hoechst nuclear stain. Olympus IX83 widefield, 40x/1.4 oil, 0.1625 um/px, single plane, uint16 OME-TIFF.",
+   "modifications": "640 x 640 crop of each 2304 x 2304 plane, placed where the Hoechst stain covers the most area (the same window for all channels); channels Hoechst (OME c3), NPM1-mTagRFP (OME c1) and 5-EU (OME c2, Cy5); pixel values unchanged; re-saved as uncompressed single-plane TIFF.",
+   "caveats": [
+    "出典は、オキサリプラチンで核小体の離心率が下がる（丸くなる）と報告しています。測定の前に決めた定義（各回の最初の 3 視野）で比べたこのデモでは、離心率の差（オキサリプラチン − 未処理）は −0.018、−0.022、+0.015 で、2 回は出典と同じ向き、1 回は逆でした。核あたりの核小体の総面積は 3 回とも小さく（−17%、−17%、−46%）、核小体の平均 5-EU は向きがそろいません（+32%、+64%、−13%）。統計の「記録した比較」で切り替えて確かめられます。小さい物体ほど離心率は低く出やすいので、離心率は総面積と合わせて読んでください。各群 9 視野・核小体のある核 65〜84 個の小さい標本で、出典（各条件 713 個以上の核小体）より少なく、結果は例示です。論文の 5-EU は核小体の面積あたり・核小体ごとの値で、デモの核小体の平均 5-EU（核ごと、背景補正なし）とは定義が異なります。",
+    "Rep1–Rep3 は同じ日（2021-12-01）に連番で撮影されています。独立した実験であることは出典で確認できないため、この場面では推測統計を行いません。",
+    "各反復・各条件で、ファイル名の順に最初の 3 視野を使います。各画像から 640 × 640 画素（104 µm 角）を、核染色（Hoechst）が最も多く写る位置で切り出しています（NPM1 と 5-EU は見ていません）。視野は数・大きさ・信号で選んでいません。",
+    "核小体は NPM1 の分布から決めます。",
+    "核小体を確定できない核は、核から消さずに欠測として残しています（要件 Q-05）。統計を計算する前に群・実験回・理由ごとの一覧で確かめ、結果の近くに、群・実験回ごとの核の総数と欠測の数を示します。同じ実験回の中で群の欠測の割合が 10 ポイント以上違うときは警告します。値は核小体を確定できた核についてのもので、欠測による偏りを補正した推定ではありません。",
+    "論文の図の 5-EU は核小体の面積あたり・核小体ごとの値で、デモの核小体の平均 5-EU（核ごと）とは単位と正規化が異なります。",
+    "デモの数値は公開画像による例示で、研究室の画像での妥当性を示すものではありません。",
+    "デモのAI解析案は、例文に対して用意した設定案を返します（外部AIは呼び出しません）。"
+   ],
+   "reportedChange": {
+    "source": "Schmidt ら 2022、Cell Reports、Figure 5A–B と本文：“we detected a comparable nucleolar 5-EU signal (normalized to nucleolar area) in oxaliplatin-treated cells despite a decrease in nucleolar eccentricity”。Figure 1：臨床濃度（約 10 µM）のオキサリプラチンで、核小体（FBL と NPM1）が丸くなる",
+    "comparison": "未処理と オキサリプラチン（1 時間）の後、5-EU を 30 分取り込ませた U2OS",
+    "direction": "オキサリプラチンで核小体が丸くなる（離心率が下がる）。核小体の 5-EU（面積あたり）は未処理と同程度",
+    "quantity": "論文は箱ひげ図（各条件 713 個以上の核小体）で示す。図 5B の各条件の濃度は図の中にあり、本文は「oxaliplatin」とだけ書く。デモは臨床濃度の 10 µM（ファイル名 Ox10）を比べる",
+    "scope": "核小体は NPM1 で決め、5-EU は別のチャンネルで測ります。論文の図の 5-EU は核小体の面積あたり（著者のコードでは NPM1 で割った値）で、デモの平均 5-EU とは定義が異なります。",
+    "independence": "Rep1–Rep3 は同じ日に連番で撮影されており、独立した実験であることは出典で確認できません。このため、この場面では検定をせず、群ごとの分布と実験回ごとの値を示します。"
+   },
+   "explainer": {
+    "what": "ヒト骨肉腫細胞（U2OS）。オキサリプラチン 10 µM を 1 時間処理し、無処理と比較。",
+    "colors": "重ね表示：青＝核（Hoechst）、緑＝核小体（NPM1）、黄＝新生 RNA（5-EU）。線＝検出した輪郭。",
+    "finding": "核小体の総面積は 3 回とも減少。離心率の変化は回により不一致。",
+    "terms": [
+     "核",
+     "核小体",
+     "NPM1",
+     "5-EU",
+     "総面積",
+     "離心率",
+     "実験回",
+     "オキサリプラチン"
+    ]
+   },
+   "regions": [
+    "nuclei",
+    "nucleoli",
+    "nucleoplasm"
+   ],
+   "target": "nuclei",
+   "gateChannels": [
+    "eu5"
+   ],
+   "examples": [
+    {
+     "label": "核の 5-EU の分布",
+     "instruction": "核の5-EU（新しく合成されたRNA）の分布を視野ごとに確認したい"
+    },
+    {
+     "label": "NPM1 の核内輝度の分布",
+     "instruction": "NPM1の核内平均輝度を視野ごとに確認したい"
+    },
+    {
+     "label": "核の 5-EU を未処理とオキサリプラチンで比較",
+     "instruction": "核の5-EU（新しく合成されたRNA）を未処理とオキサリプラチンで比べたい"
+    }
+   ],
+   "assistantScope": "この公開画像（核の Hoechst、核小体の NPM1、新しく作られた RNA の 5-EU）では、核小体の大きさ・形と、核小体や核の 5-EU の量を、未処理と Oxaliplatin 10 µM 処理の間で比べられます。",
+   "fields": [
+    {
+     "field": "視野 1",
+     "source_file": "40x_1.4_Rep1_Untreated_20211201_01_01",
+     "condition": "Untreated",
+     "experimental_unit": "Rep1 · Untreated",
+     "sample": "Rep1 · Untreated",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep1"
+    },
+    {
+     "field": "視野 2",
+     "source_file": "40x_1.4_Rep1_Untreated_20211201_01_02",
+     "condition": "Untreated",
+     "experimental_unit": "Rep1 · Untreated",
+     "sample": "Rep1 · Untreated",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep1"
+    },
+    {
+     "field": "視野 3",
+     "source_file": "40x_1.4_Rep1_Untreated_20211201_01_03",
+     "condition": "Untreated",
+     "experimental_unit": "Rep1 · Untreated",
+     "sample": "Rep1 · Untreated",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep1"
+    },
+    {
+     "field": "視野 4",
+     "source_file": "40x_1.4_Rep2_Untreated_20211201_01_61",
+     "condition": "Untreated",
+     "experimental_unit": "Rep2 · Untreated",
+     "sample": "Rep2 · Untreated",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep2"
+    },
+    {
+     "field": "視野 5",
+     "source_file": "40x_1.4_Rep2_Untreated_20211201_01_62",
+     "condition": "Untreated",
+     "experimental_unit": "Rep2 · Untreated",
+     "sample": "Rep2 · Untreated",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep2"
+    },
+    {
+     "field": "視野 6",
+     "source_file": "40x_1.4_Rep2_Untreated_20211201_01_63",
+     "condition": "Untreated",
+     "experimental_unit": "Rep2 · Untreated",
+     "sample": "Rep2 · Untreated",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep2"
+    },
+    {
+     "field": "視野 7",
+     "source_file": "40x_1.4_Rep3_Untreated_20211201_01_121",
+     "condition": "Untreated",
+     "experimental_unit": "Rep3 · Untreated",
+     "sample": "Rep3 · Untreated",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep3"
+    },
+    {
+     "field": "視野 8",
+     "source_file": "40x_1.4_Rep3_Untreated_20211201_01_122",
+     "condition": "Untreated",
+     "experimental_unit": "Rep3 · Untreated",
+     "sample": "Rep3 · Untreated",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep3"
+    },
+    {
+     "field": "視野 9",
+     "source_file": "40x_1.4_Rep3_Untreated_20211201_01_123",
+     "condition": "Untreated",
+     "experimental_unit": "Rep3 · Untreated",
+     "sample": "Rep3 · Untreated",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep3"
+    },
+    {
+     "field": "視野 10",
+     "source_file": "40x_1.4_Rep1_Ox10_20211201_01_31",
+     "condition": "Oxaliplatin 10 µM",
+     "experimental_unit": "Rep1 · Oxaliplatin 10 µM",
+     "sample": "Rep1 · Oxaliplatin 10 µM",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep1"
+    },
+    {
+     "field": "視野 11",
+     "source_file": "40x_1.4_Rep1_Ox10_20211201_01_32",
+     "condition": "Oxaliplatin 10 µM",
+     "experimental_unit": "Rep1 · Oxaliplatin 10 µM",
+     "sample": "Rep1 · Oxaliplatin 10 µM",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep1"
+    },
+    {
+     "field": "視野 12",
+     "source_file": "40x_1.4_Rep1_Ox10_20211201_01_33",
+     "condition": "Oxaliplatin 10 µM",
+     "experimental_unit": "Rep1 · Oxaliplatin 10 µM",
+     "sample": "Rep1 · Oxaliplatin 10 µM",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep1"
+    },
+    {
+     "field": "視野 13",
+     "source_file": "40x_1.4_Rep2_Ox10_20211201_01_91",
+     "condition": "Oxaliplatin 10 µM",
+     "experimental_unit": "Rep2 · Oxaliplatin 10 µM",
+     "sample": "Rep2 · Oxaliplatin 10 µM",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep2"
+    },
+    {
+     "field": "視野 14",
+     "source_file": "40x_1.4_Rep2_Ox10_20211201_01_92",
+     "condition": "Oxaliplatin 10 µM",
+     "experimental_unit": "Rep2 · Oxaliplatin 10 µM",
+     "sample": "Rep2 · Oxaliplatin 10 µM",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep2"
+    },
+    {
+     "field": "視野 15",
+     "source_file": "40x_1.4_Rep2_Ox10_20211201_01_93",
+     "condition": "Oxaliplatin 10 µM",
+     "experimental_unit": "Rep2 · Oxaliplatin 10 µM",
+     "sample": "Rep2 · Oxaliplatin 10 µM",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep2"
+    },
+    {
+     "field": "視野 16",
+     "source_file": "40x_1.4_Rep3_Ox10_20211201_01_151",
+     "condition": "Oxaliplatin 10 µM",
+     "experimental_unit": "Rep3 · Oxaliplatin 10 µM",
+     "sample": "Rep3 · Oxaliplatin 10 µM",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep3"
+    },
+    {
+     "field": "視野 17",
+     "source_file": "40x_1.4_Rep3_Ox10_20211201_01_152",
+     "condition": "Oxaliplatin 10 µM",
+     "experimental_unit": "Rep3 · Oxaliplatin 10 µM",
+     "sample": "Rep3 · Oxaliplatin 10 µM",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep3"
+    },
+    {
+     "field": "視野 18",
+     "source_file": "40x_1.4_Rep3_Ox10_20211201_01_153",
+     "condition": "Oxaliplatin 10 µM",
+     "experimental_unit": "Rep3 · Oxaliplatin 10 µM",
+     "sample": "Rep3 · Oxaliplatin 10 µM",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep3"
+    }
+   ]
+  },
+  {
+   "version": 1,
+   "id": "zenodo-6643470-cisplatin",
+   "label": "核小体：シスプラチンでの変化は実験回で不一致（U2OS）",
+   "workspaceId": "0d897fe2-fadb-4973-9eb9-75feea00b900",
+   "title": "DS6a_5EU_Pulse_RawData (Schmidt, Rohatgi, Brandman 2022)",
+   "attribution": "Images: Schmidt HB, Rohatgi R, Brandman O (2022), DS6a_5EU_Pulse_RawData, Zenodo, doi:10.5281/zenodo.6643470, CC BY 4.0; 640 x 640 crops placed on the Hoechst stain, channels Hoechst, NPM1 and 5-EU.",
+   "licence": "CC-BY-4.0",
+   "licenceUrl": "https://creativecommons.org/licenses/by/4.0/",
+   "sourceUrl": "https://zenodo.org/records/6643470",
+   "doi": "10.5281/zenodo.6643470",
+   "citation": "Schmidt HB et al. Oxaliplatin disrupts nucleolar function through biophysical disintegration. Cell Reports 2022. doi:10.1016/j.celrep.2022.111629",
+   "description": "U2OS cells with endogenous FBL-sfGFP and NPM1-mTagRFP knock-ins, 1 h untreated or Cisplatin 10 µM, then a 30 min 5-EU pulse labelled with Alexa Fluor 647 azide; Hoechst nuclear stain. Olympus IX83 widefield, 40x/1.4 oil, 0.1625 um/px, single plane, uint16 OME-TIFF.",
+   "modifications": "640 x 640 crop of each 2304 x 2304 plane, placed where the Hoechst stain covers the most area (the same window for all channels); channels Hoechst (OME c3), NPM1-mTagRFP (OME c1) and 5-EU (OME c2, Cy5); pixel values unchanged; re-saved as uncompressed single-plane TIFF.",
+   "caveats": [
+    "出典は、シスプラチンが臨床濃度では核小体の構造を変えないと報告しています。測定の前に決めた定義（各回の最初の 3 視野）で比べたこのデモでは、離心率の差（シスプラチン − 未処理）は −0.030、+0.017、+0.042、核あたりの核小体の総面積は +35%、+8%、−10%、核小体の平均 5-EU は +132%、−4%、−11% で、どれも向きがそろいません。違いがはっきりしないことは、変化がないことと同じではありません。統計の「記録した比較」で切り替えて確かめられます。各群 9 視野・核小体のある核 65〜84 個の小さい標本で、出典（各条件 713 個以上の核小体）より少なく、結果は例示です。論文の 5-EU は核小体の面積あたり・核小体ごとの値で、デモの核小体の平均 5-EU（核ごと、背景補正なし）とは定義が異なります。",
+    "Rep1–Rep3 は同じ日（2021-12-01）に連番で撮影されています。独立した実験であることは出典で確認できないため、この場面では推測統計を行いません。",
+    "各反復・各条件で、ファイル名の順に最初の 3 視野を使います。各画像から 640 × 640 画素（104 µm 角）を、核染色（Hoechst）が最も多く写る位置で切り出しています（NPM1 と 5-EU は見ていません）。視野は数・大きさ・信号で選んでいません。",
+    "核小体は NPM1 の分布から決めます。",
+    "核小体を確定できない核は、核から消さずに欠測として残しています（要件 Q-05）。統計を計算する前に群・実験回・理由ごとの一覧で確かめ、結果の近くに、群・実験回ごとの核の総数と欠測の数を示します。同じ実験回の中で群の欠測の割合が 10 ポイント以上違うときは警告します。値は核小体を確定できた核についてのもので、欠測による偏りを補正した推定ではありません。",
+    "論文の図の 5-EU は核小体の面積あたり・核小体ごとの値で、デモの核小体の平均 5-EU（核ごと）とは単位と正規化が異なります。",
+    "デモの数値は公開画像による例示で、研究室の画像での妥当性を示すものではありません。",
+    "デモのAI解析案は、例文に対して用意した設定案を返します（外部AIは呼び出しません）。"
+   ],
+   "reportedChange": {
+    "source": "Schmidt ら 2022、Cell Reports、Figure 5A–B と本文：“Cisplatin slightly increased nucleolar rRNA levels, but did not affect nucleolar organization”。Figure 1：シスプラチンが核小体の形を崩すのは 100 µM だけで、臨床濃度（約 10 µM）を大きく超える",
+    "comparison": "未処理と シスプラチン（1 時間）の後、5-EU を 30 分取り込ませた U2OS",
+    "direction": "シスプラチンは核小体の構造を変えない。核小体の 5-EU（新しい rRNA）はわずかに増える",
+    "quantity": "論文は箱ひげ図（各条件 713 個以上の核小体）で示す。図 5B の各条件の濃度は図の中にあり、本文は「cisplatin」とだけ書く。デモは臨床濃度の 10 µM（ファイル名 Cis10）を比べる",
+    "scope": "核小体は NPM1 で決め、5-EU は別のチャンネルで測ります。論文の図の 5-EU は核小体の面積あたり（著者のコードでは NPM1 で割った値）で、デモの平均 5-EU とは定義が異なります。",
+    "independence": "Rep1–Rep3 は同じ日に連番で撮影されており、独立した実験であることは出典で確認できません。このため、この場面では検定をせず、群ごとの分布と実験回ごとの値を示します。"
+   },
+   "explainer": {
+    "what": "ヒト骨肉腫細胞（U2OS）。シスプラチン 10 µM を 1 時間処理し、無処理と比較。",
+    "colors": "重ね表示：青＝核（Hoechst）、緑＝核小体（NPM1）、黄＝新生 RNA（5-EU）。線＝検出した輪郭。",
+    "finding": "核小体の総面積・離心率・5-EU のいずれも、回により増減が不一致。",
+    "terms": [
+     "核",
+     "核小体",
+     "NPM1",
+     "5-EU",
+     "総面積",
+     "離心率",
+     "実験回",
+     "シスプラチン",
+     "オキサリプラチン"
+    ]
+   },
+   "regions": [
+    "nuclei",
+    "nucleoli",
+    "nucleoplasm"
+   ],
+   "target": "nuclei",
+   "gateChannels": [
+    "eu5"
+   ],
+   "examples": [
+    {
+     "label": "核の 5-EU の分布",
+     "instruction": "核の5-EU（新しく合成されたRNA）の分布を視野ごとに確認したい"
+    },
+    {
+     "label": "NPM1 の核内輝度の分布",
+     "instruction": "NPM1の核内平均輝度を視野ごとに確認したい"
+    },
+    {
+     "label": "核の 5-EU を未処理とシスプラチンで比較",
+     "instruction": "核の5-EU（新しく合成されたRNA）を未処理とシスプラチンで比べたい"
+    }
+   ],
+   "assistantScope": "この公開画像（核の Hoechst、核小体の NPM1、新しく作られた RNA の 5-EU）では、核小体の大きさ・形と、核小体や核の 5-EU の量を、未処理と Cisplatin 10 µM 処理の間で比べられます。",
+   "fields": [
+    {
+     "field": "視野 1",
+     "source_file": "40x_1.4_Rep1_Untreated_20211201_01_01",
+     "condition": "Untreated",
+     "experimental_unit": "Rep1 · Untreated",
+     "sample": "Rep1 · Untreated",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep1"
+    },
+    {
+     "field": "視野 2",
+     "source_file": "40x_1.4_Rep1_Untreated_20211201_01_02",
+     "condition": "Untreated",
+     "experimental_unit": "Rep1 · Untreated",
+     "sample": "Rep1 · Untreated",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep1"
+    },
+    {
+     "field": "視野 3",
+     "source_file": "40x_1.4_Rep1_Untreated_20211201_01_03",
+     "condition": "Untreated",
+     "experimental_unit": "Rep1 · Untreated",
+     "sample": "Rep1 · Untreated",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep1"
+    },
+    {
+     "field": "視野 4",
+     "source_file": "40x_1.4_Rep2_Untreated_20211201_01_61",
+     "condition": "Untreated",
+     "experimental_unit": "Rep2 · Untreated",
+     "sample": "Rep2 · Untreated",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep2"
+    },
+    {
+     "field": "視野 5",
+     "source_file": "40x_1.4_Rep2_Untreated_20211201_01_62",
+     "condition": "Untreated",
+     "experimental_unit": "Rep2 · Untreated",
+     "sample": "Rep2 · Untreated",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep2"
+    },
+    {
+     "field": "視野 6",
+     "source_file": "40x_1.4_Rep2_Untreated_20211201_01_63",
+     "condition": "Untreated",
+     "experimental_unit": "Rep2 · Untreated",
+     "sample": "Rep2 · Untreated",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep2"
+    },
+    {
+     "field": "視野 7",
+     "source_file": "40x_1.4_Rep3_Untreated_20211201_01_121",
+     "condition": "Untreated",
+     "experimental_unit": "Rep3 · Untreated",
+     "sample": "Rep3 · Untreated",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep3"
+    },
+    {
+     "field": "視野 8",
+     "source_file": "40x_1.4_Rep3_Untreated_20211201_01_122",
+     "condition": "Untreated",
+     "experimental_unit": "Rep3 · Untreated",
+     "sample": "Rep3 · Untreated",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep3"
+    },
+    {
+     "field": "視野 9",
+     "source_file": "40x_1.4_Rep3_Untreated_20211201_01_123",
+     "condition": "Untreated",
+     "experimental_unit": "Rep3 · Untreated",
+     "sample": "Rep3 · Untreated",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep3"
+    },
+    {
+     "field": "視野 10",
+     "source_file": "40x_1.4_Rep1_Cis10_20211201_01_11",
+     "condition": "Cisplatin 10 µM",
+     "experimental_unit": "Rep1 · Cisplatin 10 µM",
+     "sample": "Rep1 · Cisplatin 10 µM",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep1"
+    },
+    {
+     "field": "視野 11",
+     "source_file": "40x_1.4_Rep1_Cis10_20211201_01_12",
+     "condition": "Cisplatin 10 µM",
+     "experimental_unit": "Rep1 · Cisplatin 10 µM",
+     "sample": "Rep1 · Cisplatin 10 µM",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep1"
+    },
+    {
+     "field": "視野 12",
+     "source_file": "40x_1.4_Rep1_Cis10_20211201_01_13",
+     "condition": "Cisplatin 10 µM",
+     "experimental_unit": "Rep1 · Cisplatin 10 µM",
+     "sample": "Rep1 · Cisplatin 10 µM",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep1"
+    },
+    {
+     "field": "視野 13",
+     "source_file": "40x_1.4_Rep2_Cis10_20211201_01_71",
+     "condition": "Cisplatin 10 µM",
+     "experimental_unit": "Rep2 · Cisplatin 10 µM",
+     "sample": "Rep2 · Cisplatin 10 µM",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep2"
+    },
+    {
+     "field": "視野 14",
+     "source_file": "40x_1.4_Rep2_Cis10_20211201_01_72",
+     "condition": "Cisplatin 10 µM",
+     "experimental_unit": "Rep2 · Cisplatin 10 µM",
+     "sample": "Rep2 · Cisplatin 10 µM",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep2"
+    },
+    {
+     "field": "視野 15",
+     "source_file": "40x_1.4_Rep2_Cis10_20211201_01_73",
+     "condition": "Cisplatin 10 µM",
+     "experimental_unit": "Rep2 · Cisplatin 10 µM",
+     "sample": "Rep2 · Cisplatin 10 µM",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep2"
+    },
+    {
+     "field": "視野 16",
+     "source_file": "40x_1.4_Rep3_Cis10_20211201_01_131",
+     "condition": "Cisplatin 10 µM",
+     "experimental_unit": "Rep3 · Cisplatin 10 µM",
+     "sample": "Rep3 · Cisplatin 10 µM",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep3"
+    },
+    {
+     "field": "視野 17",
+     "source_file": "40x_1.4_Rep3_Cis10_20211201_01_132",
+     "condition": "Cisplatin 10 µM",
+     "experimental_unit": "Rep3 · Cisplatin 10 µM",
+     "sample": "Rep3 · Cisplatin 10 µM",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep3"
+    },
+    {
+     "field": "視野 18",
+     "source_file": "40x_1.4_Rep3_Cis10_20211201_01_133",
+     "condition": "Cisplatin 10 µM",
+     "experimental_unit": "Rep3 · Cisplatin 10 µM",
+     "sample": "Rep3 · Cisplatin 10 µM",
+     "acquisition_date": "2021-12-01",
+     "pair": "Rep3"
+    }
+   ]
+  },
+  {
+   "version": 1,
    "id": "zenodo-6643470-nucleolar",
    "label": "核小体：ActD による転写の停止（U2OS）",
-   "workspaceId": "cb4a8900-a785-4dc7-8f31-ecf13b92d57d",
+   "workspaceId": "51bcffa1-c686-4d81-9e57-1e472539e8c7",
    "title": "DS6a_5EU_Pulse_RawData (Schmidt, Rohatgi, Brandman 2022)",
    "attribution": "Images: Schmidt HB, Rohatgi R, Brandman O (2022), DS6a_5EU_Pulse_RawData, Zenodo, doi:10.5281/zenodo.6643470, CC BY 4.0; 640 x 640 crops placed on the Hoechst stain, channels Hoechst, NPM1 and 5-EU.",
    "licence": "CC-BY-4.0",
@@ -32,6 +505,21 @@
     "quantity": "論文は箱ひげ図で示し、本文で「完全に止まる」と述べています。図の数値は核小体ごとの値で、Cytellect の核ごと・視野ごとの値とは単位が異なります",
     "scope": "核小体は NPM1 で決め、5-EU は別のチャンネルで測ります。論文の図の 5-EU は核小体の面積あたり（著者のコードでは NPM1 で割った値）で、デモの平均 5-EU とは定義が異なります。",
     "independence": "Rep1–Rep3 は同じ日に連番で撮影されており、独立した実験であることは出典で確認できません。このため、この場面では検定をせず、群ごとの分布と実験回ごとの値を示します。"
+   },
+   "explainer": {
+    "what": "ヒト骨肉腫細胞（U2OS）。アクチノマイシン D 1 µM を 1 時間処理し、無処理と比較。",
+    "colors": "重ね表示：青＝核（Hoechst）、緑＝核小体（NPM1）、黄＝新生 RNA（5-EU）。線＝検出した輪郭。",
+    "finding": "核小体の離心率は 3 回とも低下。核小体の 5-EU 平均は回により増減が不一致。処理後は 5-EU が核全体に分散。",
+    "terms": [
+     "核",
+     "核小体",
+     "核質",
+     "NPM1",
+     "5-EU",
+     "離心率",
+     "実験回",
+     "アクチノマイシン D"
+    ]
    },
    "regions": [
     "nuclei",
@@ -227,7 +715,7 @@
    "version": 1,
    "id": "cpg0016-jump-source13-plk1",
    "label": "核数：PLK1 ノックアウトと対照（JUMP）",
-   "workspaceId": "d7dbba73-141a-4689-ac1f-682935fe660d",
+   "workspaceId": "4c9741df-dd34-4fad-8396-d112ddac5624",
    "title": "JUMP Cell Painting, cpg0016 source_13 CRISPR plates (Cell Painting Gallery)",
    "attribution": "Images: JUMP Cell Painting Consortium, Cell Painting Gallery cpg0016-jump, source_13 (CC0 1.0); plates CP-CC9-R1-01, CP-CC9-R2-01, CP-CC9-R3-01, sites 4-6 of wells A02 and A23; DNA channel only.",
    "licence": "CC0-1.0",
@@ -252,6 +740,18 @@
     "quantity": "出典は向きだけを述べ、視野あたりの核数の変化量は報告していません",
     "scope": "核は Hoechst から数えます。核数は画像に写った核の数で、生存率そのものではありません。値は視野 → 試料 → 実験回の順にまとめています。",
     "independence": "Run1–Run3 は日付の異なるバッチの別のプレートです。出典は各プレートを播種から 96 時間で固定したと述べていますが、別々に播種・導入・染色した独立した実験であるとは明記していません。このため、この場面では検定と信頼区間を計算せず、実験回ごとの値と差を示します。"
+   },
+   "explainer": {
+    "what": "ヒト骨肉腫細胞（U2OS）。CRISPR で PLK1 をノックアウトし、非標的ガイドの対照と比較。",
+    "colors": "核＝Hoechst（DNA）。線＝検出した輪郭。",
+    "finding": "視野あたりの核数は 3 回とも大きく減少。分裂に必須の遺伝子の欠失で細胞が増えないことと整合。",
+    "terms": [
+     "核",
+     "Hoechst",
+     "PLK1",
+     "ノックアウト",
+     "実験回"
+    ]
    },
    "regions": [
     "nuclei"

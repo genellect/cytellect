@@ -27,7 +27,7 @@ DRAFT = {"implications": ["A では B より平均が 2 a.u. 低く、処理で�
 
 
 def client_for(tmp_path, *, service=True):
-    settings = Settings(tmp_path, app_origin="http://test", secure_cookies=False, discussion_model=MODEL,
+    settings = Settings(tmp_path, app_origin="http://test", secure_cookies=False, proposal_model=MODEL,
                         proposal_url="https://proposal.test" if service else "", proposal_token="token" if service else "")
     app = create_app(settings)
     client = TestClient(app)

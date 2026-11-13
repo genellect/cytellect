@@ -14,8 +14,8 @@ export type NucleolarSource = "dapi_poor" | "marker" | "ncl";
 export type NucleolarDefinition = {source: NucleolarSource; marker: string; pixelUm: number | null; relative: number; algorithm?: "cellpose" | "objects" | "legacy" | null};
 
 export const nucleolarSourceText: Record<NucleolarSource, {label: string; description: string}> = {
-  dapi_poor: {label: "DAPI の暗い部分", description: "核小体は DNA が少ないため核染色で暗く写ります。NCL が移動しても使えます。"},
-  marker: {label: "核小体マーカー（UBF／FBL など）", description: "核小体の中心部を示すマーカーで決めます。マーカーの染色を確認したうえで使います。"},
+  dapi_poor: {label: "DAPI の暗い部分", description: "核小体は DNA が少ないため核染色で暗く写ります。NCL の局在に依存しません。"},
+  marker: {label: "核小体マーカー（UBF／FBL など）", description: "核小体の中心部を示すマーカーで決めます。使用前にマーカーの染色の確認が必要です。"},
   ncl: {label: "NCL陽性領域", description: "NCL画像から核内の核小体候補を検出します。"},
 };
 

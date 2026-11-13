@@ -27,7 +27,7 @@ export function ProposalSummary({ proposal, grouping, onRun, onName, children }:
     <section className={styles.proposal} aria-labelledby="proposal-title">
       <h2 id="proposal-title">解析案</h2>
       {children}
-      <ol className={styles.flow} aria-label="実行すると行う処理">
+      <ol className={styles.flow} aria-label="実行する処理">
         <li>{proposal.regions.length ? `${proposal.regions.join("・")}を検出` : "領域を検出"}</li>
         <li>{proposal.metrics.length ? `${proposal.metrics.map((metric) => metric.label).join("、")}を測定` : "面積と輝度を測定"}</li>
         <li>{proposal.statistics.kind === "descriptive" ? "視野別の分布グラフを作成" : "実験単位で群間比較"}</li>
@@ -71,13 +71,13 @@ export function NuclearChoice({ grouping, preview, onChoose }: {
   return (
     <fieldset className={styles.nuclearChoice}>
       <legend>{chosen ? "核検出に使うチャンネル" : "核検出に使うチャンネルを選択"}</legend>
-      <p className={styles.hint}>核を染めたチャンネルを指定します。この設定を全視野に適用します。</p>
+      <p className={styles.hint}>核染色のチャンネルを指定します。全視野に適用します。</p>
       <div role="radiogroup" aria-label="核検出に使うチャンネル">
         {grouping.channels.map((channel) => {
           const src = preview(channel.token);
           return (
             <button key={channel.token} type="button" role="radio" aria-checked={channel.role === "nuclear"}
-              aria-label={`${channelName(channel)} を核検出に使う`} onClick={() => onChoose(channel.token)}>
+              aria-label={`${channelName(channel)}`} onClick={() => onChoose(channel.token)}>
               {src ? <img src={src} alt="" /> : <span className={styles.thumbEmpty} />}
               <span>{channelName(channel)}</span>
             </button>
@@ -96,7 +96,7 @@ const ISSUE_TEXT: Record<GroupingIssue["kind"], { title: string; detail: string 
   },
   channels_pending: {
     title: "チャンネルを取り込み時に読み取るファイル",
-    detail: "複数のチャンネルを含む OME-TIFF です。チャンネル名はファイル内の情報から読み取ります（解析APIの接続後に対応）。",
+    detail: "複数のチャンネルを含む OME-TIFF です。チャンネル名の読み取りには、解析APIの接続が必要です。",
   },
   duplicate_channel: {
     title: "同じ視野・チャンネルに複数あるファイル",

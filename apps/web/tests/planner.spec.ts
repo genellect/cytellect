@@ -21,7 +21,7 @@ for (const width of [1440, 390]) {
     await page.getByLabel("解析内容", { exact: true }).selectOption("paired");
     await page.getByLabel("処置を割り付けた単位", { exact: true }).selectOption("fields");
     const downloadEvent = page.waitForEvent("download");
-    await page.getByRole("button", { name: "設定を書き出す" }).click();
+    await page.getByRole("button", { name: "設定を書き出し" }).click();
     const download = await downloadEvent;
     const stream = await download.createReadStream();
     const chunks: Buffer[] = [];

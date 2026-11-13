@@ -92,7 +92,7 @@ def register_discussion_routes(api, store, settings, owner, job_record, credenti
         except ValueError:
             raise HTTPException(503, "proposal_service_misconfigured") from None
         identity = {"context": context_sha256(context), "protocol": DISCUSSION_PROTOCOL, "job": jid,
-                    "model": settings.discussion_model, "prompt": settings.discussion_prompt_version,
+                    "model": settings.proposal_model, "prompt": settings.discussion_prompt_version,
                     "service": service.proposal_url}
         key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
         request_id = str(uuid.uuid4())
@@ -122,7 +122,7 @@ def register_discussion_routes(api, store, settings, owner, job_record, credenti
         try:
             payload = post_to_service(service, "/v1/discussions", {
                 "context": context.model_dump(mode="json"), "prompt_version": settings.discussion_prompt_version}, request_id)
-            if payload["model"] != settings.discussion_model or payload["prompt_version"] != settings.discussion_prompt_version:
+            if payload["model"] != settings.proposal_model or payload["prompt_version"] != settings.discussion_prompt_version:
                 raise ProposalServiceError(502, "proposal_service_version_mismatch")
             discussion = validate_discussion(payload.get("draft"), context, model=payload["model"],
                                              prompt_version=payload["prompt_version"])
