@@ -486,6 +486,7 @@
     21629,
     21644,
     21697,
+    21766,
     21839,
     22120,
     22235,
@@ -530,6 +531,7 @@
     23478,
     23481,
     23494,
+    23519,
     23544,
     23550,
     23554,
@@ -1005,8 +1007,9 @@
     "apps/web/src/components/workspace/review/ConnectedCsvResults.tsx": "62a573f56c57257ca4e3b25462a5b1f9bac8db06fdb2fb087a7bd83b341d2855",
     "apps/web/src/components/workspace/review/ConnectedGfp.tsx": "0926f65d333bb3901780472ef0de6ce95cf3fa39656e716fb6d43daec8f7bee8",
     "apps/web/src/components/workspace/review/ConnectedPartition.tsx": "62c0ab913ace867fb5ace4a71f3a4d1b46fe2d07d243b705ec5f037e1a0b3e0b",
-    "apps/web/src/components/workspace/review/ConnectedResults.tsx": "d0be7d6009a2775170ebbf03f44844db9af340ff4cab7cb04ad8f45d1f325e28",
+    "apps/web/src/components/workspace/review/ConnectedResults.tsx": "3c126f36a0eed9d43d2c4e0232428940f37ea3fe9db9537451ca69d8a5f5953d",
     "apps/web/src/components/workspace/review/ConnectedWorkspace.tsx": "c3f807d353c6d4601f6ecb8d552a16c15b488d27af6d459e5ea54eba273d31b9",
+    "apps/web/src/components/workspace/review/DiscussionPanel.tsx": "f314aff3c87564a50be06aee89c91881fcc0eea8877759ef3ab048b5a3a7313c",
     "apps/web/src/components/workspace/review/EditableFigure.tsx": "d17ca18f6da7cd8b74b4ba38fe05113ef404404dc29f1894f198a6b826c40c52",
     "apps/web/src/components/workspace/review/ExperimentSetup.tsx": "fbfcc38d664077a139b097b3d5ccb4de6293e7a9e61ad905526b63516412f5c7",
     "apps/web/src/components/workspace/review/MeasurementTable.tsx": "989f20fe99d9d4c360237b9579cb3b65fa3dcb12254881f06228511771c7a918",
@@ -1065,7 +1068,7 @@
     "apps/web/src/lib/types.ts": "5c48d068e41f23823caed8d97b5c6d93c0af5314155b3818fe9ee9dbb23176f5",
     "apps/web/src/lib/usePrivateImage.ts": "f48d9522da84df8a56ab86a0abf3afcf426b6143c270dbf87e6ff9fc6f171b1e",
     "apps/web/src/lib/usePrivatePreview.ts": "a74e5fb913da55677a0d8f2ed963059e78c370189b86d939026dac4c43992a34",
-    "apps/web/src/lib/workspace/api-adapter.ts": "8fa15522355bcf0ec2de81fbb241ea3612aec24c5b27ef49c7c02b699b112b14",
+    "apps/web/src/lib/workspace/api-adapter.ts": "a546dc55a200171df85c4d3d4e166f3114ca0b525f59cacbda35715f1f6e7b3c",
     "apps/web/src/lib/workspace/cellpose-settings.ts": "192cef6a02fff481db640a9b07b5945b295bfbbaa3379d0ae955ce8ff031a7f6",
     "apps/web/src/lib/workspace/channel-assignments.ts": "2685de3fb6d52362debe5108bb2d9235352df9469615fa140031fe9266bdff3f",
     "apps/web/src/lib/workspace/channel-gate.ts": "78f7fb96499e7ac752d9aaa5dc6003f2a32945af61ab76edd971f41ae763bfc4",
@@ -1088,5 +1091,5 @@
     "apps/web/src/lib/workspace/tiff-intake.ts": "9164109e82d26842d0cfef857fa196109e9e58b3e734a0abb441d7025b0e7c7c",
     "apps/web/src/lib/workspace/use-workspace-runtime.ts": "ce10f70243333093f3aa371e65e545e1c4fa632b18361faf65f560e23148e5f7"
   },
-  "output_sha256": "55bae5a42af3e699da9efd26a5a6c5a3082515f190dd4cf26383b17cd7cd6a92"
+  "output_sha256": "f3715f127999cae7c427639953e2f1d5572e10c65d01f699e022840c311efedd"
 }
