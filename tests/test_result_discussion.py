@@ -116,3 +116,48 @@ def test_a_small_number_matches_only_what_it_was_rounded_from():
     assert _known(0.07, allowed) and _known(0.074, allowed) and _known(0.3, allowed)
     assert _known(567, allowed) and _known(2, allowed) and _known(0, allowed)
     assert not _known(0.5, [0.3])
+
+
+def test_a_descriptive_result_is_never_called_no_change():
+    """Nothing was tested, so "no change" cannot be claimed either (S-07; review of #199)."""
+    with pytest.raises(DiscussionRejected) as rejected:
+        validate_discussion(draft("PLK1 KO による核数の変化はない。"), DESCRIPTIVE, model="m")
+    assert rejected.value.codes == ["discussion_claims_no_change"]
+    validate_discussion(draft("実験回で向きが一致せず、本条件では変化を判断できない。"), DESCRIPTIVE, model="m")
+
+
+def test_a_test_without_a_clear_interval_is_unclear():
+    """A ratio interval that includes 1, or p of at least 0.05 without a difference interval (review of #199)."""
+    base = {**TESTED.result.model_dump(), "difference": None, "heading": None}
+    ratio = DiscussionContext(result={**base, "ratio": {"estimate": 0.9, "ci_low": 0.6, "ci_high": 1.2}})
+    weak = DiscussionContext(result={**base, "p_value": 0.3})
+    for context in (ratio, weak):
+        for text, code in (("PLK1 KO は核数に影響しない。", "discussion_claims_no_change"), ("核数が有意に減少した。", "discussion_claims_significance")):
+            with pytest.raises(DiscussionRejected) as rejected:
+                validate_discussion(draft(text), context, model="m")
+            assert code in rejected.value.codes
+
+
+@pytest.mark.parametrize("text", [
+    "50nM で処理すると核数がさらに減る可能性がある。", "24h 後の核数を確かめる。", "核数は約 7x に増える可能性がある。",
+    "0.37mM の阻害剤で確かめる。", "差は 1e-5 程度である可能性がある。", "核数は 1,000,000 個に達する可能性がある。"])
+def test_a_number_written_against_its_unit_is_still_checked(text):
+    with pytest.raises(DiscussionRejected) as rejected:
+        validate_discussion(draft(text), DESCRIPTIVE, model="m")
+    assert rejected.value.codes == ["discussion_number_not_in_result"]
+
+
+def test_names_that_begin_with_digits_stay_names():
+    validate_discussion(draft("18S rRNA と 4E-BP1、3T3 細胞、5mC での確認が考えられる。"), DESCRIPTIVE, model="m")
+
+
+def test_run_counts_and_percentages_of_a_fraction_are_the_results_own():
+    validate_discussion(draft("3 回中 2 回で減少しており、向きは一致しない可能性がある。"), DESCRIPTIVE, model="m")
+    with pytest.raises(DiscussionRejected):
+        validate_discussion(draft("5 回の実験で減少した。"), DESCRIPTIVE, model="m")
+    fraction = DiscussionContext(result={
+        "metric": "positive_fraction", "scale": "fraction", "control": "A", "treatment": "B", "design": "paired", "test": "none",
+        "n_control": 2, "n_treatment": 2, "n_runs": 2, "groups": [{"condition": "A", "mean": 0.42}, {"condition": "B", "mean": 0.30}],
+        "runs": [{"run": "run 1", "control": 0.45, "treatment": 0.31, "difference": -14},
+                 {"run": "run 2", "control": 0.39, "treatment": 0.29, "difference": -10}]})
+    validate_discussion(draft("陽性率は 42% から 30% で、ある回では 45% から 31% へ 14 ポイント低い可能性がある。"), fraction, model="m")

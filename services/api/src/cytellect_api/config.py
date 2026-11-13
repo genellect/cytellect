@@ -71,8 +71,8 @@ class Settings:
     proposal_timeout_seconds: int = 300
     proposal_model: str = "gpt-6.1-sol"
     proposal_prompt_version: str = PROPOSAL_PROMPT_VERSION
-    # Result discussions use the same service and credential (requirements AC-07).
-    discussion_model: str = "gpt-6.1-sol"
+    # Result discussions use the same service, credential and model (requirements AC-07): the service has one
+    # model, so a separate model name here could only be refused after the call was paid for.
     discussion_prompt_version: str = DISCUSSION_PROMPT_VERSION
     desktop_owner: bool = False
     workspace_retention_mode: str = "ttl"
@@ -123,7 +123,6 @@ class Settings:
             proposal_timeout_seconds=int(os.environ.get("CYTELLECT_PROPOSAL_TIMEOUT_SECONDS", "300")),
             proposal_model=os.environ.get("CYTELLECT_PROPOSAL_MODEL", "gpt-6.1-sol"),
             proposal_prompt_version=os.environ.get("CYTELLECT_PROPOSAL_PROMPT_VERSION", PROPOSAL_PROMPT_VERSION),
-            discussion_model=os.environ.get("CYTELLECT_DISCUSSION_MODEL", "gpt-6.1-sol"),
             discussion_prompt_version=os.environ.get("CYTELLECT_DISCUSSION_PROMPT_VERSION", DISCUSSION_PROMPT_VERSION),
             desktop_owner=os.environ.get("CYTELLECT_DESKTOP_OWNER", "false").lower() == "true",
             upload_allowlist=(load_allowlist(os.environ["CYTELLECT_UPLOAD_ALLOWLIST"])
