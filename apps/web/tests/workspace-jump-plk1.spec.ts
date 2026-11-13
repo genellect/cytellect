@@ -323,7 +323,7 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   // The descriptive result above is replaced by the tested one.
   await expect(summary.getByText(/^対応のある t 検定 · n = 3 回 · p/)).toBeVisible({timeout: 300_000});
   // The heading, then the points with the difference and its interval (RS-02, RS-03).
-  await expect(summary.getByRole("heading", {level: 3})).toHaveText(/^PLK1 KO で、視野あたりの核数が約 [\d.]+(%| 個／視野)減少$/);
+  await expect(summary.getByRole("heading", {level: 3})).toHaveText(/^PLK1 KO で、視野あたりの核数が約 [\d.]+(?:% | 個／視野)減少$/);
   const headline = (await summary.getByRole("heading", {level: 3}).textContent())!;
   const interval = summary.getByRole("listitem").filter({hasText: /^差（実験回ごとの差の平均）：−[\d.]+ .*、95% 信頼区間 /});
   await expect(interval).toBeVisible();
