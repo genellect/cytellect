@@ -107,6 +107,14 @@ test("on a wide screen the tabs sit beside one 3D space of the demo's screens",a
  await features.scrollIntoViewIfNeeded();await page.mouse.move(2,2);
  await expect(features.getByRole("tab",{name:"検出と測定"})).toHaveAttribute("aria-selected","true");
  await expect(features.getByRole("tab",{name:"要約と考察"})).toHaveAttribute("aria-selected","true",{timeout:15000});
+ // Keyboard focus inside the tour stops it, so a focused link is never hidden by the next tab.
+ await page.reload();await page.mouse.move(2,2);
+ await features.scrollIntoViewIfNeeded();
+ await expect(page.locator("#workflow span[data-running]")).toHaveCount(1);
+ await page.getByRole("tabpanel").getByRole("link",{name:"この表をデモで開く",exact:true}).focus();
+ await expect(page.locator("#workflow span[data-running]")).toHaveCount(0);
+ await page.waitForTimeout(8000);
+ await expect(page.getByRole("tabpanel").getByRole("link",{name:"この表をデモで開く",exact:true})).toBeFocused();
  // Choosing a tab stops it.
  await features.getByRole("tab",{name:"統計と論文の図"}).click();
  await expect(page.locator("#workflow span[data-running]")).toHaveCount(0);

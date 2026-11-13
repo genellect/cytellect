@@ -141,7 +141,7 @@ export function LandingExperience({ links }: { links: FeatureLinks }) {
 
   // With the 3D space, the bar plays by itself: a line fills along the foot of the chosen tab, then the next one opens.
   // It pauses while the pointer rests on the bar, the bar is off screen or the browser tab is hidden, and
-  // stops for good once the visitor chooses.
+  // stops for good once the visitor chooses or moves the keyboard focus into it.
   const bar = useRef<HTMLDivElement>(null);
   const [auto, setAuto] = useState(true);
   const [inView, setInView] = useState(false);
@@ -187,7 +187,9 @@ export function LandingExperience({ links }: { links: FeatureLinks }) {
       <h2 id="workflow-title" className={lp.statement} aria-label="手作業で数週間かかっていた解析を、一つの画面で数分に。"><span>手作業で数週間かかっていた</span><span>解析を、一つの画面で数分に。</span></h2>
       <p className={lp.experienceLead}>画像を入れるだけ。輪郭を手で描く、表に写す、統計ソフトに移す。その作業がなくなります。</p>
     </header>
-    <div className={lp.tour}>
+    {/* Keyboard focus anywhere in the bar or the open panel stops the tour for good, so a focused link is never
+        hidden by the next tab. */}
+    <div className={lp.tour} onFocusCapture={() => setAuto(false)}>
       <div className={lp.experienceStage} aria-hidden="true"><div ref={host} className={lp.experienceCanvas} /><div className={lp.experienceVeil} /></div>
       <div className={lp.tourInner}>
         <div ref={bar} className={lp.switcher} onPointerEnter={() => setHover(true)} onPointerLeave={() => setHover(false)}>
