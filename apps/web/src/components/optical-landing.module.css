@@ -87,16 +87,21 @@
 .experienceLead{max-width:30em;margin:24px 0 0;font-size:clamp(17px,1.3vw,19px);line-height:1.8;word-break:auto-phrase}
 .tour{position:relative;margin-top:clamp(36px,4vw,64px)}
 .tourInner{position:relative;z-index:1;width:min(100% - 2 * var(--gutter),1360px);margin-inline:auto}
-/* Tabs: one frosted glass capsule; the chosen tab sits on a deep green pill that slides between them. */
-.tablist{position:relative;display:inline-flex;max-width:100%;padding:5px;gap:2px;border:1px solid #ffffffd9;border-radius:999px;background:linear-gradient(135deg,#ffffffc7,#ffffff7a);box-shadow:0 24px 50px -30px #1726218c,inset 0 1px 0 #fff;backdrop-filter:blur(18px) saturate(1.2);-webkit-backdrop-filter:blur(18px) saturate(1.2);overflow-x:auto;scrollbar-width:none}
-.tablist::-webkit-scrollbar{display:none}
-.tabPill{position:absolute;z-index:0;top:5px;bottom:5px;left:0;border-radius:999px;background:var(--green);box-shadow:0 8px 20px -10px #172621b3;transition:transform .45s cubic-bezier(.2,.7,.1,1),width .45s cubic-bezier(.2,.7,.1,1)}
-.tab{position:relative;z-index:1;flex:none;display:inline-flex;align-items:center;gap:10px;min-height:46px;padding:0 22px;border:0;border-radius:999px;background:none;color:var(--fg);font-size:16px;font-weight:500;line-height:1.4;white-space:nowrap;cursor:pointer;transition:color .3s}
-.tab>span{font-size:12px;font-weight:600;letter-spacing:.06em;font-variant-numeric:tabular-nums;opacity:.55}
-.tab:hover{background:#1726210d}
-.tab[aria-selected="true"]{color:#f6f6f3}
-.tab[aria-selected="true"]:hover{background:none}
-.tab[aria-selected="true"]>span{opacity:.7}
+/* Tabs: four cards in a row, each naming one thing Cytellect does in a line, so it is plain there is more to
+   see. With the 3D space the chosen card fills a line along its top and the tour moves on by itself. */
+.tablist{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.tab{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr);align-content:start;gap:4px 12px;min-height:104px;padding:18px 20px 20px;overflow:hidden;border:1px solid #ffffffd9;border-radius:20px;background:linear-gradient(135deg,#ffffffb3,#ffffff66);box-shadow:0 18px 40px -32px #17262199,inset 0 1px 0 #fff;color:var(--fg);text-align:left;cursor:pointer;backdrop-filter:blur(18px) saturate(1.2);-webkit-backdrop-filter:blur(18px) saturate(1.2);transition:transform .35s cubic-bezier(.2,.7,.1,1),box-shadow .35s,background .35s,border-color .35s}
+.tab:hover{transform:translateY(-3px);background:#fffffff2;box-shadow:0 26px 50px -30px #172621a6,inset 0 1px 0 #fff}
+.tab[aria-selected="true"]{border-color:#17262126;background:#fff;box-shadow:0 30px 60px -34px #172621b3,inset 0 1px 0 #fff}
+.tabNumber{grid-row:span 2;display:grid;place-items:center;width:30px;height:30px;border:1px solid #17262133;border-radius:50%;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;transition:background .35s,color .35s,border-color .35s}
+.tab[aria-selected="true"] .tabNumber{border-color:var(--green);background:var(--green);color:#f6f6f3}
+.tab b{font-size:17px;font-weight:600;line-height:1.4}
+.tabTeaser{font-size:14px;line-height:1.55;word-break:auto-phrase}
+.tabProgress{position:absolute;left:0;top:0;width:100%;height:3px;background:var(--green);transform:scaleX(0);transform-origin:0 50%;animation:lpTabFill 8s linear forwards}
+.tabProgress[data-running="false"]{animation-play-state:paused}
+@keyframes lpTabFill{to{transform:scaleX(1)}}
+.next{display:none}
+.experience[data-mode="plates"] .next{grid-column:1 / -1;justify-self:start;display:inline-flex;align-items:center;gap:12px;margin-top:8px;padding:10px 0;border:0;border-bottom:1px solid currentColor;background:none;color:var(--fg);font-size:16px;font-weight:500;cursor:pointer}
 .chapter{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:clamp(40px,5vw,96px);align-items:center;padding-top:clamp(36px,4vw,56px)}
 .chapter[hidden]{display:none!important}
 .chapterTitle{margin:0;font-size:var(--t-h3);font-weight:500;line-height:1.42;letter-spacing:-.01em;word-break:auto-phrase;text-wrap:pretty}
@@ -123,11 +128,12 @@
 /* With the 3D space: one screen-high stage; the tabs and the chosen claim on the left, the space on the right. */
 .experienceStage{display:none;position:absolute;inset:0;overflow:hidden}
 .experienceCanvas,.experienceCanvas canvas{position:absolute;inset:0;display:block;width:100%;height:100%}
-.experienceVeil{position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,var(--ground) 0%,#f3f4f1f2 35%,#f3f4f1a6 45%,#f3f4f100 57%),linear-gradient(180deg,var(--ground) 0%,#f3f4f100 14%,#f3f4f100 84%,var(--ground) 100%)}
+.experienceVeil{position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,var(--ground) 0%,#f3f4f1f2 35%,#f3f4f1a6 45%,#f3f4f100 57%),linear-gradient(180deg,var(--ground) 0%,#f3f4f100 14%,#f3f4f100 70%,#f3f4f1d9 88%,var(--ground) 100%)}
 .experience[data-mode="space"] .tour{height:min(100svh,900px);min-height:640px}
 .experience[data-mode="space"] .experienceStage{display:block}
-.experience[data-mode="space"] .tourInner{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;height:100%;padding-top:clamp(72px,13svh,150px)}
-.experience[data-mode="space"] .chapter{display:block;width:min(460px,35vw);padding-top:40px}
+.experience[data-mode="space"] .tourInner{height:100%;padding-top:clamp(56px,10svh,120px)}
+.experience[data-mode="space"] .tablist{position:absolute;left:0;right:0;bottom:clamp(24px,4svh,44px)}
+.experience[data-mode="space"] .chapter{display:block;width:min(460px,35vw);padding-top:0}
 .experience[data-mode="space"] .chapterText{animation:lpFloat .6s cubic-bezier(.2,.7,.1,1) both}
 .experience[data-mode="space"] .plates{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
 @keyframes lpFloat{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
@@ -297,8 +303,11 @@
   /* Phones: the claim, then the part of the screen that proves it, then the way into the demo. The whole
      screen is too small to read here, so only the part that matters is shown, on its own lit stage. */
   .tour{margin-top:32px}
-  .tablist{display:flex;width:100%}
-  .tab{min-height:42px;padding:0 16px;font-size:15px}
+  .tablist{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:74%;gap:10px;margin:0 calc(-1 * var(--gutter));padding:4px var(--gutter) 14px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding-inline:var(--gutter);scrollbar-width:none}
+  .tablist::-webkit-scrollbar{display:none}
+  .tab{min-height:0;padding:16px 18px;scroll-snap-align:start}
+  .tab:hover{transform:none}
+  .chapter .next{order:7;align-self:flex-start;margin-top:28px}
   .chapter{display:flex;flex-direction:column;align-items:stretch;gap:0;padding-top:28px}
   .chapterText{display:contents}
   .chapterTitle{font-size:clamp(22px,6vw,26px)}

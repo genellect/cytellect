@@ -21,7 +21,10 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
  const experience=page.locator("#workflow");
  await expect(experience).toHaveAttribute("data-mode","plates");
  const features=page.getByRole("tablist",{name:"Cytellectでできること",exact:true});
- await expect(features.getByRole("tab")).toHaveText(["01検出と測定","02要約と考察","03AIによる設定","04統計と論文の図"]);
+ await expect(features.getByRole("tab")).toHaveCount(4);
+ await expect(features.locator("[role=tab] b")).toHaveText(["検出と測定","要約と考察","AIによる設定","統計と論文の図"]);
+ // Each card says in a line what is behind it, so it is plain that there is more to see.
+ await expect(features.getByRole("tab",{name:"要約と考察",exact:true})).toContainText("結論の一文と、考察まで");
  await expect(features.getByRole("tab",{name:"検出と測定"})).toHaveAttribute("aria-selected","true");
  await expect(page.getByRole("tabpanel").getByAltText(/^核ごとの表。/)).toBeVisible();
  const scenes:{id:string;workspaceId:string}[]=(await (await page.request.get("/showcase/snapshot/scenes.json")).json()).scenes;
@@ -43,7 +46,10 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
  // Measurements are not tied to one structure; the nucleolus figures are one example.
  await features.getByRole("tab",{name:"検出と測定"}).click();
  await expect(page.getByRole("tabpanel").getByRole("list",{name:"測れる値",exact:true}).getByRole("listitem")).toHaveCount(6);
- await expect(page.getByRole("tabpanel").getByText("一例：核小体の研究",{exact:true})).toBeVisible();
+ await expect(page.getByRole("tabpanel").getByText("一例：核小体の研究")).toHaveCount(0);
+ // Without the moving tour, each tab ends with the way to the next one.
+ await page.getByRole("tabpanel").getByRole("button",{name:/^次は、要約と考察/}).click();
+ await expect(features.getByRole("tab",{name:"要約と考察",exact:true})).toHaveAttribute("aria-selected","true");
  // The latter half runs from research to the patients waiting, then invites to the demo before the reference material.
  const impact=page.getByRole("region",{name:"研究の先に、待っている患者さんがいる。",exact:true});
  const impactSteps=impact.getByRole("list",{name:"研究から患者さんまで",exact:true}).getByRole("listitem");
@@ -98,7 +104,13 @@ test("on a wide screen the tabs sit beside one 3D space of the demo's screens",a
  expect(await experience.evaluate(node=>node.getBoundingClientRect().height)).toBeLessThan(900*1.9);
  const features=page.getByRole("tablist",{name:"Cytellectでできること",exact:true});
  await expect(features).toHaveAttribute("aria-orientation","horizontal");
+ // The tour plays by itself while it is on screen: the first card fills its line and the next one opens.
+ await features.scrollIntoViewIfNeeded();await page.mouse.move(2,2);
+ await expect(features.getByRole("tab",{name:"検出と測定",exact:true})).toHaveAttribute("aria-selected","true");
+ await expect(features.getByRole("tab",{name:"要約と考察",exact:true})).toHaveAttribute("aria-selected","true",{timeout:15000});
+ // Choosing a card stops it.
  await features.getByRole("tab",{name:"統計と論文の図"}).click();
+ await expect(features.locator('[aria-selected="true"] span[data-running]')).toHaveCount(0);
  const panel=page.getByRole("tabpanel");
  await expect(panel.getByRole("link",{name:"この図をデモで開く",exact:true})).toBeVisible();
  // The plates stay in the page for assistive technology, drawn by the 3D space instead.

@@ -34,8 +34,10 @@ const HOME: Record<PanelId, Pose> = {
   size: { p: along(FIGURE.p, FIGURE.ry, 1.45, 1.05, -0.62), ry: FIGURE.ry, o: 1 },
 };
 
-const facing = (pose: Pose, distance: number, right = 0): Pick<Shot, "cam" | "look"> => {
-  const look = along(pose.p, pose.ry, 0, right, 0);
+/** A shot facing a plate. `up` lowers the aim below the plate's centre, which lifts the plate in the frame,
+ *  clear of the tab cards along the bottom. */
+const facing = (pose: Pose, distance: number, right = 0, up = 0): Pick<Shot, "cam" | "look"> => {
+  const look = along(pose.p, pose.ry, 0, right, up);
   return { look, cam: along(look, pose.ry, distance, 0, 0.12) };
 };
 
@@ -43,11 +45,11 @@ const facing = (pose: Pose, distance: number, right = 0): Pick<Shot, "cam" | "lo
  *  the wide table glides across the frame after the camera arrives. */
 const SHOTS: Shot[] = [
   { cam: [-1.9, 1.35, 9.6], look: [1.3, 0.2, -1.5], shift: 0.31, warm: 0.15, show: [...SCREENS] },
-  { ...facing(AI, 7.2, 0.45), shift: 0.17, warm: 0.2, show: [...SCREENS, "ask"], move: { stats: { o: 0 }, figure: { o: 0 } } },
+  { ...facing(AI, 7.4, 0.45, -0.3), shift: 0.17, warm: 0.2, show: [...SCREENS, "ask"], move: { stats: { o: 0 }, figure: { o: 0 } } },
   { cam: [-0.75, -2.45, 5.3], look: [-0.75, -2.75, 1.1], shift: 0.25, warm: 0.25, show: [...SCREENS, "table"] },
   { cam: [1.55, -2.45, 5.3], look: [1.55, -2.75, 1.1], shift: 0.25, warm: 0.35, show: [...SCREENS, "table"] },
-  { cam: [0.7, 0.32, 8.4], look: [0.95, 0.22, 1.6], shift: 0.17, warm: 1, show: [...SCREENS, "conclusion", "discussion"], move: { stats: { p: [0.2, 0.05, -1.3], o: 0.42 } } },
-  { ...facing(FIGURE, 6.6, 0.35), shift: 0.17, warm: 0.3, show: [...SCREENS, "layout", "size"] },
+  { cam: [0.7, -0.15, 10.2], look: [0.95, -0.35, 1.6], shift: 0.17, warm: 1, show: [...SCREENS, "conclusion", "discussion"], move: { stats: { p: [0.2, 0.05, -1.3], o: 0.42 } } },
+  { ...facing(FIGURE, 7.2, 0.35, -0.45), shift: 0.17, warm: 0.3, show: [...SCREENS, "layout", "size"] },
 ];
 
 const hidden = (id: PanelId): Pose => {
