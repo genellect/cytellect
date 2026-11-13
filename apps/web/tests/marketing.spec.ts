@@ -16,33 +16,39 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
  await expect(hero.getByRole("link",{name:"ダウンロード",exact:true})).toHaveAttribute("href","#download");
  await expect(hero.getByRole("link",{name:"デモを体験する",exact:true})).toHaveAttribute("href","/demo");
  await expect(hero.getByRole("button",{name:/領域/})).toHaveCount(0);
- // What Cytellect does is one list that is both the switch and the content: detection and measurement open first,
- // and each feature names itself and says in a line what is behind it. Without the 3D space (reduced motion here)
- // the open feature shows its demo captures as glass plates and opens the same demo screen.
+ // What Cytellect does is split into tabs, detection and measurement first, so the page stays short. Without the
+ // 3D space (reduced motion here) each tab shows its demo captures as glass plates and opens the same demo screen.
  const experience=page.locator("#workflow");
  await expect(experience).toHaveAttribute("data-mode","plates");
- await expect(page.getByRole("tab")).toHaveCount(0);
- const features=page.getByRole("list",{name:"Cytellectでできること",exact:true});
- const heads=features.locator(":scope > li > button");
- await expect(heads.locator("b")).toHaveText(["検出と測定","要約と考察","AIによる設定","統計と論文の図"]);
- await expect(heads.nth(1)).toContainText("結論の一文と、考察まで");
- await expect(heads.nth(0)).toHaveAttribute("aria-expanded","true");
- await expect(page.getByRole("region",{name:/検出と測定/}).getByAltText(/^核ごとの表。/)).toBeVisible();
+ const features=page.getByRole("tablist",{name:"Cytellectでできること",exact:true});
+ await expect(features.getByRole("tab")).toHaveText(["01検出と測定","02要約と考察","03AIによる設定","04統計と論文の図"]);
+ await expect(features.getByRole("tab",{name:"検出と測定"})).toHaveAttribute("aria-selected","true");
+ await expect(page.getByRole("tabpanel").getByAltText(/^核ごとの表。/)).toBeVisible();
  const scenes:{id:string;workspaceId:string}[]=(await (await page.request.get("/showcase/snapshot/scenes.json")).json()).scenes;
  const scene=(id:string,step:string)=>`/demo?id=${scenes.find(item=>item.id===id)!.workspaceId}&step=${step}`;
  const plk1="cpg0016-jump-source13-plk1",oxaliplatin="zenodo-6643470-oxaliplatin";
- for(const [index,name,title,link,href,images] of [[1,"要約と考察",/^結果を読み解く時間を、/,"この結果をデモで開く",scene(plk1,"statistics"),3],[2,"AIによる設定",/^やりたいことを一文で。/,"デモで指示する",scene(plk1,"statistics"),2],[3,"統計と論文の図",/^統計の検定も、論文に載せる図も、/,"この図をデモで開く",scene(plk1,"figure"),3],[0,"検出と測定",/^測りたい値が、/,"この表をデモで開く",scene(oxaliplatin,"image"),1]] as const){
-  await heads.nth(index).click();
-  await expect(heads.nth(index)).toHaveAttribute("aria-expanded","true");
-  await expect(features.locator('[aria-expanded="true"]')).toHaveCount(1);
-  const region=page.getByRole("region",{name:new RegExp(name)});
-  await expect(region.getByRole("heading",{name:title})).toBeVisible();
-  await expect(region.getByRole("link",{name:link,exact:true})).toHaveAttribute("href",href);
-  await expect(region.locator('figure img[src^="/marketing/lp-"]')).toHaveCount(images);
+ for(const [tab,title,link,href,images] of [["要約と考察",/^結果を読み解く時間を、/,"この結果をデモで開く",scene(plk1,"statistics"),3],["AIによる設定",/^やりたいことを一文で。/,"デモで指示する",scene(plk1,"statistics"),2],["統計と論文の図",/^統計の検定も、論文に載せる図も、/,"この図をデモで開く",scene(plk1,"figure"),3],["検出と測定",/^測りたい値が、/,"この表をデモで開く",scene(oxaliplatin,"image"),1]] as const){
+  await features.getByRole("tab",{name:tab}).click();
+  const panel=page.getByRole("tabpanel");
+  await expect(panel).toHaveCount(1);
+  await expect(panel.getByRole("heading",{name:title})).toBeVisible();
+  await expect(panel.getByRole("link",{name:link,exact:true})).toHaveAttribute("href",href);
+  await expect(panel.locator('figure img[src^="/marketing/lp-"]')).toHaveCount(images);
  }
- // Measurements are not tied to one structure; the nucleolus figures stand without a heading.
- await expect(page.getByRole("region",{name:/検出と測定/}).getByRole("list",{name:"測れる値",exact:true}).getByRole("listitem")).toHaveCount(6);
+ await features.getByRole("tab",{name:"検出と測定"}).press("ArrowLeft");
+ await expect(features.getByRole("tab",{name:"統計と論文の図"})).toBeFocused();
+ await expect(features.getByRole("tab",{name:"統計と論文の図"})).toHaveAttribute("aria-selected","true");
+ await features.getByRole("tab",{name:"統計と論文の図"}).press("Home");
+ await expect(features.getByRole("tab",{name:"検出と測定"})).toHaveAttribute("aria-selected","true");
+ // Measurements are not tied to one structure; the nucleolus figures are one example.
+ await features.getByRole("tab",{name:"検出と測定"}).click();
+ await expect(page.getByRole("tabpanel").getByRole("list",{name:"測れる値",exact:true}).getByRole("listitem")).toHaveCount(6);
  await expect(page.getByText("一例：核小体の研究")).toHaveCount(0);
+ // Beside the bar, the count and the arrows say there is more and step through it.
+ await page.getByRole("button",{name:"次の機能",exact:true}).click();
+ await expect(features.getByRole("tab",{name:"要約と考察"})).toHaveAttribute("aria-selected","true");
+ await page.getByRole("button",{name:"前の機能",exact:true}).click();
+ await expect(features.getByRole("tab",{name:"検出と測定"})).toHaveAttribute("aria-selected","true");
  // The latter half runs from research to the patients waiting, then invites to the demo before the reference material.
  const impact=page.getByRole("region",{name:"研究の先に、待っている患者さんがいる。",exact:true});
  const impactSteps=impact.getByRole("list",{name:"研究から患者さんまで",exact:true}).getByRole("listitem");
@@ -78,6 +84,7 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
  const images=page.locator('main img[src^="/marketing/"]').filter({visible:true});
  for(const img of await images.all()){await img.scrollIntoViewIfNeeded();await expect.poll(()=>img.evaluate((node:HTMLImageElement)=>node.complete&&node.naturalWidth>0)).toBe(true);}
  // The wide table scrolls inside its own frame on a phone; the page itself never scrolls sideways.
+ await features.getByRole("tab",{name:"検出と測定"}).click();
  const table=page.getByAltText(/^核ごとの表。/);await table.scrollIntoViewIfNeeded();
  expect(await table.evaluate((img:HTMLImageElement)=>img.clientWidth>img.parentElement!.clientWidth)).toBe(true);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
@@ -94,16 +101,16 @@ test("on a wide screen the tabs sit beside one 3D space of the demo's screens",a
  await expect(experience.locator("canvas")).toHaveCount(1);
  // The whole tour fits in one screen: the section does not grow with the number of features.
  expect(await experience.evaluate(node=>node.getBoundingClientRect().height)).toBeLessThan(900*1.9);
- const features=page.getByRole("list",{name:"Cytellectでできること",exact:true});
- const heads=features.locator(":scope > li > button");
- // The tour plays by itself while it is on screen: the open feature fills its line and the next one opens.
+ const features=page.getByRole("tablist",{name:"Cytellectでできること",exact:true});
+ await expect(features).toHaveAttribute("aria-orientation","horizontal");
+ // The bar plays by itself while it is on screen: a line fills along the chosen tab and the next one opens.
  await features.scrollIntoViewIfNeeded();await page.mouse.move(2,2);
- await expect(heads.nth(0)).toHaveAttribute("aria-expanded","true");
- await expect(heads.nth(1)).toHaveAttribute("aria-expanded","true",{timeout:15000});
- // Choosing a feature stops it.
- await heads.nth(3).click();
- await expect(features.locator("span[data-running]")).toHaveCount(0);
- const panel=page.getByRole("region",{name:/統計と論文の図/});
+ await expect(features.getByRole("tab",{name:"検出と測定"})).toHaveAttribute("aria-selected","true");
+ await expect(features.getByRole("tab",{name:"要約と考察"})).toHaveAttribute("aria-selected","true",{timeout:15000});
+ // Choosing a tab stops it.
+ await features.getByRole("tab",{name:"統計と論文の図"}).click();
+ await expect(page.locator("#workflow span[data-running]")).toHaveCount(0);
+ const panel=page.getByRole("tabpanel");
  await expect(panel.getByRole("link",{name:"この図をデモで開く",exact:true})).toBeVisible();
  // The plates stay in the page for assistive technology, drawn by the 3D space instead.
  await expect(panel.getByAltText(/^グラフの設定。幅/)).toHaveCount(1);
