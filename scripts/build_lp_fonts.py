@@ -87,7 +87,8 @@ def main() -> None:
         font.flavor = "woff2"
         font.save(OUT / output)
     for output, source in LICENSES.items():
-        (OUT / output).write_bytes(fetch(source).read_bytes())
+        # The repository stores text with LF line ends; the allowlist hash must match the checkout.
+        (OUT / output).write_bytes(fetch(source).read_bytes().replace(b"\r\n", b"\n"))
     (OUT / "manifest.json").write_text(json.dumps({
         "license": "OFL-1.1",
         "fonttools_version": __import__("fontTools").version,
