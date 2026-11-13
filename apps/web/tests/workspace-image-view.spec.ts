@@ -54,6 +54,8 @@ async function imageWorkspace(context:BrowserContext,page:Page,options:{pair?:bo
     if(path.endsWith("/runs"))return json([]);
     if(path.endsWith("/jobs"))return json(saved.map(value=>({id:value.job,kind:"statistics",state:"succeeded",created:value.created,revision_id:"cohort"})));
     const result=saved.find(value=>path===`/v1/jobs/${value.job}/result`);if(result)return json(result.result);
+    // No discussion has been made for a saved comparison (the API answers null; AC-06).
+    if(method==="GET"&&saved.some(value=>path===`/v1/jobs/${value.job}/discussion`))return json(null);
     const figure=saved.find(value=>path===`/v1/jobs/${value.job}/files/figure.svg`);
     if(figure)return route.fulfill({headers,contentType:"image/svg+xml",body:`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200"><text x="20" y="40">Saved figure ${figure.job}</text></svg>`});
     if(path.endsWith("/region-measurements")){const rid=path.split("/")[3],fid=rid.endsWith("2")?"f2":"f1";
