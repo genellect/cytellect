@@ -393,6 +393,8 @@ $inventory | Sort-Object group, file | Export-Csv -LiteralPath (Join-Path $Outpu
 $groups = 'python-wheels', 'jdk-fiji', 'own-scripts', 'inno-setup', 'other', 'runner'
 $facts.audited = [ordered]@{}
 foreach ($which in 'no_isg', 'isg') {
+    # A policy that the probe did not show active audited nothing: record "not verified", not 0 files.
+    if (-not $facts.policies[$which].active) { $facts.audited[$which] = $null; continue }
     $byPolicy = @($unique | Where-Object { (Test-Policy $_ $which) -and $_.group -ne 'probe' })
     $counts = [ordered]@{}
     foreach ($group in $groups) { $counts[$group] = @($byPolicy | Where-Object group -eq $group | ForEach-Object { $_.file.ToLowerInvariant() } | Sort-Object -Unique).Count }
@@ -409,8 +411,17 @@ function Get-AuditedFiles([string]$Which) {
     return @($unique | Where-Object { (Test-Policy $_ $Which) -and $_.group -notin @('probe', 'runner') } |
         ForEach-Object { $_.file.ToLowerInvariant() } | Sort-Object -Unique)
 }
-$isgFiles = Get-AuditedFiles 'isg'
-$facts.isg_allowed = @(Get-AuditedFiles 'no_isg' | Where-Object { $_ -notin $isgFiles }).Count
+# Only a comparison of two active policies says what reputation allowed. If either policy was not shown
+# active (missing example policy, failed build or deployment), the difference is unverified, not "allowed".
+$facts.isg_compared = [bool]($facts.policies.no_isg.active -and $facts.policies.isg.active)
+$facts.isg_allowed = $null
+if ($facts.isg_compared) {
+    $isgFiles = Get-AuditedFiles 'isg'
+    $facts.isg_allowed = @(Get-AuditedFiles 'no_isg' | Where-Object { $_ -notin $isgFiles }).Count
+} else {
+    Add-Error 'ISG comparison' 'not verified: both audit policies must be shown active by the unsigned probe'
+}
+function Format-Count($Value) { if ($null -eq $Value) { return 'not verified' } return [string]$Value }
 $facts | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $Output 'sac-audit.json') -Encoding utf8
 
 # ---------------------------------------------------------------- step summary
@@ -418,13 +429,15 @@ $summary = @('## Smart App Control audit (emulated on the CI runner)', '',
     ('Runner: {0}. Smart App Control itself is not present on Windows Server; Code Integrity enforces the same rules in audit mode.' -f $facts.os), '',
     ('- Microsoft audit policy without ISG (worst case: only files signed by a trusted CA pass): active = **{0}**' -f $facts.policies.no_isg.active),
     ('- Example Smart App Control policy with ISG (cloud reputation): active = **{0}**' -f $facts.policies.isg.active),
-    ('- Shipped files audited without ISG but allowed with ISG (reputation as seen from this runner today): {0}' -f $facts.isg_allowed),
+    ('- Shipped files audited without ISG but allowed with ISG (reputation as seen from this runner today): {0}' -f (Format-Count $facts.isg_allowed)),
     ('- Unsigned probe executable audited by: {0}' -f $(if ($facts.probe_policies) { $facts.probe_policies -join ', ' } else { 'none' })),
     ('- Use: install exit {0}; nuclei detected {1}; export {2}' -f $facts.use.install_exit, $(if ($facts.use.Contains('nuclei')) { $facts.use.nuclei } else { '-' }), $(if ($facts.use.Contains('export')) { $facts.use.export } else { '-' })),
     ('- Events: ' + (($facts.event_counts.GetEnumerator() | ForEach-Object { '{0}={1}' -f $_.Key, $_.Value }) -join ', ')), '',
     '| Group | Audited without ISG | Audited with ISG | Executable files installed | Validly signed | Not signed |', '|---|---:|---:|---:|---:|---:|')
 foreach ($group in $groups) {
-    $summary += ('| {0} | {1} | {2} | {3} | {4} | {5} |' -f $group, $facts.audited.no_isg[$group], $facts.audited.isg[$group],
+    $noIsgCount = if ($facts.audited.no_isg) { $facts.audited.no_isg[$group] } else { $null }
+    $isgCount = if ($facts.audited.isg) { $facts.audited.isg[$group] } else { $null }
+    $summary += ('| {0} | {1} | {2} | {3} | {4} | {5} |' -f $group, (Format-Count $noIsgCount), (Format-Count $isgCount),
         $facts.inventory[$group].files, $facts.inventory[$group].valid_signature, $facts.inventory[$group].not_signed)
 }
 $summary += @('', 'Examples (without ISG):', '')

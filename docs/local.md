@@ -112,7 +112,9 @@ equivalent App Control policies in audit mode with `CiTool`: Microsoft's signed
 audited, or the job fails. It then installs into `%LOCALAPPDATA%\Cytellect`, opens the launcher window and a
 workspace, detects nuclei in BBBC013 A01 with Fiji in the worker, exports, uninstalls, and lists Code
 Integrity events 3076/3077 (and 3033/3034/3089, script events 8028/8029) per file, with paths relative to
-the install root. Findings do not fail the job.
+the install root. The count allowed by ISG is reported only when the probe shows both policies active;
+otherwise it is marked not verified, so a policy that failed to deploy is not read as reputation. Findings do
+not fail the job.
 
 First result (2026-10-30, Windows Server 2025 build 26100, runs 41032300443 and 41036651806): without ISG,
 Code Integrity would block 173 Python extension modules and DLLs from PyPI wheels (numpy, scipy, pandas,
