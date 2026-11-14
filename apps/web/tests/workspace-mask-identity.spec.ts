@@ -1,3 +1,4 @@
+import {appAlerts} from "./app-alerts";
 import {expect, test} from "@playwright/test";
 
 /** Synthetic transport fixture: masks must never be relabelled as another channel's result. */
@@ -64,7 +65,7 @@ test("a new target cannot display the previous target mask while running or afte
   await expect.poll(() => started).toBe(true);
   await expect(image.locator("[data-region]")).toHaveCount(0);
   release!();
-  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(appAlerts(page)).toBeVisible();
   await expect(image.locator("[data-region]")).toHaveCount(0);
   await method.getByRole("combobox",{name:"領域",exact:true}).selectOption("nuclei");
   await expect(image.locator('[data-region="7"]')).toHaveCount(1);
