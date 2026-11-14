@@ -24,7 +24,7 @@ import math
 from collections import Counter, defaultdict
 from typing import Any
 
-from .descriptive_contracts import GFP_FILTER, ExploratoryGfpGateFilter, GfpFilter
+from .descriptive_contracts import GFP_FILTER, ExploratoryGfpGateFilter
 from .gfp_gate import (
     MINIMUM_CONTROL_NUCLEI,
     PROTOCOL,
@@ -48,8 +48,19 @@ SAFE_ERROR_CODES = frozenset({
 NUCLEAR_SOURCES = ("stardist_nuclear",)
 
 
-def gate_of(selection) -> GfpFilter | None:
-    return getattr(selection, "gfp_gate", None)
+def gate_of(selection):
+    return getattr(selection, "gfp_gate", None) or getattr(selection, "channel_gate", None) or getattr(selection, "positivity", None)
+
+
+def gate_record_key(record):
+    return "channel_gate" if record.get("gate_protocol") == "channel-gate/1.0.0" else "gfp_gate"
+
+
+def gate_record_keys(record):
+    if gate_record_key(record) == "channel_gate":
+        from .channel_selection import GATE_KEYS as CHANNEL_KEYS
+        return CHANNEL_KEYS
+    return GATE_KEYS
 
 
 def uses_gfp_gate(spec) -> bool:
@@ -60,7 +71,7 @@ def uses_gfp_gate(spec) -> bool:
     return any(isinstance(item, dict) and item.get("gfp_gate") is not None for item in selections)
 
 
-def binding_kind(recipe) -> str:
+def binding_kind(recipe, *, error_prefix="gfp_gate") -> str:
     """How measured observations map to nuclei for this revision recipe, or refuse."""
     recipe = recipe if isinstance(recipe, dict) else {}
     if recipe.get("source") in NUCLEAR_SOURCES:
@@ -71,20 +82,20 @@ def binding_kind(recipe) -> str:
         # Nucleoplasm labels keep the parent nucleus ID (compartment engine
         # ``nucleoplasm_label_identity = parent_nucleus_id``).
         return "parent_nucleus"
-    raise ValueError("gfp_gate_nuclear_source_unbound")
+    raise ValueError(f"{error_prefix}_nuclear_source_unbound")
 
 
-def same_revision_nuclear_source(report, snapshot):
+def same_revision_nuclear_source(report, snapshot, *, error_prefix="gfp_gate"):
     """The measured revision itself holds the adopted nuclear masks and GFP rows."""
-    if binding_kind(report.get("recipe")) != "same_revision":
-        raise ValueError("gfp_gate_nuclear_source_unbound")
+    if binding_kind(report.get("recipe"), error_prefix=error_prefix) != "same_revision":
+        raise ValueError(f"{error_prefix}_nuclear_source_unbound")
     fields = {}
     for fid, table in report.get("field_tables", {}).items():
         try:
             region_set, digest = table["region_set"], table["mask_sha256"]
             image_info = snapshot[fid]["image_info"]
         except (KeyError, TypeError):
-            raise ValueError("gfp_gate_nuclear_source_invalid") from None
+            raise ValueError(f"{error_prefix}_nuclear_source_invalid") from None
         fields[fid] = {"revision_id": report.get("revision_id"), "table": table,
                        "mask_revision_id": region_set.get("mask_revision_id"), "mask_sha256": digest,
                        "exclusions": [item for item in report.get("exclusions", []) if item.get("field_id") == fid],
@@ -96,10 +107,13 @@ def _channel(image_info, channel_id):
     return next((item for item in (image_info or {}).get("channels", []) if item.get("channel_id") == channel_id), None)
 
 
-def _nuclear_rows(nuclear, snapshot, gate, measured_fields):
+def _nuclear_rows(nuclear, snapshot, gate, measured_fields, *, channel_id=None,
+                  value_key="gfp_mean", saturation_key="gfp_saturated", error_prefix="gfp_gate",
+                  include_excluded=False):
     """Validated raw GFP means per (field, nucleus) from the bound nuclear tables."""
     if not isinstance(nuclear, dict) or nuclear.get("binding") not in ("same_revision", "parent_nucleus"):
-        raise ValueError("gfp_gate_nuclear_source_unbound")
+        raise ValueError(f"{error_prefix}_nuclear_source_unbound")
+    channel_id = gate.gfp_channel_id if channel_id is None else channel_id
     sources = nuclear.get("fields") or {}
     rows: dict[tuple[str, int], dict[str, Any]] = {}
     excluded_fields: set[str] = set()
@@ -107,44 +121,51 @@ def _nuclear_rows(nuclear, snapshot, gate, measured_fields):
     for fid in sorted(measured_fields):
         entry = sources.get(fid)
         if not isinstance(entry, dict):
-            raise ValueError("gfp_gate_nuclear_source_unbound")
+            raise ValueError(f"{error_prefix}_nuclear_source_unbound")
         try:
             table = region_table_from_json(json.dumps(entry["table"]))
         except (KeyError, TypeError, ValueError):
-            raise ValueError("gfp_gate_nuclear_source_invalid") from None
+            raise ValueError(f"{error_prefix}_nuclear_source_invalid") from None
         if (table.field_id != fid or table.region_set.mask_revision_id != entry.get("mask_revision_id")
                 or table.mask_sha256 != entry.get("mask_sha256") or entry.get("image_info") != snapshot[fid].get("image_info")
                 or (table.region_set.source not in ("manual", "cellpose_cell") or table.region_set.region_set_id != "cell"
                     if getattr(gate, "unit", "nucleus") == "cell_roi" else table.region_set.source != "stardist_nuclear")):
-            raise ValueError("gfp_gate_nuclear_identity_mismatch")
+            raise ValueError(f"{error_prefix}_nuclear_identity_mismatch")
         try:
             require_region_metric(getattr(table, "measurement", None),
                                   "mean_corrected" if getattr(gate, "values", "raw") == "corrected" else "mean")
         except ValueError:
-            raise ValueError("gfp_gate_intensity_not_measured") from None
-        declared = _channel(snapshot[fid].get("image_info"), gate.gfp_channel_id)
-        provenance = next((item for item in table.channel_provenance if item.channel.channel_id == gate.gfp_channel_id), None)
+            raise ValueError(f"{error_prefix}_intensity_not_measured") from None
+        declared = _channel(snapshot[fid].get("image_info"), channel_id)
+        provenance = next((item for item in table.channel_provenance if item.channel.channel_id == channel_id), None)
         if declared is None or provenance is None or provenance.channel.model_dump(mode="json") != declared:
-            raise ValueError("gfp_gate_channel_unknown")
+            raise ValueError(f"{error_prefix}_channel_unknown")
         exclusions = entry.get("exclusions") or []
         if any(item.get("field_id") != fid for item in exclusions):
-            raise ValueError("gfp_gate_nuclear_source_invalid")
+            raise ValueError(f"{error_prefix}_nuclear_source_invalid")
         if any(item.get("region_id") is None for item in exclusions):
             excluded_fields.add(fid)
         excluded = {item.get("region_id") for item in exclusions}
         for row in table.rows:
-            if row.channel_id != gate.gfp_channel_id:
+            if row.channel_id != channel_id:
                 continue
             if (row.field_id != fid or row.mask_revision_id != table.region_set.mask_revision_id
                     or row.region_id <= 0 or (fid, row.region_id) in rows):
-                raise ValueError("gfp_gate_nuclear_identity_mismatch")
-            if row.region_id in excluded:
+                raise ValueError(f"{error_prefix}_nuclear_identity_mismatch")
+            if row.region_id in excluded and not include_excluded:
                 continue
             value = row.mean_corrected if getattr(gate, "values", "raw") == "corrected" else row.mean
             saturated = (row.storage_limit_fraction or 0) > 0 or (row.acquisition_saturation_fraction or 0) > 0
             rows[fid, row.region_id] = {"field_id": fid, "region_id": row.region_id, "area_px": row.area_px,
-                                        "gfp_mean": None if value is None or not math.isfinite(value) else float(value),
-                                        "gfp_saturated": saturated}
+                                        value_key: None if value is None or not math.isfinite(value) else float(value),
+                                        saturation_key: saturated}
+            if include_excluded:
+                reason = next((item["reason"] for item in exclusions if item.get("region_id") is None), None)
+                reason = reason or next((item["reason"] for item in exclusions if item.get("region_id") == row.region_id), None)
+                rows[fid, row.region_id].update(
+                    channel_excluded=reason is not None, exclusion_reason=reason,
+                    channel_missing_reason=getattr(row, "correction_missing_reason" if gate.values == "corrected"
+                                                   else "intensity_missing_reason", None))
         records[fid] = {"revision_id": entry.get("revision_id"), "mask_revision_id": entry.get("mask_revision_id"),
                         "mask_sha256": entry.get("mask_sha256"),
                         "excluded_nuclei": sorted(i for i in excluded if i is not None)}
@@ -263,6 +284,9 @@ def _record(gate, thresholds, gate_rows, gated, marked, dates, controls, binding
 
 def gate_source_observations(report, recipe, snapshot, selection, observations, failed, summaries=None, nuclear=None):
     """Bind the measured selection to nuclei and apply its GFP filter."""
+    if getattr(gate_of(selection), "gate_protocol", None) == "channel-gate/1.0.0":
+        from .channel_selection import gate_source_observations as channel_source
+        return channel_source(report, recipe, snapshot, selection, observations, failed, summaries, nuclear)
     binding = binding_kind(recipe)
     cell = recipe.get("source") == "manual" and recipe.get("region_set_id") == "cell"
     if cell != (getattr(gate_of(selection), "unit", "nucleus") == "cell_roi"):
@@ -291,6 +315,9 @@ def gate_source_observations(report, recipe, snapshot, selection, observations, 
 
 def finish_gated_description(result, record):
     """Record the gate in a per-field description; control fields are labelled, not compared."""
+    if gate_record_key(record) == "channel_gate":
+        from .channel_selection import finish_gated_description as channel_finish
+        return channel_finish(result, record)
     controls = set(record["control_field_ids"])
     result["selection"]["gfp_gate"] = record
     for rows in (result["field_summary"], result["selection"]["by_field"]):
@@ -302,6 +329,9 @@ def finish_gated_description(result, record):
 
 
 def gate_warnings(record):
+    if gate_record_key(record) == "channel_gate":
+        from .channel_selection import gate_warnings as channel_warnings
+        return channel_warnings(record)
     warnings = ["gfp_gated_subset_selected_by_expression_level_not_randomized"]
     if record["filter_version"] == "1.1.0":
         warnings.append("gfp_exploratory_threshold_without_negative_control")
@@ -320,6 +350,9 @@ def gate_warnings(record):
 
 def recorded_gate_lines(selection):
     """Methods/caption lines for a saved result ``selection``; empty when ungated."""
+    if (selection or {}).get("channel_gate") is not None:
+        from .channel_selection import methods_sentences as channel_methods
+        return channel_methods(selection["channel_gate"])
     gate = (selection or {}).get("gfp_gate")
     return [] if gate is None else methods_sentences(gate)
 
@@ -327,6 +360,14 @@ def recorded_gate_lines(selection):
 def methods_sentences(record):
     """English Methods / caption text recorded from the saved gate."""
     gate = record["filter"]
+    if record.get("purpose") == "field_positivity":
+        method = gate.get("method", "negative_control")
+        thresholds = "; ".join(f"{date or 'unknown date'}: {value['threshold'] if value['threshold'] is not None else value.get('missing_reason')}"
+                               for date, value in sorted(record["dates"].items()))
+        return [f"Field positivity used the recorded GFP gate {record['gate_protocol']}, filter {record['filter_version']}, "
+                f"channel {gate['gfp_channel_id']} ({gate.get('values', 'raw')} nuclear means), method {method}. Thresholds: {thresholds}.",
+                "Positive means were strictly greater than the threshold; equality was negative. The denominator was all evaluable positive and negative nuclei before subset selection. Unclassified, excluded and control nuclei were outside the denominator.",
+                "Control fields supplied thresholds only and were not compared. Corrected means never fell back to raw values."]
     if record["filter_version"] == "1.1.0":
         objects = "adopted cell ROIs" if gate.get("unit") == "cell_roi" else "nuclei"
         intensity_unit = "per-cell-ROI" if gate.get("unit") == "cell_roi" else "per-nucleus"

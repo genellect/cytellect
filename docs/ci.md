@@ -7,6 +7,8 @@
 | PR | 変更したファイルに関係するジョブ（統合試験を除く） | マージの条件。最新の `main` を取り込んだ head で成功してからマージする |
 | `main` | すべてのジョブ（統合試験を含む） | 配布の根拠。失敗したら次の PR より先に直す |
 
+`main` の実行は、後のマージで取り消さない。実行ごとに別の concurrency group にするため、次のマージの実行が待っている実行を置き換えることもなく、複数の実行が並行して走る。こうして `main` のどのコミットにも完全な結果が残り、マージが続いても、CI が通った前のコミットを配布できる（[配布の条件](#配布の条件)）。PR と、`main` 以外のブランチでの手動実行は、同じ PR・ブランチの新しい実行が古い実行を取り消す。
+
 手元では `python3 scripts/dev.py check` で、PR の `python` と `web` のジョブと同じ検査を実行できる（[CONTRIBUTING](../CONTRIBUTING.md)）。マージの手順は[チーム開発ルール](team-development.md)の「開発の流れ」にある。
 
 ## ジョブ
@@ -35,7 +37,7 @@ PR では、`scripts/ci_changes.py` が、`main` との差分のファイルか�
 - LP だけの変更では `lp` だけを実行する。LP の素材は Windows 版にも含まれるため、`python` も実行する。
 - workflow、lockfile、パッケージの定義、規則にないパスでは、すべてのジョブを実行する。トップレベルのディレクトリを追加するときは、規則と試験も更新する。
 
-公開ツリー・文書のリンク・シークレット走査は、どの変更でも実行する。実行しなかったジョブは、ブランチ保護には成功として報告される。
+公開ツリー・文書のリンク・シークレット走査は、どの変更でも実行する。公開ツリーの検査（`scripts/check_public_tree.py`）は、公開デモのファイル（`apps/web/public/showcase` の追跡ファイル）の合計が 700 MiB（700 × 1024 × 1024 バイト）以下であることも確かめる。実行しなかったジョブは、ブランチ保護には成功として報告される。
 
 ## マージ前に境界を確かめる
 
@@ -47,7 +49,7 @@ PR では、`scripts/ci_changes.py` が、`main` との差分のファイルか�
 
 ## 配布の条件
 
-Windows 版は、配布する `main` のコミットで次の 8 つのジョブがすべて成功している場合にだけ配布する（`.github/workflows/local-release.yml` が確かめる）。ブランチ保護の必須チェックは、`windows-installer` を除く 7 つのまま。
+Windows 版は、配布する `main` のコミットで次の 8 つのジョブがすべて成功している場合にだけ配布する（`.github/workflows/local-release.yml` が確かめる）。配布するコミットは、実行した時点の `main` の先頭か、入力 `commit` で指定したその祖先で、成功の確認・ビルド・署名・タグはすべてそのコミットに対して行う（[配布する](release-signing.md#4-配布する)）。ブランチ保護の必須チェックは、`windows-installer` を除く 7 つのまま。
 
 `python`、`web`、`fiji-browser`、`cellpose-gpu-image`、`local-windows`、`windows-installed`、`windows-installer`、`python-windows-314`
 
@@ -56,6 +58,8 @@ Windows 版は、配布する `main` のコミットで次の 8 つのジョブ�
 `main` で失敗した場合は、次の配布までに修正するか取り消す。
 
 下書きのリリースを作る `draft` ジョブは environment `release` で動き、オーナーの承認を待つ。承認されると、アプリ内更新の manifest に secret `UPDATE_SIGNING_KEY` で署名し、アプリに組み込んだ公開鍵で検証してから、タグとリリースを作る。secret がない、または公開鍵と合わない場合は何も作らない（[リリースの署名](release-signing.md)）。
+
+リリースの本文は研究者向けの文で、`scripts/release_notes.py` が [`packaging/windows/release-notes.ja.md`](../packaging/windows/release-notes.ja.md) から作る。その版で何ができるようになったかは、`packaging/windows/release-highlights/<版>.ja.md` に利用者の言葉で書き、配布の前に `main` に入れる。このファイルがない場合、本文には前の版からのコミットの一覧へのリンクが入るので、公開する前に下書きで書き直す。試験の記録は本文に入れず、実行の Summary に出す。
 
 ## Smart App Control の監査
 
@@ -73,7 +77,7 @@ Windows 版は、配布する `main` のコミットで次の 8 つのジョブ�
 
 ## 依存パッケージの記録とシークレット走査
 
-シークレット走査は、固定版の gitleaks を検証してから、Git の全履歴と追跡中のファイルを調べる。そのため CI は `fetch-depth: 0` で checkout し、保存するのは件数と規則 ID だけ。
+シークレット走査は、固定版の gitleaks を検証してから、検査するコミットから到達できる Git の全履歴と、追跡中のファイルを調べる。そのため CI は `fetch-depth: 0` で checkout し、保存するのは件数と規則 ID だけ。ほかのブランチのコミットは、そのブランチの PR の実行が調べる。PR の結果は、その PR のツリーにある確認済みの例外（`scripts/security-tools.lock.json`）だけで決まり、未マージの別ブランチの内容には左右されない。`main` は push のたびに全履歴を調べる。
 
 依存パッケージの記録は、Python パッケージのライセンスの根拠や、Web の直接依存のライセンス本文が欠けていると失敗する。この分類と表示の収集は根拠の確認であって、法的な適合性の判断ではない。範囲は [OSS の管理](oss.md) を参照する。依存の記録とシークレット走査の要約は 7 日で消える。生の検出結果、ログ、研究データを、成果物のアップロード対象に加えない。Windows のテストの分割は、テストの名前・結果・所要時間だけを 1 日だけ残す。
 

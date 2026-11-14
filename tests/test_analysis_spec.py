@@ -10,6 +10,19 @@ from pydantic import ValidationError
 from test_api_worker import HEADERS, authenticated
 
 
+def test_channel_gate_draft_is_opt_in_and_cannot_coexist_with_legacy_gfp():
+    from cytellect_api.analysis_spec import AnalysisSelectionDraft
+
+    assert AnalysisSelectionDraft().model_dump(mode="json") == {"field_ids": [], "gfp": None}
+    channel = {"version": "1.0.0", "gate_protocol": "channel-gate/1.0.0", "channel_id": "marker",
+               "method": "manual", "threshold": 1.0, "keep": "negative", "reference_sha256": "a" * 64}
+    assert AnalysisSelectionDraft(channel_gate=channel).model_dump(mode="json")["channel_gate"]["channel_id"] == "marker"
+    legacy = {"version": "1.1.0", "gate_protocol": "gfp-gate/3.0.0", "gfp_channel_id": "gfp",
+              "method": "manual", "threshold": 1.0, "keep": "positive"}
+    with pytest.raises(ValidationError, match="channel_gate_conflicting_filters"):
+        AnalysisSelectionDraft(channel_gate=channel, gfp=legacy)
+
+
 def setup(tmp_path):
     client, app, settings = authenticated(tmp_path)
     wid = client.post("/v1/workspaces", headers=HEADERS, json={"title": "settings"}).json()["id"]
@@ -132,6 +145,7 @@ def test_migration_creates_empty_spec_table(tmp_path):
     store = Store(tmp_path)
     with store.transaction() as conn:
         conn.exec_driver_sql("ALTER TABLE fields DROP COLUMN display_name")
+        conn.exec_driver_sql("DROP TABLE result_discussions")
         conn.exec_driver_sql("DROP TABLE retention_policy")
         conn.exec_driver_sql("DROP TABLE workspace_field_links")
         conn.exec_driver_sql("ALTER TABLE workspace_channel_assignments DROP COLUMN groups")
@@ -143,4 +157,4 @@ def test_migration_creates_empty_spec_table(tmp_path):
     migrated = Store(tmp_path)
     assert migrated.one(workspace_analysis_specs, workspace_id="absent") is None
     with migrated.engine.connect() as conn:
-        assert conn.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one() == "0011"
+        assert conn.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one() == "0012"

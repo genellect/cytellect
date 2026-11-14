@@ -11,7 +11,7 @@ Source after 0.1.0-local.20 builds two deliverables from the same accepted ZIP: 
 1. Download `Cytellect-Setup-<version>.exe` and open it. It installs for the current user only (`PrivilegesRequired=lowest`) into `%LOCALAPPDATA%\Cytellect`; there is no administrator prompt, command, extraction or destination choice. Whether Windows warns before it runs depends on signing and reputation ([application control](#windows-application-control), D4 below).
 2. Before changing anything, the installer checks Windows 10 1809 or later / Windows 11 on x64, at least 8 GB of memory (7 GiB as reported after hardware reservations) and free space (4 GB plus the unpacked payload for a first installation, 1.5 GB plus the payload for an update that reuses Fiji and Python). A failed check shows the reason and the next action in Japanese and exits without changes. A destination that holds files without Cytellect's ownership marker is also refused unchanged.
 3. The installer unpacks its payload to its temporary folder and runs the same `local_setup.ps1` in offline mode. Python 3.14, the hash-locked wheels, uv and Fiji with its plugins are bundled; setup copies them only after checking each file against `offline/offline-manifest.json`, which is bound to the release manifest. Nothing is downloaded on the PC; a missing or altered file stops setup (`offline_artifact_missing`, `offline_hash_mismatch`). Cellpose is not installed on the PC; an existing cloud GPU setting is kept ([cloud GPU](cloud-gpu.ja.md)).
-4. On success the workspace opens in the browser, and Desktop and Start menu shortcuts named **Cytellect** exist. The launcher window shows 「起動の準備中」 and then 「作業画面を開いています」, and its 「作業画面を開く」 button reopens the browser. A port in use or a failed start shows the reason with 「再試行」. Opening Cytellect while it already runs opens the running workspace instead of a second copy (I5).
+4. On success the workspace opens in the browser, and Desktop and Start menu shortcuts named **Cytellect** exist. The launcher window shows 「起動の準備中」 and then 「作業画面を開いています」, and its 「作業画面を開く」 button reopens the browser. A port in use or a failed start shows the reason with 「再試行」; the third failure has no 「再試行」 and says to restart the PC and open Cytellect again. Opening Cytellect while it already runs opens the running workspace instead of a second copy (I5).
 5. Running the installer again is safe: verified files are reused, and an interrupted installation (closed, killed or powered off) finishes on the next run. Windows **Settings → Apps** lists Cytellect for uninstallation. The uninstaller refuses while the launcher runs and asks before deleting research data; by default `data/` and `settings/` stay and a later installation keeps them.
 6. Import images, review masks, quantify, compare and export through the browser. Close the launcher to stop the local service and its worker. Closing only the browser tab does not stop the launcher.
 
@@ -49,15 +49,16 @@ that point leaves previous generations intact. The setup window reports retained
 application count and reclaimed bytes. Research data under `data/` is never part
 of this collection.
 
-Running versions, modified files, unknown/incomplete directories and any reparse
+Running versions, modified files, unproven incomplete directories and any reparse
 point are preserved. Setup is serialized; managed launches and collection share
 an OS-released installation lock. A native Windows process-SID inventory checks
 user processes and executable interpreter candidates; an unreadable relevant
 process disables collection. The retained applications keep their referenced
-Fiji/Python/bootstrap runtimes. Only newly installer-created runtime trees enter
-the ownership ledger; existing unregistered installations are never assumed to
-be disposable. Unknown installations prevent shared-runtime collection because
-their references cannot be established.
+Fiji/Python/bootstrap runtimes. Newly installer-created runtimes and reused
+runtimes whose complete inventories match pinned input proof can enter the
+ownership ledger. A receiptless failed app can be collected only from verified
+release/wheel declarations. Other unknown installations prevent shared-runtime
+collection because their references cannot be established.
 
 New package installations disable persistent uv caching. Known downloaded
 Python/uv ZIPs are retained only while a retained app refers to them; their
@@ -210,7 +211,7 @@ Code signing is a hook; stage 0 is unsigned (D4, [checklist](#real-machine-check
 
 Installation tests use an isolated directory under the task's scratch workspace. They must not overwrite a user's existing software, data or shortcuts. The `windows-installer` CI job (`packaging/windows/smoke.ps1`; on `main` and manual runs, like `windows-installed`) builds the installer and, with a dead proxy so that any download would fail, checks: refusal of a foreign destination without changes, a fresh silent installation with shortcuts and the Windows Apps entry, no credential-shaped content in the installed folder, start, session, workspace and an offline update status, uninstall refusal while running, re-runs while running and after stopping, uninstall that keeps data and a reinstall that keeps the workspace, uninstall with data deletion, an installation killed at the dependency stage that the next run completes, and migration of a published 0.1.0-local.20 ZIP installation with its workspace. It does not show a dialog to a person, so the Japanese messages, the browser opening and SmartScreen behavior remain real-machine checks. Acceptance includes an actual pinned-Fiji run, a browser upload/edit/export flow, hostile-origin denial, shutdown, restart and expiry. The release report records commit, archive checksum, platform, passed checks and known limitations. Publishing a ZIP is not evidence that installation succeeded.
 
-The **Prepare Windows release** workflow is dispatched against `main` with a unique `0.1.0-local.N` version. It requires successful Python, Web, Fiji/browser, Windows lifecycle, ZIP installation, installer and full Windows Python3.14 compatibility checks on that exact commit, builds an immutable bundle, the installer and the corresponding-source asset from it, and performs fresh and repeat silent installation with the installer, without network access. For a release including area-only measurements, display receipts, paginated figures and native recipe guidance, all twenty-seven browser cases must pass against that installed copy: the published GFP path, imported/manual generic regions, one/two-channel nuclear detection with correction and batch reuse, declared independent/paired comparisons with ZIP replay, planning adoption into actual image/metric choices and a descriptive figure, strict saved-plan import, batch-registration recovery after a lost success response, historical source/mask review, shared registration metadata, saved unit/sample/field hierarchy, area-only revision/export/replay, calibrated-area comparisons, planning2.1 adoption, two exact preview/range workflows, paginated figure recovery and two native recipe/channel guidance workflows saved field-quality navigation and two protected-input/stable-field workflows, plus common-statistics and association figures with edited SVG/PDF downloads. A skipped, failed or flaky case blocks the draft. The tests use the local session and the installed interpreter, with an explicit same-origin loopback API and separate private data directory. They do not create invitations or fall back to developer Python.
+The **Prepare Windows release** workflow is dispatched against `main` with a unique `0.1.0-local.N` version and, optionally, the full SHA of the `main` commit to release (`commit`; empty means the current head, otherwise the head or one of its ancestors, see [release signing](release-signing.md#4-配布する)). It requires successful Python, Web, Fiji/browser, Windows lifecycle, ZIP installation, installer and full Windows Python3.14 compatibility checks on that exact commit, checks out only that commit, builds an immutable bundle, the installer and the corresponding-source asset from it, and performs fresh and repeat silent installation with the installer, without network access. For a release including area-only measurements, display receipts, paginated figures and native recipe guidance, all twenty-seven browser cases must pass against that installed copy: the published GFP path, imported/manual generic regions, one/two-channel nuclear detection with correction and batch reuse, declared independent/paired comparisons with ZIP replay, planning adoption into actual image/metric choices and a descriptive figure, strict saved-plan import, batch-registration recovery after a lost success response, historical source/mask review, shared registration metadata, saved unit/sample/field hierarchy, area-only revision/export/replay, calibrated-area comparisons, planning2.1 adoption, two exact preview/range workflows, paginated figure recovery and two native recipe/channel guidance workflows saved field-quality navigation and two protected-input/stable-field workflows, plus common-statistics and association figures with edited SVG/PDF downloads. A skipped, failed or flaky case blocks the draft. The tests use the local session and the installed interpreter, with an explicit same-origin loopback API and separate private data directory. They do not create invitations or fall back to developer Python.
 
 The fourteen required specifications contain one local-package case, two generic-region cases, three nuclear/comparison cases, three planning/batch-registration cases and one case each for source review, shared metadata and comparison hierarchy, three area-only cases, two display cases, one paginated-output case two native recipe/channel cases one field-quality case and two draft-navigation cases, plus one complete common-statistics case covering multi-group parametric/rank tests, paired Wilcoxon, Pearson/Spearman, distribution variants, vector exports and source CSV downloads. The integrated workspace additionally verifies registered BBBC007 originals through installed Fiji, a saved independent-unit comparison through graph editing and replay, and the two-screen comparison of two groups over three runs of registered public JUMP Cell Painting images (goals C1, which makes the installed run the C11 acceptance); it checks the workflow and the direction of the descriptive result, not detection accuracy. The planning/batch specification uses registered public BBBC013 DRAQ pixels; repeated images test filename mapping and idempotent retry only, without claiming another stain or biological replication. The workflow requires exactly twenty-seven completed cases and retains failures instead of accepting an incomplete subset.
 
@@ -252,7 +253,7 @@ The `error` code appears only under 詳細. A 409 `update_jobs_running` says to
 update after the analyses finish and keeps the button; `update_in_progress`
 follows the update already running, `update_not_available` re-reads the offer
 and `update_unsupported` hides the banner. A version without a signing key shows
-「新しい版（…）があります。新しい版のインストーラーを開いてください。」 with the release notes and no button. The release-notes link is shown only
+「新しい版（…）があります。cytellect.app から新しい版のインストーラーをダウンロードして開いてください。」 with the release notes and no button. The release-notes link is shown only
 for a page under `https://github.com/genellect/cytellect/releases/tag/`. Cloud
 sign-in for GPU inference and analysis proposals uses `/v1/account/*`; see
 [install-windows.ja.md](install-windows.ja.md) and [cloud-gpu.ja.md](cloud-gpu.ja.md).
@@ -302,6 +303,84 @@ an explicit retry; the UI warns that retrying may incur another charge.
 Public-data/browser acceptance and Windows archive acceptance are recorded against
 the exact release commit. These checks do not establish private-image validity,
 Windows application-control compatibility on every device, or human usability.
+
+### Failed installation recovery
+
+The offline installation check uses the registered public BBBC013v1 A01 DRAQ
+image and a minimal exact arithmetic array. It checks runtime execution, not
+biological accuracy. Compilation and execution each have 300 seconds;
+only transient native failures receive one retry. The parent budget is the
+same two attempts plus 120 seconds (1320 seconds), including cleanup and startup.
+The fixed Java runtime ignores inherited Java option variables.
+
+`logs/setup-check-latest.json` records each attempt, native exit code, duration
+and fixed error hints, including an initial failure when the retry succeeds.
+`setup-check-last-failure.json` retains the most recent failed check, and
+`setup-latest.json` records the setup phase and cleanup result. The last ten
+`setup-<attempt-id>.json` reports (at most 64 KiB each) retain successful and failed
+runs, version/commit, OS build, initial free bytes, phase timings, storage errors,
+and that run's analysis-check details. Diagnostic I/O failure does not replace
+the first execution code. Reports contain no native output, command arguments
+or research paths.
+
+After Java exits, a Windows sharing violation (32/33) while deleting its own
+temporary files is retried for at most 10 seconds per directory. This covers
+the reproduced `tensorflow_jni.dll` cleanup failure without rerunning detection.
+Persistent locks are recorded as deferred `fiji_temporary_cleanup_failed` events;
+they do not invalidate a successful analysis or replace its first execution error.
+Scratch creation journals are locked first, then written before mkdir, and stay
+protected by OS locks while an engine owns them; recovery leaves an empty or
+unreadable journal in place. Redirections (symlinks, junctions) are refused at and
+below the scratch scope root, not above it, so a profile folder moved with a
+junction does not stop setup. Setup retries recovery on its next run. Worker cleanup
+also reaps unlocked, journal-owned scratch under `runs` on startup and at most
+once per minute. Unknown folders, active owners and redirected paths are preserved.
+Before another extraction, outstanding unlocked journal-owned trees are counted
+across the setup-cache or worker runs scope. At 1 GiB or more, extraction stops
+with `fiji_temporary_cleanup_pending`; recovery runs before the next capacity
+check. This bounds repeated accumulation without turning a successful analysis
+into a failure solely because its cleanup is deferred.
+
+Setup journals its own new app and runtimes under `setup-cache/a-<id>` while
+holding `setup.lock`. A failed attempt removes its owned incomplete app and
+unreferenced new runtimes; an interrupted attempt is recovered on the next run. Items whose
+removal is deferred are recorded in `logs/setup-latest.json`
+(`storage_recovery_codes`, `storage_cleanup_types`). A runtime that an
+unfinished attempt created and that is still present after cleanup may be partly
+deleted. A reference from another app keeps it from being removed but does not
+prove it complete, so it is reused only when it is already registered in the
+storage ledger or matches the complete pinned inventory (`--verify-existing`);
+otherwise setup stops with `fiji_runtime_recovery_pending`. When the unfinished
+app of the same version could not be removed, setup stops with
+`setup_cleanup_pending` instead of reporting a damaged download. Both stops, and
+`fiji_temporary_cleanup_pending`, carry a fixed marker, so the setup window and
+the installer show their own guidance. Removal clears
+the ReadOnly attribute of owned files first. The installation check requires
+175–700 nuclei in the bundled public BBBC013 image (350 on Linux); the band only
+catches a broken runtime and is not a measure of detection accuracy.
+Each cleanup item is independent, so a locked scratch file does not prevent app
+or runtime rollback. Empty directories left between creation intent and the
+owner marker, or after the last marker unlink, are recoverable.
+Completion receipts are published atomically from the owned scratch area. A
+receipt written just before interruption protects the checked app; the next
+setup finalizes its journal and removes only its proven ownership marker.
+If interruption occurs after the storage ledger was committed, repeated runtime
+claims are accepted only when their full inventory still matches the recorded
+one. Changed or additional files are never adopted by retrying setup.
+Validated, unregistered attempts of other versions are enrolled before the new
+generation, then use the existing current/previous retention rule. Recovery errors
+are retained as fixed codes instead of silently disappearing.
+Pre-journal failed apps are collected only when their release identity and all
+remaining release/wheel-declared members establish ownership and they are idle.
+Recorded deletion proof survives partial removal. Reused, unregistered runtimes
+can be enrolled only after a complete inventory matches pinned input proof:
+Python and uv use the verified archive members; Fiji is reconstructed from its
+fixed inputs for comparison without modifying the old runtime. Extra or changed
+files prevent adoption and remain protected.
+Unknown folders, existing apps, in-use files, redirected paths, data and settings
+are preserved. A small ownership journal remains when cleanup is deferred.
+The Inno temporary payload is released before showing the finished/failure page.
+Rerun the same installer; another download is unnecessary.
 
 ### Optional lab retention policy
 

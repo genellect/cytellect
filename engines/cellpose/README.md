@@ -195,3 +195,30 @@ operation. See [the complete protocol](../../docs/methods.md#conservative-ncl-si
 This protocol changes final candidate boundaries, not adopted StarDist nuclei,
 measurement pixels, display coordinates or saved older recipe behavior. Existing
 4.2.1 masks and manually corrected/adopted results are not silently upgraded.
+
+
+## Cytellect nucleolar checkpoints
+
+The NCL parent-conditioned protocol 4.3.0 supports `ncl-r1-step0750` and
+`ncl-r1-step0375` from `Genellect/Cytellect`, alongside `cpsam_v2`. The researcher
+selects the checkpoint under detection settings. Its ID and SHA-256 are saved
+with the recipe and execution receipt. Existing recipes retain their model;
+AI proposals cannot introduce or replace the selected checkpoint.
+
+The CPU, provisioning and GPU manifests pin the same public revision, byte size,
+SHA-256 and BSD-3-Clause attribution. Fine-tuned state dictionaries are loaded
+with `weights_only=True` and strict tensor-key matching. Missing or mismatched
+weights stop the request rather than selecting another model.
+
+For a CPU installation, add the selected checkpoint at setup time:
+
+```sh
+python scripts/cellpose_setup.py /opt/cellpose-runtime --model-cache /opt/cellpose-models --model-only --model ncl-r1-step0750
+```
+
+Use `--all-models` to provision all three checkpoints. The GPU image does so at
+build time. It also copies the exact baseline runner and locks from the previous
+digest-pinned GPU image into `baseline/`. Requests for `cpsam_v2` execute that
+unchanged runner and return its actual hash, preserving installed clients.
+Additional checkpoints execute the current runner. Both share one serialized
+request slot and release the previous network when switching models.

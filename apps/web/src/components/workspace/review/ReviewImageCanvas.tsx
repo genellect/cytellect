@@ -15,7 +15,14 @@ export interface ReviewImageCanvasProps {
   height: number;
   contours: Array<{id: number; points: Point[]}>;
   selected?: number;
-  classification?: Record<number,boolean|null>;
+  /** Each region's saved decision (channel gate or GFP gate), drawn apart by state (MV-03). */
+  classification?: Record<number, RegionClassification>;
+  /** The image's colour mode (MV-01); "compartments" fills the nuclei and draws `fills` (their nucleoli) apart. */
+  colorBy?: "outline" | "positivity" | "compartments";
+  /** Display-only regions filled inside the selectable ones (the nucleoli of each nucleus). */
+  fills?: Array<{id: number; points: Point[]}>;
+  /** What the colours mean on this image, with counts where they are counts (MV-03). */
+  legend?: Array<{key: string; label: string; count?: number}>;
   onSelect: (id: number) => void;
   label: string;
   showMasks?: boolean;
@@ -50,6 +57,8 @@ export interface ReviewImageCanvasProps {
   /** Image point (source pixels) the initial magnification centres on; the image centre when absent. */
   initialFocus?: Point;
 }
+
+export type RegionClassification = "positive" | "negative" | "unclassified" | "control" | "excluded" | "unknown";
 
 /** feColorMatrix that maps a grayscale preview onto one display colour (#rrggbb). */
 function tint(color: string) {
@@ -111,7 +120,7 @@ function Icon({kind}: {kind: keyof typeof iconPaths}) {
   return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={iconPaths[kind]}/></svg>;
 }
 
-export function ReviewImageCanvas({src, width, height, contours, selected, classification, onSelect, label, showMasks = true, onOpen, className, style, editingKey, loading = false, outlineTone, editDisabled = false, onEdit, onDelete, onUndo, onRedo, canUndo = false, canRedo = false, onEditingChange, viewport: sharedViewport, onViewportChange, backgroundPolygon, backgroundEdit, layers, context, contextSelected, initialZoom, initialFocus}: ReviewImageCanvasProps) {
+export function ReviewImageCanvas({src, width, height, contours, selected, classification, colorBy, fills, legend, onSelect, label, showMasks = true, onOpen, className, style, editingKey, loading = false, outlineTone, editDisabled = false, onEdit, onDelete, onUndo, onRedo, canUndo = false, canRedo = false, onEditingChange, viewport: sharedViewport, onViewportChange, backgroundPolygon, backgroundEdit, layers, context, contextSelected, initialZoom, initialFocus}: ReviewImageCanvasProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [available, setAvailable] = useState<Size>({width: 0, height: 0});
   const [manual, setManual] = useState<{source: string; camera: Camera} | null>(null);
@@ -248,7 +257,7 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
     drag.current = null; setDragging(false);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   };
-  return <div className={[styles.frame, className].filter(Boolean).join(" ")} style={{aspectRatio: `${width} / ${height}`, ...style}} data-composite={layers?.length ? outlineTone ?? "marker" : undefined} aria-busy={loading || saving} onKeyDown={event => {
+  return <div className={[styles.frame, className].filter(Boolean).join(" ")} style={{aspectRatio: `${width} / ${height}`, ...style}} data-composite={layers?.length ? outlineTone ?? "marker" : undefined} data-color-by={colorBy && colorBy !== "outline" ? colorBy : undefined} aria-busy={loading || saving} onKeyDown={event => {
     if (event.key === "Escape" && draft) {event.preventDefault(); cancelEdit(); return;}
     if (interactionBlocked || stale) return;
     if (draft) {
@@ -294,16 +303,18 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
             {!layers.some(layer => layer.src === src) && <image href={src} width={0} height={0} onLoad={() => {setLoadedSource(src); setFailedSource(null);}} onError={() => setFailedSource(src)}/>}
           </> : <image href={src} width={width} height={height} preserveAspectRatio="xMidYMid meet" onLoad={() => {setLoadedSource(src);setFailedSource(null);}} onError={() => setFailedSource(src)}/>}
           {visible && context?.map(outline => <polygon key={`context-${outline.id}`} points={outline.points.map(point => point.join(",")).join(" ")} className={outline.id === contextSelected ? styles.contextSelected : styles.context} data-context={outline.id === contextSelected ? "selected" : undefined} vectorEffect="non-scaling-stroke" pointerEvents="none"/>)}
-          {visible && regions.map(region => <path key={region.id} d={region.path} fillRule="evenodd" data-region={region.id} data-classification={classification&&Number(region.id) in classification?(classification[Number(region.id)]===null?"unknown":classification[Number(region.id)]?"positive":"negative"):undefined}
+          {visible && regions.map(region => <path key={region.id} d={region.path} fillRule="evenodd" data-region={region.id} data-classification={classification?.[Number(region.id)]}
             className={(draft?.operation === "merge" ? draft.merged.includes(Number(region.id)) : Number(region.id) === selected) ? styles.selected : styles.outline} vectorEffect="non-scaling-stroke"
             role="button" tabIndex={0} aria-label={`領域 ${region.id}`} aria-pressed={Number(region.id) === selected}
             onClick={event => {event.stopPropagation(); chooseRegion(Number(region.id));}}
             onKeyDown={event => {if ((!draft && event.key === "Enter") || (event.key === " " && (!draft || draft.operation === "merge"))) {event.preventDefault(); event.stopPropagation(); chooseRegion(Number(region.id));}}}/>) }
+          {visible && fills?.map(fill => <polygon key={`fill-${fill.id}-${fill.points.length}-${fill.points[0]?.join(",")}`} points={fill.points.map(point => point.join(",")).join(" ")} className={styles.fill} vectorEffect="non-scaling-stroke" pointerEvents="none"/>)}
           {visible && selectedAnchor && <text x={selectedAnchor.x} y={selectedAnchor.y} className={styles.number} fontSize={13 / camera.scale} strokeWidth={3 / camera.scale} textAnchor="middle" dominantBaseline="central">{selected}</text>}
           {backgroundPolygon && !backgroundEdit && <polygon points={backgroundPolygon.map(point=>point.join(",")).join(" ")} fill="rgba(255,204,64,0.12)" stroke="#ffcc40" strokeWidth="1.5" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" pointerEvents="none"/>}
           {draft && !stale && draft.operation !== "merge" && <polygon points={draft.polygon.map(point => point.join(",")).join(" ")} className={styles.draft} vectorEffect="non-scaling-stroke"/>}
         </g>
       </svg>
+      {visible && !!legend?.length && <ul className={styles.legend} aria-label={`${label}の色分け`}>{legend.map(item => <li key={item.key} data-legend={item.key}><span aria-hidden="true"/>{item.label}{item.count !== undefined ? ` ${item.count}` : ""}</li>)}</ul>}
       {failedSource === src && <p className={styles.error} role="alert">画像を読み込めませんでした</p>}
       {(error || stale) && <p className={styles.error} role="alert">{stale ? "画像または領域が更新されました。描画を取り消してから再編集してください。" : error}</p>}
     </div>
@@ -317,13 +328,13 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
     </div>
     {(onEdit || onDelete || onUndo || onRedo || backgroundEdit) && <div className={[styles.toolbar, styles.editToolbar].join(" ")} role="toolbar" aria-label={`${label}の領域編集`}>
       {draft ? <>
-        <span className={styles.mode}>{stale ? "描画を取り消す" : draft.operation === "background" ? "背景を囲む" : draft.operation === "merge" ? `結合 · ${draft.merged.length} 領域` : draft.operation === "split" ? "切り離す部分を囲む" : draft.operation === "replace" ? "輪郭を描き直す" : "領域を描く"}</span>
+        <span className={styles.mode}>{stale ? "描画の取り消し" : draft.operation === "background" ? "背景を囲む" : draft.operation === "merge" ? `結合 · ${draft.merged.length} 領域` : draft.operation === "split" ? "切り離す部分を囲む" : draft.operation === "replace" ? "輪郭を再描画" : "領域を描画"}</span>
         {draft.operation !== "merge" && <button type="button" title="1点戻す" aria-label="1点戻す" disabled={blocked || !draft.polygon.length} onClick={() => setDraft({...draft, polygon: draft.polygon.slice(0, -1)})}><Icon kind="undo"/></button>}
         <button type="button" title="描画を保存" aria-label="描画を保存" disabled={!canSave} onClick={() => void commitEdit()}><Icon kind="save"/></button>
-        <button type="button" title="描画を取り消す" aria-label="描画を取り消す" disabled={saving} onClick={cancelEdit}><Icon kind="cancel"/></button>
+        <button type="button" title="描画の取り消し" aria-label="描画の取り消し" disabled={saving} onClick={cancelEdit}><Icon kind="cancel"/></button>
       </> : <>
-        {onEdit && <button type="button" title="領域を描く" aria-label="領域を描く" disabled={blocked} onClick={() => startEdit("add")}><Icon kind="add"/></button>}
-        {onEdit && selectedExists && ([{operation: "replace", title: "輪郭を描き直す"}, {operation: "split", title: "領域を分割"}, {operation: "merge", title: "領域を結合"}] as const).map(({operation, title}) => <button key={operation} type="button" title={title} aria-label={title} disabled={blocked} onClick={() => startEdit(operation)}><Icon kind={operation}/></button>)}
+        {onEdit && <button type="button" title="領域を描画" aria-label="領域を描画" disabled={blocked} onClick={() => startEdit("add")}><Icon kind="add"/></button>}
+        {onEdit && selectedExists && ([{operation: "replace", title: "輪郭を再描画"}, {operation: "split", title: "領域を分割"}, {operation: "merge", title: "領域を結合"}] as const).map(({operation, title}) => <button key={operation} type="button" title={title} aria-label={title} disabled={blocked} onClick={() => startEdit(operation)}><Icon kind={operation}/></button>)}
         {onDelete && selectedExists && <button type="button" title="選択領域を削除" aria-label="選択領域を削除" disabled={blocked} onClick={() => void runAction(() => onDelete(selected!))}><Icon kind="delete"/></button>}
         {onUndo && <button type="button" title="元に戻す" aria-label="元に戻す" disabled={blocked || !canUndo} onClick={() => void runAction(onUndo)}><Icon kind="undo"/></button>}
         {onRedo && <button type="button" title="やり直す" aria-label="やり直す" disabled={blocked || !canRedo} onClick={() => void runAction(onRedo)}><Icon kind="redo"/></button>}

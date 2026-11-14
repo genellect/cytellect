@@ -323,7 +323,7 @@ def test_gui_invalid_installation_uses_fixed_japanese_message(tmp_path, monkeypa
     with pytest.raises(SystemExit) as stopped:
         local_module.main(["--gui", "--fiji", str(tmp_path / "missing")])
     assert stopped.value.code == 2
-    assert messages == [("Cytellectの準備が完了していません。セットアップを再実行してください。", True)]
+    assert messages == [("Cytellectの準備が完了していません。インストーラーをもう一度開いてください（データは保たれます）。", True)]
 
 
 def test_gui_recognizes_windows_port_error_code_without_reading_its_message():
@@ -332,6 +332,29 @@ def test_gui_recognizes_windows_port_error_code_without_reading_its_message():
     message = local_module._gui_failure_message(failure)
     assert message.startswith("接続先（ポート）が使用中") and "private" not in message
     assert "「再試行」" in message
+
+
+@pytest.mark.parametrize("failure", [OSError(errno.EADDRINUSE, "private"), RuntimeError("private")])
+def test_last_gui_failure_names_a_next_step_without_a_retry_button(tmp_path, monkeypatch, failure):
+    """The third failed start shows only OK, so its message must not ask for 「再試行」."""
+    shown = []
+
+    def fail(*_args, **_kwargs):
+        raise failure
+
+    def report(text, gui, *, retry=False, information=False):
+        shown.append((text, retry))
+        return retry
+
+    monkeypatch.setattr(local_module, "run_local", fail)
+    monkeypatch.setattr(local_module, "installed_source_revision", lambda: None)
+    monkeypatch.setattr(local_module, "_report_startup_error", report)
+    with pytest.raises(SystemExit):
+        local_module.main(["--data-dir", str(tmp_path / "data"), "--web-dir", str(tmp_path / "web"),
+                           "--fiji", str(tmp_path), "--gui"])
+    assert [retry for _, retry in shown] == [True, True, False]
+    assert all("「再試行」" in text for text, _ in shown[:2])
+    assert "「再試行」" not in shown[-1][0] and "PCを再起動してから" in shown[-1][0]
 
 
 def test_gui_failure_offers_retry_and_starts_again_when_chosen(tmp_path, monkeypatch):

@@ -318,6 +318,8 @@ Evidence gaps and follow-up work. README and the product strategy describe capab
 
 ### Windows runtime
 
+- The offline installation check bundles the registered BBBC013v1 A01 DRAQ image by Ilya Ravkin (CC-BY-3.0), converted from BMP to TIFF without changing pixel samples. Its attribution, original source, license link and hashes are in `cytellect_analysis/assets/install-check/NOTICE.json`, included in the wheel and setup source. This image has no segmentation ground truth and is used only for runtime execution checks.
+
 - Setup downloads Astral uv 0.12.2 (MIT OR Apache-2.0) from the official release; the ZIP SHA-256 is pinned in `scripts/local_setup.ps1`.
 - Python is composed from the official PSF Python 3.14.8 x64 ZIP and Tcl/Tk 9.0.4 from the same release's MSI. Inputs and derived assets are identified in the [composition record](windows-runtime.md) and its manifests. PSF and Tcl/Tk license texts and the Vimix icon CC-BY-SA-4.0 attribution are preserved. It is neither a PSF-certified distribution nor an Apache-only bundle.
 - Project wheels and dependencies are installed by recorded hash.

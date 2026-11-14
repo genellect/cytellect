@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -111,6 +112,28 @@ def derive_compartment_masks(
     }
 
 
+def adopted_nucleolar_states(nuclei: np.ndarray, nucleoli: np.ndarray, detector_states: Mapping | None
+                             ) -> dict[int, str]:
+    """Each parent's state from the researcher-adopted (possibly edited) nucleoli.
+
+    A parent with at least one adopted nucleolus is a candidate, whatever the detector
+    recorded (an added or kept nucleolus is the researcher's decision). A parent without
+    one keeps its recorded reason; a recorded candidate whose nucleoli were all removed
+    becomes ``no_candidate``. The comparisons, descriptions and nucleus table share this.
+    """
+    validate_labels(nuclei, nucleoli)
+    recorded = normalize_nucleolar_states({"nucleolar_states": dict(detector_states or {})})
+    with_children = {int(value) for value in np.unique(nuclei[nucleoli > 0]) if value}
+    states = {}
+    for parent in (int(value) for value in np.unique(nuclei) if value):
+        if parent in with_children:
+            states[parent] = "candidate"
+        else:
+            previous = recorded.get(parent, "no_candidate")
+            states[parent] = "no_candidate" if previous == "candidate" else previous
+    return states
+
+
 def nucleoplasm_from_adopted_nucleoli(nuclei: np.ndarray, nucleoli: np.ndarray, detector_states: dict
                                       ) -> tuple[np.ndarray, dict]:
     """Derive nucleoplasm from the researcher-adopted (possibly edited) nucleoli.
@@ -120,16 +143,7 @@ def nucleoplasm_from_adopted_nucleoli(nuclei: np.ndarray, nucleoli: np.ndarray, 
     one, keeps its recorded detector reason (default ``no_candidate``) and has
     no nucleoplasm row, exactly as for detector output (protocol 1.0.1).
     """
-    validate_labels(nuclei, nucleoli)
-    recorded = normalize_nucleolar_states({"nucleolar_states": detector_states or {}})
-    with_children = {int(value) for value in np.unique(nuclei[nucleoli > 0]) if value}
-    states = {}
-    for parent in (int(value) for value in np.unique(nuclei) if value):
-        if parent in with_children:
-            states[parent] = "candidate"
-        else:
-            previous = recorded.get(parent, "no_candidate")
-            states[parent] = "no_candidate" if previous == "candidate" else previous
+    states = adopted_nucleolar_states(nuclei, nucleoli, detector_states)
     masks, details = derive_compartment_masks(nuclei, nucleoli, states)
     details["nucleoplasm_definition"] = "eligible parent nuclear pixels minus union of its adopted nucleoli"
     details["nucleolar_source"] = "adopted_revision"

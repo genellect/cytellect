@@ -143,12 +143,20 @@ const sidebar = page => page.getByRole("complementary", {name: "解析対象"});
 const expected = new Set();
 async function calculate(page, refusal = null) {
   const results = statistics(page);
-  for (const label of ["独立実験単位、撮影・画素条件、採否と欠測の扱いを確認した", "測定領域と採用する視野を確認した"]) {
+  for (const label of ["独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み", "測定領域と採用する視野を確認済み"]) {
     const box = results.getByLabel(label);
     if (await box.count() && !await box.isChecked()) await box.check();
   }
   // Nuclei without an established nucleolus are listed once their ledger is read (Q-05); the
   // visitor confirms the list, and they stay as missing.
+  // A positivity metric is calculated from a classification record that matches the current
+  // experiment information; the panel offers to classify again with it, as a visitor does.
+  const reclassify = results.getByRole("button", {name: "現在の実験情報で再分類", exact: true});
+  if (await reclassify.count() && await reclassify.isEnabled()) {
+    await reclassify.click();
+    await page.waitForFunction(() => ![...document.querySelectorAll("button")].some(button => /分類中/.test(button.textContent ?? "")), null, {timeout: LIVE});
+    await idle(page);
+  }
   const keep = "この一覧を確認し、欠測として残して計算する";
   await page.waitForFunction(text => document.body.innerText.includes(text) || [...document.querySelectorAll("button")].some(button => button.textContent === "計算" && !button.disabled), keep, {timeout: LIVE});
   const listed = results.getByLabel(keep, {exact: true});
@@ -158,7 +166,8 @@ async function calculate(page, refusal = null) {
   await page.waitForFunction(() => [...document.querySelectorAll("button")].some(button => button.textContent === "計算" && !button.disabled), null, {timeout: LIVE});
   await idle(page);
   const refused = (await results.getByRole("alert").allTextContents()).filter(text => text.trim());
-  if (refusal && refused.length && refused.every(text => text.includes(refusal))) {expected.add(refused[0].trim().slice(0, 300)); return false;}
+  const allowed = [refusal ?? []].flat();
+  if (allowed.length && refused.length && refused.every(text => allowed.some(reason => text.includes(reason)))) {expected.add(refused[0].trim().slice(0, 300)); return false;}
   if (refused.length) throw new Error(`calculation refused: ${refused.join(" / ")}`);
   return true;
 }
@@ -201,15 +210,19 @@ const offered = (region, metric) => !FIXED[metric] || FIXED[metric] === region;
 const choices = select => select.locator("option:not([disabled])").evaluateAll(options => options.map(option => option.value).filter(Boolean));
 // Every statistic the panel offers for one region and metric, from the seed: each stain, each
 // analysis it allows and, for an association, each horizontal axis, with their figures.
-function statisticsScene(region, metric, kinds = null) {
+// `refusal`: a refusal (or several) the shared analysis gives on purpose (e.g. saturated pixels in an intensity comparison);
+// it is recorded as the visitor would see it, and the walk goes on without a figure.
+function statisticsScene(region, metric, kinds = null, refusal = null) {
   return async page => {
     await tab(page, "統計");
     await statistics(page).waitFor({timeout: LIVE});
     const metrics = sidebar(page).getByRole("combobox", {name: "指標", exact: true});
     if (!(await choices(metrics)).includes(metric)) return;
-    const regions = sidebar(page).getByRole("combobox", {name: "領域", exact: true});
-    if (await regions.count()) {await regions.selectOption(region); await idle(page);}
+    // The metric first: after a metric of a fixed region (a positive count, a nucleolar measure) the panel shows
+    // no region choice, so a region chosen before the metric would be skipped and the previous region kept.
     await metrics.selectOption(metric); await idle(page);
+    const regions = sidebar(page).getByRole("combobox", {name: "領域", exact: true});
+    if (await regions.count() && await regions.inputValue() !== region) {await regions.selectOption(region); await idle(page);}
     const stain = sidebar(page).getByRole("combobox", {name: "染色", exact: true});
     const stains = await stain.count() && await stain.isEnabled() ? await choices(stain) : [null];
     for (const channel of stains) {
@@ -221,8 +234,7 @@ function statisticsScene(region, metric, kinds = null) {
         const axis = statistics(page).getByRole("combobox", {name: "横軸", exact: true});
         for (const x of kind === "association" ? await choices(axis) : [null]) {
           if (x) {await axis.selectOption(x); await idle(page);}
-          await calculate(page);
-          await figures(page, kind === "comparison");
+          if (await calculate(page, refusal)) await figures(page, kind === "comparison");
         }
       }
     }
@@ -261,7 +273,10 @@ function measureScene(target) {
     if (target !== "nuclei") {await inspector.getByRole("combobox", {name: "領域", exact: true}).selectOption("nuclei"); await idle(page);}
     await tab(page, "統計");
     const operation = statistics(page).getByRole("combobox", {name: "解析", exact: true});
-    for (const kind of ["distribution", "comparison"]) {
+    // Only the analyses the panel offers: a stain with saturated pixels (Hoechst on the platinum scenes) offers no
+    // group comparison of its intensity (Q-04), as for a visitor.
+    const offered = await choices(operation);
+    for (const kind of ["distribution", "comparison"].filter(kind => offered.includes(kind))) {
       await operation.selectOption(kind);
       if (await calculate(page)) await figures(page, kind === "comparison");
     }
@@ -285,11 +300,42 @@ async function statisticsAfter(page) {
   }
 }
 
+/**
+ * Classifies the nuclei by one channel in the settings panel (the demo offers each acquisition date's
+ * Otsu threshold, which needs no value typed in), with the measured value and the nuclei kept.
+ */
+async function classify(page, channel, values, keep = "positive") {
+  // Positive and negative nuclei are a colour mode of the image; choosing it opens the classification (MV-01, MV-04).
+  const color = colorMode(page);
+  if (await color.inputValue() !== "positivity") {await color.selectOption("positivity"); await idle(page);}
+  const inspector = page.getByRole("complementary", {name: "画像解析"});
+  if (!await inspector.count()) {await header(page).getByRole("button", {name: "設定パネル"}).click(); await idle(page);}
+  const gate = inspector.getByRole("region", {name: "チャンネルによる核の分類"});
+  await gate.getByRole("combobox", {name: "判定するチャンネル", exact: true}).selectOption(channel);
+  await gate.getByRole("combobox", {name: "測定値", exact: true}).selectOption(values);
+  await gate.getByRole("combobox", {name: "測定値の集計対象", exact: true}).selectOption(keep);
+  await gate.getByRole("button", {name: "チャンネルで分類", exact: true}).click();
+  await page.waitForFunction(() => ![...document.querySelectorAll("button")].some(button => button.textContent === "分類中…"), null, {timeout: LIVE});
+  await idle(page);
+  const refused = (await gate.getByRole("alert").allTextContents()).filter(text => text.trim());
+  if (refused.length) throw new Error(`classification refused: ${refused.join(" / ")}`);
+}
+function colorMode(page) {return page.getByRole("toolbar", {name: "画像の表示"}).getByRole("combobox", {name: "色分け", exact: true});}
+/** The next step beside a table (MV-09): statistics with what the image shows, then the calculation and its figures. */
+async function nextStep(page, name) {
+  await page.getByRole("button", {name}).first().click();
+  await idle(page);
+  await statistics(page).waitFor({timeout: LIVE});
+  if (await calculate(page)) await figures(page, true);
+}
 async function closePanel(page) {
   const close = page.getByRole("button", {name: "パネルを閉じる"});
   if (await close.isVisible()) {await close.click(); await idle(page);}
 }
 
+// The most regions of one opening field whose deletion is recorded (the nucleolar scene's opening fields hold
+// up to 18 nuclei and 33 nucleoli).
+const DELETABLE = 40;
 // Every walk of one demo scene; names carry the scene id so each scene's entries stay apart.
 function walksOf(demo) {
   const REGIONS = demo.regions, EXAMPLES = demo.examples, RANK = demo.rank ?? [];
@@ -340,7 +386,93 @@ function walksOf(demo) {
     await closePanel(page);
     await statisticsScene(region, metric, ["comparison", "association"])(page);
   };
-  return Object.entries(scenes).map(([name, walk]) => ({name: demo.id ? `${demo.id}:${name}` : name, walk, workspace: demo.workspace}));
+  // Positivity by each channel the scene classifies by (gate_channels: stains whose positive and negative
+  // nuclei mean something) and each measured value: the classification keeping the positive nuclei, the
+  // positive fraction and count (descriptive: the threshold is exploratory), and the positive nuclei's
+  // area and mean intensity, the comparisons the demo offers after a classification.
+  for (const channel of demo.gateChannels ?? []) for (const values of ["raw", "corrected"]) for (const kept of ["positive", "negative"]) {
+    scenes[`positivity-${channel}-${values}${kept === "negative" ? "-negative" : ""}`] = async page => {
+      await classify(page, channel, values, kept);
+      await closePanel(page);
+      // A run whose fields hold no nucleus of the kept class (all positive, say) has nothing to measure: the shared
+      // analysis refuses the comparison, and the refusal is recorded as the visitor would see it.
+      const empty = "選別後に測定できる核がない実験単位";
+      for (const metric of ["positive_fraction", "positive_count"]) await statisticsScene("nuclei", metric, null, empty)(page);
+      // Among the positive nuclei a stain may hold saturated pixels; comparing their intensity is then refused (Q-04).
+      for (const metric of ["area_px", "area_um2", "mean", "mean_corrected"]) await statisticsScene("nuclei", metric, ["distribution", "comparison"], ["上限値または飽和した画素", empty])(page);
+    };
+    // The image's next step: the positive fraction, after the compared fields are judged again by the same rule.
+    if (values === "raw" && kept === "positive") scenes[`positivity-${channel}-next`] = async page => {
+      await classify(page, channel, values);
+      await closePanel(page);
+      await nextStep(page, /^陽性率を群間で比較/);
+    };
+  }
+  // The nucleolus-and-nucleoplasm colour mode and its next step (the nucleoplasm ÷ nucleolus ratio).
+  if (REGIONS.includes("nucleoli") && REGIONS.includes("nucleoplasm")) scenes["compartments-next"] = async page => {
+    await colorMode(page).selectOption("compartments"); await idle(page);
+    await nextStep(page, /^核質／核小体の比を群間で比較/);
+  };
+  // Background correction chosen in the settings panel (the modes that need nothing drawn), then every region
+  // measured again with its statistics; the scene's own mode is what the measure-* walks record.
+  for (const mode of ["raw", "automatic"]) scenes[`background-${mode}`] = async page => {
+    const inspector = page.getByRole("complementary", {name: "画像解析"});
+    if (!await inspector.count()) {await header(page).getByRole("button", {name: "設定パネル"}).click(); await idle(page);}
+    const background = inspector.getByRole("combobox", {name: "背景補正", exact: true});
+    if (await background.inputValue() === mode) return;
+    await background.selectOption(mode); await idle(page);
+    for (const region of REGIONS) await measureScene(region)(page);
+  };
+  // The opening comparison as a paired design (each run's control and treatment), with its figures.
+  scenes["statistics-paired"] = async page => {
+    await tab(page, "統計");
+    await statistics(page).getByRole("combobox", {name: "解析", exact: true}).selectOption("comparison"); await idle(page);
+    await statistics(page).getByRole("combobox", {name: "対応", exact: true}).selectOption("paired"); await idle(page);
+    if (await calculate(page)) await figures(page, true);
+  };
+  // The opening result's figure without its legend, and its publication package with the original images.
+  scenes["tour-options"] = async page => {
+    await tab(page, "統計");
+    await calculate(page);
+    await tab(page, "グラフ");
+    await figure(page).getByLabel("凡例を表示", {exact: true}).uncheck();
+    await render(page);
+    await figure(page).getByLabel("凡例を表示", {exact: true}).check();
+    await render(page);
+    // The package with the original images (tens of MB each) is recorded on full scenes only.
+    if (demo.scope === "story") return;
+    await figure(page).getByLabel("元画像を含める", {exact: true}).check();
+    const download = page.waitForEvent("download", {timeout: LIVE});
+    await figure(page).getByRole("button", {name: "保存", exact: true}).click();
+    await download;
+    await idle(page);
+  };
+  // Deleting one nucleus or one nucleolus of an opening field and taking it back (元に戻す), each from the seed,
+  // for every one of both opening fields of a nucleolar scene (tens per field). Scenes with hundreds of nuclei per
+  // field are not recorded; a deletion there, or a second one in a row, is answered with the demo's notice.
+  if (REGIONS.includes("nucleoli")) for (const target of ["nuclei", "nucleoli"]) for (let pane = 0; pane < 2; pane++) for (let row = 0; row < DELETABLE; row++) scenes[`delete-${target}-${pane + 1}-${row + 1}`] = async page => {
+    const region = page.getByRole("toolbar", {name: "画像の表示"}).getByRole("combobox", {name: "領域", exact: true});
+    if (await region.inputValue() !== target) {await region.selectOption(target); await idle(page);}
+    const panes = page.getByRole("region", {name: /の測定値$/});
+    await panes.nth(pane).waitFor({timeout: LIVE});
+    const rows = panes.nth(pane).locator("table tbody tr");
+    await rows.first().waitFor({timeout: LIVE});
+    if (row >= await rows.count()) return;
+    const section = panes.nth(pane).locator("xpath=ancestor::section[1]");
+    await rows.nth(row).getByRole("button").first().click(); await idle(page);
+    await section.getByRole("button", {name: "選択領域を削除", exact: true}).click(); await idle(page);
+    await section.getByRole("button", {name: "元に戻す", exact: true}).click(); await idle(page);
+  };
+  // A scene recorded for its story (scenario.journal "story", build.py) keeps what tells it: the guided tour and
+  // its options, the saved figures, the paired opening comparison, every statistic of the story's metrics
+  // (the opening comparison and its companions), measuring each region, the AI examples and the image's next
+  // steps. Everything else the screen offers is answered with the demo's notice (DM-10: the published files'
+  // limit). The full exploration is recorded on the scenes kept "full" (the demo's first scene).
+  const story = new Set((demo.story ?? []).map(item => `statistics-${item.region}-${item.metric}`));
+  const told = name => ["tour", "tour-options", "saved-figures", "statistics-paired", "compartments-next"].includes(name)
+    || story.has(name) || /^measure-/.test(name) || /^ai-(\d+|in-order|fields)$/.test(name) || /^positivity-.+-next$/.test(name);
+  return Object.entries(scenes).filter(([name]) => demo.scope !== "story" || told(name))
+    .map(([name, walk]) => ({name: demo.id ? `${demo.id}:${name}` : name, walk, workspace: demo.workspace}));
 }
 await mkdir(config.out, {recursive: true});
 // Scenes are independent (each starts from the seed), so several run at once.

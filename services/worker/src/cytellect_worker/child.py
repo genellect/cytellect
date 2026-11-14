@@ -91,7 +91,9 @@ def main():
         }
         if job["kind"] not in handlers:
             raise ValueError("job_kind_not_allowlisted")
-        handlers[job["kind"]]()
+        from cytellect_analysis.temporary_storage import scratch_ownership_scope
+        with scratch_ownership_scope(store.safe_path("runs")):
+            handlers[job["kind"]]()
         write_json(descriptor.parent / "status.json", {"error": None})
     except Exception as exc:
         message = str(exc)

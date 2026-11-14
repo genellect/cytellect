@@ -24,6 +24,7 @@ from cytellect_api.db import (
     fields,
     jobs,
     proposal_drafts,
+    result_discussions,
     revisions,
     sessions,
     tables,
@@ -406,6 +407,15 @@ def process_one(store, settings):
 def cleanup(store):
     from cytellect_api.db import workspace_analysis_runs, workspace_analysis_specs, workspace_field_links
     now = time.time()
+    if now >= getattr(store, "_scratch_recovery_after", 0):
+        from cytellect_analysis.temporary_storage import reap_owned_temporaries
+        store._scratch_recovery_after = now + 60
+        try:
+            # Live engine owners hold OS locks. Finished/crashed jobs leave only
+            # creation journals; original inputs and result trees have none.
+            reap_owned_temporaries(store.safe_path("runs"), recursive=True)
+        except (OSError, ValueError):
+            pass
     removed = 0
     with store.transaction() as conn:
         expired = (
@@ -447,7 +457,7 @@ def cleanup(store):
                 run = store.safe_path("runs", record["id"])
                 if run.exists():
                     shutil.rmtree(run)
-            for table in (attempts, tables, fields, revisions, jobs, proposal_drafts, workspace_selections, workspace_channel_assignments, workspace_analysis_specs, workspace_analysis_runs, workspace_field_links):
+            for table in (attempts, tables, fields, revisions, jobs, proposal_drafts, result_discussions, workspace_selections, workspace_channel_assignments, workspace_analysis_specs, workspace_analysis_runs, workspace_field_links):
                 conn.execute(delete(table).where(table.c.workspace_id == wid))
             conn.execute(
                 update(workspaces)

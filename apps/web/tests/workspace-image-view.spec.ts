@@ -1,3 +1,4 @@
+import {nucleusTableFixture} from "./nucleus-table-fixture";
 import {expect,test,type BrowserContext,type Page} from "@playwright/test";
 
 /** The production workspace (/workspace) on fixed API records: two fields stained with DAPI (nuclear) and
@@ -53,11 +54,15 @@ async function imageWorkspace(context:BrowserContext,page:Page,options:{pair?:bo
     if(path.endsWith("/runs"))return json([]);
     if(path.endsWith("/jobs"))return json(saved.map(value=>({id:value.job,kind:"statistics",state:"succeeded",created:value.created,revision_id:"cohort"})));
     const result=saved.find(value=>path===`/v1/jobs/${value.job}/result`);if(result)return json(result.result);
+    // No discussion has been made for a saved comparison (the API answers null; AC-06).
+    if(method==="GET"&&saved.some(value=>path===`/v1/jobs/${value.job}/discussion`))return json(null);
     const figure=saved.find(value=>path===`/v1/jobs/${value.job}/files/figure.svg`);
     if(figure)return route.fulfill({headers,contentType:"image/svg+xml",body:`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200"><text x="20" y="40">Saved figure ${figure.job}</text></svg>`});
     if(path.endsWith("/region-measurements")){const rid=path.split("/")[3],fid=rid.endsWith("2")?"f2":"f1";
       return json({revision_id:rid,protocol_version:"3.0.0",measurement:{version:"1.1.0",mode:"raw_intensity"},field_failures:[],exclusions:[],field_tables:{[fid]:{rows:[1,2].flatMap(region_id=>["c1","c2"].map(channel_id=>({region_id,channel_id,area_px:region_id*10,area_um2:null,mean:mean(fid,channel_id),median:mean(fid,channel_id),integrated:mean(fid,channel_id)*10})))}}});}
     if(path.endsWith("/compartment-ledger")){const rid=path.split("/")[3];return json({policy:"unresolved-as-missing/1.0.0",fields:{[rid.endsWith("2")?"f2":"f1"]:{nuclei:2,resolved:2,missing:{},excluded:0}}});}
+    // The nucleus table (the default table of the nuclei): one row per nucleus, every stain, no nucleoli.
+    if(path.endsWith("/nucleus-table")){const fid=url.searchParams.get("field_id")??"f1";return json(nucleusTableFixture({fieldId:fid,revision:path.split("/")[3],channels,nuclei:[1,2],mean:channel=>mean(fid,channel)}));}
     if(path.endsWith("/region-masks")){const rid=path.split("/")[3];return json({regions:outlines[rid.startsWith("n")?"nucleoli":"nuclei"].map((points,index)=>({id:index+1,points})),metadata:{mask_revision_id:`mask-${rid}`}});}
     if(path.endsWith("/preview"))return route.fulfill({headers,contentType:"image/svg+xml",body:`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="${url.searchParams.get("channel_id")==="c1"?"#555":"#999"}"/></svg>`});
     const record=revisions.find(value=>path.endsWith(`/revisions/${value.id}`));if(record)return json(record);
@@ -66,7 +71,7 @@ async function imageWorkspace(context:BrowserContext,page:Page,options:{pair?:bo
   return {unexpected,uploads};
 }
 
-test("the table beside one image names the stain and field of its rows, also when a comparison shows another plane",async({page,context})=>{
+test("the table beside one image names what it lists, its stain and the field of its rows, also when a comparison shows another plane",async({page,context})=>{
   const fixture=await imageWorkspace(context,page);
   await page.goto("/workspace?id=w");
   const bar=page.locator("[class*=channelBar]");
@@ -75,25 +80,29 @@ test("the table beside one image names the stain and field of its rows, also whe
   await expect(page.getByRole("complementary",{name:"画像解析",exact:true})).toHaveCount(0);
   const side=page.locator("[class*=sideMeasurements]");
   const heading=side.getByRole("heading",{level:3});
-  await expect(heading).toHaveText("核の測定値 · DAPI");
+  // The nuclei open on their nucleus table (every stain per nucleus); one stain's rows are a click away (MV-07).
+  await expect(heading).toHaveText("核ごと · すべての染色");
+  await expect(side.getByRole("table",{name:"核ごとの表"}).locator("tbody tr")).toHaveCount(2);
+  await side.getByRole("button",{name:"このチャンネル",exact:true}).click();
+  await expect(heading).toHaveText("核ごと · DAPI（原値）");
   await expect(side.locator("tbody tr").first()).toContainText("111");
   // A comparison that shows only NPM1 of the same field: the rows stay DAPI's, and so does the caption.
   await bar.getByRole("button",{name:"画像を比較",exact:true}).click();
   for(const plane of ["視野 1 · DAPI","視野 2 · DAPI","視野 2 · NPM1"]){const box=page.getByRole("checkbox",{name:plane,exact:true});if(await box.isChecked())await box.uncheck();}
   await page.getByRole("checkbox",{name:"視野 1 · NPM1",exact:true}).check();
   await expect(page.locator("svg[aria-label='視野 1 NPM1']")).toBeVisible();
-  await expect(heading).toHaveText("核の測定値 · DAPI");
+  await expect(heading).toHaveText("核ごと · DAPI（原値）");
   await expect(side.locator("tbody tr").first()).toContainText("111");
   await expect(side.locator("tbody")).not.toContainText("122");
   // Another field's plane: the caption also names the field the rows come from.
   await page.getByRole("checkbox",{name:"視野 1 · NPM1",exact:true}).uncheck();
   await page.getByRole("checkbox",{name:"視野 2 · NPM1",exact:true}).check();
   await expect(page.locator("svg[aria-label='視野 2 NPM1']")).toBeVisible();
-  await expect(heading).toHaveText("核の測定値 · 視野 1 · DAPI");
+  await expect(heading).toHaveText("視野 1 · 核ごと · DAPI（原値）");
   await expect(side.locator("tbody tr").first()).toContainText("111");
   // Choosing an outline in the shown plane selects that field and stain; rows and caption follow it.
   await page.locator("svg[aria-label='視野 2 NPM1'] path[data-region='1']").click();
-  await expect(heading).toHaveText("核の測定値 · NPM1");
+  await expect(heading).toHaveText("核ごと · NPM1（原値）");
   await expect(side.locator("tbody tr").first()).toContainText("222");
   expect(fixture.unexpected).toEqual([]);
 });
@@ -146,8 +155,8 @@ test("side by side, each pane offers the outline tools of one field",async({page
   const control=page.getByRole("region",{name:"対照（対照）",exact:true});
   await expect(control.getByRole("toolbar",{name:/の領域編集$/})).toBeVisible();
   await control.getByRole("region",{name:/の測定値$/}).locator("tbody button").first().click();
-  for(const name of ["領域を描く","輪郭を描き直す","領域を分割","領域を結合","選択領域を削除"])await expect(control.getByRole("button",{name,exact:true})).toBeVisible();
-  await expect(page.getByRole("region",{name:"処理",exact:true}).getByRole("button",{name:"領域を描く",exact:true})).toBeVisible();
+  for(const name of ["領域を描画","輪郭を再描画","領域を分割","領域を結合","選択領域を削除"])await expect(control.getByRole("button",{name,exact:true})).toBeVisible();
+  await expect(page.getByRole("region",{name:"処理",exact:true}).getByRole("button",{name:"領域を描画",exact:true})).toBeVisible();
   expect(fixture.unexpected).toEqual([]);
 });
 

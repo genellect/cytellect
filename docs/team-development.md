@@ -17,7 +17,7 @@ Cytellect の開発に参加するメンバーのためのルール。開発の�
 ### 2. 開発の流れ
 
 1. **タスクを決める。** 目的と完了条件を Issue またはタスクの依頼に書く。
-2. **ブランチを作る。** 最新の `origin/main` から作る。名前は `<種類>/<内容>` とし、種類は `feat`、`fix`、`docs`、`test`、`chore` のいずれか（例: `fix/nucleolus-boundary`）。エージェントのツールが付ける接頭辞（`claude/`、`codex/`）も使える。
+2. **ブランチを作る。** 最新の `origin/main` から作る。名前は `<種類>/<内容>` とする（例: `fix/nucleolus-boundary`）。種類は `feat`、`fix`、`docs`、`test`、`chore`、`ci` のいずれかで、内容は英小文字とハイフンで短く書く。日付や非公開の研究対象は名前に入れない。`release/`、`feature/`、`review/` と、種類のない名前は使わない。エージェントのツールがブランチ名を自動で決める場合に限り、その接頭辞（`claude/`、`codex/`）のままでよい。
 3. **変更する。** 1 つの PR では 1 つの目的だけを扱う。仕様・テスト・文書は、コードと同じ PR で更新する。
 4. **PR を出す。** [PR テンプレート](../.github/pull_request_template.md)のすべての項目を書く。作業途中の共有には Draft PR を使う。
 5. **CI とレビューを通す。** 必須 CI がすべて成功し、必要なレビューを得るまでマージしない。PR の CI は、変更したファイルに関係する検査だけを実行する。Fiji・Cellpose の画像・Windows の導入の統合試験は `main` への取り込み後に実行し、Windows 版の配布は、配布するコミットでこれらすべての成功を確認してから行う（[CI の構成](ci.md)）。`main` で失敗した場合は、次の配布より前に修正するか取り消す。
@@ -29,7 +29,10 @@ Cytellect の開発に参加するメンバーのためのルール。開発の�
 - 作業を始める前と PR を出す前に `git fetch origin main` を実行し、最新の `main` を取り込む。取り込み後は、影響する検証をやり直す。
 - 他のメンバーのブランチには、本人の了承なく push しない。
 - 並行作業では、タスクごとに `git worktree` または別の checkout を使う。他の人やエージェントが使用中の checkout は編集しない。
-- マージ済みのブランチは削除する。
+- マージ済みのブランチは削除する。オーナーはリポジトリ設定の **Automatically delete head branches** を有効にしておき、マージと同時に削除されるようにする。
+- マージせずに閉じた PR のブランチも削除する。コミットは PR に残り、PR の画面からブランチを復元できる。残したい案は Issue に記録する。
+- PR のないブランチは残さない。作業を共有するときは Draft PR を出す。
+- 配布した版はタグと GitHub Releases で示し、版ごとのブランチは作らない。タグとリリースは配布の workflow が `main` のコミットに作る（[配布する](release-signing.md#4-配布する)）。
 
 ### 4. レビュー
 
@@ -59,12 +62,13 @@ Cytellect の開発に参加するメンバーのためのルール。開発の�
 
 | 区分 | 例 | 保存場所 | Git・CI・開発用 AI |
 |---|---|---|---|
-| 非公開データ | 研究室の未発表画像、正解の輪郭、測定表、論文草稿、ファイル名とパス、参加者情報 | 研究室が管理するストレージ（checkout の外） | 使用不可 |
+| 非公開データ | 研究室の未発表画像、正解の輪郭、測定表、論文草稿、ファイル名とパス、参加者情報 | 研究室が管理するストレージ（checkout の外） | 使用不可（開発用 AI は下の隔離ローカル環境の例外だけ） |
 | 公開データ | 出典とライセンスを確認した公開画像 | 登録済みの fixture。出典、染色情報、再配布条件、ハッシュを記録 | 使用可（リポジトリに置くのは再配布できるものだけ） |
 | 合成データ | 計算の照合に使う最小の数値・ラベルの配列（細胞を模した画像は除く） | リポジトリ | [開発の原則](development-principles.md#研究データと検証)の条件を満たす場合に限り使用可 |
 | 認証情報 | API キー、トークン、招待リンク | 各サービスの secret 管理 | 使用不可 |
 
-- 非公開データは、コード、ログ、Issue、PR、スクリーンショット、CI、開発用 AI（チャットへの貼り付けを含む）に含めない。
+- 非公開データは、コード、ログ、Issue、PR、スクリーンショット、CI、開発用 AI（チャットへの貼り付けを含む）に含めない。開発用 AI の例外は、次の隔離ローカル環境だけ。
+- **隔離ローカル環境の例外。** オーナーが指定した隔離ローカル領域で、オーナーが指定した開発用 AI とそのモデル提供元に限り、指定した目的のために非公開データを扱ってよい（2026-11-09、オーナーの判断）。領域・AI と送信先・目的と条件は[ローカル研究データの利用](drafts/research-measurements/local-data.md#隔離ローカル環境での-ai-の利用)に従い、その外（クラウド開発、Git、PR、CI、公開デモ、ほかの AI）には適用しない。
 - 製品の解析提案機能は、利用者が AI に指示を送ったときに限り、[定められた情報](../SECURITY.md#研究データ)を送る。この機能は、開発で非公開データを扱ってよい根拠にはならない。
 - **評価データを分ける。** 検出精度の評価には、学習と条件調整に使わない実験回の画像を使う。分割は実験回の単位で行い、どの画像をどちらに使ったかを記録する。評価データを見て閾値やモデルを調整しない。
 - **学習済みモデルを管理する。** 非公開データで学習した重みを公開・配布する場合は、オーナーとデータ提供元の承認を得る。学習データ、重み、推論条件は組にして版を管理する。
@@ -99,7 +103,7 @@ These rules apply to everyone contributing to Cytellect. They define how we work
 ### 2. Workflow
 
 1. **Define the task.** State the purpose and completion criteria in an issue or task request.
-2. **Create a branch** from the latest `origin/main`, named `<type>/<summary>`, where type is `feat`, `fix`, `docs`, `test` or `chore` (for example `fix/nucleolus-boundary`). Prefixes added by agent tools (`claude/`, `codex/`) are also acceptable.
+2. **Create a branch** from the latest `origin/main`, named `<type>/<summary>` (for example `fix/nucleolus-boundary`). The type is one of `feat`, `fix`, `docs`, `test`, `chore` or `ci`, and the summary is short, in lowercase English words joined by hyphens. Do not put dates or unpublished research targets in the name. Do not use `release/`, `feature/`, `review/` or names without a type. Only when an agent tool chooses the branch name itself may its prefix (`claude/`, `codex/`) remain.
 3. **Make the change.** Keep each PR to one purpose. Update specifications, tests and documentation in the same PR as the code.
 4. **Open a PR** and fill in every section of the [PR template](../.github/pull_request_template.md) (Japanese). Use a draft PR to share work in progress.
 5. **Pass CI and review.** Do not merge until all required checks pass and the required review is complete. Pull-request CI runs only the checks the changed files can affect. The Fiji, Cellpose-image and Windows-install integration jobs run after merge on `main`, and a Windows release proceeds only when all of them have passed on the commit it releases ([CI design](ci.md)). A failure on `main` is fixed or reverted before the next release.
@@ -111,7 +115,10 @@ These rules apply to everyone contributing to Cytellect. They define how we work
 - Run `git fetch origin main` and integrate current `main` before starting work and before opening a PR. Rerun affected checks after integrating.
 - Do not push to another member's branch without their agreement.
 - For parallel work, use a separate `git worktree` or checkout per task. Do not edit a checkout that another person or agent is using.
-- Delete branches after they are merged.
+- Delete branches after they are merged. The owner keeps the repository setting **Automatically delete head branches** enabled so that merging deletes the branch.
+- Also delete the branch of a PR closed without merging. Its commits stay with the PR, and the branch can be restored from the PR page. Record any idea worth keeping in an issue.
+- Do not keep branches without a PR. Open a draft PR to share work in progress.
+- Mark released versions with tags and GitHub Releases, not per-version branches. The release workflow creates the tag and release on a `main` commit ([Release](release-signing.md#4-配布する)).
 
 ### 4. Review
 
@@ -141,12 +148,13 @@ Research data falls into these categories.
 
 | Category | Examples | Storage | Git, CI and development AI |
 |---|---|---|---|
-| Private data | Unpublished lab images, ground-truth contours, measurement tables, manuscript drafts, file names and paths, participant information | Lab-managed storage outside the checkout | Not permitted |
+| Private data | Unpublished lab images, ground-truth contours, measurement tables, manuscript drafts, file names and paths, participant information | Lab-managed storage outside the checkout | Not permitted (development AI only under the isolated local environment exception below) |
 | Public data | Published images with confirmed source and license | Registered fixtures with recorded source, stain metadata, redistribution terms and hashes | Permitted (only redistributable assets in the repository) |
 | Synthetic data | Minimal numeric or label arrays for checking calculations (not images imitating cells) | Repository | Permitted only under the conditions in [Development principles](development-principles.md#研究データと検証) |
 | Credentials | API keys, tokens, invitation links | Each service's secret store | Not permitted |
 
-- Keep private data out of code, logs, issues, PRs, screenshots, CI and development AI, including pasting into chat.
+- Keep private data out of code, logs, issues, PRs, screenshots, CI and development AI, including pasting into chat. The only exception for development AI is the isolated local environment below.
+- **Isolated local environment exception.** Only in an isolated local area the owner designates, and only the development AI the owner designates together with its model provider, may handle private data, and only for the designated purposes (owner's decision, 2026-11-09). The area, AI and recipient, purposes and conditions are in [Local research data](drafts/research-measurements/local-data.md#隔離ローカル環境での-ai-の利用); the exception never extends to cloud development, Git, PRs, CI, public demos or other AI.
 - The product's analysis proposal feature sends only [defined information](../SECURITY.md#research-data), and only when the user sends an instruction to the AI. It does not permit handling private data during development.
 - **Separate evaluation data.** Evaluate detection accuracy on images from experimental runs that were not used for training or parameter tuning. Split by experimental run and record which images were used for which purpose. Do not tune thresholds or models against evaluation data.
 - **Manage trained models.** Publishing or distributing weights trained on private data requires approval from the owner and the data provider. Version training data, weights and inference settings together.

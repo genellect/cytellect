@@ -25,13 +25,14 @@ MINIMUM_CONTROL_NUCLEI = 20
 EXPLORATORY_PROTOCOL = "gfp-gate/3.0.0"
 
 
-def control_thresholds(rows: list[dict], percentile: float = 99.0) -> dict:
+def control_thresholds(rows: list[dict], percentile: float = 99.0, *, value_key="gfp_mean",
+                       protocol=PROTOCOL, invalid_reason="gfp_control_percentile_invalid") -> dict:
     """rows: dicts with acquisition_date, gfp_mean and control (bool). Returns per-date thresholds."""
     if not 50 <= percentile < 100:
-        raise ValueError("gfp_control_percentile_invalid")
+        raise ValueError(invalid_reason)
     by_date: dict[str, list[float]] = defaultdict(list)
     for row in rows:
-        value = row.get("gfp_mean")
+        value = row.get(value_key)
         if row.get("control") and value is not None and math.isfinite(value):
             by_date[str(row.get("acquisition_date"))].append(float(value))
     result: dict[str, dict] = {}
@@ -43,7 +44,7 @@ def control_thresholds(rows: list[dict], percentile: float = 99.0) -> dict:
         else:
             result[date] = {"threshold": float(np.percentile(values, percentile, method="linear")),
                             "control_nuclei": len(values), "missing_reason": None}
-    return {"protocol": PROTOCOL, "percentile": percentile, "minimum_control_nuclei": MINIMUM_CONTROL_NUCLEI,
+    return {"protocol": protocol, "percentile": percentile, "minimum_control_nuclei": MINIMUM_CONTROL_NUCLEI,
             "dates": result}
 
 
@@ -67,7 +68,11 @@ def apply_control_gate(rows: list[dict], thresholds: dict) -> list[dict]:
     return gated
 
 
-def exploratory_thresholds(rows: list[dict], method: str, threshold: float | None = None) -> dict:
+def exploratory_thresholds(rows: list[dict], method: str, threshold: float | None = None, *,
+                           value_key="gfp_mean", protocol=EXPLORATORY_PROTOCOL,
+                           invalid_reason="gfp_exploratory_threshold_invalid",
+                           date_reason="gfp_gate_acquisition_date_required", few_reason="gfp_too_few_nuclei",
+                           uniform_reason="gfp_uniform_distribution") -> dict:
     """Explicit manual threshold or batch Otsu of nuclear means (256 bins, first maximum).
 
     Batch/date is required only for Otsu. Uniform or insufficient distributions
@@ -76,9 +81,9 @@ def exploratory_thresholds(rows: list[dict], method: str, threshold: float | Non
     from skimage.filters import threshold_otsu
 
     if method not in ("manual", "batch_otsu") or ((method == "manual") != (threshold is not None)):
-        raise ValueError("gfp_exploratory_threshold_invalid")
+        raise ValueError(invalid_reason)
     if threshold is not None and not math.isfinite(threshold):
-        raise ValueError("gfp_exploratory_threshold_invalid")
+        raise ValueError(invalid_reason)
     dates: dict[str, dict] = {}
     if method == "manual":
         dates = {"all": {"threshold": threshold, "control_nuclei": 0, "missing_reason": None}}
@@ -88,17 +93,17 @@ def exploratory_thresholds(rows: list[dict], method: str, threshold: float | Non
             date = row.get("acquisition_date")
             key = date if isinstance(date, str) and date.strip() else ""
             values = by_date[key]
-            value = row.get("gfp_mean")
+            value = row.get(value_key)
             if value is not None and math.isfinite(value):
                 values.append(float(value))
         dates = {}
         for key, values in sorted(by_date.items()):
-            reason = "gfp_gate_acquisition_date_required" if not key else (
-                "gfp_too_few_nuclei" if len(values) < 2 else "gfp_uniform_distribution"
+            reason = date_reason if not key else (
+                few_reason if len(values) < 2 else uniform_reason
                 if min(values) == max(values) else None)
             dates[key] = {"threshold": None if reason else float(threshold_otsu(np.asarray(values), nbins=256)),
                           "control_nuclei": 0, "measured_nuclei": len(values), "missing_reason": reason}
-    return {"protocol": EXPLORATORY_PROTOCOL, "method": method, "dates": dates,
+    return {"protocol": protocol, "method": method, "dates": dates,
             "exploratory": True, "threshold_population": "per-nucleus arithmetic means",
             "histogram_bins": 256 if method == "batch_otsu" else None}
 

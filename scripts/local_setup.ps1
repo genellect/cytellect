@@ -63,6 +63,13 @@ function Write-SetupMarker([string]$Path, [string]$Value) {
 }
 
 function Update-SetupStatus([string]$Phase, [string]$Text) {
+    if ((Get-Variable -Scope Script -Name SetupPhaseWatch -ErrorAction SilentlyContinue) -and
+        $null -ne $script:SetupPhaseWatch) {
+        if ($script:Phase -cmatch '^[a-z0-9_]{3,64}$') {
+            $script:SetupPhaseTimes += @{phase=$script:Phase; seconds=[Math]::Round($script:SetupPhaseWatch.Elapsed.TotalSeconds,3)}
+        }
+        $script:SetupPhaseWatch.Restart()
+    }
     $script:Phase = $Phase
     Write-SetupMarker $StatusFile $Phase
     if ($null -ne $script:StatusLabel) {
@@ -213,6 +220,8 @@ function Stop-SetupProcess {
     $killer = [Diagnostics.Process]::Start($stop)
     $killer.WaitForExit(10000) | Out-Null
     $killer.Dispose()
+    # Reap the owned parent after taskkill has terminated its tree, before cleanup.
+    $script:RunningProcess.WaitForExit(10000) | Out-Null
 }
 
 function Get-SetupFailureCode([Exception]$Exception = $null, [int]$ExitCode = 0,
@@ -220,10 +229,14 @@ function Get-SetupFailureCode([Exception]$Exception = $null, [int]$ExitCode = 0,
     # Inspect typed native errors and our own fixed marker, never arbitrary messages.
     $failure = $Exception
     while ($null -ne $failure) {
+        $marked = if ($failure.Data.Contains('CytellectSetupFailure')) { $failure.Data['CytellectSetupFailure'] } else { $null }
         if (($failure -is [ComponentModel.Win32Exception] -and $failure.NativeErrorCode -eq 4551) -or
-            ($failure.Data.Contains('CytellectSetupFailure') -and
-             $failure.Data['CytellectSetupFailure'] -ceq 'windows_application_control_blocked')) {
+            $marked -ceq 'windows_application_control_blocked') {
             return 'windows_application_control_blocked'
+        }
+        # Our own marked stops that have their own guidance (Get-SetupFailureText).
+        if ($marked -cin @('fiji_temporary_cleanup_pending', 'fiji_runtime_recovery_pending', 'setup_cleanup_pending')) {
+            return $marked
         }
         $failure = $failure.InnerException
     }
@@ -234,9 +247,25 @@ function Get-SetupFailureCode([Exception]$Exception = $null, [int]$ExitCode = 0,
     return $null
 }
 
+function New-SetupFailure([string]$Code) {
+    # A fixed code of our own, marked so that its guidance is chosen without reading messages.
+    $failure = [InvalidOperationException]::new($Code)
+    $failure.Data['CytellectSetupFailure'] = $Code
+    return $failure
+}
+
 function Get-SetupFailureText([string]$Code, [string]$Phase) {
     if ($Code -ceq 'windows_application_control_blocked') {
         return 'Windowsの保護機能により実行が拒否されました（4551）。PCの管理者に配布物の確認を依頼してください。'
+    }
+    if ($Code -ceq 'fiji_temporary_cleanup_pending') {
+        return '以前の一時ファイルが使用中のため、容量を保護して停止しました。しばらく待って同じインストーラーをもう一度開いてください。'
+    }
+    if ($Code -ceq 'fiji_runtime_recovery_pending') {
+        return '前回の失敗で途中まで削除されたFijiが使用中のため、再利用せずに停止しました。PCを再起動してから同じインストーラーをもう一度開いてください。'
+    }
+    if ($Code -ceq 'setup_cleanup_pending') {
+        return '前回の準備で作成した未完成のファイルが使用中のため、停止しました。PCを再起動してから同じインストーラーをもう一度開いてください。ダウンロードし直す必要はありません。'
     }
     return '準備を停止しました (' + $Phase + ')。接続・空き容量を確認して再試行してください。'
 }
@@ -264,15 +293,17 @@ function Invoke-SetupProcess([string]$Executable, [string[]]$Arguments, [string]
     $stdout = $script:RunningProcess.StandardOutput.ReadToEndAsync()
     $stderr = $script:RunningProcess.StandardError.ReadToEndAsync()
     $watch = [Diagnostics.Stopwatch]::StartNew()
+    $script:ProcessDiagnostic = @{ exit_code = $null; elapsed_seconds = 0; error_code = $null }
     try {
         while (-not $script:RunningProcess.WaitForExit(100)) {
             if (-not $Console) { [Windows.Forms.Application]::DoEvents() }
-            if ($script:Cancelled -and -not $FinishStorageCommit) { throw 'setup_cancelled' }
-            if ($watch.Elapsed.TotalSeconds -gt $TimeoutSeconds) { throw 'setup_stage_timeout' }
+            if ($script:Cancelled -and -not $FinishStorageCommit) { $script:ProcessDiagnostic.error_code = 'setup_cancelled'; throw 'setup_cancelled' }
+            if ($watch.Elapsed.TotalSeconds -gt $TimeoutSeconds) { $script:ProcessDiagnostic.error_code = 'setup_stage_timeout'; throw 'setup_stage_timeout' }
         }
         # Do not persist third-party output, which can include local paths.
         $stdout.GetAwaiter().GetResult() | Out-Null
         $standardError = $stderr.GetAwaiter().GetResult()
+        $script:ProcessDiagnostic.exit_code = $script:RunningProcess.ExitCode
         if ($script:RunningProcess.ExitCode -ne 0) {
             $code = Get-SetupFailureCode -ExitCode $script:RunningProcess.ExitCode `
                 -StandardError $standardError -UvProcess:$UvProcess
@@ -281,9 +312,22 @@ function Invoke-SetupProcess([string]$Executable, [string[]]$Arguments, [string]
                 $failure.Data['CytellectSetupFailure'] = $code
                 throw $failure
             }
+            if ($standardError -match '(?m)^CYTELLECT_INSTALL_CHECK: (fiji_[a-z_]+|installation_[a-z_]+|windows_application_control_blocked)\s*$') {
+                $script:ProcessDiagnostic.error_code = $Matches[1]
+                # Marked like the policy failure above, so the setup window can show its guidance.
+                $failure = [InvalidOperationException]::new($Matches[1])
+                $failure.Data['CytellectSetupFailure'] = $Matches[1]
+                throw $failure
+            }
+            if ($standardError -match '(?m)^CYTELLECT_STORAGE: (storage_[a-z_]{1,48})\s*$') {
+                $script:ProcessDiagnostic.error_code = $Matches[1]
+                throw $Matches[1]
+            }
+            $script:ProcessDiagnostic.error_code = 'setup_stage_failed'
             throw 'setup_stage_failed'
         }
     } finally {
+        $script:ProcessDiagnostic.elapsed_seconds = [Math]::Round($watch.Elapsed.TotalSeconds, 3)
         Stop-SetupProcess
         $script:RunningProcess.Dispose()
         $script:RunningProcess = $null
@@ -325,6 +369,7 @@ function Get-PinnedUv([string]$Root) {
         $stream = $entries[0].Open()
         try { $stream.CopyTo($bytes) } finally { $stream.Dispose() }
         $expected = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($bytes.ToArray())).Replace('-', '').ToLowerInvariant()
+        $script:UvStorageFiles = @(@{path='uv.exe';sha256=$expected;bytes=[long]$bytes.Length})
         if (Test-Path -LiteralPath $uv) {
             if ((Get-FileHash -LiteralPath $uv -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) {
                 throw 'installed_bootstrap_modified'
@@ -425,7 +470,268 @@ function Set-WorkspaceRetention([string]$Root, [string]$Requested) {
     return 'manual'
 }
 
+function Write-SetupAttempt([string]$Root, $Attempt) {
+    $directory = Get-SafeChild $Root $Attempt.directory
+    $path = Get-SafeChild $directory 'setup-attempt.json'
+    $temporary = Get-SafeChild $directory ('state-' + [Guid]::NewGuid().ToString('N') + '.tmp')
+    [IO.File]::WriteAllText($temporary, ($Attempt | ConvertTo-Json -Depth 5), [Text.UTF8Encoding]::new($false))
+    if ([IO.File]::Exists($path)) { [IO.File]::Replace($temporary, $path, [NullString]::Value) }
+    else { [IO.File]::Move($temporary, $path) }
+}
+
+function Test-SetupAttempt($Attempt) {
+    try {
+        return ($Attempt.schema -ceq 'cytellect-setup-attempt/1' -and
+            $Attempt.id -cmatch '^[a-f0-9]{32}$' -and
+            $Attempt.directory -ceq ('setup-cache/a-' + $Attempt.id.Substring(0, 8)) -and
+            $Attempt.app -cmatch '^apps/\d+\.\d+\.\d+(?:-[a-z0-9.]+)?-[a-f0-9]{12}$' -and
+            $Attempt.app_owned -is [bool] -and $Attempt.validated -is [bool] -and
+            @($Attempt.runtimes | Where-Object { $_ -cnotmatch '^(runtimes/(fiji-[a-f0-9]{16}|python-[a-z0-9.-]+)|tools/uv-[0-9.]+)$' }).Count -eq 0)
+    } catch { return $false }
+}
+
+function New-SetupAttempt([string]$Root, [string]$AppRelative) {
+    $id = [Guid]::NewGuid().ToString('N')
+    $relative = 'setup-cache/a-' + $id.Substring(0, 8)
+    $path = Get-SafeChild $Root $relative
+    New-Item -ItemType Directory -Path $path -ErrorAction Stop | Out-Null
+    $attempt = [pscustomobject]@{ schema = 'cytellect-setup-attempt/1'; id = $id; directory = $relative
+        app = $AppRelative; app_owned = $false; validated = $false; runtimes = @() }
+    if (-not (Test-SetupAttempt $attempt)) { throw 'invalid_setup_attempt' }
+    Write-SetupAttempt $Root $attempt
+    return $attempt
+}
+
+function Register-SetupRuntime([string]$Root, $Attempt, [string]$Relative) {
+    if (-not (Test-Path -LiteralPath (Get-SafeChild $Root $Relative))) {
+        $Attempt.runtimes = @($Attempt.runtimes) + @($Relative)
+        if (-not (Test-SetupAttempt $Attempt)) { throw 'invalid_setup_attempt' }
+        # Record creation intent before extraction, so an interrupted setup can recover ownership.
+        Write-SetupAttempt $Root $Attempt
+    }
+}
+
+function Remove-SetupTree([string]$Root, [string]$Relative) {
+    if ($Relative -cnotmatch '^(setup-cache/a-[a-f0-9]{8}(/scratch)?|apps/\d+\.\d+\.\d+(?:-[a-z0-9.]+)?-[a-f0-9]{12}|runtimes/(fiji-[a-f0-9]{16}|python-[a-z0-9.-]+)|tools/uv-[0-9.]+)$') {
+        throw 'unsafe_setup_cleanup_path'
+    }
+    $target = Get-SafeChild $Root $Relative
+    if (-not [IO.Directory]::Exists($target)) { return [long]0 }
+    $files = [Collections.Generic.List[string]]::new()
+    $directories = [Collections.Generic.List[string]]::new()
+    $pending = [Collections.Generic.Stack[string]]::new()
+    $pending.Push($target)
+    [long]$bytes = 0
+    while ($pending.Count -gt 0) {
+        $directory = $pending.Pop()
+        foreach ($entry in [IO.Directory]::EnumerateFileSystemEntries($directory)) {
+            $relativeEntry = $entry.Substring($Root.TrimEnd('\', '/').Length + 1).Replace('\', '/')
+            $safe = Get-SafeChild $Root $relativeEntry
+            $item = Get-Item -LiteralPath $safe -Force
+            if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'redirected_install_path' }
+            if ($item.PSIsContainer) { $directories.Add($safe); $pending.Push($safe) }
+            else { $files.Add($safe); $bytes += $item.Length }
+        }
+    }
+    # Check the complete tree before deleting any part of it; never follow a junction.
+    $proofFiles = @((Join-Path $target '.setup-owner.json'), (Join-Path $target 'setup-attempt.json'))
+    foreach ($file in @($files | Where-Object { $_ -cnotin $proofFiles })) {
+        $null = Get-SafeChild $Root ($file.Substring($Root.TrimEnd('\', '/').Length + 1).Replace('\', '/'))
+        # A ReadOnly file (e.g. from an archive entry without write permission) would stop the removal midway.
+        $attributes = [IO.File]::GetAttributes($file)
+        if ($attributes -band [IO.FileAttributes]::ReadOnly) { [IO.File]::SetAttributes($file, $attributes -band (-bnot [IO.FileAttributes]::ReadOnly)) }
+        [IO.File]::Delete($file)
+    }
+    foreach ($directory in @($directories | Sort-Object Length -Descending)) { [IO.Directory]::Delete($directory, $false) }
+    # Retain recovery proof until all removable content is gone. A locked file must
+    # not strand a partial tree without its ownership marker.
+    foreach ($file in @($files | Where-Object { $_ -cin $proofFiles })) {
+        $null = Get-SafeChild $Root ($file.Substring($Root.TrimEnd('\', '/').Length + 1).Replace('\', '/'))
+        # A ReadOnly file (e.g. from an archive entry without write permission) would stop the removal midway.
+        $attributes = [IO.File]::GetAttributes($file)
+        if ($attributes -band [IO.FileAttributes]::ReadOnly) { [IO.File]::SetAttributes($file, $attributes -band (-bnot [IO.FileAttributes]::ReadOnly)) }
+        [IO.File]::Delete($file)
+    }
+    [IO.Directory]::Delete($target, $false)
+    return $bytes
+}
+
+function Test-SetupRuntimeReferenced([string]$Root, [string]$Relative) {
+    $apps = Get-SafeChild $Root 'apps'
+    if (-not [IO.Directory]::Exists($apps)) { return $false }
+    foreach ($app in [IO.Directory]::GetDirectories($apps)) {
+        try {
+            $relativeApp = $app.Substring($Root.TrimEnd('\', '/').Length + 1).Replace('\', '/')
+            $safeApp = Get-SafeChild $Root $relativeApp
+            $receipt = Get-SafeChild $safeApp 'setup-complete.json'
+            if (-not [IO.File]::Exists($receipt)) {
+                # Old failed setups have no receipt. Exact release-declared locks
+                # still establish which shared runtime names they can reference.
+                $release = Get-Content -LiteralPath (Get-SafeChild $safeApp 'local-release.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+                if ($release.schema -cne 'cytellect-local-release/1' -or
+                    $release.source_commit -cnotmatch '^[a-f0-9]{40}$' -or
+                    $relativeApp -cne ('apps/' + $release.version + '-' + $release.source_commit.Substring(0,12))) { return $true }
+                foreach ($name in @('engines/python/windows-runtime.lock.json','engines/fiji/runtime.lock.json','scripts/local_setup.ps1')) {
+                    $entry = @($release.files | Where-Object { $_.path -ceq $name })
+                    if ($entry.Count -ne 1 -or $entry[0].sha256 -cnotmatch '^[a-f0-9]{64}$' -or
+                        (Get-FileHash -LiteralPath (Get-SafeChild $safeApp $name)).Hash.ToLowerInvariant() -cne $entry[0].sha256) { return $true }
+                }
+                $pythonLock = Get-Content -LiteralPath (Get-SafeChild $safeApp 'engines/python/windows-runtime.lock.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+                $fijiHash = (Get-FileHash -LiteralPath (Get-SafeChild $safeApp 'engines/fiji/runtime.lock.json')).Hash.ToLowerInvariant()
+                $bootstrap = Get-Content -LiteralPath (Get-SafeChild $safeApp 'scripts/local_setup.ps1') -Raw -Encoding UTF8
+                if ($bootstrap -cnotmatch '(?m)^\$script:UvVersion\s*=\s*''([0-9.]+)''\s*$') { return $true }
+                $references = @(('runtimes/python-' + $pythonLock.composition_version),
+                    ('runtimes/fiji-' + $fijiHash.Substring(0,16)), ('tools/uv-' + $Matches[1]))
+                foreach ($reference in $references) { $null = Get-SafeChild $Root $reference }
+                if ($Relative -cin $references) { return $true }
+                continue
+            }
+            $state = Get-Content -LiteralPath $receipt -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ($Relative -ceq ('runtimes/python-' + $state.python_build) -or
+                $Relative -ceq ('tools/uv-' + $state.uv) -or
+                [IO.Path]::GetFullPath($state.fiji).TrimEnd('\', '/') -ieq (Get-SafeChild $Root $Relative)) { return $true }
+        } catch { return $true }
+    }
+    return $false
+}
+
+function Get-UnrecoveredSetupRuntimes([string]$Root, $Attempt) {
+    # A runtime that an unfinished attempt created and that is still there after its cleanup may be
+    # partly deleted (a locked file stops the removal midway). A reference from another app keeps it
+    # from being removed but does not prove it complete, so the reference is not consulted here.
+    if ($Attempt.validated) { return }
+    foreach ($relative in @($Attempt.runtimes)) {
+        try { if (Test-Path -LiteralPath (Get-SafeChild $Root $relative)) { $relative } } catch { $relative }
+    }
+}
+
+function Test-SetupAppCleanupPending([string]$Root, $Attempt) {
+    # The app that an unfinished attempt created is still there without a completion receipt:
+    # its removal was deferred, and what remains may be partly deleted.
+    if ($Attempt.validated -or -not $Attempt.app_owned) { return $false }
+    try {
+        $app = Get-SafeChild $Root $Attempt.app
+        return ([IO.Directory]::Exists($app) -and -not [IO.File]::Exists((Get-SafeChild $app 'setup-complete.json')))
+    } catch { return $true }
+}
+
+function Close-SetupAttempt([string]$Root, $Attempt, [switch]$Committed) {
+    if (-not (Test-SetupAttempt $Attempt)) { throw 'invalid_setup_attempt' }
+    [long]$reclaimed = 0
+    $deferred = 0
+    $deferredTypes = @()
+    try { $reclaimed += Remove-SetupTree $Root ($Attempt.directory + '/scratch') }
+    catch { $deferred++; $deferredTypes += 'scratch' }
+    if (-not $Attempt.validated) {
+        if ($Attempt.app_owned) {
+            try {
+            $app = Get-SafeChild $Root $Attempt.app
+            $ownerPath = Get-SafeChild $app '.setup-owner.json'
+            if ([IO.File]::Exists((Get-SafeChild $app 'setup-complete.json'))) {
+                $deferred++; $deferredTypes += 'app_receipt'
+            } elseif ([IO.File]::Exists($ownerPath)) {
+                $owner = Get-Content -LiteralPath $ownerPath -Raw -Encoding UTF8 | ConvertFrom-Json
+                if ($owner.schema -ceq 'cytellect-setup-app/1' -and $owner.id -ceq $Attempt.id -and $owner.app -ceq $Attempt.app) {
+                    $reclaimed += Remove-SetupTree $Root $Attempt.app
+                } else { $deferred++; $deferredTypes += 'app_ownership' }
+            } elseif ([IO.Directory]::Exists($app)) {
+                # Creation intent predates mkdir; interrupted marker creation or
+                # the final empty-directory removal can therefore be recovered.
+                if (@([IO.Directory]::EnumerateFileSystemEntries($app)).Count -eq 0) {
+                    $reclaimed += Remove-SetupTree $Root $Attempt.app
+                } else { $deferred++; $deferredTypes += 'app_ownership' }
+            }
+            } catch { $deferred++; $deferredTypes += 'app' }
+        }
+        foreach ($relative in @($Attempt.runtimes)) {
+            try {
+                if (Test-SetupRuntimeReferenced $Root $relative) { $deferred++; $deferredTypes += 'runtime_reference'; continue }
+                $reclaimed += Remove-SetupTree $Root $relative
+            } catch { $deferred++; $deferredTypes += 'runtime' }
+        }
+    }
+    if ($deferred -eq 0 -and ($Committed -or -not $Attempt.validated)) {
+        try { $reclaimed += Remove-SetupTree $Root $Attempt.directory }
+        catch { $deferred++; $deferredTypes += 'journal' }
+    }
+    return [pscustomobject]@{ schema = 'cytellect-setup-cleanup/1'; reclaimed_bytes = $reclaimed
+        deferred_items = $deferred; deferred_types = @($deferredTypes | Select-Object -Unique) }
+}
+
+function Read-SetupAttempts([string]$Root) {
+    $cache = Get-SafeChild $Root 'setup-cache'
+    if (-not [IO.Directory]::Exists($cache)) { return }
+    foreach ($directory in [IO.Directory]::GetDirectories($cache, 'a-*')) {
+        try {
+            $relative = $directory.Substring($Root.TrimEnd('\', '/').Length + 1).Replace('\', '/')
+            $safe = Get-SafeChild $Root $relative
+            $path = Get-SafeChild $safe 'setup-attempt.json'
+            if (-not [IO.File]::Exists($path)) { continue }
+            $attempt = Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ((Test-SetupAttempt $attempt) -and $attempt.directory -ceq $relative) { $attempt }
+        } catch { }
+    }
+}
+
+function Finalize-SetupAttempt([string]$Root, $Attempt) {
+    $app = Get-SafeChild $Root $Attempt.app
+    $state = Get-Content -LiteralPath (Get-SafeChild $app 'setup-complete.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    $release = Get-Content -LiteralPath (Get-SafeChild $app 'local-release.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($release.schema -cne 'cytellect-local-release/1' -or $release.platform -cne 'windows-x64' -or
+        $release.source_commit -cnotmatch '^[a-f0-9]{40}$' -or
+        $state.source_commit -cne $release.source_commit -or $state.version -cne $release.version -or
+        [IO.Path]::GetFullPath($state.app) -ine $app -or
+        $Attempt.app -cne ('apps/' + $release.version + '-' + $release.source_commit.Substring(0,12))) {
+        throw 'setup_completion_unverified'
+    }
+    $marker = Get-SafeChild $app '.setup-owner.json'
+    if ([IO.File]::Exists($marker)) {
+        $owner = Get-Content -LiteralPath $marker -Raw -Encoding UTF8 | ConvertFrom-Json
+        $claims = @(Read-SetupAttempts $Root | Where-Object {$_.app_owned -and $_.app -ceq $Attempt.app -and $_.id -ceq $owner.id})
+        if ($owner.schema -cne 'cytellect-setup-app/1' -or $owner.app -cne $Attempt.app -or $claims.Count -eq 0) {
+            throw 'setup_owner_unverified'
+        }
+    }
+    $Attempt.validated = $true
+    Write-SetupAttempt $Root $Attempt
+    if ([IO.File]::Exists($marker)) { [IO.File]::Delete($marker) }
+}
+
+function Write-SetupSummary([string]$Root, $Summary) {
+    if ($Summary.schema -cne 'cytellect-setup-result/1' -or $Summary.attempt_id -cnotmatch '^[a-f0-9]{32}$') {
+        throw 'setup_summary_invalid'
+    }
+    $logs = Get-SafeChild $Root 'logs'
+    [IO.Directory]::CreateDirectory($logs) | Out-Null
+    $json = $Summary | ConvertTo-Json -Depth 8
+    if ([Text.Encoding]::UTF8.GetByteCount($json) -gt 65536) { throw 'setup_summary_too_large' }
+    foreach ($name in @(('setup-' + $Summary.attempt_id + '.json'), 'setup-latest.json')) {
+        $target = Get-SafeChild $logs $name
+        $temporary = Get-SafeChild $logs ('report-' + [Guid]::NewGuid().ToString('N') + '.tmp')
+        try {
+            [IO.File]::WriteAllText($temporary, $json, [Text.UTF8Encoding]::new($false))
+            if ([IO.File]::Exists($target)) { [IO.File]::Replace($temporary, $target, [NullString]::Value) }
+            else { [IO.File]::Move($temporary, $target) }
+        } finally { if ([IO.File]::Exists($temporary)) { [IO.File]::Delete($temporary) } }
+    }
+    $history = @([IO.Directory]::GetFiles($logs, 'setup-*.json') | Where-Object {
+        [IO.Path]::GetFileName($_) -cmatch '^setup-[a-f0-9]{32}\.json$'
+    } | ForEach-Object { Get-Item -LiteralPath (Get-SafeChild $logs ([IO.Path]::GetFileName($_))) } |
+        Sort-Object LastWriteTimeUtc -Descending)
+    foreach ($old in @($history | Select-Object -Skip 10)) {
+        if ($old.Length -gt 65536 -or ($old.Attributes -band [IO.FileAttributes]::ReparsePoint)) { continue }
+        try {
+            $saved = Get-Content -LiteralPath $old.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ($saved.schema -ceq 'cytellect-setup-result/1' -and
+                $old.Name -ceq ('setup-' + $saved.attempt_id + '.json')) { [IO.File]::Delete($old.FullName) }
+        } catch { }
+    }
+}
+
 function Install-Cytellect {
+    $script:SetupPhaseTimes = @()
+    $script:SetupPhaseWatch = [Diagnostics.Stopwatch]::StartNew()
+    $setupStarted = [DateTime]::UtcNow.ToString('o')
     $script:LaunchInfo = $null
     Update-SetupStatus 'verify_release' '配布ファイルを検証しています…'
     $manifest = Get-VerifiedRelease
@@ -439,18 +745,66 @@ function Install-Cytellect {
     $setupLock = [IO.File]::Open((Get-SafeChild $root 'setup.lock'), 'OpenOrCreate', 'ReadWrite', 'None')
     $setupSucceeded = $false
     $shortcutChanges = @()
+    $attempt = $null
+    $script:ProcessDiagnostic = $null
+    $failureCode = $null
+    $storageFailureCode = $null
+    $storageRecoveryCodes = @()
+    $runtimeClaims = @{}
+    $storageCleanupDeferred = 0
+    $storageCleanupTypes = @()
+    $unrecoveredRuntimes = @()
+    $pendingApps = @()
+    $analysisCheckStarted = $false
+    $initialFreeBytes = try { [IO.DriveInfo]::new([IO.Path]::GetPathRoot($root)).AvailableFreeSpace } catch { $null }
     try {
+    foreach ($previousAttempt in @(Read-SetupAttempts $root)) {
+        try {
+            if ([IO.File]::Exists((Get-SafeChild $root ($previousAttempt.app + '/setup-complete.json')))) {
+                Finalize-SetupAttempt $root $previousAttempt
+            }
+        } catch { $storageRecoveryCodes += 'storage_attempt_completion_deferred' }
+        try {
+            $previousCleanup = Close-SetupAttempt $root $previousAttempt
+            if ($previousCleanup.deferred_items -gt 0) {
+                $storageRecoveryCodes += 'storage_attempt_recovery_deferred'
+                $storageCleanupDeferred += $previousCleanup.deferred_items
+                $storageCleanupTypes += $previousCleanup.deferred_types
+            }
+        } catch { $storageRecoveryCodes += 'storage_attempt_recovery_deferred' }
+        # What this unfinished attempt created and could not remove may be partly deleted. Such a
+        # runtime is reused only after it matches the complete pinned inventory (below), and such
+        # an app stops this run instead of being reported as a damaged download.
+        $unrecoveredRuntimes += @(Get-UnrecoveredSetupRuntimes $root $previousAttempt)
+        if (Test-SetupAppCleanupPending $root $previousAttempt) { $pendingApps += $previousAttempt.app }
+    }
+    $storageRecoveryCodes = @($storageRecoveryCodes | Select-Object -Unique)
     Set-CellposeRemote $root $script:CellposeRemoteUrl $script:CellposeRemoteToken
     $releaseId = $manifest.version + '-' + $manifest.source_commit.Substring(0, 12)
-    $app = Get-SafeChild $root ('apps/' + $releaseId)
+    $appRelative = 'apps/' + $releaseId
+    $attempt = New-SetupAttempt $root $appRelative
+    $scratch = Get-SafeChild $root ($attempt.directory + '/scratch')
+    [IO.Directory]::CreateDirectory($scratch) | Out-Null
+    $app = Get-SafeChild $root $appRelative
+    $appWasPresent = Test-Path -LiteralPath $app
+    if (-not $appWasPresent) {
+        $attempt.app_owned = $true
+        Write-SetupAttempt $root $attempt
+    }
     [IO.Directory]::CreateDirectory($app) | Out-Null
+    if (-not $appWasPresent) {
+        $owner = @{ schema = 'cytellect-setup-app/1'; id = $attempt.id; app = $attempt.app }
+        [IO.File]::WriteAllText((Get-SafeChild $app '.setup-owner.json'), ($owner | ConvertTo-Json))
+    }
     $installedManifest = Get-SafeChild $app 'local-release.json'
     if (Test-Path -LiteralPath $installedManifest) {
         if ((Get-FileHash -LiteralPath $installedManifest).Hash -ne
             (Get-FileHash -LiteralPath (Join-Path $SourceRoot 'local-release.json')).Hash) {
             throw 'release_install_conflict'
         }
-    } elseif (@(Get-ChildItem -LiteralPath $app -Force).Count -gt 0) {
+    } elseif (@(Get-ChildItem -LiteralPath $app -Force | Where-Object { $_.Name -cne '.setup-owner.json' }).Count -gt 0) {
+        # The remainder of this version's own failed attempt is a deferred cleanup, not a damaged download.
+        if ($appRelative -cin $pendingApps) { throw (New-SetupFailure 'setup_cleanup_pending') }
         throw 'release_install_conflict'
     } else {
         Copy-Item -LiteralPath (Join-Path $SourceRoot 'local-release.json') -Destination $installedManifest
@@ -468,13 +822,21 @@ function Install-Cytellect {
     }
     $uvRelative = 'tools/uv-' + $script:UvVersion
     $uvWasPresent = Test-Path -LiteralPath (Get-SafeChild $root $uvRelative)
+    Register-SetupRuntime $root $attempt $uvRelative
     $uv = Get-PinnedUv $root
+    if ($uvWasPresent -and (Get-Variable -Scope Script -Name UvStorageFiles -ErrorAction SilentlyContinue)) {
+        $runtimeClaims[$uvRelative] = @{files=@($script:UvStorageFiles)}
+    }
     . (Get-SafeChild $app 'scripts/windows_runtime.ps1')
     Update-SetupStatus 'install_python' '専用のPython環境を準備しています…'
     $pythonSpec = Get-Content -LiteralPath (Get-SafeChild $app 'engines/python/windows-runtime.lock.json') -Raw | ConvertFrom-Json
     $pythonRelative = 'runtimes/python-' + $pythonSpec.composition_version
     $pythonWasPresent = Test-Path -LiteralPath (Get-SafeChild $root $pythonRelative)
+    Register-SetupRuntime $root $attempt $pythonRelative
     $runtime = Initialize-PinnedPythonRuntime $root $app
+    if ($pythonWasPresent -and [IO.File]::Exists($runtime.receipt)) {
+        $runtimeClaims[$pythonRelative] = @{files=@($runtime.inventory)}
+    }
     $environment = @{
         UV_NO_CONFIG = 'true'; UV_NO_CACHE = 'true'
         UV_DEFAULT_INDEX = 'https://pypi.org/simple'; UV_PYTHON_DOWNLOADS = 'never'
@@ -518,18 +880,70 @@ function Install-Cytellect {
     $lockHash = (Get-FileHash -LiteralPath (Join-Path $app 'engines/fiji/runtime.lock.json')).Hash.ToLowerInvariant()
     $fiji = Get-SafeChild $root ('runtimes/fiji-' + $lockHash.Substring(0, 16))
     $fijiWasPresent = Test-Path -LiteralPath $fiji
+    # Left by an unfinished attempt: reused only if the complete inventory check below passes.
+    $fijiUnrecovered = $fijiWasPresent -and (('runtimes/fiji-' + $lockHash.Substring(0, 16)) -cin $unrecoveredRuntimes)
+    Register-SetupRuntime $root $attempt ('runtimes/fiji-' + $lockHash.Substring(0, 16))
     if (-not (Test-Path -LiteralPath $fiji)) {
         Update-SetupStatus 'install_fiji' 'Fijiを取得・検証しています。初回は数分かかる場合があります…'
-        $fijiArgs = @('-B', 'scripts/fiji_setup.py', $fiji, '--platform', 'windows-x64')
+        $fijiArgs = @('-B', 'scripts/fiji_setup.py', $fiji, '--platform', 'windows-x64', '--scratch-root', $scratch)
         if ($null -ne $script:Offline) { $fijiArgs += @('--offline-dir', $script:Offline.sha256) }
         Invoke-SetupProcess $python $fijiArgs $app @{}
     }
     Update-SetupStatus 'verify_fiji' 'Fijiのプラグインとモデルを検証しています…'
-    Invoke-SetupProcess $python @('-B', '-c', 'import sys; from cytellect_analysis.engine import runtime_info; runtime_info(sys.argv[1])', $fiji) $app @{} 180
-    Update-SetupStatus 'check_analysis' '合成画像で検出と計算を確認しています（実験画像の精度評価ではありません）…'
+    try {
+        Invoke-SetupProcess $python @('-B', '-c', 'import sys; from cytellect_analysis.engine import runtime_info; runtime_info(sys.argv[1])', $fiji) $app @{} 180
+    } catch {
+        if ($fijiUnrecovered -and -not $script:Cancelled) { throw (New-SetupFailure 'fiji_runtime_recovery_pending') }
+        throw
+    }
+    if ($fijiWasPresent -and ($fijiUnrecovered -or [IO.File]::Exists($runtime.receipt))) {
+        $fijiRelative = 'runtimes/fiji-' + $lockHash.Substring(0,16)
+        $registered = $false
+        $ledgerPath = Get-SafeChild $root 'setup-storage.json'
+        if ([IO.File]::Exists($ledgerPath)) {
+            try {
+                $priorStorage = Get-Content -LiteralPath $ledgerPath -Raw -Encoding UTF8 | ConvertFrom-Json
+                $registered = ($priorStorage.schema -ceq 'cytellect-setup-storage/1' -and
+                    $null -ne $priorStorage.runtimes.PSObject.Properties[$fijiRelative])
+            } catch { }
+        }
+        if (-not $registered) {
+            Update-SetupStatus 'verify_fiji' '以前のFijiを配布元の固定ファイルと照合しています…'
+            $proof = Get-SafeChild $root ($attempt.directory + '/fiji-inventory.json')
+            $verifyArgs = @('-B','scripts/fiji_setup.py',$fiji,'--platform','windows-x64','--scratch-root',$scratch,
+                '--verify-existing','--inventory-output',$proof)
+            if ($null -ne $script:Offline) { $verifyArgs += @('--offline-dir',$script:Offline.sha256) }
+            try {
+                Invoke-SetupProcess $python $verifyArgs $app @{} 600
+                $runtimeClaims[$fijiRelative] = @{inventory=(Get-Content -LiteralPath $proof -Raw -Encoding UTF8 | ConvertFrom-Json)}
+            } catch {
+                # The fixed plugins, models and java checked above do not show a partly deleted
+                # runtime. Without the complete match, what an unfinished attempt left is not reused.
+                if ($fijiUnrecovered) {
+                    if ($script:Cancelled) { throw }
+                    throw (New-SetupFailure 'fiji_runtime_recovery_pending')
+                }
+                $storageRecoveryCodes += 'storage_runtime_verification_deferred'
+            }
+        }
+    }
+    Update-SetupStatus 'check_analysis' '公開練習画像で検出と計算を確認しています（実験画像の精度評価ではありません）…'
+    # Keep the parent and child budgets identical. Include compilation and one bounded retry.
+    $checkAttempts = 2; $compileSeconds = 300; $executionSeconds = 300
+    $checkBudget = $checkAttempts * ($compileSeconds + $executionSeconds) + 120
+    $logs = Get-SafeChild $root 'logs'
+    [IO.Directory]::CreateDirectory($logs) | Out-Null
+    $checkResult = Get-SafeChild $logs 'setup-check-latest.json'
+    if ([IO.File]::Exists($checkResult)) { [IO.File]::Delete($checkResult) }
+    $analysisCheckStarted = $true
     Invoke-SetupProcess $python @('-B', '-m', 'cytellect_analysis.install_check', '--fiji', $fiji,
-        '--scratch', (Get-SafeChild $root 'setup-cache'),
-        '--result', (Get-SafeChild $root 'setup-cache/installation-check.json')) $app @{} 180
+        '--scratch', $scratch, '--result', $checkResult, '--attempts', "$checkAttempts",
+        '--compile-seconds', "$compileSeconds", '--execution-seconds', "$executionSeconds",
+        '--status-file', $(if ($StatusFile) { $StatusFile } else { Get-SafeChild $root ($attempt.directory + '/status.txt') }),
+        '--recovery-scope', (Get-SafeChild $root 'setup-cache')) $app @{} $checkBudget
+    $check = Get-Content -LiteralPath $checkResult -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($check.schema -cne 'cytellect-installation-check/2' -or $check.status -cne 'passed' -or
+        $check.maximum_seconds -ne $checkBudget) { throw 'installation_report_invalid' }
     Assert-PythonRuntimeInventory $runtime.path $runtime.inventory
     Assert-SignedPythonVenv $app $runtime
     $retention = Set-WorkspaceRetention $root $WorkspaceRetention
@@ -581,32 +995,74 @@ function Install-Cytellect {
         wheel_sha256 = $install.wheel.sha256; requirements_sha256 = $install.requirements.sha256
         uv = $script:UvVersion; uv_sha256 = $script:UvSha256
         cellpose_remote = [bool](Get-CellposeRemoteUrl $root); workspace_retention = $retention }
-    [IO.File]::WriteAllText((Get-SafeChild $app 'setup-complete.json'), ($state | ConvertTo-Json))
+    $completedStage = Get-SafeChild $scratch 'setup-complete.json'
+    $completedTarget = Get-SafeChild $app 'setup-complete.json'
+    [IO.File]::WriteAllText($completedStage, ($state | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
+    if ([IO.File]::Exists($completedTarget)) { [IO.File]::Replace($completedStage, $completedTarget, [NullString]::Value) }
+    else { [IO.File]::Move($completedStage, $completedTarget) }
+    foreach ($completedAttempt in @(Read-SetupAttempts $root | Where-Object {$_.app -ceq $appRelative})) {
+        Finalize-SetupAttempt $root $completedAttempt
+    }
+    $attempt.validated = $true
     # Checks above must succeed before registering or removing any prior version.
     # Observe cancellation before entering the storage commit. Once collection
     # starts, finish it before honoring close, so late cancellation cannot tear it.
     Update-SetupStatus 'complete' '動作確認が完了しました。保存環境を整理します…'
     Update-SetupStatus 'manage_storage' '旧版の使用状況と保存容量を確認しています…'
     $storageArgs = @('-B', '-m', 'cytellect_api.local_storage', '--root', $root, '--app', $app)
+    if ($runtimeClaims.Count -gt 0) {
+        $claimsRelative = $attempt.directory + '/runtime-claims.json'
+        [IO.File]::WriteAllText((Get-SafeChild $root $claimsRelative),
+            (@{schema='cytellect-runtime-claims/1';runtimes=$runtimeClaims} | ConvertTo-Json -Depth 12),
+            [Text.UTF8Encoding]::new($false))
+        $storageArgs += @('--runtime-claims',$claimsRelative)
+    }
     if (-not $pythonWasPresent) { $storageArgs += @('--created-runtime', $pythonRelative) }
     if (-not $fijiWasPresent) { $storageArgs += @('--created-runtime', ('runtimes/fiji-' + $lockHash.Substring(0, 16))) }
     if (-not $uvWasPresent) { $storageArgs += @('--created-runtime', $uvRelative) }
+    foreach ($pendingAttempt in @(Read-SetupAttempts $root)) {
+        if ($pendingAttempt.validated -and $pendingAttempt.app -ceq $appRelative) {
+            foreach ($relative in @($pendingAttempt.runtimes)) {
+                if ($relative -cin @($pythonRelative, ('runtimes/fiji-' + $lockHash.Substring(0, 16)), $uvRelative) -and
+                    $relative -cnotin $storageArgs) { $storageArgs += @('--created-runtime', $relative) }
+            }
+        }
+    }
     $storageText = '準備完了。旧環境の整理は完了していません。保存先の状態を確認してください。'
     try {
         Invoke-SetupProcess $python $storageArgs $app @{} 600 -FinishStorageCommit
         $storage = Get-Content -LiteralPath (Get-SafeChild $root 'setup-storage-result.json') -Raw | ConvertFrom-Json
+        $committed = @()
+        if ($storage.PSObject.Properties['committed_attempt_ids']) { $committed = @($storage.committed_attempt_ids) }
+        if ($storage.PSObject.Properties['recovery_errors']) {
+            $storageRecoveryCodes += @($storage.recovery_errors | Where-Object { $_ -cmatch '^storage_[a-z_]{1,48}$' })
+            $storageRecoveryCodes = @($storageRecoveryCodes | Select-Object -Unique)
+        }
+        foreach ($pendingAttempt in @(Read-SetupAttempts $root)) {
+            if ($pendingAttempt.validated -and ($pendingAttempt.app -ceq $appRelative -or $pendingAttempt.id -cin $committed)) {
+                $closedAttempt = Close-SetupAttempt $root $pendingAttempt -Committed
+                $storageCleanupDeferred += $closedAttempt.deferred_items
+                $storageCleanupTypes += $closedAttempt.deferred_types
+            }
+        }
         $storageText = ('準備完了。アプリ{0}版を保持、{1:N0} MBを解放しました。' -f $storage.retained_apps, ($storage.reclaimed_bytes / 1MB))
-        if ($storage.unknown_apps_retained -or $storage.unmanaged_cache_retained -or -not $storage.process_inventory_available) {
+        if ($storage.unknown_apps_retained -or $storage.unmanaged_cache_retained -or -not $storage.process_inventory_available -or
+            $storageCleanupDeferred -gt 0) {
             $storageText += ' 使用中または確認できない旧環境は保持しています。'
         }
     } catch {
         # Housekeeping must never invalidate the successfully checked app.
         # The collector preserves unverified trees; do not print private paths.
+        $storageFailureCode = if ($_.Exception.Message -cmatch '^storage_[a-z0-9_]{1,48}$') {
+            $_.Exception.Message
+        } else { 'storage_management_failed' }
     }
     $storageText += $(if ($retention -eq 'manual') { ' 作業データは削除操作まで保持します。' }
         else { ' 作業データは最後の操作から24時間で削除されます。' })
     $storageText += $(if ($state.cellpose_remote) { ' Cellposeはクラウド GPU で実行します。' }
         else { ' クラウド GPU が未設定のため、Cellposeは使えません。管理者から接続先と接続キーを受け取り、セットアップで入力してください。' })
+    $script:SetupPhaseTimes += @{phase=$script:Phase; seconds=[Math]::Round($script:SetupPhaseWatch.Elapsed.TotalSeconds,3)}
+    $script:SetupPhaseWatch.Restart()
     $script:Phase = 'complete'
     if ($null -ne $script:StatusLabel) { $script:StatusLabel.Text = $storageText }
     if ($Console) { Write-Host $storageText }
@@ -618,6 +1074,12 @@ function Install-Cytellect {
     }
     $script:LaunchInfo = @{ executable = $pythonw; arguments = $launchArgs; directory = $app }
     $setupSucceeded = $true
+    } catch {
+        $failureCode = Get-SetupFailureCode -Exception $_.Exception
+        if ($null -eq $failureCode) {
+            $failureCode = if ($_.Exception.Message -cmatch '^[a-z0-9_]{3,64}$') { $_.Exception.Message } else { 'setup_failed' }
+        }
+        throw
     } finally {
         if (-not $setupSucceeded) {
             foreach ($change in $shortcutChanges) {
@@ -629,6 +1091,34 @@ function Install-Cytellect {
                     else { [IO.File]::Delete($change.path) }
                 }
             }
+        }
+        if ($null -ne $attempt) {
+            $cleanup = @{ schema = 'cytellect-setup-cleanup/1'; reclaimed_bytes = 0
+                deferred_items = 1; error_code = 'setup_cleanup_deferred' }
+            try { $cleanup = Close-SetupAttempt $root $attempt } catch { }
+            try {
+                $logs = Get-SafeChild $root 'logs'
+                [IO.Directory]::CreateDirectory($logs) | Out-Null
+                $summary = @{ schema = 'cytellect-setup-result/1'; success = $setupSucceeded; phase = $script:Phase
+                    error_code = $failureCode; process = $script:ProcessDiagnostic; cleanup = $cleanup
+                    attempt_id = $attempt.id; version = $manifest.version; source_commit = $manifest.source_commit
+                    started_utc = $setupStarted; os_build = [Environment]::OSVersion.Version.Build
+                    initial_free_bytes = $initialFreeBytes; phase_times = @($script:SetupPhaseTimes)
+                    storage_error_code = $storageFailureCode; storage_recovery_codes = $storageRecoveryCodes
+                    storage_cleanup_deferred = $storageCleanupDeferred
+                    storage_cleanup_types = @($storageCleanupTypes | Select-Object -Unique) }
+                $summary.phase_times += @{phase=$script:Phase; seconds=[Math]::Round($script:SetupPhaseWatch.Elapsed.TotalSeconds,3)}
+                if ($analysisCheckStarted -and [IO.File]::Exists($checkResult) -and
+                    (Get-Item -LiteralPath $checkResult).Length -le 32768) {
+                    $analysis = Get-Content -LiteralPath $checkResult -Raw -Encoding UTF8 | ConvertFrom-Json
+                    if ($analysis.schema -ceq 'cytellect-installation-check/2') { $summary.analysis_check = $analysis }
+                }
+                Write-SetupSummary $root $summary
+                $checkResult = Get-SafeChild $logs 'setup-check-latest.json'
+                if (-not $setupSucceeded -and [IO.File]::Exists($checkResult) -and $script:Phase -eq 'check_analysis') {
+                    [IO.File]::Copy($checkResult, (Get-SafeChild $logs 'setup-check-last-failure.json'), $true)
+                }
+            } catch { }
         }
         $setupLock.Dispose()
     }

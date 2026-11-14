@@ -1,0 +1,89 @@
+import {describe,expect,it} from "vitest";
+import type {NucleusTableData} from "@/lib/workspace/api-adapter";
+import {nucleusTableKey,nucleusTableView} from "./nucleus-table-model";
+
+const values=(channel_id:string,role:"nuclear_stain"|"measure",mean:number,integrated:number,corrected:number|null,saturation=0)=>({
+  channel_id,role,mean,integrated,mean_corrected:corrected,integrated_corrected:corrected===null?null:corrected*4,
+  intensity_missing_reason:null,correction_missing_reason:corrected===null?"background_not_established":null,
+  storage_limit_fraction:0,acquisition_saturation_fraction:saturation,acquisition_saturation_missing_reason:null});
+const measured={status:"measured" as const,reason:null,count:2,union_area_px:5,union_area_um2:1.25,union_area_um2_missing_reason:null,area_fraction:0.2,
+  largest_object_area_px:4,largest_object_fraction:0.8,eccentricity:0.5,eccentricity_missing_reason:null,excluded_objects:1};
+const missing=(reason:string)=>({status:"missing" as const,reason,count:null,union_area_px:null,union_area_um2:null,union_area_um2_missing_reason:null,area_fraction:null,
+  largest_object_area_px:null,largest_object_fraction:null,eccentricity:null,eccentricity_missing_reason:null,excluded_objects:0});
+const row=(nucleus_id:number,nucleoli:NucleusTableData["rows"][number]["nucleoli"],extra:Partial<NucleusTableData["rows"][number]>={})=>({
+  nucleus_id,excluded:false,exclusion_scope:null,exclusion_reason:null,touches_border:false,nucleus_area_px:25,nucleus_area_um2:6.25,area_missing_reason:null,
+  channels:[values("dna","nuclear_stain",100,2500,null),values("npm1","measure",40.25,1006,30,nucleus_id===2?0.01:0)],nucleoli,...extra});
+const table:NucleusTableData={protocol:"nucleus-table/1.0.0",field_id:"f1",nuclear_revision_id:"n",nuclear_mask_revision_id:"n",nuclear_mask_sha256:"a".repeat(64),nuclear_adopted:true,
+  measurement_protocol_version:"4.0.0",nuclear_channel_id:"dna",nucleolar_source:{revision_id:"c",mask_revision_id:"c",mask_sha256:"b".repeat(64),adopted:true,field_excluded:false},
+  calibration:{pixel_size_x_um:0.5,pixel_size_y_um:0.5,confirmed:true},field_excluded:false,
+  channels:[{channel_id:"dna",label:"c1",stain:"Hoechst",role:"nuclear_stain"},{channel_id:"npm1",label:"c2",stain:"NPM1",role:"measure"}],
+  backgrounds:[{channel_id:"dna",source:"not_established",confirmed_by_researcher:false,median:null},{channel_id:"npm1",source:"confirmed_roi",confirmed_by_researcher:true,median:10}],
+  rows:[row(1,measured),row(2,missing("no_candidate")),row(3,{...missing("nucleus_excluded"),status:"not_measured"},{excluded:true,exclusion_scope:"nucleus",exclusion_reason:"mitotic"})]};
+const channels=[{id:"dna",stain:"Hoechst"},{id:"npm1",stain:"NPM1"}];
+
+describe("nucleus table view",()=>{
+  it("shows each stain by name, the nuclear stain as integrated signal, and corrected values only where measured",()=>{
+    const view=nucleusTableView(table,channels);
+    expect(view.columns.map(column=>column.label)).toEqual(["核","核面積 / µm²","Hoechst 積算","NPM1 平均","NPM1 平均（背景補正）",
+      "核小体数","核小体の面積 / µm²","核小体の面積 / 核","最大の核小体 / 核小体全体","離心率","状態"]);
+    // The same nucleus's absolute nucleolar area and its fraction of the nucleus are both read.
+    expect(view.rows[0].cells.map(cell=>cell.text)).toEqual(["6.3","2,500","40.3","30.0","2","1.25","20.0%","80.0%","0.500","除外した核小体 1"]);
+  });
+  it("adds the saved decision, its judged value and threshold, and marks a nucleus the decision does not hold (MV-07)",()=>{
+    const gate={stain:"NPM1",nuclei:{1:{status:"positive",value:40.25,threshold:35},2:{status:"unclassified",value:null,threshold:35,reason:"channel_value_missing"}}};
+    const view=nucleusTableView(table,channels,gate);
+    expect(view.columns.slice(0,5).map(column=>column.label)).toEqual(["核","判定","NPM1 判定値","しきい値","核面積 / µm²"]);
+    expect(view.rows.map(row=>row.cells.slice(0,3).map(cell=>cell.text))).toEqual([["陽性","40.3","35.0"],["未判定","—","35.0"],["—","—","—"]]);
+    expect(view.rows.map(row=>row.status)).toEqual(["positive","unclassified",undefined]);
+    expect(view.rows[2].cells[0].title).toBe("判定の記録にない核");
+  });
+  it("keeps a nucleus without an adopted nucleolus missing with its reason, never zero, and accounts for every nucleus",()=>{
+    const view=nucleusTableView(table,channels);
+    const second=view.rows[1].cells;
+    expect(second.slice(4,9).map(cell=>cell.text)).toEqual(["—","—","—","—","—"]);
+    expect(second[4].title).toBe("核小体の候補なし");
+    expect(second[9].text).toBe("核小体の候補なし");
+    expect(view.rows[2].cells.at(-1)?.text).toBe("除外：mitotic");
+    expect(view.ledger).toBe("核 3 個 · 除外 1 · 核小体を確定 1 · 欠測 1（核小体の候補なし 1） · NPM1の飽和画素を含む核 1");
+  });
+  it("names a whole-field exclusion and its reason on every nucleus",()=>{
+    const excluded={...missing("nucleus_excluded"),status:"not_measured" as const};
+    const view=nucleusTableView({...table,field_excluded:true,rows:[row(1,excluded,{excluded:true,exclusion_scope:"field",exclusion_reason:"焦点外"})]},channels);
+    expect(view.rows[0].cells.at(-1)?.text).toBe("視野を除外：焦点外");
+    expect(view.ledger.startsWith("核 1 個 · 除外 1")).toBe(true);
+  });
+  it("invites nucleolar analysis when only nuclei are adopted, and uses pixels without a confirmed calibration",()=>{
+    const view=nucleusTableView({...table,nucleolar_source:null,calibration:null,rows:[row(1,{...missing("nucleolar_revision_not_selected"),status:"not_measured"})]},channels);
+    expect(view.columns.map(column=>column.label)).toEqual(["核","核面積 / px²","Hoechst 積算","NPM1 平均","NPM1 平均（背景補正）","状態"]);
+    expect(view.rows[0].cells[0].text).toBe("25");
+    expect(view.ledger).toBe("核 1 個 · 核小体：未解析");
+  });
+  it("shows uncalibrated nucleolar area in pixels, unconfirmed review candidates as missing, and unadopted nuclei",()=>{
+    const view=nucleusTableView({...table,calibration:null,nuclear_adopted:false,rows:[row(1,measured),row(2,missing("review_required"))]},channels);
+    expect(view.columns.find(column=>column.key==="union")?.label).toBe("核小体の面積 / px²");
+    expect(view.rows[0].cells[5].text).toBe("5");
+    expect(view.rows[1].cells.at(-1)?.text).toBe("候補の確認待ち");
+    expect(view.ledger).toBe("核 2 個（採用前の候補） · 核小体を確定 1 · 欠測 1（候補の確認待ち 1） · NPM1の飽和画素を含む核 1");
+  });
+  it("counts pixels at the file's maximum as saturated and names an unconfirmed automatic background",()=>{
+    const capped={...values("npm1","measure",40,1000,30),acquisition_saturation_fraction:null,acquisition_saturation_missing_reason:"acquisition_limit_unknown",storage_limit_fraction:0.02};
+    const view=nucleusTableView({...table,backgrounds:[{channel_id:"npm1",source:"automatic_candidate",confirmed_by_researcher:false,median:8}],
+      rows:[row(1,measured,{channels:[values("dna","nuclear_stain",100,2500,null),capped]})]},channels);
+    expect(view.ledger).toBe("核 1 個 · 核小体を確定 1 · NPM1の飽和画素を含む核 1 · NPM1の補正値は自動推定の背景（未確認）");
+  });
+  it("names nucleoli that could not be read for the field, and why confirmed nucleoli have no µm²",()=>{
+    const unread=nucleusTableView({...table,nucleolar_source:null,rows:[row(1,{...missing("nucleolar_revision_unavailable"),status:"not_measured"})]},channels);
+    expect(unread.ledger).toBe("核 1 個 · この視野の核小体を読み込めない");
+    const mismatch=nucleusTableView({...table,rows:[row(1,{...measured,union_area_um2:null,union_area_um2_missing_reason:"calibration_mismatch"})]},channels);
+    expect(mismatch.rows[0].cells[5]).toEqual({text:"—",title:"核と核小体で画素寸法が異なる"});
+  });
+  it("asks for the table again when the field is excluded or restored, though no revision changes",()=>{
+    const kept=nucleusTableKey("f1","n","c",undefined);
+    expect(nucleusTableKey("f1","n","c",null)).toBe(kept);
+    expect(nucleusTableKey("f1","n","c","")).toBe(kept);
+    expect(nucleusTableKey("f1","n","c","焦点外")).not.toBe(kept);
+    expect(nucleusTableKey("f1","n","c","別の理由")).not.toBe(nucleusTableKey("f1","n","c","焦点外"));
+    // Identifiers and reasons never run into one another.
+    expect(nucleusTableKey("f1|n","","c")).not.toBe(nucleusTableKey("f1","n|","c"));
+  });
+});

@@ -18,6 +18,7 @@ from matplotlib.ticker import MaxNLocator
 from .common_statistics_contracts import CommonStatisticsResult
 from .compartment_observations import DEFINITIONS as COMPARTMENT_DEFINITIONS
 from .compartment_review import compartment_missing_lines, compartment_missing_tables
+from .experiment_strata import stratum_methods_lines
 from .exports_csv import write_csv
 from .figure_sources import attach_svg_sources, bind_points
 from .figures import (
@@ -55,6 +56,8 @@ COMPARTMENT_LABELS = {
 FIELD_SUMMARY_LABELS = {
     "nucleus_count": ("Nucleus count", "核数"),
     "nucleus_density_per_mm2": ("Nuclear density", "核の密度"),
+    "positive_count": ("Positive nuclei per field", "視野あたりの陽性核数"),
+    "positive_fraction": ("Positive fraction of evaluable nuclei", "判定可能な核の陽性率"),
 }
 
 
@@ -132,6 +135,7 @@ def common_statistics_methods(result):
               f"within each sample, and an unweighted mean of samples within each {unit_noun}. "
               "Regions and fields were not treated as independent replicates."),
              "Conditions in the declared analysis: " + ", ".join(spec["conditions"]) + ".",
+             *stratum_methods_lines(result.get("stratum")),
              "The researcher selected the method explicitly. No normality pretest or observed p-value selected a method.",
              "Reviewed original-coordinate regions and saved original-pixel measurements were used. "
              "No normalization, batch adjustment or measurement transformation was performed at this statistical stage."]

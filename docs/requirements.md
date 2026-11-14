@@ -80,7 +80,7 @@ T04: Six replacement boundaries: identity, DB, storage, jobs, image engine, meth
 T05: Initial concurrency1, field-by-field memory. Atomic claims, leases/heartbeat, recovery/retry, fencing, idempotency, partial-failure reporting, child time/memory limits and tree cancellation.
 T06: CLI one-use expiring invite, hashed tokens, Secure HttpOnly cookie; no URL/localStorage secrets. Exact CORS, Origin/CSRF mutation checks.
 T07: Ownership on image/preview/mask/table/figure/ZIP; immediate revocation/expiry/deletion applies to every path.
-T08: Research content and names/conditions never in Git/CI/logs/issues/PR/analytics/external AI, except the user-enabled proposal request scoped by L03. no-store, no CDN/service-worker caches. Worker egress denied, allowlisted recipes, no arbitrary macros/code/URLs.
+T08: Research content and names/conditions never in Git/CI/logs/issues/PR/analytics/external AI, except the user-enabled proposal request scoped by L03 and, for development only, the owner-designated isolated local area with its designated AI and purposes (team-development §6). no-store, no CDN/service-worker caches. Worker egress denied, allowlisted recipes, no arbitrary macros/code/URLs.
 T09: 24h from explicit activity, polling excluded. On expiry/delete block access, stop execution, remove raw/derived/temp files. Protect active execution and exclude research files from general PoC backups.
 T10: Lock actual Python/pnpm/Fiji/Java/plugins/weights versions/URLs/SHA256/licenses. No runtime downloads/updates. Verify CPU/headless support or include Xvfb.
 
@@ -112,6 +112,9 @@ L03: Requests carry the goal and normalized metadata; ≤6 downscaled previews o
 L04: The operator key stays in the proposal service secret; no user API keys; the browser never receives a shared key. D1 stores rights and usage only, never images or prompt bodies.
 L05: Per-request limits, budget reservation before each call, at most one repair retry, reuse for identical adopted input, mandatory monthly and per-user limits; without them billable calls are disabled.
 L06: Service failure or exhausted quota never blocks registered-recipe analysis or existing results.
+L07 (2026-11-12 owner decision; protocol `result-discussion/1.0.0`, [draft](drafts/results-and-demo-story/requirements.md) AC-01–AC-09): a saved two-group result may carry a discussion in its own frame, marked as AI-generated reference text. It is drafted only when the user asks; calculating a result never calls the LLM, and users without the proposal service see one line on how to enable it. The request carries the saved result only (metric, region, stain, groups, values, difference or ratio with its interval, per-run values, n, test, p value, warning codes) and the user's short description, never images, filenames or paths; the scope is shown at first use and in settings. The output is strict JSON: interpretation (≤3), limitations and alternative explanations (≤2), further checks (≤3), one sentence each.
+L08: The local API checks every number against the sent result and rejects significance claims on descriptive results, "no change" claims on unclear differences, and generated citations; rejected output is not shown. A discussion is stored with its result, model and prompt version; after recalculation the old one is marked 「前の結果の考察」 and can be drafted again. Discussions never enter figures, CSV or Methods. Costs and failures follow L04–L06.
+L09: The public demo never calls the LLM. Its discussions are scene-specific mock data that pass the same contract and checks, are reviewed by the owner, and are labelled as demo samples. Production calls the real model on the user's action; deploying, enabling and the first paid call each need the owner's permission.
 
 ## Published-image and figure extensions
 
@@ -147,3 +150,52 @@ No automatic mode reversal, cleanup under capacity pressure, or deletion of
 original research data is authorized by this feature. Lab delivery still needs
 fixed application/model identities, private whole-data backup/rollback and
 fresh real-input acceptance. Measurement and statistical definitions are unchanged.
+
+
+T21: The researcher can select the published Cytellect nucleolar checkpoints
+`ncl-r1-step0375` and `ncl-r1-step0750` for NCL parent-conditioned protocol 4.3.0.
+Save the exact model/SHA pair with the recipe and provenance, retain the standard
+model for existing recipes, and prohibit silent fallback or AI model replacement.
+The GPU service preserves the pinned baseline runner for installed clients.
+
+M22: Channel-neutral nuclear classification uses the versioned `channel-gate/1.0.0`
+contract while preserving legacy GFP recipes. The researcher selects the actual
+channel, raw/corrected means, method and controls. The saved decision digest must
+match the frozen statistical cohort; input changes require explicit
+reclassification. Positive count/fraction, selection, Methods and saved statistics
+use the same nucleus decisions. Positive fraction uses all evaluable positive and
+negative nuclei before subset selection, with missing/control/excluded counts
+reported separately. This does not establish a biological positivity threshold.
+Positive count/fraction comparisons pass the intensity acquisition review of the
+judged channel (dates, one dtype, no condition-confounded batch). With a threshold
+not fixed by a negative control (manual, Otsu) they are descriptive only; tests
+are refused. Selecting and measuring the same channel is warned and stated in
+Methods.
+
+M23: A read-only `region-partition-table/1.0.0` reports explicitly chosen target,
+reference and measurement-channel values in the same parent nuclei, with JSON
+and CSV from one shared implementation. Keep source identities, calibration,
+background ROI evidence, exclusions and missing reasons. Reject overlapping or
+exterior memberships and stale source bindings. Show actual adoption and review
+states; allow an identified preview without changing them. Formal statistics
+retain their separate review requirement. The initial UI exposes the currently
+adopted nucleolar/nucleoplasmic sources; API-level manual/imported memberships
+retain explicit source semantics. The parent nuclei must be an adopted StarDist
+nuclear revision; manual or imported nuclei are refused
+(`partition_nuclear_source_required`) until their parent binding is accepted.
+Partition comparisons, editable figures, replay and compartment-level saturation
+acceptance remain subsequent work.
+
+M24: The image is coloured by what it measures (image measurement view, approved
+2026-11-11, [requirements](drafts/image-measurement-view/requirements.md) MV-01–MV-10).
+A colour mode on the image toolbar (outlines / positive-negative nuclei / nucleolus and
+nucleoplasm) applies to one field and to both panes side by side. Positive-negative draws
+the five saved channel-gate states apart (never folding unclassified, excluded or control
+into negative), with counts per image; its classification opens in the side panel with each
+date's judged values and threshold, negative control offered first and exploratory methods
+named (M22). Nucleolus and nucleoplasm fill both compartments and show the M23 partition
+table, loaded without a button as nucleoplasm / nucleoli (the direction of the statistics
+metric), with target and reference named. The table under each image names per what, which
+stain and which values; adopted nuclei open on the nucleus table. One next step beside the
+table opens statistics with the same metric, and for positivity states that the compared
+fields are judged again by the same rule, once per click and only when the decision is not current; that decision stays with the comparison and its saved result, while the workspace keeps the decision made on the image's fields, which colours the image again after a reload. Exploratory thresholds are named on the image legend too. The view only draws saved API values.

@@ -1,6 +1,7 @@
 // Record every GET response the real workspace UI makes while opening the seeded
-// workspace and switching 画像 (each field, region and channel), 統計 and
-// グラフ (each saved figure). Config arrives as JSON on stdin (see build.py).
+// workspace and switching 画像 (each field, region and channel; each field's nucleus table and
+// its ZIP; each field's partition table and CSV for every target, reference and channel),
+// 統計 and グラフ (each saved figure). Config arrives as JSON on stdin (see build.py).
 import {createHash} from "node:crypto";
 import {mkdir, writeFile} from "node:fs/promises";
 import {createRequire} from "node:module";
@@ -10,7 +11,7 @@ const config = JSON.parse(await new Promise(resolve => {let text = ""; process.s
 const require = createRequire(path.join(config.web, "package.json"));
 const {chromium} = require("@playwright/test");
 const KEEP_HEADERS = ["content-type", "x-cytellect-preview-display"];
-const EXTENSIONS = {"application/json": ".json", "image/png": ".png", "image/svg+xml": ".svg", "text/csv": ".csv", "application/pdf": ".pdf"};
+const EXTENSIONS = {"application/json": ".json", "image/png": ".png", "image/svg+xml": ".svg", "text/csv": ".csv", "application/pdf": ".pdf", "application/zip": ".zip"};
 
 const entries = {}, bodies = new Map(), report = {nonGet: [], consoleErrors: [], alerts: [], changed: [], steps: [], failedRequests: []};
 const pending = new Set();
@@ -24,7 +25,7 @@ async function step(label, action) {
   }
 }
 const browser = await chromium.launch({executablePath: config.chromium, headless: true});
-const context = await browser.newContext({viewport: {width: 1440, height: 900}});
+const context = await browser.newContext({viewport: {width: 1440, height: 900}, acceptDownloads: true});
 const page = await context.newPage();
 page.on("console", message => {if (message.type() === "error") report.consoleErrors.push(message.text().slice(0, 300));});
 page.on("pageerror", error => report.consoleErrors.push(String(error).slice(0, 300)));
@@ -87,10 +88,65 @@ if (await pair.count() && await pair.getAttribute("aria-pressed") === "true") aw
 for (let waited = 0; waited < 360 && await cards.count() < config.fields; waited++) await page.waitForTimeout(500);
 const count = await cards.count();
 if (count !== config.fields) report.alerts.push(`field count ${count} != ${config.fields}`);
+/** Whether a control appears (a table's save button shows once the table has arrived). */
+const appears = (locator, timeout = 60000) => locator.waitFor({state: "visible", timeout}).then(() => true, () => false);
+/** A save button's download, awaited so its GET is recorded (the page keeps no copy of the file). */
+async function saved(button) {
+  const download = page.waitForEvent("download", {timeout: 180000});
+  await button.click();
+  await download;
+}
+/**
+ * The shown field's nucleus table and its ZIP, and its partition tables: every target and reference
+ * (different regions of the same nuclei) with every measured channel, each with its CSV. The nucleus
+ * table is read with the nuclei shown, from the table beside the image or, without room, below it.
+ */
+async function fieldTables(number) {
+  await step(`field ${number} nuclei`, () => region.selectOption("nuclei"));
+  const toggle = page.getByRole("button", {name: "核ごとの表", exact: true});
+  if (!await toggle.count()) {
+    const drawer = page.getByRole("button", {name: /^測定値/}).first();
+    if (await drawer.count() && await drawer.getAttribute("aria-expanded") !== "true") await step(`field ${number} measurements`, () => drawer.click());
+  }
+  if (await toggle.count()) {
+    await step(`field ${number} nucleus table`, () => toggle.first().click());
+    const zip = page.getByRole("button", {name: "CSV を保存", exact: true}).first();
+    if (await appears(zip)) await step(`field ${number} nucleus table zip`, () => saved(zip));
+    else report.alerts.push(`field ${number}: no nucleus table ZIP button`);
+    await step(`field ${number} channel table`, () => page.getByRole("button", {name: "このチャンネル", exact: true}).first().click());
+  } else report.alerts.push(`field ${number}: no nucleus table toggle`);
+  // The partition is the table of the nucleolus-and-nucleoplasm colour mode (MV-05): every target and
+  // reference (by name) with every stain of the toolbar, each loaded without a button, with its CSV.
+  const color = page.getByRole("toolbar", {name: "画像の表示"}).getByRole("combobox", {name: "色分け", exact: true});
+  if (!await color.locator("option[value=compartments]:not([disabled])").count()) return;
+  await step(`field ${number} compartments`, () => color.selectOption("compartments"));
+  const drawer = page.getByRole("button", {name: /^測定値/}).first();
+  const panel = page.getByRole("region", {name: "区画への分配"}).first();
+  if (!await appears(panel) && await drawer.count() && await drawer.getAttribute("aria-expanded") !== "true") await step(`field ${number} measurements`, () => drawer.click());
+  const target = panel.getByRole("combobox", {name: "対象", exact: true}), reference = panel.getByRole("combobox", {name: "参照", exact: true});
+  if (await appears(target)) {
+    const names = await target.locator("option").evaluateAll(options => options.map(option => option.value).filter(Boolean));
+    const stains = page.getByRole("toolbar", {name: "画像の表示"}).locator("button[data-channel]");
+    report.partitions = report.partitions ?? 0;
+    for (const t of names) for (const r of names) {
+      if (t === r) continue;
+      for (let c = 0; c < await stains.count(); c++) {
+        await step(`field ${number} partition ${report.partitions + 1}`, async () => {await stains.nth(c).click(); await target.selectOption(t); await reference.selectOption(r);});
+        const csv = panel.getByRole("button", {name: "原値・補正値をCSV保存", exact: true});
+        if (await appears(csv)) await step(`field ${number} partition csv`, () => saved(csv));
+        else report.alerts.push(`field ${number}: no partition CSV button`);
+        report.partitions++;
+      }
+    }
+    // The default pair (nucleoplasm ÷ nucleoli) is left chosen for the next field.
+    await target.selectOption("nucleoplasm"); await reference.selectOption("nucleoli");
+  } else report.alerts.push(`field ${number}: no partition choices`);
+  await step(`field ${number} outlines`, () => color.selectOption("outline"));
+}
 // Every field, region and channel a visitor can look at, so browsing never meets an unrecorded
 // view (regions through the settings panel; never 細胞ROI: it starts a run).
 const region = page.locator("select").filter({has: page.locator("option[value=nucleoplasm]")}).first();
-const channels = page.locator("[class*=channelBar] > button[data-channel], [class*=channelBar] > button[data-composite]");
+const channels = page.locator("[class*=channelBar] button[data-channel], [class*=channelBar] button[data-composite]");
 for (let index = 0; index < count; index++) {
   await step(`field ${index + 1}`, () => cards.nth(index).click());
   if (!(await region.isVisible())) await step("settings panel", () => page.getByRole("button", {name: "設定パネル"}).click());
@@ -99,6 +155,7 @@ for (let index = 0; index < count; index++) {
     const total = await channels.count();
     for (let channel = 0; channel < total; channel++) await step(`field ${index + 1} ${value} channel ${channel + 1}`, () => channels.nth(channel).click());
   }
+  await fieldTables(index + 1);
 }
 await step("first field", () => cards.first().click());
 if (await pair.count() && await pair.getAttribute("aria-pressed") === "false") await step("side by side", () => pair.click());
@@ -142,6 +199,21 @@ for (const [key, entry] of Object.entries({...entries})) {
         || await recordRead(`/v1/revisions/${source}/region-masks?field_id=${encodeURIComponent(field)}`) !== 200) report.alerts.push(`source ${source} ${field}`);
     report.sources++;
   }
+}
+// The statistics view reads the discussion of the saved comparison it shows (AC-08): the scene's example for its
+// opening comparison, none for the others. It asks by the job it shows, which is a figure redrawn from the
+// comparison when the scene's figure was drawn again (the API answers with the comparison's discussion). The walk
+// leaves the view before that read always lands, so each saved comparison's and each redrawn figure's is read here.
+report.discussions = 0;
+for (const [key, entry] of Object.entries({...entries})) {
+  const [, job, kind] = /^GET \/v1\/jobs\/([^/]+)\/(result|common-statistics|figure-render)$/.exec(key) ?? [];
+  if (!job || !bodies.get(entry.file)) continue;
+  let estimates;
+  try {estimates = JSON.parse(bodies.get(entry.file).toString("utf8")).estimates;} catch {continue;}
+  if (!estimates && kind !== "figure-render") continue;
+  const status = await recordRead(`/v1/jobs/${job}/discussion`);
+  if (status === 200) report.discussions++;
+  else report.alerts.push(`discussion ${job}: ${status}`);
 }
 // The statistics view reads each source's list of nuclei without an established nucleolus (Q-05)
 // for any region a visitor chooses there: one read per shown revision and field, kept when the

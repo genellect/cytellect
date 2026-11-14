@@ -45,18 +45,22 @@ from sqlalchemy import func, select, update
 from .analysis_spec import register_analysis_spec_routes
 from .app_update import register_app_update_routes
 from .channel_assignments import register_channel_assignment_routes
+from .channel_gates import register_channel_gate_routes
 from .common_statistics import register_common_statistics_routes
 from .config import Settings, configure_private_tmp
 from .db import Store, digest, fields, invitations, jobs, revisions, sessions, tables, uid, workspaces
 from .descriptive import register_descriptive_routes
+from .discussions import register_discussion_routes
 from .field_links import register_field_link_routes
 from .figure_render import register_figure_render_routes
+from .nucleus_tables import register_nucleus_table_routes
 from .openapi import register_contract_schemas
 from .planning import bind_revision_plan, inherit_plan_resolution, register_planning_routes
 from .proposals import register_proposal_routes
 from .public_uploads import require_registered
 from .region_cohorts import register_region_cohort_routes
 from .region_comparisons import register_region_comparison_routes
+from .region_partitions import register_region_partition_routes
 from .regions import is_region, register_region_routes
 from .storage import read_json, write_json
 from .upload_guard import UploadGuardMiddleware
@@ -1135,9 +1139,13 @@ def create_app(settings: Settings | None = None, *, proposal_credentials=None):
                            field_record, result_root, queue, touch, child_revision)
     register_descriptive_routes(api, store, owner, revision, result_root, queue)
     register_region_comparison_routes(api, store, owner, revision, result_root, queue, job_record)
+    register_nucleus_table_routes(api, store, owner, revision, result_root)
+    register_region_partition_routes(api, store, owner, revision, result_root, field_record)
+    register_channel_gate_routes(api, store, owner, workspace, revision, result_root)
     register_common_statistics_routes(api, store, owner, revision, result_root, queue, job_record)
     register_planning_routes(api, owner)
     register_proposal_routes(api, store, settings, owner, workspace, credentials=proposal_credentials)
+    register_discussion_routes(api, store, settings, owner, job_record, credentials=proposal_credentials)
     register_workspace_selection_routes(api, store, owner, workspace, touch)
     register_channel_assignment_routes(api, store, owner, workspace, touch)
     register_analysis_spec_routes(api, store, owner, workspace, touch)

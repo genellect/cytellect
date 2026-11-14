@@ -27,7 +27,7 @@
 
 - PC は、Cellpose の要求を `https://api.cytellect.app/v1/cellpose`（環境変数 `CYTELLECT_CLOUD_URL` で変更できる）に、ログインで得た端末用のトークンを付けて送る。経路と本文は Modal のサーバーと同じ（`/health`、`/v1/cellpose`）。
 - 中継サーバーが利用者の許可と月の上限を確かめ、Modal の接続キーを付けて転送する。研究室の PC には Modal の接続キーを置かない。
-- Cellpose を選ぶと、PC は `/health` を呼んで GPU の起動を始め、起動中の `503`（`gpu_starting` など）の間は 2 分まで呼び直す。自動の起動は作業画面を開くたびに 1 回だけで、2 分で終わらなければ「もう一度試す」を表示する。中継サーバーは起動を待つ時間も GPU の利用時間に数えるため、画面の利用量の近くにもそう表示する。推論も同じく、起動中の `502`〜`504` と、同じ利用者の別の検出が GPU を使っている間の `503 gpu_busy`（画面は「GPU を準備しています」）は 15 分まで再試行する。上限（`429`）と取り消し（`401`・`403`）は再試行しない。
+- Cellpose を選ぶと、PC は `/health` を呼んで GPU の起動を始め、起動中の `503`（`gpu_starting` など）の間は 2 分まで呼び直す。自動の起動は作業画面を開くたびに 1 回だけで、2 分で終わらなければ「再試行」を表示する。中継サーバーは起動を待つ時間も GPU の利用時間に数えるため、画面の利用量の近くにもそう表示する。推論も同じく、起動中の `502`〜`504` と、同じ利用者の別の検出が GPU を使っている間の `503 gpu_busy`（画面は「GPU を準備中…」）は 15 分まで再試行する。上限（`429`）と取り消し（`401`・`403`）は再試行しない。
 - 返ってきた結果の版の照合（[仕組み](#仕組み)の 3）と、記録の `runtime.gpu` は、接続キーで使う場合と同じ。
 - PC に `CYTELLECT_CELLPOSE_REMOTE_URL`（接続先と接続キーの設定）がある場合は、そちらを優先する。0.1.0-local.20 以前の PC、CI、開発環境は、これまでどおり動く。
 - ログイン中は、PC に Cellpose の CPU 実行環境（`settings/cellpose.json`）があっても、クラウドの GPU を使う（Windows の配布物には CPU 実行環境がない）。ログインやログアウトの前後で同じ研究の検出が CPU と GPU に分かれることがあるため、どちらで処理したかは、解析版の記録の `execution_backend` と `gpu` で確かめる。一つの比較に、CPU と GPU の結果を混ぜない（[結果の記録](#結果の記録)）。
@@ -71,7 +71,7 @@ GitHub の Actions で「Cellpose GPU image」を `main` から実行する（�
 ### 3. GitHub に登録してデプロイする
 
 1. リポジトリの Settings → Secrets and variables → Actions に、`MODAL_TOKEN_ID` と `MODAL_TOKEN_SECRET`（手順 2 の 3）を登録する。
-2. GitHub の Actions で「Cellpose Modal deploy」を `main` から実行する（オーナーの指示で行う）。サーバーの URL（`https://genellect--cytellect-cellpose-cellposeserver.us-east.modal.direct`）は、ログの `Created Server CellposeServer` の行に表示される。Server 型の URL は `*.modal.run` ではなく `*.modal.direct` で、実行結果の概要には表示されない。
+2. GitHub の Actions で「Cellpose Modal deploy」を `main` から実行する（オーナーの指示で行う）。サーバーの URL（`https://genellect--cytellect-cellpose-cellposeserver.us-east.modal.direct`）は、ログの `Created Server CellposeServer` の行に表示される。Server 型の URL は `*.modal.run` ではなく `*.modal.direct` で、ログに出ていれば実行結果の概要にも記録する。
 
 デプロイ用のトークンは GitHub の秘密の値にだけ置き、研究室の PC や作業環境には置かない。この作業環境（Claude Code のクラウドセッション）からは、通信の制約で `modal deploy` を実行できない。
 
@@ -155,8 +155,8 @@ L4 と A10 の結果が同等かどうかは、まだ確かめていない（[�
 
 | 表示 | 対処 |
 | --- | --- |
-| 「クラウドGPUに接続できませんでした（接続キーが無効です）」 | 接続用トークンが無効。手順 2 の 4 で作り直し、手順 4 の設定を直す |
-| 「クラウドGPUの起動が時間内に終わりませんでした」 | 停止していた GPU の起動に時間がかかっている。数分おいて、もう一度実行する。月の無料枠を使い切った場合も起動しない（Modal の Usage を確認する） |
+| 「クラウドGPUの接続キーが無効です」 | 接続用トークンが無効。手順 2 の 4 で作り直し、手順 4 の設定を直す |
+| 「クラウドGPUの起動が時間内に完了しませんでした」 | 停止していた GPU の起動に時間がかかっている。数分おいて、もう一度実行する。月の無料枠を使い切った場合も起動しない（Modal の Usage を確認する） |
 | 「クラウドGPUの版がこのCytellectと一致しません」 | Cytellect を更新した後は、同じ版のイメージを手順 1 で公開し、`IMAGE` を差し替えて手順 3 でデプロイし直す |
 | 「クラウドGPUに接続できませんでした。ネットワーク接続を確認して…」 | ネットワークの接続と、手順 4 の URL を確認する |
 | 推論中に `502` が返り、Modal に `Server has been draining for too long` が記録される | 処理中のコンテナが停止している。デプロイ済み設定の `target_concurrency=1` と `exit_grace_period=1800` を確認する。修正の反映には手順 3 の再デプロイが必要。再実行前にログで終了原因を確認し、GPU の要求回数に失敗分も含める |
@@ -167,3 +167,43 @@ L4 と A10 の結果が同等かどうかは、まだ確かめていない（[�
 
 - [Windows版のインストールと更新](install-windows.ja.md)：研究者のログインと、接続先と接続キーを入力する旧来の手順
 - [データ保護と運用](security.md)（英語）：研究データを外部へ送る範囲の設計
+
+
+## 核小体のモデルを選ぶ
+
+モデル選択に対応したアプリでは、核小体の「検出条件」→「核小体の検出モデル」から
+「Cytellect 核小体モデル R1 / 750」「R1 / 375」「Cellpose-SAM（標準）」を選べる。
+選択は解析条件と一緒に保存される。既存の解析条件は変わらず、標準モデルにも戻せる。
+GPU イメージには 3 つの重みをビルド時に取得し、固定 revision・サイズ・SHA-256 を照合する。
+解析中のダウンロードは行わない。
+
+旧版アプリからの標準モデルの要求には、従来の digest 固定イメージから取り出した
+runner をそのまま使い、そのハッシュを返す。追加学習モデルには新しい runner を使う。
+どちらも同じコンテナ内で 1 要求ずつ処理し、モデルを切り替えると前のネットワークを解放する。
+モデルの追加で GPU 台数・利用上限・外部送信する情報は増やさない。
+
+### 公開イメージの固定（2026-11-01）
+
+モデル選択を追加した [PR #184](https://github.com/genellect/cytellect/pull/184) の
+`0dccdf73975605f22509012ea81acc9f0f981438` から、
+[GPU イメージの公開 run 41315810570](https://github.com/genellect/cytellect/actions/runs/41315810570) で
+次のイメージを公開した。`infra/modal_cellpose.py` はこの digest を参照する。
+
+```text
+ghcr.io/genellect/cytellect-cellpose-gpu@sha256:beaf5218535e20e18fda78cad406bf2c0fc6273bf5afaf6ae401f006ced306c5
+```
+
+標準モデルと R1 / 375・R1 / 750 の重みを含む。Modal への反映と公開画像での実行確認は、
+この固定をマージしてから行う。公開済みという記録だけで、GPU での実行成功とはしない。
+
+配備後の確認は GitHub に登録済みの Modal API 認証を `modal curl` で使う。
+旧版クライアントのコードは、0.1.0-local.21 の公開済みソースコミット
+`3090c044fe642b989d51c1c6acca1f4778ae3ea8` に固定し、可変タグから実行しない。
+旧版コードを読む子プロセスには Modal の認証環境変数を渡さず、認証を扱う処理は
+現在のレビュー済みの中継プロセスだけで行う。
+
+GitHub Actions の配備では、最初に `modal token info` で認証を確認する。
+`modal deploy` の出力を保存する pipeline には `pipefail` を指定し、配備の失敗を
+成功として扱わない。ログに URL の行がないことは配備の失敗として扱わない（配備した Server は
+次のステップで公開画像を使って確かめる）。`Token has expired` の場合は GitHub の Modal 認証を更新してから
+再実行する。workflow のステップ表示だけでなく、配備ログと公開画像の実行記録で確認する。

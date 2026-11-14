@@ -1,13 +1,15 @@
 "use client";
-import {useEffect,useRef,useState} from "react";
+import {useEffect,useRef,useState,type ReactNode} from "react";
 import type {ReviewField,ReviewTarget} from "@/lib/workspace/review-preview";
 import type {SavedResult} from "@/lib/workspace/api-adapter";
 import type {useWorkspaceRuntime} from "@/lib/workspace/use-workspace-runtime";
-import {fieldsIn,type ExperimentDesign} from "@/lib/workspace/experiment-design";
+import {fieldsIn,pairPanes,paneKey,stratumLabel,type ExperimentDesign,type FieldAssignment} from "@/lib/workspace/experiment-design";
 import {decodedPreview,percentileRange,planeRange,redrawnPreview,remapTable,sharedRange} from "@/lib/shared-display";
 import {ReviewImageCanvas,type ReviewImageViewport} from "./ReviewImageCanvas";
 import {MeasurementTable} from "./MeasurementTable";
+import {ConnectedNucleusTable} from "./NucleusTable";
 import {pairPaneLayout} from "./image-stage-layout";
+import {NextStep,TableHeading,type ColorView} from "./ColorView";
 import styles from "./pair-stage.module.css";
 
 type Runtime=ReturnType<typeof useWorkspaceRuntime>;
@@ -22,6 +24,8 @@ interface Props {
   onEditing:(value:boolean)=>void;
   /** The run shown (the toolbar chooses it), whether zoom is linked and whether each pane lists its measurements. */
   runId:string;linked:boolean;tables:boolean;onDisplay?:(value:PairDisplay|null)=>void;
+  /** The partition table of a pane's field, in the nucleolus-and-nucleoplasm colour mode (MV-05). */
+  partition?:(field:ReviewField)=>ReactNode;
 }
 
 /** Runs in which at least one group has a field, in the design's order. */
@@ -35,7 +39,8 @@ export const pairRuns=(design:ExperimentDesign)=>(design.runs??[]).filter(run=>d
  * that version's structures, with its nucleus (`nucleus`) outlined among the nuclei of the same analysis (`context`). */
 export interface Historical {target:ReviewTarget;result:SavedResult;context?:SavedResult["masks"]["regions"];nucleus?:number}
 
-export function PairStage({design,fields,runtime:r,target,channel,selectedField,region,historical,onSelect,onEditing,runId,linked,tables,onDisplay}:Props){
+export function PairStage({design,fields,runtime:r,target,channel,selectedField,region,historical,onSelect,onEditing,runId,linked,tables,onDisplay,
+  colorBy,states,legend,fills,gateTable,heading,next,partition}:Props&ColorView){
   const runs=pairRuns(design);
   const run=runs.find(value=>value.id===runId)??runs[0];
   const [chosen,setChosen]=useState<Record<string,string>>({});
@@ -43,17 +48,18 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
   // A field selected anywhere (the list, a pane, a figure's source) is also remembered for its group, so its
   // pane keeps showing it after the selection moves to the other pane.
   useEffect(()=>{
-    const group=selectedField?design.fields?.[selectedField]?.group_id:undefined;
-    if(group&&selectedField)setChosen(previous=>previous[group]===selectedField?previous:{...previous,[group]:selectedField});
+    const assignment:FieldAssignment|undefined=selectedField?design.fields?.[selectedField]:undefined;
+    if(!assignment||!selectedField)return;
+    // Remembered per group, and for a stratified design per run and stratum too.
+    const key=paneKey(design,assignment.run_id,assignment.group_id,assignment.stratum_id??null);
+    setChosen(previous=>previous[key]===selectedField?previous:{...previous,[key]:selectedField});
   },[selectedField,design]);
-  // Control first, so the reading order matches the comparison (treatment − control).
-  const groups=[...design.groups].sort((a,b)=>(a.id===design.control_group_id?-1:0)-(b.id===design.control_group_id?-1:0));
-  const panes=groups.map(group=>{
-    const ids=run?fieldsIn(design,group.id,run.id).map(([id])=>id):[];
-    // The selected field wins in its group's pane; each other pane keeps the field last chosen in it.
-    const fieldId=ids.includes(selectedField??"")?selectedField!:ids.includes(chosen[group.id])?chosen[group.id]:ids[0];
-    return {group,ids,field:fields.find(value=>value.id===fieldId)};
-  });
+  // Control first, so the reading order matches the comparison (treatment − control). A stratified design
+  // pairs the fields of the selected field's stratum only; an unassigned field is never paired.
+  const layoutPanes=pairPanes(design,run?.id,selectedField,chosen);
+  const stratumName=layoutPanes.stratumId?stratumLabel(design,layoutPanes.stratumId):null;
+  const panes=layoutPanes.panes.map(pane=>({group:design.groups.find(value=>value.id===pane.groupId)!,ids:pane.ids,key:pane.key,
+    field:fields.find(value=>value.id===pane.fieldId)}));
   const receipts=panes.map(pane=>pane.field?.previewDisplay?.[channel]);
   const shared=sharedRange(receipts);
   // What is shown: the same fields, channel and display ranges are the same images, even when the
@@ -70,6 +76,8 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
   useEffect(()=>{onDisplay?.(display);},[displayValue]);// eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>()=>onDisplay?.(null),[]);// eslint-disable-line react-hooks/exhaustive-deps
 
+  // Each pane shows its field's nucleus table (every stain and the confirmed nucleoli per nucleus) by default.
+  const [nucleusView,setNucleusView]=useState(true);
   if(!run)return <p className={styles.empty}>2 つの群に画像がある実験回がありません。「実験」で群と実験回に画像を割り当ててください。</p>;
   return <div className={styles.pair} data-placement={layout.placement}>
     {panes.map((pane,index)=>{
@@ -84,19 +92,23 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
       const rows=value?.rows.filter(row=>row.channel_id===channel)??[];
       const count=value?new Set(value.masks.regions.map(region=>region.id)).size:null;
       const select=(n:number)=>{if(field)onSelect(field.id,channel,n);};
+      const nuclear=target==="nuclei"&&!saved&&!candidate&&field?r.currentResult(field.id,"nuclei"):undefined;
       const label=`${pane.group.label}${pane.group.id===design.control_group_id?"（対照）":""}`;
       return <section key={pane.group.id} className={styles.pane} aria-label={label}>
         <header className={styles.paneHead}>
           <strong title={pane.group.label}>{pane.group.label}</strong>{pane.group.id===design.control_group_id&&<span className={styles.badge}>対照</span>}
-          {pane.ids.length>1&&<select aria-label={`${pane.group.label} の視野`} value={field?.id} onChange={event=>{const id=event.target.value;setChosen(previous=>({...previous,[pane.group.id]:id}));
+          {stratumName&&<span className={styles.badge} title="この実験回・この層の視野のみ表示">層：{stratumName}</span>}
+          {pane.ids.length>1&&<select aria-label={`${pane.group.label} の視野`} value={field?.id} onChange={event=>{const id=event.target.value;setChosen(previous=>({...previous,[pane.key]:id}));
             // The chosen field is also the selected one, so measuring and candidates act on what is shown.
             onSelect(id,channel);}}>
             {pane.ids.map((id,position)=>{const known=fields.find(item=>item.id===id);return <option key={id} value={id} disabled={!known}>{known?.label??`視野 ${position+1}（読み込み中）`}</option>;})}</select>}
           <small>{pane.ids.length} 視野 · {count===null?"未測定":`${targets[target]} ${count}`}{saved?" · 図の保存時の版":candidate?" · 検出候補":""}</small>
         </header>
         <div className={styles.paneBody} ref={index===0?body:undefined}>
-        <div className={styles.paneImage}>{!field?<p className={styles.empty}>この実験回の画像がありません。</p>:urls[index]&&layout.scale>0?<ReviewImageCanvas
+        <div className={styles.paneImage}>{!field?<p className={styles.empty}>{layoutPanes.unassigned?"選択した視野は層が未設定のため、並べて表示しません。「実験」で層を設定してください。":stratumName?`この実験回の層「${stratumName}」には、この群の画像がありません。`:"この実験回の画像がありません。"}</p>:urls[index]&&layout.scale>0?<ReviewImageCanvas
           src={urls[index]!} width={field.width} height={field.height} contours={value?.masks.regions||[]}
+          // The colour mode applies to both panes, so the two groups are read the same way (MV-01, MV-03).
+          classification={saved||candidate?undefined:states(field.id)} colorBy={colorBy} legend={saved||candidate?undefined:legend(field.id)} fills={saved||candidate?undefined:fills(field.id)}
           selected={shown} label={`${pane.group.label} ${field.label}`}
           onSelect={select} editingKey={`${field.id}:${target}:${value?.revision||"none"}`}
           editDisabled={r.busy||!editable}
@@ -111,7 +123,17 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
           context={savedView?.context??(target==="nucleoli"||target==="nucleoplasm"?r.currentResult(field.id,"nuclei")?.masks.regions:undefined)}
           contextSelected={savedView?.nucleus}/>:<p className={styles.empty}>画像を読み込み中…</p>}</div>
         {tables&&field&&<div className={styles.paneTable} role="region" aria-label={`${pane.group.label} の測定値`} tabIndex={0}>
-          {rows.length?<MeasurementTable rows={rows} selected={shown} onSelect={select}/>:<p className={styles.tableEmpty}>{value?"この染色の測定値はありません。":"「測定」で輪郭と測定値を作ります。"}</p>}</div>}
+          {/* Each table names what it lists; the next step sits once, beside the last group's table (MV-06, MV-09). */}
+          {/* The next step sits once, beside the last group's table: on its summary line when the nucleus table is shown. */}
+          <TableHeading heading={heading(colorBy==="positivity"||(!!nuclear&&nucleusView),rows)} next={index===panes.length-1&&!(colorBy!=="compartments"&&nuclear&&(nucleusView||colorBy==="positivity"))?next:null}>
+            {colorBy==="outline"&&nuclear&&<div className={styles.tableViews} role="group" aria-label={`${pane.group.label} の表の切り替え`}><button aria-pressed={!nucleusView} onClick={()=>setNucleusView(false)}>このチャンネル</button><button aria-pressed={nucleusView} onClick={()=>setNucleusView(true)}>核ごとの表</button></div>}
+          </TableHeading>
+          {colorBy==="compartments"?partition?.(field)
+          :<>
+          {nuclear&&(nucleusView||colorBy==="positivity")?<ConnectedNucleusTable load={r.adapter.nucleusTable} save={r.adapter.saveNucleusTable} field={field.id} nuclearRevision={nuclear.revision}
+            nucleolarRevision={r.currentResult(field.id,"nucleoli")?.revision} exclusion={field.exclusionReason} channels={field.channels} gate={colorBy==="positivity"?gateTable(field.id):undefined} selected={shown} onSelect={select}
+            aside={index===panes.length-1&&next?<NextStep next={next}/>:undefined}/>
+          :rows.length?<MeasurementTable rows={rows} selected={shown} onSelect={select}/>:<p className={styles.tableEmpty}>{value?"この染色の測定値はありません。":"未測定"}</p>}</>}</div>}
         </div>
       </section>;
     })}
@@ -131,8 +153,8 @@ function useNarrow(){
 /** Pair toolbar text for the brightness transform (V-03): the shared range, or why each image uses its own. */
 export function pairDisplayText(value:PairDisplay):{label:string;detail:string}{
   return value.shared
-    ?{label:"共通の表示範囲",detail:`2 つの画像を、同じ表示範囲（保存値 ${format(value.black!)}–${format(value.white!)}。2 つの画像の画素の 0.5〜99.5 パーセンタイル）の共通の明るさの変換で描いています。範囲の外の値は黒または白で示すので、その差と、表示の階調による差は、この表示からは比べられません。露光・ゲインなど撮影条件の違いは補正していません。拡大は画素単位でそろえています。`}
-    :{label:"表示範囲は画面ごと",detail:"この画像では表示範囲をそろえられないため、それぞれの画像の範囲で描いています。明るさを比べず、測定値で比べてください。"};
+    ?{label:"共通の表示範囲",detail:`2 画像を共通の表示範囲（保存値 ${format(value.black!)}–${format(value.white!)}、2 画像の画素の 0.5〜99.5 パーセンタイル）で描画しています。範囲外の値は黒または白で表示するため、その差と表示の階調による差は、この表示では比較できません。露光・ゲインなど撮影条件の差は補正していません。拡大は画素単位で揃えています。`}
+    :{label:"表示範囲：画像ごと",detail:"表示範囲を揃えられないため、各画像の範囲で描画しています。明るさではなく測定値で比較してください。"};
 }
 
 const format=(value:number)=>Number.isInteger(value)?String(value):value.toPrecision(4);

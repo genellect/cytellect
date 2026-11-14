@@ -1172,14 +1172,22 @@
             "type": "number"
           },
           "model": {
-            "const": "cpsam_v2",
             "default": "cpsam_v2",
+            "enum": [
+              "cpsam_v2",
+              "ncl-r1-step0375",
+              "ncl-r1-step0750"
+            ],
             "title": "Model",
             "type": "string"
           },
           "model_sha256": {
-            "const": "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667",
             "default": "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667",
+            "enum": [
+              "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667",
+              "bc5ea7f25ce9a9f96e9ff510cee20587e1328ac834a0f7f82aee0bc06156d906",
+              "9d2c2ec06aa1aa71f36695b49b0828f82fd3cb633da2832c99a9f194d0bd4099"
+            ],
             "title": "Model Sha256",
             "type": "string"
           },
@@ -1880,6 +1888,421 @@
       "field_count"
     ],
     "title": "ProposalContext",
+    "type": "object"
+  },
+  "discussion_context_schema": {
+    "$defs": {
+      "DiscussionResult": {
+        "additionalProperties": false,
+        "description": "One saved comparison, as the result summary states it (RS-01–RS-04); every number is saved.",
+        "properties": {
+          "control": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Control",
+            "type": "string"
+          },
+          "design": {
+            "enum": [
+              "independent",
+              "paired"
+            ],
+            "title": "Design",
+            "type": "string"
+          },
+          "difference": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Interval"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "effect": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Effect"
+          },
+          "exploratory_threshold": {
+            "default": false,
+            "title": "Exploratory Threshold",
+            "type": "boolean"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/$defs/GroupValue"
+            },
+            "maxItems": 2,
+            "title": "Groups",
+            "type": "array"
+          },
+          "heading": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Heading"
+          },
+          "metric": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Metric",
+            "type": "string"
+          },
+          "n_control": {
+            "minimum": 0,
+            "title": "N Control",
+            "type": "integer"
+          },
+          "n_runs": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "N Runs"
+          },
+          "n_treatment": {
+            "minimum": 0,
+            "title": "N Treatment",
+            "type": "integer"
+          },
+          "p_value": {
+            "anyOf": [
+              {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "P Value"
+          },
+          "ratio": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Interval"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "region": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Region"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/$defs/RunValue"
+            },
+            "maxItems": 12,
+            "title": "Runs",
+            "type": "array"
+          },
+          "scale": {
+            "enum": [
+              "difference",
+              "ratio",
+              "fraction",
+              "log2"
+            ],
+            "title": "Scale",
+            "type": "string"
+          },
+          "stain": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Stain"
+          },
+          "test": {
+            "enum": [
+              "welch-t",
+              "paired-t",
+              "mann-whitney-u",
+              "wilcoxon",
+              "none"
+            ],
+            "title": "Test",
+            "type": "string"
+          },
+          "treatment": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Treatment",
+            "type": "string"
+          },
+          "unit": {
+            "default": "",
+            "maxLength": 20,
+            "title": "Unit",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "pattern": "^[a-z0-9_]{1,120}$",
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "metric",
+          "scale",
+          "control",
+          "treatment",
+          "design",
+          "test",
+          "n_control",
+          "n_treatment",
+          "groups"
+        ],
+        "title": "DiscussionResult",
+        "type": "object"
+      },
+      "ExperimentNote": {
+        "additionalProperties": false,
+        "description": "What the researcher wrote about the experiment; optional, short, and never a file or path.",
+        "properties": {
+          "cells": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cells"
+          },
+          "purpose": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Purpose"
+          },
+          "stains": {
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "title": "Stains",
+            "type": "array"
+          }
+        },
+        "title": "ExperimentNote",
+        "type": "object"
+      },
+      "GroupValue": {
+        "additionalProperties": false,
+        "properties": {
+          "condition": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Condition",
+            "type": "string"
+          },
+          "mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean"
+          }
+        },
+        "required": [
+          "condition",
+          "mean"
+        ],
+        "title": "GroupValue",
+        "type": "object"
+      },
+      "Interval": {
+        "additionalProperties": false,
+        "properties": {
+          "ci_high": {
+            "title": "Ci High",
+            "type": "number"
+          },
+          "ci_low": {
+            "title": "Ci Low",
+            "type": "number"
+          },
+          "estimate": {
+            "title": "Estimate",
+            "type": "number"
+          }
+        },
+        "required": [
+          "estimate",
+          "ci_low",
+          "ci_high"
+        ],
+        "title": "Interval",
+        "type": "object"
+      },
+      "RunValue": {
+        "additionalProperties": false,
+        "properties": {
+          "control": {
+            "title": "Control",
+            "type": "number"
+          },
+          "difference": {
+            "title": "Difference",
+            "type": "number"
+          },
+          "ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ratio"
+          },
+          "run": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Run",
+            "type": "string"
+          },
+          "treatment": {
+            "title": "Treatment",
+            "type": "number"
+          }
+        },
+        "required": [
+          "run",
+          "control",
+          "treatment",
+          "difference"
+        ],
+        "title": "RunValue",
+        "type": "object"
+      }
+    },
+    "additionalProperties": false,
+    "properties": {
+      "experiment": {
+        "$ref": "#/$defs/ExperimentNote"
+      },
+      "language": {
+        "const": "ja",
+        "default": "ja",
+        "title": "Language",
+        "type": "string"
+      },
+      "protocol": {
+        "const": "result-discussion/1.0.0",
+        "default": "result-discussion/1.0.0",
+        "title": "Protocol",
+        "type": "string"
+      },
+      "result": {
+        "$ref": "#/$defs/DiscussionResult"
+      }
+    },
+    "required": [
+      "result"
+    ],
+    "title": "DiscussionContext",
+    "type": "object"
+  },
+  "discussion_draft_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "alternatives": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "implications": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "next_steps": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      }
+    },
+    "required": [
+      "implications",
+      "alternatives",
+      "next_steps"
+    ],
     "type": "object"
   },
   "draft_schema": {
@@ -3101,13 +3524,17 @@
                               },
                               "model": {
                                 "enum": [
-                                  "cpsam_v2"
+                                  "cpsam_v2",
+                                  "ncl-r1-step0375",
+                                  "ncl-r1-step0750"
                                 ],
                                 "type": "string"
                               },
                               "model_sha256": {
                                 "enum": [
-                                  "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667"
+                                  "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667",
+                                  "bc5ea7f25ce9a9f96e9ff510cee20587e1328ac834a0f7f82aee0bc06156d906",
+                                  "9d2c2ec06aa1aa71f36695b49b0828f82fd3cb633da2832c99a9f194d0bd4099"
                                 ],
                                 "type": "string"
                               },
@@ -5192,13 +5619,17 @@
                               },
                               "model": {
                                 "enum": [
-                                  "cpsam_v2"
+                                  "cpsam_v2",
+                                  "ncl-r1-step0375",
+                                  "ncl-r1-step0750"
                                 ],
                                 "type": "string"
                               },
                               "model_sha256": {
                                 "enum": [
-                                  "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667"
+                                  "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667",
+                                  "bc5ea7f25ce9a9f96e9ff510cee20587e1328ac834a0f7f82aee0bc06156d906",
+                                  "9d2c2ec06aa1aa71f36695b49b0828f82fd3cb633da2832c99a9f194d0bd4099"
                                 ],
                                 "type": "string"
                               },

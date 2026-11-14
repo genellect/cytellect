@@ -65,8 +65,12 @@ def main() -> None:
     source_paths = ([root / name for name in args.text_source] if args.text_source else
                     sorted([*root.glob("apps/web/src/components/**/*.tsx"),
                             *root.glob("apps/web/src/app/**/*.tsx"),
-                            *root.glob("apps/web/src/lib/*.ts"),
-                            *root.glob("apps/web/src/lib/*catalog*.json")]))
+                            # UI text also lives in models beside the components and in lib/workspace (test files excluded).
+                            *(path for path in root.glob("apps/web/src/components/**/*.ts") if not path.name.endswith(".test.ts")),
+                            *(path for path in root.glob("apps/web/src/lib/**/*.ts") if not path.name.endswith(".test.ts") and path.name != "generated.ts"),
+                            *root.glob("apps/web/src/lib/*catalog*.json"),
+                            # The demo's scene texts (labels, explanations, notes) are shown in the same face.
+                            *root.glob("services/showcase/datasets/*.json")]))
     if any(not path.resolve().is_relative_to(root) for path in source_paths):
         raise SystemExit("Font text inputs must remain inside the checkout")
     codepoints = set(range(32, 127)) | set(range(0x2000, 0x2070))

@@ -639,18 +639,25 @@ def _open_running_workspace(origin: str) -> bool:
     return bool(webbrowser.open(origin))
 
 
-def _gui_failure_message(error: Exception, *, opened: bool = False) -> str:
-    """Fixed user actions only; never expose exception text or filesystem paths."""
+def _gui_failure_message(error: Exception, *, opened: bool = False, retry: bool = True) -> str:
+    """Fixed user actions only; never expose exception text or filesystem paths.
+
+    ``retry`` is whether the message box offers 「再試行」; the last attempt names the next step instead.
+    """
     if already_running(error):
         if opened:
             return "Cytellectは既に起動しています。作業画面をブラウザで開きました。"
         return "Cytellectは既に起動しています。開いているCytellectの画面で「作業画面を開く」を押してください。"
     if isinstance(error, OSError) and (error.errno == errno.EADDRINUSE
                                      or getattr(error, "winerror", None) == 10048):
-        return ("接続先（ポート）が使用中のため起動できません。別のソフトがこのポートを使っています。"
-                "「再試行」を押すと、もう一度起動します。続く場合はPCを再起動してください。")
-    return ("Cytellectを起動できないか、実行が停止しました。「再試行」を押すと、もう一度起動します。"
-            "開き直しても続く場合は、インストーラーをもう一度開いてください（データは保たれます）。")
+        reason = "接続先（ポート）が使用中のため起動できません。別のソフトがこのポートを使っています。"
+        return reason + ("「再試行」を押すと、もう一度起動します。続く場合はPCを再起動してください。" if retry
+                         else "PCを再起動してから、デスクトップの「Cytellect」を開いてください。")
+    reason = "Cytellectを起動できないか、実行が停止しました。"
+    return reason + ("「再試行」を押すと、もう一度起動します。開き直しても続く場合は、"
+                     "インストーラーをもう一度開いてください（データは保たれます）。" if retry
+                     else "PCを再起動してから、デスクトップの「Cytellect」を開いてください。"
+                     "続く場合は、インストーラーをもう一度開いてください（データは保たれます）。")
 
 
 def _null_missing_streams() -> None:
@@ -672,7 +679,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if (not args.data_dir or not args.web_dir or not args.fiji or not 1 <= args.port <= 65535
             or not Path(args.fiji).exists()):
-        message = ("Cytellectの準備が完了していません。セットアップを再実行してください。" if args.gui else
+        message = ("Cytellectの準備が完了していません。インストーラーをもう一度開いてください（データは保たれます）。" if args.gui else
                    "Cytellect installation is incomplete. Run the setup program again.")
         _report_startup_error(message, args.gui)
         raise SystemExit(2)
@@ -700,7 +707,8 @@ def main(argv=None):
                 _report_startup_error(_gui_failure_message(exc, opened=opened), True, information=opened)
                 raise SystemExit(1) from None
             # Port in use or a failed start: show the reason and offer to start again.
-            if not _report_startup_error(_gui_failure_message(exc), True, retry=attempt < 2):
+            retry = attempt < 2
+            if not _report_startup_error(_gui_failure_message(exc, retry=retry), True, retry=retry):
                 raise SystemExit(1) from None
 
 

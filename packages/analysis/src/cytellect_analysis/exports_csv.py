@@ -10,6 +10,11 @@ def write_csv(path: Path, rows, *, columns=None):
         _write_rows(stream, rows, columns=columns)
 
 
+def write_csv_stream(stream, rows, *, columns=None):
+    """Write the rows to a text stream with the same formula escaping (no byte-order mark)."""
+    _write_rows(stream, rows, columns=columns)
+
+
 def _write_rows(stream, rows, *, columns=None):
     if columns is None:
         columns = list(dict.fromkeys(key for row in rows for key in row))

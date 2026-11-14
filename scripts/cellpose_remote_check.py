@@ -105,18 +105,22 @@ def main():
     parser.add_argument("--plane", type=int, default=None, help="Plane index of a multi-plane image")
     parser.add_argument("--nuclei-plane", type=int, default=None, help="NCL protocol: plane for stand-in nuclei")
     parser.add_argument("--crop", type=int, default=None)
+    parser.add_argument("--model", choices=("cpsam_v2", *engine.NCL_MODEL_HASHES), default="cpsam_v2")
     parser.add_argument("--start-service", action="store_true", help="Serve the local CPU runtime for comparison")
     parser.add_argument("--skip-local", action="store_true", help="Remote timing only")
     parser.add_argument("--require-identical", action="store_true")
     parser.add_argument("--receipt", type=Path, required=True)
     args = parser.parse_args()
+    if args.model != "cpsam_v2" and args.nuclei_plane is None:
+        parser.error("Fine-tuned nucleolar models require --nuclei-plane")
     data = tifffile.imread(args.image)
     image = data if args.plane is None else data[args.plane]
     nuclei = None
     detector = CellposeDetectorSpec()
     if args.nuclei_plane is not None:
         nuclei = nuclei_stand_in(data[args.nuclei_plane])
-        detector = NclParentCellposeDetectorSpec()
+        detector = NclParentCellposeDetectorSpec(model=args.model, model_sha256=(
+            engine.MODEL_SHA256 if args.model == "cpsam_v2" else engine.NCL_MODEL_HASHES[args.model]))
     if args.crop:
         image = image[:args.crop, :args.crop]
         nuclei = None if nuclei is None else nuclei[:args.crop, :args.crop]
@@ -134,7 +138,9 @@ def main():
         remote, info, seconds = detect(image, detector, nuclei, remote_url)
         receipt["remote"] = {"objects": int(len(np.unique(remote)) - 1), "seconds": round(seconds, 1),
                              "device": info["runtime"].get("device"), "gpu": info["runtime"].get("gpu"),
-                             "precision": info["runtime"].get("precision")}
+                             "precision": info["runtime"].get("precision"),
+                             "model": info["model"], "model_sha256": info["model_sha256"],
+                             "runner_sha256": info["runner_sha256"]}
         if not args.skip_local:
             local, local_info, seconds = detect(image, detector, nuclei, None)
             receipt["local"] = {"objects": int(len(np.unique(local)) - 1), "seconds": round(seconds, 1),

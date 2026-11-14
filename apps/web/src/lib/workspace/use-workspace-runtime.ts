@@ -7,8 +7,8 @@ import {effectiveChannelAssignments} from "./channel-assignments";
 import {intakePath} from "./dropped-files";
 import {groupFiles, isSupportedImage, type AddedFile, type ChannelDefinition, type Grouping} from "./grouping";
 import {nclObjectDetector,nucleolarDetectorV2, type NucleolarDefinition} from "./nucleolar-definition";
-import {cellposeDetector,nclCellposeDetector,isCellposeDetector,type AnyCellposeProcessingDetector} from "./cellpose-settings";
-import {applicableProcessing, savedProcessing, withProcessingSettings, type ProposalProcessing} from "./proposal-processing";
+import {cellposeDetector,nclCellposeDetector,isCellposeDetector,selectNclModel,type AnyCellposeProcessingDetector,type NclParentCellposeProcessingDetector} from "./cellpose-settings";
+import {applicableProcessing, preserveNclModelSelection, savedProcessing, withProcessingSettings, type ProposalProcessing} from "./proposal-processing";
 import {loadReviewPreview, newestWorkspaceId, releaseReviewPreview, type ReviewData, type ReviewTarget} from "./review-preview";
 import {validTargetResults, type TargetResult} from "./target-results";
 import {tiffInputMode,tiffHasOmeMetadata} from "./tiff-intake";
@@ -37,7 +37,7 @@ export interface UnfinishedImport {entry:string; name:string|null; reason:string
 type Adapter = ReturnType<typeof createApiAdapter>;
 export interface RuntimeCandidate {result:SavedResult;recipe:Recipe;settingsFingerprint:string;runId?:string;runState?:WorkspaceRun["state"];backgroundPending?:boolean}
 type RuntimeTargets = Partial<Record<ReviewTarget, TargetResult>>;
-export interface RuntimeSpecification {version:number; spec:({channel_assignment_version:number;target:ReviewTarget;settings:RuntimeSettings;processing:ProposalProcessing|null;measurement:typeof rawMeasurement|null;selection?:unknown;statistics?:unknown;figure?:unknown;metrics?:unknown[];additional_analyses?:unknown[];figure_proposals?:unknown[];experiment?:ExperimentDesign|null;backgrounds?:Record<string,Record<string,{polygon:Point[];confirmed:true}>>;confirmed_channel_ids?:string[]})|null}
+export interface RuntimeSpecification {version:number; experiment_sha256?:string; spec:({channel_assignment_version:number;target:ReviewTarget;settings:RuntimeSettings;processing:ProposalProcessing|null;measurement:typeof rawMeasurement|null;selection?:unknown;statistics?:unknown;figure?:unknown;metrics?:unknown[];additional_analyses?:unknown[];figure_proposals?:unknown[];experiment?:ExperimentDesign|null;backgrounds?:Record<string,Record<string,{polygon:Point[];confirmed:true}>>;confirmed_channel_ids?:string[]})|null}
 
 type Dependencies = {adapter?:Adapter; loadPreview?:typeof loadReviewPreview; releasePreview?:typeof releaseReviewPreview;
   readSpecification?:(workspace:string)=>Promise<RuntimeSpecification>; writeSpecification?:(workspace:string,value:RuntimeSpecification)=>Promise<RuntimeSpecification>};
@@ -132,7 +132,8 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   const adapter=dependencies.adapter ?? createApiAdapter(), loadPreview=dependencies.loadPreview ?? loadReviewPreview, releasePreview=dependencies.releasePreview ?? releaseReviewPreview;
   let state:RuntimeSnapshot={data:null,busy:false,loading:false,operation:"",error:"",assignments:{version:0,assignments:[]},activeTarget:"nuclei",settings:defaultRuntimeSettings(),proposal:null,processing:null,importIssues:[],unfinishedImports:[]};
   const readSpecification=dependencies.readSpecification ?? ((id:string)=>request<RuntimeSpecification>(`/v1/workspaces/${id}/analysis-spec`));
-  const writeSpecification=dependencies.writeSpecification ?? ((id:string,value:RuntimeSpecification)=>request<RuntimeSpecification>(`/v1/workspaces/${id}/analysis-spec`,{method:"PUT",body:JSON.stringify(value)}));
+  // Only the version and the spec are written: read-only fields of the response (e.g. experiment_sha256) are never sent back.
+  const writeSpecification=dependencies.writeSpecification ?? ((id:string,value:RuntimeSpecification)=>request<RuntimeSpecification>(`/v1/workspaces/${id}/analysis-spec`,{method:"PUT",body:JSON.stringify({version:value.version,spec:value.spec})}));
   let specification:RuntimeSpecification={version:0,spec:null},specificationDirty=false;
   let beforeProposal:{settings:RuntimeSettings;processing:ProposalProcessing|null;specification:RuntimeSpecification}|null=null;
   let closed=false,epoch=0,stopped=false,activeRunId:string|null=null;
@@ -315,6 +316,10 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   function applyProposal(fieldId?:string){
     if(!state.proposal)throw new Error("解析案がありません。");const channels=definitions(fieldId);try{const nucleus=nuclearChannel(fieldId),index=channels.findIndex(value=>value.token===nucleus.token);if(index>=0)channels[index]=nucleus;}catch{}
     const hasImages=!!state.data?.fields.length,automatic=hasImages&&(["nuclear-intensity","nuclear-ncl"].includes(state.proposal.draft.recipe)||!!state.proposal.draft.processing?.cells),processing=automatic?applicableProcessing(state.proposal,channels):null;if(automatic&&!processing?.nuclei&&!processing?.cells)throw new Error("核のチャンネルを確認してから解析案を適用してください。");
+    let selectedProcessing:ProposalProcessing|null=null;
+    const selectedField=fieldId||state.data?.fields.find(value=>!value.exclusionReason)?.id;
+    if(selectedField){try{selectedProcessing=runtimeProposalProcessing(nuclearChannel(selectedField),state.settings,currentTargets.get(selectedField)??{},state.processing);}catch{/* Missing live selection cannot authorize an experimental model. */}}
+    preserveNclModelSelection(processing,selectedProcessing);
     if(hasImages&&state.proposal.draft.recipe==="supplied-regions"&&!processing?.cells){const cell=fieldId?currentTargets.get(fieldId)?.cell:undefined;if(!["manual","cellpose_cell"].includes(cell?.recipe.source??"")||cell?.recipe.region_set_id!=="cell"||!cell.result.masks.regions.length)throw new Error("選択視野の採用済み細胞ROIを確認してください。");}
     let settings=processing?.nuclei?{...state.settings,nuclearMaxSide:processing.nuclei.detection_max_side_px,nuclearProbability:processing.nuclei.detector.probability,nuclearNms:processing.nuclei.detector.nms}:{...state.settings};
     const child=processing?.nucleoli;if(child?.detector.engine==="cytellect-nucleolar-v2")settings={...settings,nucleolarDefinition:{...settings.nucleolarDefinition,source:child.detector.source,marker:child.detector.source==="marker"?child.channel:"",relative:child.detector.relative_threshold},nucleolarSigma:child.detector.smoothing_sigma_px,nucleolarRim:child.detector.rim_exclusion_px,nucleolarMinimumArea:child.detector.minimum_area_px,nucleolarMaximumArea:child.detector.maximum_area_px};else if(child&&isCellposeDetector(child.detector))settings={...settings,nucleolarDefinition:{...settings.nucleolarDefinition,source:"ncl",marker:child.channel,algorithm:"cellpose"},nucleolarSigma:null,nucleolarMinimumArea:null,nucleolarMaximumArea:null};else if(child&&(child.detector.engine==="cytellect-ncl-objects"||child.detector.engine==="fiji-nucleolar-compartments"))settings={...settings,nucleolarDefinition:{...settings.nucleolarDefinition,source:"ncl",marker:child.channel,algorithm:child.detector.engine==="cytellect-ncl-objects"?"objects":"legacy"},nucleolarSigma:child.detector.smoothing_sigma_px,nucleolarMinimumArea:child.detector.minimum_area_px,nucleolarMaximumArea:child.detector.maximum_area_px};
@@ -330,11 +335,12 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     let selection=priorSelection;
     const gate=draft.gfp_selection;
     if(gate&&hasImages){
+      const {channel_gate:priorChannelGate,...legacySelection}=priorSelection;void priorChannelGate;
       const previousGate=priorSelection.gfp&&typeof priorSelection.gfp==="object"?priorSelection.gfp as Record<string,unknown>:{};
       if(gate.method==="negative_control"&&gate.unit==="nucleus"){
         const controls=previousGate.control_field_ids;
-        if(Array.isArray(controls)&&controls.length)selection={...priorSelection,gfp:{version:"1.0.0",gate_protocol:"gfp-gate/2.0.0",gfp_channel_id:gate.channel,percentile:gate.percentile,control_field_ids:controls,keep:gate.keep}};
-      }else if(gate.method!=="negative_control")selection={...priorSelection,gfp:{...(gate.unit==="cell_roi"?{unit:"cell_roi"}:{}),version:"1.1.0",gate_protocol:"gfp-gate/3.0.0",gfp_channel_id:gate.channel,method:gate.method,threshold:gate.threshold,values:gate.values,keep:gate.keep}};
+        if(Array.isArray(controls)&&controls.length)selection={...legacySelection,gfp:{version:"1.0.0",gate_protocol:"gfp-gate/2.0.0",gfp_channel_id:gate.channel,percentile:gate.percentile,control_field_ids:controls,keep:gate.keep}};
+      }else if(gate.method!=="negative_control")selection={...legacySelection,gfp:{...(gate.unit==="cell_roi"?{unit:"cell_roi"}:{}),version:"1.1.0",gate_protocol:"gfp-gate/3.0.0",gfp_channel_id:gate.channel,method:gate.method,threshold:gate.threshold,values:gate.values,keep:gate.keep}};
     }
     const statistical=prior?.statistics&&typeof prior.statistics==="object"?prior.statistics:{};
     const figure=prior?.figure&&typeof prior.figure==="object"?prior.figure:{};
@@ -375,6 +381,16 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       const saved=target==="cell"?state.processing?.cells:state.processing?.nucleoli;
       if(saved&&saved.channel===defining&&isCellposeDetector(saved.detector))return saved.detector;
       return target==="cell"?cellposeDetector():nclCellposeDetector();
+    },
+    selectNclModel(field:string,model:NclParentCellposeProcessingDetector["model"]){
+      if(state.busy||state.settings.nucleolarDefinition.source!=="ncl")return;
+      const defining=state.settings.nucleolarDefinition.marker;
+      if(!defining)return;
+      const previous=state.processing?.nucleoli;
+      const base=previous?.channel===defining?previous.detector:nclCellposeDetector();
+      if(base?.engine!=="cellpose-sam-ncl-parent"||base.protocol_version!=="4.3.0")return;
+      const detector=selectNclModel(base,model);
+      publish({processing:{...(state.processing??{version:"1.0.0",nuclei:null,nucleoli:null,signal:null}),nucleoli:{channel:defining,detector}}});
     },
     setCellposeParameter(field:string,target:"cell"|"nucleoli",key:"diameter_px"|"flow_threshold"|"cellprob_threshold"|"minimum_area_px"|"normalization_percentile_low"|"normalization_percentile_high"|"smoothing_sigma_px"|"background_radius_px"|"parent_background_percentile"|"nuclear_diameter_fraction"|"minimum_contrast_snr",value:number|null){
       if(state.busy)return;
@@ -432,7 +448,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     ensureWorkspace(){return exclusive("ワークスペースを準備中",async()=>{if(state.data?.workspaceId)return state.data.workspaceId;const created=await adapter.create();replaceData({...emptyData(),workspaceId:created.id,title:created.title});return created.id;});},
     saveResultDraft(draft:{statistics?:unknown;figure?:unknown;additional_analyses?:unknown[];figure_proposals?:unknown[]}){return exclusive("統計・図の条件を保存中",async()=>{await checkCurrent();const spec={...currentSpecification(specification.spec?.target??state.activeTarget),...draft};specification=await writeSpecification(workspace(),{version:specification.version,spec});specificationDirty=false;publish({});});},
     saveBackgrounds(backgrounds:Record<string,Record<string,{polygon:Point[];confirmed:true}>>,confirmed_channel_ids:string[]){return exclusive("背景領域を保存中",async()=>{await checkCurrent();publish({settings:{...state.settings,background:"confirmed_roi"}});specificationDirty=true;specification={...specification,spec:{...(specification.spec??{channel_assignment_version:state.assignments.version,target:state.activeTarget,settings:state.settings,processing:state.processing,measurement:null}),backgrounds,confirmed_channel_ids}};await persistSpecification(state.activeTarget);publish({});});},
-    saveSelection(selection:unknown){return exclusive("対象選択を保存中",async()=>{await checkCurrent();await persistSpecification(specification.spec?.target??state.activeTarget);specification=await writeSpecification(workspace(),{...specification,spec:{...specification.spec!,selection}});publish({});});},
+    saveSelection(selection:unknown){return exclusive("対象選択を保存中",async()=>{await checkCurrent();await persistSpecification(specification.spec?.target??state.activeTarget);specification=await writeSpecification(workspace(),{version:specification.version,spec:{...specification.spec!,selection}});publish({});});},
     resultRecipe(field:string,target:ReviewTarget){return currentTargets.get(field)?.[target]?.recipe;},canUndo(field:string,target:ReviewTarget){return history(field,target).undo.length>0;},canRedo(field:string,target:ReviewTarget){return history(field,target).redo.length>0;},stop(){stopped=true;if(activeRunId)void adapter.cancelWorkspaceRun(workspace(),activeRunId).catch(error=>publish({error:message(error)}));},
     /** Registers the images and returns the IDs of the fields this call added (in upload order). */
     importFiles(list:FileList|File[],mode:"automatic"|"single"="automatic"){return exclusive("画像を登録中",async()=>{stopped=false;
@@ -472,8 +488,10 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     });},
     /** The saved experiment design (groups, runs, samples), or null. */
     experiment(){return specification.spec?.experiment??null;},
+    /** Hash of the saved stratified design, as the API names it (cohort requests carry it). */
+    experimentSha256(){return specification.experiment_sha256??null;},
     /** Saves the experiment design; it never runs, adopts or changes measurements. */
-    saveExperiment(experiment:ExperimentDesign){return exclusive("実験の形を保存中",async()=>{await checkCurrent();const spec={...currentSpecification(specification.spec?.target??state.activeTarget),experiment};specification=await writeSpecification(workspace(),{version:specification.version,spec});specificationDirty=false;publish({});});},
+    saveExperiment(experiment:ExperimentDesign){return exclusive("実験デザインを保存中",async()=>{await checkCurrent();const spec={...currentSpecification(specification.spec?.target??state.activeTarget),experiment};specification=await writeSpecification(workspace(),{version:specification.version,spec});specificationDirty=false;publish({});});},
     saveAssignments(assignments:ChannelAssignment[],fieldId?:string){return exclusive("染色設定を保存中",async()=>{
       const selected=fieldId?registered.get(fieldId):null;
       if(fieldId&&!selected)throw new Error("登録した画像が見つかりません。");
@@ -492,7 +510,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     preview(field:string,target:ReviewTarget){return exclusive("候補をプレビュー中",()=>runInternal(target,field,true));},
     acceptCandidates(field:string,target:ReviewTarget){return exclusive("候補を採用中",async()=>{await checkCurrent();if(!await acceptPrepared(field,target))throw new Error("現在の条件に一致する候補がありません。");await refresh(workspace());});},
     run(target:ReviewTarget,fieldId?:string){return exclusive(`${labels[target]}を解析中`,()=>runInternal(target,fieldId));},
-    editMask(field:string,target:ReviewTarget,expectedRevision:string,operation:MaskOperation,polygon:Point[],region?:number,merged:number[]=[]){return exclusive("領域を保存・再測定中",async()=>{if(target==="nucleoplasm")throw new Error("核質は核と核小体から計算します。");await checkCurrent();const source=bound(field,target,expectedRevision),result=await adapter.editMask(workspace(),source.result,source.recipe,operation,polygon,region,merged);history(field,target).undo.push(source);history(field,target).redo=[];adopted(field,target,result,source.recipe);await refresh(workspace());});},
+    editMask(field:string,target:ReviewTarget,expectedRevision:string,operation:MaskOperation,polygon:Point[],region?:number,merged:number[]=[]){return exclusive("領域を保存・再測定中",async()=>{if(target==="nucleoplasm")throw new Error("核質は核と核小体から計算するため、直接編集できません。");await checkCurrent();const source=bound(field,target,expectedRevision),result=await adapter.editMask(workspace(),source.result,source.recipe,operation,polygon,region,merged);history(field,target).undo.push(source);history(field,target).redo=[];adopted(field,target,result,source.recipe);await refresh(workspace());});},
     correct(field:string,target:ReviewTarget,expectedRevision:string,kind:"delete"|"exclude",region:number){return exclusive("領域を更新中",async()=>{if(target==="nucleoplasm"&&kind==="delete")throw new Error("核質のマスクは直接変更できません。");await checkCurrent();const source=bound(field,target,expectedRevision),result=await adapter.correct(workspace(),source.result,kind,region,source.recipe);history(field,target).undo.push(source);history(field,target).redo=[];adopted(field,target,result,source.recipe);await refresh(workspace());});},
     undo(field:string,target:ReviewTarget){return travel(field,target,"undo");},redo(field:string,target:ReviewTarget){return travel(field,target,"redo");},
     excludeField(field:string,reason:string|null){return exclusive("解析対象を更新中",async()=>{await checkCurrent();const entry=adapter.selection()?.entries.find(value=>value.field_id===field);if(!entry)throw new Error("保存した視野の登録状態を確認できません。");await adapter.excludeField(workspace(),entry.id,reason);await refresh(workspace());});},

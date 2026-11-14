@@ -91,23 +91,33 @@ def download(source: dict, cache: Path) -> Path:
     cache.mkdir(parents=True, exist_ok=True)
     name = ("md5-" + source["md5"]) if source.get("md5") else source["sha256"]
     target = cache / name
+
+    def intact(path: Path) -> bool:
+        return not (("bytes" in source and path.stat().st_size != source["bytes"])
+                    or ("md5" in source and _md5_file(path) != source["md5"])
+                    or ("sha256" in source and sha256_file(path) != source["sha256"]))
+
     if not target.exists():
         partial = cache / (name + ".partial")
+        # A response cut short by the network ends without an error; the digest check retries it.
         for attempt in range(4):
             try:
                 log("download", source["url"])
                 request = urllib.request.Request(source["url"], headers={"User-Agent": "cytellect-showcase-build"})
                 with urllib.request.urlopen(request, timeout=300) as response, partial.open("wb") as stream:
                     shutil.copyfileobj(response, stream, 1024 * 1024)
-                break
+                if intact(partial):
+                    break
+                log("download incomplete, retrying", source["url"])
             except OSError:
                 if attempt == 3:
                     raise
-                time.sleep(10 * (attempt + 1))
+            if attempt == 3:
+                partial.unlink(missing_ok=True)
+                raise SystemExit(f"source integrity mismatch: {source['url']}")
+            time.sleep(10 * (attempt + 1))
         os.replace(partial, target)
-    if (("bytes" in source and target.stat().st_size != source["bytes"])
-            or ("md5" in source and _md5_file(target) != source["md5"])
-            or ("sha256" in source and sha256_file(target) != source["sha256"])):
+    if not intact(target):
         target.unlink()
         raise SystemExit(f"source integrity mismatch: {source['url']}")
     source.setdefault("sha256", sha256_file(target))
@@ -917,6 +927,7 @@ def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
             for kind in [*(value for value in layouts if value != drawn), drawn]:
                 renders.append(timed(f"render-{kind}", lambda kind=kind: space.render(saved["comparison"], kind)))
     directions = direction_checks(plan.get("direction_checks", []), saved)
+    example = example_discussion(api, space.wid, plan.get("discussion_example"), saved.get("comparison"))
     # Leave the saved settings on the region the opening comparison measures (scenario.final_target, the
     # nucleus view by default), so the images open on the outlines that are compared. Nuclei and nucleoli
     # can be edited there; nucleoplasm masks are derived and not editable.
@@ -927,8 +938,38 @@ def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
     owner = api.app.state.store.one(workspaces, id=space.wid)["owner"]
     return {"workspace_id": space.wid, "owner": owner, "fields": space.fields, "timings": timings, "fragment_review": removed,
             "statistics": {name: {"job": value["job"], "revision": value["revision"]} for name, value in saved.items()},
-            "direction_checks": directions,
+            "direction_checks": directions, "discussion_example": example,
             "renders": renders, "spec_version": space.spec["version"], "space": space}
+
+
+def example_discussion(api: Api, workspace: str, example: dict | None, comparison: dict | None) -> dict | None:
+    """The demo's discussion of its opening comparison (requirements AC-08): written for the scene, never by a model.
+
+    It passes the production checks against the saved result (no number outside the result, no significance,
+    "no change" or reference) and is stored as `origin: "example"`, which the page shows as the demo's example.
+    """
+    if not example:
+        return None
+    if not comparison or comparison["operation"] != "comparison":
+        raise ApiError("discussion_example needs the scene's recorded comparison")
+    import time
+    import uuid
+
+    from cytellect_analysis.discussion_context import discussion_context
+    from cytellect_analysis.discussion_validation import DiscussionRejected, validate_discussion
+    from cytellect_api.db import result_discussions
+
+    context = discussion_context(comparison["result"])
+    try:
+        validated = validate_discussion(example, context, model="demo-example", prompt_version="example", origin="example")
+    except DiscussionRejected as error:
+        raise ApiError(f"discussion_example rejected: {error.codes}") from None
+    with api.app.state.store.transaction() as conn:
+        conn.execute(result_discussions.insert().values(
+            id=str(uuid.uuid4()), workspace_id=workspace, job_id=comparison["job"], cache_key=f"example:{comparison['job']}",
+            request_id=str(uuid.uuid4()), state="complete", created=time.time(), lease_until=0.0,
+            discussion=validated.model_dump(mode="json")))
+    return {"job": comparison["job"], "context_sha256": validated.context_sha256}
 
 
 def direction_checks(checks: list[dict], saved: dict) -> list[dict]:
@@ -1065,7 +1106,10 @@ def deterministic_zip(target: Path, entries: dict[str, Path | bytes]) -> None:
     with zipfile.ZipFile(partial, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
         for name in sorted(entries):
             info = zipfile.ZipInfo(name, date_time=ZIP_DATE)
-            info.compress_type = zipfile.ZIP_DEFLATED
+            # The uploaded planes (uncompressed TIFF, which the in-browser runtime reads without imagecodecs) are
+            # most of the seed; bzip2 keeps it under GitHub's 100 MB file limit (four scenes: 114 MB as deflate,
+            # about 95 MB). Python's zipfile reads both, in CPython and in Pyodide.
+            info.compress_type = zipfile.ZIP_BZIP2 if name.lower().endswith((".tif", ".tiff")) else zipfile.ZIP_DEFLATED
             info.external_attr = 0o644 << 16
             value = entries[name]
             archive.writestr(info, value if isinstance(value, bytes) else value.read_bytes(), compresslevel=9)
@@ -1100,6 +1144,46 @@ def rederive_in_browser(seed_zip: Path, seed_data: Path, work: Path) -> dict:
     return {key: result[key] for key in ("statistics", "figure_render")}
 
 
+def pack_recordings(recordings: Path) -> dict[str, Path | bytes]:
+    """Seed entries for the detector recordings: index, label arrays (``.npz``) and engine files.
+
+    Recordings made by this build hold ``.npy`` arrays, packed here; recordings unpacked from an
+    earlier seed already hold ``.npz`` and are published as they are. A missing array fails the
+    build when the archive is written, so a seed never lists an array it does not contain.
+    """
+    import numpy as np
+
+    index = json.loads((recordings / "index.json").read_text())
+    entries: dict[str, Path | bytes] = {}
+    used = set()
+    for entry in index["entries"].values():
+        # Label arrays are published compressed (.npz) so unpacking the seed stays small.
+        for name, relative in list(entry["outputs"].items()):
+            if relative.endswith(".npy"):
+                packed = relative[:-4] + ".npz"
+                if f"recordings/{packed}" not in entries:
+                    buffer = io.BytesIO()
+                    np.savez_compressed(buffer, array=np.load(recordings / relative, allow_pickle=False))
+                    entries[f"recordings/{packed}"] = buffer.getvalue()
+                entry["outputs"][name] = packed
+            elif relative.endswith(".npz"):
+                if not (recordings / relative).is_file():
+                    raise SystemExit(f"showcase_recording_array_missing: {relative}")
+                entries[f"recordings/{relative}"] = recordings / relative
+            else:
+                raise SystemExit(f"showcase_recording_array_unknown: {relative}")
+        for item in entry["files"]:
+            if item.get("omitted") or item["bytes"] > ENGINE_FILE_LIMIT:
+                item.pop("file", None)
+                item["omitted"] = True
+            else:
+                used.add(item["file"])
+    entries["recordings/index.json"] = (json.dumps(index, sort_keys=True, indent=1) + "\n").encode()
+    for relative in sorted(used):
+        entries[f"recordings/{relative}"] = recordings / relative
+    return entries
+
+
 def export_seed(data_dir: Path, recordings: Path, proposals: dict, showcase: dict, target: Path) -> dict:
     staging = data_dir.parent / "seed-db.sqlite"
     sqlite_copy(data_dir / "cytellect.sqlite", staging)
@@ -1114,29 +1198,7 @@ def export_seed(data_dir: Path, recordings: Path, proposals: dict, showcase: dic
             omitted.append({"path": relative.as_posix(), "sha256": sha256_file(path), "bytes": path.stat().st_size})
             continue
         entries[relative.as_posix()] = path
-    index = json.loads((recordings / "index.json").read_text())
-    used = set()
-    import numpy as np
-
-    for entry in index["entries"].values():
-        # Label arrays are published compressed (.npz) so unpacking the seed stays small.
-        for name, relative in list(entry["outputs"].items()):
-            if relative.endswith(".npy"):
-                packed = relative[:-4] + ".npz"
-                if f"recordings/{packed}" not in entries:
-                    buffer = io.BytesIO()
-                    np.savez_compressed(buffer, array=np.load(recordings / relative, allow_pickle=False))
-                    entries[f"recordings/{packed}"] = buffer.getvalue()
-                entry["outputs"][name] = packed
-        for item in entry["files"]:
-            if item.get("omitted") or item["bytes"] > ENGINE_FILE_LIMIT:
-                item.pop("file", None)
-                item["omitted"] = True
-            else:
-                used.add(item["file"])
-    entries["recordings/index.json"] = (json.dumps(index, sort_keys=True, indent=1) + "\n").encode()
-    for relative in sorted(used):
-        entries[f"recordings/{relative}"] = recordings / relative
+    entries.update(pack_recordings(recordings))
     from cytellect_api.db import Store, fields
 
     from .seed import plan
@@ -1679,7 +1741,9 @@ def main(argv: list[str] | None = None) -> None:
             {"id": manifest["id"] if len(manifests) > 1 else "", "workspace": scenes[manifest["id"]]["scenario"]["workspace_id"],
              "regions": scene_regions(manifest),
              "examples": len((manifest["scenario"].get("proposals") or {}).get("presets", [])),
-             "rank": rank_examples(manifest)} for _, manifest in manifests])
+             "rank": rank_examples(manifest),
+             "gateChannels": manifest["scenario"].get("gate_channels", []),
+             "scope": journal_scope(manifest), "story": story_metrics(manifest)} for _, manifest in manifests])
         save()
         write_manifest(args, manifests, state)
     if "manifest" in stages:
@@ -1690,6 +1754,27 @@ def main(argv: list[str] | None = None) -> None:
                                work / "qa" / manifest["id"], scenes[manifest["id"]]["scenario"]["fields"])
             log("qa overlays", manifest["id"], len(written))
     log("done", round(time.perf_counter() - started, 1), "s")
+
+
+def journal_scope(manifest: dict) -> str:
+    """``full`` records every operation the screen offers; ``story`` only what tells the scene (journal.mjs)."""
+    scope = manifest["scenario"].get("journal", "full")
+    if scope not in ("full", "story"):
+        raise SystemExit(f"unknown journal scope: {scope}")
+    return scope
+
+
+def story_metrics(manifest: dict) -> list[dict]:
+    """The region and metric of the opening analyses and the companions, whose statistics a story scene records."""
+    plan = manifest["scenario"]
+    items = list((plan.get("statistics") or {}).values()) + list(plan.get("companions") or [])
+    seen, story = set(), []
+    for item in items:
+        key = (item["target"], item["metric"])
+        if key not in seen:
+            seen.add(key)
+            story.append({"region": item["target"], "metric": item["metric"]})
+    return story
 
 
 def opening_channel(manifest: dict) -> dict:
@@ -1708,8 +1793,9 @@ def scene_note(manifest: dict, scene: dict, examples: list[dict]) -> dict:
             "licence": dataset.get("license"), "licenceUrl": dataset.get("license_url"),
             "sourceUrl": dataset.get("source"), "doi": dataset.get("doi"), "citation": dataset.get("citation"),
             "description": dataset.get("scope"), "modifications": dataset.get("modifications"),
-            "caveats": dataset.get("caveats", []), "reportedChange": dataset.get("reported_change"),
+            "caveats": dataset.get("caveats", []), "reportedChange": dataset.get("reported_change"), "explainer": dataset.get("explainer"),
             "regions": scene_regions(manifest), "target": manifest["scenario"].get("final_target", "nuclei"),
+            "gateChannels": manifest["scenario"].get("gate_channels", []),
             **opening_channel(manifest), "examples": examples, "assistantScope": manifest.get("assistant_scope"),
             "fields": [{"field": f"視野 {index + 1}", "source_file": item["id"], **item["metadata"]}
                        for index, item in enumerate(scene.get("prepared", []))]}
@@ -1773,7 +1859,7 @@ def write_manifest(args, manifests: list, state: dict) -> None:
             "id": manifest["id"],
             "dataset": {key: manifest.get("dataset", {}).get(key) for key in (
                 "name", "source", "doi", "license", "license_quoted", "license_url", "attribution", "citation", "scope",
-                "modifications", "caveats", "reported_change")},
+                "modifications", "caveats", "reported_change", "explainer")},
             "derivation_rule": manifest.get("derivation_rule"),
             "derivation_amendment": manifest.get("derivation_amendment"),
             "selection": {key: value for key, value in manifest.get("selection", {}).items()
@@ -1781,7 +1867,7 @@ def write_manifest(args, manifests: list, state: dict) -> None:
             "scenario_notes": {key: manifest.get("scenario", {}).get(key) for key in (
                 "unit_definition", "pairing_basis", "design_note", "statistics", "statistics_planned",
                 "statistics_amendment", "grid_notes", "fragment_review", "comparison_plan", "opening",
-                "final_target", "companions", "direction_checks", "presentation_amendment")},
+                "final_target", "companions", "direction_checks", "presentation_amendment", "discussion_example")},
             "experiment": manifest.get("experiment"),
             "proposals": ({**{key: manifest["scenario"]["proposals"].get(key) for key in ("model", "prompt_version", "source", "note")},
                            "presets": [item["instruction"] for item in manifest["scenario"]["proposals"]["presets"]],

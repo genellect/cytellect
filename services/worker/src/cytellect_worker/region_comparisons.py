@@ -18,6 +18,14 @@ def run_region_comparison(store, job, output):
             or rev["state"] != "succeeded" or not rev["reviewed"]
             or rev["config"].get("analysis_kind") != "region-2d"):
         raise ValueError("review_required")
+    from cytellect_analysis.experiment_strata import check_source_strata, refuse_legacy_comparison
+    from cytellect_api.analysis_spec import saved_experiment
+
+    # The saved design may have become stratified after the request was queued (no old-version bypass).
+    with store.transaction() as conn:
+        design = saved_experiment(conn, rev["workspace_id"])
+    refuse_legacy_comparison(design)
+    check_source_strata(design, rev["config"])
     report = read_json(store.safe_path(rev["result_dir"], "measurements.json"))
     if report["field_failures"]:
         raise ValueError("review_required")

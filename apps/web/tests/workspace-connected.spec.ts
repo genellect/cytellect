@@ -1,3 +1,4 @@
+import {nucleusTableFixture} from "./nucleus-table-fixture";
 import {mkdir} from "node:fs/promises";
 import {expect, test} from "@playwright/test";
 import type {ChannelAssignments, ImportedField, Recipe, WorkspaceRun, WorkspaceSelection} from "../src/lib/workspace/api-adapter";
@@ -81,6 +82,8 @@ for (const viewport of [{width:1920,height:1080},{width:1440,height:900},{width:
       return json(run);
     }
     if (path.endsWith("/region-measurements")) return json({revision_id: path.includes("historical-revision")?"historical-revision":"synthetic-revision", protocol_version: "3.0.0", field_failures: [], exclusions: [], field_tables: {"synthetic-field": {rows: ["c1", "c2"].map(channel_id => ({region_id: path.includes("historical-revision")?7:1, channel_id, area_px: 600, area_um2: null, mean: 120, median: 110, integrated: 72000}))}}});
+    // Adopted nuclei open on their nucleus table (MV-07).
+    if (path.endsWith("/nucleus-table")) return json(nucleusTableFixture({fieldId: "synthetic-field", revision: path.split("/")[3], channels: [{channel_id: "c1", label: "c1", stain: "DAPI"}], nuclei: [1], areaPx: 600}));
     if (path.endsWith("/region-masks")) return json({regions: [{id: path.includes("historical-revision")?7:1, points: [[40, 25], [80, 25], [80, 55], [40, 55]]}], metadata: {mask_revision_id: "synthetic-mask"}});
     if(path.endsWith("/revisions/historical-revision"))return json({...revision(),id:"historical-revision"});
     if (path.endsWith("/revisions/synthetic-revision")) return json(revision());
@@ -91,15 +94,15 @@ for (const viewport of [{width:1920,height:1080},{width:1440,height:900},{width:
   await page.goto("/workspace");
   await loaded;
   // A new workspace starts by choosing the form of the experiment (requirements E-01).
-  await expect(page.getByRole("heading", {name: "解析の形を選ぶ", exact: true, level: 1})).toBeVisible();
+  await expect(page.getByRole("heading", {name: "実験デザイン", exact: true, level: 1})).toBeVisible();
   await expect(page.getByRole("button", {name: /^1 画面/})).toBeEnabled();
   await expect(page.getByRole("button", {name: /^2 画面/})).toBeEnabled();
   await page.getByTestId("file-input").setInputFiles([{name: "A01_c1.tif", mimeType: "image/tiff", buffer: Buffer.from([1, 2, 3])}, {name: "A01_c2.tif", mimeType: "image/tiff", buffer: Buffer.from([4, 5, 6])}]);
   // Images added before the form is chosen wait for it; one screen takes them and opens on them.
-  await expect(page.getByRole("status").filter({hasText: "画像 2 件を受け取りました。"})).toBeVisible();
+  await expect(page.getByRole("status").filter({hasText: "受け取った画像：2 件。"})).toBeVisible();
   expect(writes.some(value => /region-fields/.test(value))).toBe(false);
   await page.getByRole("button", {name: /^1 画面/}).click();
-  await expect(page.getByRole("button", {name: "染色対応", exact: true})).toBeEnabled();
+  await expect(page.getByRole("toolbar",{name:"画像の表示"}).getByRole("combobox",{name:"領域",exact:true})).toBeEnabled();
   await expect(page).toHaveURL(/[?&]id=synthetic-workspace(?:&|$)/);
   expect(runCount).toBe(0);
   expect(writes.some(value => /proposal|analyses|\/runs/.test(value))).toBe(false);
@@ -107,13 +110,15 @@ for (const viewport of [{width:1920,height:1080},{width:1440,height:900},{width:
   await expect(page.getByRole("complementary", {name: "画像解析", exact: true})).toHaveCount(0);
   await page.getByRole("button", {name: "設定パネル", exact: true}).click();
   await page.getByRole("combobox", {name:"背景補正",exact:true}).selectOption("confirmed_roi");
-  await page.getByRole("button", {name:"背景を描く",exact:true}).click();
+  await page.getByRole("button", {name:"背景ROIを描画",exact:true}).click();
   const drawing=page.locator('[data-drawing="true"]');
   await expect(drawing).toBeVisible();
   for(const position of [{x:10,y:10},{x:30,y:10},{x:30,y:30}]) await drawing.click({position});
   await expect(page.getByRole("button", {name:"描画を保存",exact:true})).toBeEnabled();
-  await page.getByRole("button", {name:"描画を取り消す",exact:true}).click();
+  await page.getByRole("button", {name:"描画の取り消し",exact:true}).click();
   await page.getByRole("combobox", {name:"背景補正",exact:true}).selectOption("raw");
+  // 染色対応 is in the image menu (⋯), out of the way of the image work (MV-08).
+  await page.locator("summary[aria-label='画像の設定']").click();
   await page.getByRole("button", {name: "染色対応", exact: true}).click();
   await page.getByLabel("c1の染色名").fill("DAPI");
   await page.getByLabel("c1の役割").selectOption("nuclear");
@@ -165,7 +170,7 @@ for (const viewport of [{width:1920,height:1080},{width:1440,height:900},{width:
   await expect(page.getByText("核 · 図の保存時の版",{exact:true})).toBeVisible();
   await expect(page.getByRole("button",{name:"領域 7",exact:true})).toBeVisible();
   await page.getByRole("button",{name:"領域 7",exact:true}).click();
-  await expect(page.getByRole("button",{name:"領域を描く",exact:true})).toHaveCount(0);
+  await expect(page.getByRole("button",{name:"領域を描画",exact:true})).toHaveCount(0);
   expect(selection.version).toBe(adoptedVersion);
   await page.getByRole("button",{name:"元の結果へ戻る",exact:true}).click();
   await expect(figure).toBeVisible();

@@ -15,12 +15,15 @@
 .pair[data-placement=below] .paneTable{border-top:1px solid #dfe3e8}
 .pair[data-placement=side] .paneTable{border-left:1px solid #dfe3e8}
 .paneTable table{font-size:13px}
-.paneTable th,.paneTable td{padding:5px 8px}
+/* One line height for every cell, so a row with a Japanese note is as tall as a row of numbers (N-08). */
+.paneTable th,.paneTable td{padding:5px 8px;line-height:17px}
 .tableEmpty{margin:0;padding:12px;color:#5b6573;font-size:13px}
 .empty{color:#5b6573;padding:16px;margin:auto;text-align:center}
 @media (max-width:620px){
   .pair{grid-template-columns:minmax(0,1fr);grid-auto-rows:max-content;overflow:auto;align-content:start}
   .pane,.paneBody{grid-template-rows:auto auto}
   .paneImage{padding:0}
-  .paneTable{max-height:240px}
+  .paneTable{max-height:300px}
 }
+
+.tableViews{display:flex;gap:4px;padding:6px 8px 0}.tableViews button{font-size:13px;border:0;background:none;padding:2px 9px;border-radius:12px}.tableViews button[aria-pressed=true]{color:#1e58ad;background:#e8f0fc}.paneTable tr[data-excluded=true] td{color:#8a919c}.paneTable>p{margin:6px 8px;font-size:13px}

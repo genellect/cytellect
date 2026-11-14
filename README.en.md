@@ -4,7 +4,7 @@
 
 [![Cytellect](docs/images/readme-hero.webp)](https://cytellect.app/)
 
-[日本語](README.md) · [Product site](https://cytellect.app/) · [Live demo](https://cytellect.app/demo) · [Windows](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.20) · [Docker](docs/docker-desktop.md) · [Methods](docs/methods.md) · [Documentation](docs/README.md)
+[日本語](README.md) · [Product site](https://cytellect.app/) · [Live demo](https://cytellect.app/demo) · [Windows](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.23) · [Docker](docs/docker-desktop.md) · [Methods](docs/methods.md) · [Documentation](docs/README.md)
 
 Cytellect is an analysis platform for life-science researchers that handles everything from microscopy image analysis to statistical processing and graph output. Image processing uses the pretrained deep-learning models StarDist and Cellpose-SAM, and numerical computation uses Python.
 
@@ -106,9 +106,11 @@ Each run uses its own working directory and child processes. Cancellation or exc
 
 Settings updates are checked against the requester's version and return `409` on conflict. Mask corrections are saved as new versions, and the measurements, statistics and figures that depend on that mask are marked for update.
 
-Authentication uses `HttpOnly`, `SameSite=Strict` cookies, and tokens are stored as hashes. The API checks resource ownership and validates the Origin of update requests. See [SECURITY.md](SECURITY.md) for the current security measures and how to report a vulnerability.
+## Security and research data
 
-Images and results that users load are stored in a data area separate from the application code, and the worker manages their retention and deletion ([data protection and operations](docs/security.md)).
+Cytellect handles unpublished research data, which is highly confidential, while publishing its code as open source and operating cloud features used by research labs. Its handling of research data and its security are therefore set out explicitly.
+
+Research data is never kept in the cloud, and updates are verified by signature, so a compromise of the cloud services or the repository cannot reach stored research data or users' PCs. The design in detail and how to report a vulnerability are described in [SECURITY.md](SECURITY.md).
 
 ## Distribution
 
@@ -163,3 +165,7 @@ The code is open source under the [Apache License 2.0](LICENSE). Third-party com
 | Landing-page photos, logos in figures | Pexels and Unsplash licenses; trademarks of their owners | Logos are used only to identify the software |
 
 CI records dependency licenses as an SBOM. Per-model records of software, weights and training data are in [Third-party software and weights](docs/oss.md).
+
+## Developer
+
+Cytellect is developed primarily by Yuto Matsui ([@genellect](https://github.com/genellect)). The developer works as a systems engineer and is also involved in molecular biology research. The developer's background is available on the [portfolio](https://yuto-matsui.com/).

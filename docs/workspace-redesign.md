@@ -31,7 +31,7 @@ Three routine operations:
    images per group and independent run ([group comparison](drafts/group-comparison/requirements.md),
    E-01–E-08, owner decision amending U01). The first images added before the form
    is chosen wait for it (2026-10-28 owner decision): 1 screen takes them, 2 screens ask for the
-   run and group, and "形を決めずに登録" registers them without a design, with groups
+   run and group, and "実験デザインなしで登録" registers them without a design, with groups
    typed per field in statistics; images added to a design without a place are listed
    as unassigned fields.
 2. **Review the proposal and press 解析を実行.** The analysis goal is optional
@@ -63,7 +63,14 @@ its values are read from (Codex final review, 2026-10-26, V-04). A per-nucleus
 value of the nucleoli (eccentricity, total area, count, area fraction) is read
 from the nucleoplasm set but labelled 「核小体（核ごとの値）」 and checked on the
 nucleoli; opening such a value from a figure shows that saved analysis's
-nucleoli with its nucleus outlined. Saved tables lead with the field to open,
+nucleoli with its nucleus outlined. The image is coloured by what it measures (image measurement view, 2026-11-11,
+[requirements](drafts/image-measurement-view/requirements.md)): a colour mode on the image
+toolbar (outlines, positive-negative nuclei, nucleolus and nucleoplasm) decides how both
+panes are drawn, what the table under each image lists, and the one next step beside that
+table (the comparison of groups it leads to). The table's heading names per what, which
+stain and which values. The toolbar keeps what is shown (region, stain, colour mode) apart
+from how it is laid out (run, link, display range, table, two screens); channel assignment
+sits in the image menu. Saved tables lead with the field to open,
 its run and group, the region and the value; an observation's sample, date,
 selection state, versions and internal ids are folded under 「記録の詳細」
 (N-06). Folded tables are drawn only once opened, since a saved table can hold

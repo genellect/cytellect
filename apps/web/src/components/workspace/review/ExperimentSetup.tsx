@@ -1,6 +1,7 @@
 "use client";
 import {useEffect,useRef,useState} from "react";
-import {LABEL_LIMIT,addRun,assignFields,emptyDesign,expandToPair,fieldsIn,issueText,labelProblem,readiness,removeRun,renameGroup,unassignField,updateRun,type ExperimentDesign} from "@/lib/workspace/experiment-design";
+import {LABEL_LIMIT,savePlan,addRun,assignFields,assignStratum,emptyDesign,expandToPair,fieldsIn,isStratified,issueText,labelProblem,readiness,removeRun,renameGroup,unassignField,updateRun,type ExperimentDesign} from "@/lib/workspace/experiment-design";
+import {StrataEditor} from "./StrataEditor";
 import styles from "./experiment-setup.module.css";
 
 export interface SetupField {id:string;label:string;preview?:string}
@@ -34,11 +35,18 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pendin
   const [pendingTarget,setPendingTarget]=useState("");
   const fileInput=useRef<HTMLInputElement>(null),folderInput=useRef<HTMLInputElement>(null);
   const target=useRef<AddTarget|null>(null);
-  useEffect(()=>{setDraft(design);},[design]);
+  // The last plan the API stored: a refused save returns the editor to it instead of keeping the refused edit.
+  const stored=useRef<ExperimentDesign|null>(design);
+  useEffect(()=>{stored.current=design;setDraft(design);},[design]);
   useEffect(()=>{folderInput.current?.setAttribute("webkitdirectory","");},[]);
   const fieldLabel=(id:string)=>fields.find(value=>value.id===id)?.label??id;
 
-  async function save(next:ExperimentDesign){setError("");setDraft(next);try{await onSave(next);return true;}catch(cause){setError(cause instanceof Error?cause.message:"保存できませんでした。");return false;}}
+  async function save(next:ExperimentDesign){
+    setError("");setDraft(next);
+    const outcome=await savePlan(stored.current,next,onSave);
+    stored.current=outcome.stored;setDraft(outcome.shown);setError(outcome.error);
+    return outcome.ok;
+  }
   async function place(target:AddTarget,next:ExperimentDesign){setError("");try{await pending?.onPlace(target,next);}catch(cause){setError(cause instanceof Error?cause.message:"画像を登録できませんでした。");}}
   async function choose(layout:"single"|"pair"){
     const next=addRun(emptyDesign(layout),{label:runDate,performed_on:runDate});
@@ -52,18 +60,18 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pendin
     try{await onAdd(chosen,list,draft);}catch(cause){setError(cause instanceof Error?cause.message:"画像を登録できませんでした。");}
   }
 
-  if(!draft)return <section className={styles.choice} aria-label="解析の形を選ぶ">
-    <h1>解析の形を選ぶ</h1>
-    <p>実験の形に合わせて、画面の数を選びます。あとから 1 画面を 2 画面に広げられます。</p>
-    {pending&&<p className={styles.pending} role="status">画像 {pending.count} 件を受け取りました。1 画面か 2 画面かを選ぶと登録します。
-      <button className={styles.link} disabled={busy} title="群・試料・独立実験単位を、統計の画面で視野ごとに入力します" onClick={pending.onWithoutForm}>形を決めずに登録（群は統計で入力）</button>
+  if(!draft)return <section className={styles.choice} aria-label="実験デザイン">
+    <h1>実験デザイン</h1>
+    <p>実験デザインに合わせて画面の数を選びます。1 画面は後から 2 画面に拡張できます。</p>
+    {pending&&<p className={styles.pending} role="status">受け取った画像：{pending.count} 件。1 画面か 2 画面かの選択後に登録します。
+      <button className={styles.link} disabled={busy} title="群・試料・独立実験単位は、統計の画面で視野ごとに入力します" onClick={pending.onWithoutForm}>実験デザインなしで登録</button>
       <button className={styles.link} disabled={busy} onClick={pending.onDiscard}>取り消す</button></p>}
     <div className={styles.choices}>
-      <button className={styles.choiceCard} disabled={busy||readOnly} onClick={()=>choose("single")}><strong>1 画面</strong><span>1 つの群を記述する</span><small>核の大きさや数の分布を、実験回ごとに確かめます。検定はしません。</small></button>
-      <button className={styles.choiceCard} disabled={busy||readOnly} onClick={()=>choose("pair")}><strong>2 画面</strong><span>2 つの群を比べる</span><small>対照と処理（例：WT と変異体、溶媒と薬剤）を並べ、同じ実験回の 2 群を対にして比べます。</small></button>
+      <button className={styles.choiceCard} disabled={busy||readOnly} onClick={()=>choose("single")}><strong>1 画面</strong><span>1 群の記述</span><small>核の大きさや数の分布を実験回ごとに示します。検定はしません。</small></button>
+      <button className={styles.choiceCard} disabled={busy||readOnly} onClick={()=>choose("pair")}><strong>2 画面</strong><span>2 群の比較</span><small>対照と処理（例：WT と変異体、溶媒と薬剤）を、同じ実験回で対にして比較します。</small></button>
     </div>
     <label className={styles.inline}>最初の実験回の実施日<input type="date" value={runDate} onChange={event=>setRunDate(event.target.value)}/></label>
-    {onCsv&&<button className={styles.link} onClick={onCsv}>測定済みの数値（CSV）を使う</button>}
+    {onCsv&&<button className={styles.link} onClick={onCsv}>測定済みの CSV を使用</button>}
   </section>;
 
   // One group is described, never tested: independence matters only once the design compares groups (E-01, T-05).
@@ -79,16 +87,16 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pendin
     setLabels(previous=>{const next={...previous};delete next[key];return next;});void save(apply(value));
   }
 
-  return <section className={styles.setup} aria-label="実験の形">
+  return <section className={styles.setup} aria-label="実験デザイン">
     <header className={styles.setupHeader}>
-      <h1>{draft.layout==="pair"?"2 画面：2 つの群を比べる":"1 画面：1 つの群を記述する"}</h1>
-      {draft.layout==="single"&&!readOnly&&<button disabled={locked} onClick={()=>void save(expandToPair(draft))}>2 画面に広げる</button>}
+      <h1>{draft.layout==="pair"?"2 画面：2 群の比較":"1 画面：1 群の記述"}</h1>
+      {draft.layout==="single"&&!readOnly&&<button disabled={locked} onClick={()=>void save(expandToPair(draft))}>2 画面に拡張</button>}
     </header>
     <p className={styles.lead}>{draft.layout==="pair"
-      ?"同じ実験回（実験日）に行った対照と処理を対にして比べます。n は実験回の数で、細胞や視野の数ではありません。"
-      :"1 つの群の値の分布を、実験回ごとに示します。"}</p>
+      ?"同じ実験回の対照と処理を対にして比較します。n は細胞や視野の数ではなく、実験回の数です。"
+      :"1 群の値の分布を実験回ごとに示します。"}</p>
     {pending&&!readOnly&&<section className={styles.pendingPlace} aria-label="受け取った画像の追加先">
-      <p>受け取った画像 {pending.count} 件を追加する実験回と群を選んでください。群ごとに分かれた画像は「取り消す」を押し、各群の「画像を追加」から追加します。</p>
+      <p>受け取った画像 {pending.count} 件の追加先を選んでください。群ごとに分かれた画像は「取り消す」の後、各群の「画像を追加」から追加します。</p>
       <select aria-label="追加先" disabled={locked} value={pendingTarget} onChange={event=>setPendingTarget(event.target.value)}>
         <option value="">追加先を選ぶ…</option>
         {runs.flatMap(run=>draft.groups.map(group=><option key={`${run.id}:${group.id}`} value={`${run.id}\u0000${group.id}`}>{run.label} · {group.label}</option>))}
@@ -125,6 +133,9 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pendin
                 <span>{fieldLabel(id)}</span>{value.sample&&<small>{value.sample}</small>}
               </button>
               {!readOnly&&<button className={styles.remove} aria-label={`${fieldLabel(id)} の割り当てを外す`} disabled={locked} onClick={()=>void save(unassignField(draft,id))}>×</button>}
+              {isStratified(draft)&&<select className={styles.stratum} aria-label={`${fieldLabel(id)} の層`} disabled={locked} value={value.stratum_id??""}
+                onChange={event=>void save(assignStratum(draft,[id],event.target.value||null))}>
+                <option value="">層を選ぶ…</option>{draft.strata.map(stratum=><option key={stratum.id} value={stratum.id}>{stratum.label}</option>)}</select>}
             </li>)}</ul>
             {!readOnly&&<div className={styles.addRow}>
               <label className={styles.sample}>試料（任意）<input value={samples[key]??""} maxLength={LABEL_LIMIT} placeholder="例：カバーガラス 1" onChange={event=>setSamples(previous=>({...previous,[key]:event.target.value}))}/></label>
@@ -141,16 +152,17 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pendin
       {runs.some(run=>run.performed_on===runDate)&&<small>同じ日の別の独立な実験は「{uniqueRunLabel(runDate,runs.map(run=>run.label))}」として追加します。</small>}
     </div>}
     <label className={styles.independence}><input type="checkbox" checked={draft.independence_confirmed??false} disabled={locked} onChange={event=>void save({...draft,independence_confirmed:event.target.checked})}/>
-      <span><strong>各実験回は独立に行った</strong>（別々に播種・処理・染色した）。日付やプレートが違うだけでは独立とは限りません。確認できない場合は、分布の記述まで行えます。</span></label>
-    {unassigned.length>0&&<section className={styles.unassigned} aria-label="群と実験回が決まっていない視野">
-      <h2>群と実験回が決まっていない視野</h2>
+      <span><strong>各実験回は独立に行った</strong>（別々に播種・処理・染色）。日付やプレートの違いだけでは独立とは限りません。未確認の場合、群間比較は記述統計のみです。</span></label>
+    <StrataEditor design={draft} locked={locked} readOnly={readOnly} onSave={save}/>
+    {unassigned.length>0&&<section className={styles.unassigned} aria-label="群・実験回が未割り当ての視野">
+      <h2>群・実験回が未割り当ての視野</h2>
       <ul>{unassigned.map(field=><li key={field.id}><button className={styles.link} onClick={()=>onOpenField(field.id)}>{field.label}</button>
         <select aria-label={`${field.label} の割り当て`} disabled={locked||!runs.length} value="" onChange={event=>{const [runId,groupId]=event.target.value.split("\u0000");if(runId&&groupId)void save(assignFields(draft,[field.id],{group_id:groupId,run_id:runId}));}}>
           <option value="">割り当てる…</option>
           {runs.flatMap(run=>draft.groups.map(group=><option key={`${run.id}:${group.id}`} value={`${run.id}\u0000${group.id}`}>{run.label} · {group.label}</option>))}
         </select></li>)}</ul>
     </section>}
-    {(issues.length>0||error)&&<ul className={styles.issues} aria-label="統計の前に確かめること">
+    {(issues.length>0||error)&&<ul className={styles.issues} aria-label="統計の前の確認事項">
       {error&&<li role="alert">{error}</li>}
       {issues.map((issue,index)=><li key={index}>{issueText(draft,issue,fieldLabel)}</li>)}
     </ul>}

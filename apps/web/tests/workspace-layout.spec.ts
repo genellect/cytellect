@@ -146,9 +146,11 @@ for (const size of SIZES) test(`side by side on a ${size.name} (${size.width} ×
   await expect(page.getByRole("region", {name: /（対照）$/}).locator(`svg path[data-region="${id}"]`)).toHaveAttribute("aria-pressed", "true");
 });
 
-test("the nucleolar scene opens side by side with the same layout", async ({page}) => {
-  const scene = SCENES.find(value => value.regions.includes("nucleoli"));
-  test.skip(!scene, "No published scene has nucleoli.");
+test("the ActD nucleolar scene, opened by its id, shows side by side with the same layout", async ({page}) => {
+  // A scene other than the opening one (oxaliplatin, DM-06, covered above), whose opening comparison measures a
+  // channel (scenes.json channel: eu5), so the channel it opens on is checked too.
+  const scene = SCENES.find(value => value.id === "zenodo-6643470-nucleolar");
+  test.skip(!scene, "The ActD nucleolar scene is not published.");
   await page.setViewportSize({width: 1272, height: 554});
   await page.goto(`/demo?id=${scene!.workspaceId}`);
   await expect(page.getByRole("region", {name: /の測定値$/})).toHaveCount(2, {timeout: live});
@@ -169,10 +171,14 @@ test("the nucleolar scene opens side by side with the same layout", async ({page
 
 for (const size of [SIZES[0], SIZES[1]]) test(`statistics on a ${size.name}: the sentence first, the source folded, the figure in view`, async ({page}) => {
   await page.setViewportSize({width: size.width, height: size.height});
+  // The opening scene (oxaliplatin, DM-06): a descriptive comparison, as every published scene is.
   await page.goto(SCENES[0] ? `/demo?id=${SCENES[0].workspaceId}&step=statistics` : "/demo?step=statistics");
   const summary = page.getByRole("region", {name: "結果のまとめ"});
   await expect(summary).toBeVisible({timeout: live});
-  await expect(summary.locator("p").first()).toContainText("比べました");
+  // The heading comes first, then the values, then the basis line; a descriptive scene never reads as a test (RS-01, E-05).
+  await expect(summary.locator(":scope > *").first()).toHaveJSProperty("tagName", "H3");
+  await expect(summary.locator(":scope > ul").first().locator("li").first()).toBeVisible();
+  await expect(summary.locator("summary").filter({hasText: /^記述統計/})).toBeVisible();
   // The source's report is there to open, not in front of the result.
   const source = summary.locator("details").filter({hasText: "出典の報告"});
   if (await source.count()) await expect(source).not.toHaveAttribute("open", "");

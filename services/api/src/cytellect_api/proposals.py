@@ -112,11 +112,18 @@ def effective_settings(settings, credentials=None):
 
 def request_draft(settings, context: ProposalContext, request_id: str | None = None) -> dict:
     """POST the context to the service; never logs or retries the request body."""
+    return post_to_service(settings, "/v1/proposals",
+                           {"context": context.model_dump(mode="json"), "prompt_version": settings.proposal_prompt_version},
+                           request_id)
+
+
+def post_to_service(settings, path: str, content: dict, request_id: str | None = None) -> dict:
+    """One POST to the proposal service; the same credential, limits and failure codes for every route."""
     url = service_url(settings)
     if url is None:
         raise ProposalServiceError(503, "proposal_service_disabled")
-    body = json.dumps({"context": context.model_dump(mode="json"), "prompt_version": settings.proposal_prompt_version}).encode("utf-8")
-    request = urllib.request.Request(f"{url}/v1/proposals", data=body, method="POST", headers={
+    body = json.dumps(content).encode("utf-8")
+    request = urllib.request.Request(f"{url}{path}", data=body, method="POST", headers={
         "authorization": f"Bearer {settings.proposal_token}", "content-type": "application/json",
         "user-agent": "Cytellect/0.1",
         "Idempotency-Key": request_id or str(uuid.uuid4())})

@@ -1,6 +1,7 @@
 /** Real workspace transport. Pixels, masks, summaries and figures remain server-owned. */
 import { API, ApiError, errorCodeMessage, fetchBlob, post, request } from "../api";
 import { descriptiveFigureView, type DescriptiveResult } from "../descriptive-view";
+import type { components } from "../generated";
 import type { Job, Point, Workspace } from "../types";
 import type { ChannelDefinition, GroupedField, Grouping } from "./grouping";
 import type {NclObjectProcessingDetector} from "./nucleolar-definition";
@@ -87,6 +88,16 @@ export interface ProposalDraft {
 }
 export interface ValidatedProposal {draft: ProposalDraft; needs_confirmation: string[]}
 export interface GfpGateResult {unit?: "nucleus" | "cell_roi"; objects?: Array<{field_id:string;region_id:number;gfp_mean:number|null;gfp_positive:boolean|null;gfp_gate_reason:string}>; protocol?: string; method?: "negative_control" | "manual" | "batch_otsu"; nuclei?: Array<{field_id:string;region_id:number;gfp_mean:number|null;gfp_positive:boolean|null;gfp_gate_reason:string}>; percentile: number; dates: Record<string, {threshold: number | null; control_nuclei: number; missing_reason: string | null}>; field_counts: Record<string, {positive: number; negative: number; control: number; unselected: number}>}
+export type NucleusTableData = components["schemas"]["NucleusTable"];
+export type RegionPartitionData = components["schemas"]["RegionPartitionTable"];
+export interface RegionPartitionRequest {
+  fieldId:string; nuclearRevisionId:string; targetRevisionId:string; referenceRevisionId:string; channelId:string;
+}
+function partitionPath(value:RegionPartitionRequest, csv=false) {
+  const query=new URLSearchParams({field_id:value.fieldId,target_revision_id:value.targetRevisionId,
+    reference_revision_id:value.referenceRevisionId,channel_id:value.channelId});
+  return `/v1/revisions/${encodeURIComponent(value.nuclearRevisionId)}/region-partition${csv?".csv":""}?${query}`;
+}
 export interface CompartmentSummaryRow {nucleus_id: number; nucleolar_count: number; nucleolar_area_fraction: number | null; nucleolar_mean: number | null; nucleoplasm_mean: number | null; log2_nucleoplasm_over_nucleolus: number | null; missing_reason: string | null; values: "raw" | "background_corrected"}
 export interface CompartmentSummaryFile {
   channels: Record<string, {protocol: string; rows: CompartmentSummaryRow[]}>;
@@ -105,7 +116,7 @@ class TerminalJobError extends Error {}
 export const refusedWrite = (error: unknown) => error instanceof ApiError && error.status >= 400 && error.status < 500 && error.status !== 408;
 export function assertWorkspaceConnection(host: string, origin: string) {
   const loopback = (name: string) => ["localhost", "127.0.0.1", "[::1]", "::1"].includes(name);
-  if (origin && loopback(new URL(origin, `https://${host}`).hostname) && !loopback(host)) throw new Error("公開サイトからローカルの解析サーバーには接続できません。ランチャーから開いてください。");
+  if (origin && loopback(new URL(origin, `https://${host}`).hostname) && !loopback(host)) throw new Error("公開サイトからはローカルの解析サーバーに接続できません。デスクトップの「Cytellect」から開いてください。");
 }
 
 export function channelSpecification(channel: ChannelDefinition) {
@@ -115,8 +126,8 @@ export function channelSpecification(channel: ChannelDefinition) {
 }
 
 export function nuclearRecipe(channel: ChannelDefinition, detectionMaxSide?: number | null): Recipe {
-  if (channel.role !== "nuclear") throw new Error("核検出に使うチャンネルを選択してください");
-  if (detectionMaxSide != null && (!Number.isInteger(detectionMaxSide) || detectionMaxSide < 64 || detectionMaxSide > 2048)) throw new Error("検出用画像の長辺は64〜2048pxで指定してください");
+  if (channel.role !== "nuclear") throw new Error("核検出に使うチャンネルを選択してください。");
+  if (detectionMaxSide != null && (!Number.isInteger(detectionMaxSide) || detectionMaxSide < 64 || detectionMaxSide > 2048)) throw new Error("検出用画像の長辺は64〜2048pxで指定してください。");
   // Without an explicit size the detection copy follows the estimated nucleus size (nuclear-size/1.0.0),
   // so high-resolution images are not split into nuclear texture.
   return {id: "region-2d", version: detectionMaxSide == null ? "1.7.0" : "1.5.0", region_set_id: "nuclei", label: "核", source: "stardist_nuclear",
@@ -133,7 +144,7 @@ export interface FieldSummary { field: string; n: number; excluded: number; medi
 /** Map saved values for interactive selection; never calculate summaries in the browser. */
 export function savedDistribution(figure: SavedFigure): {points: DistributionPoint[]; summaries: FieldSummary[]} {
   const points = (figure.result.plot_data ?? []).map(row => {
-    if (typeof row.field_id !== "string" || !Number.isInteger(row.region_id) || typeof row.value !== "number" || !Number.isFinite(row.value)) throw new Error("図の出典を確認できません");
+    if (typeof row.field_id !== "string" || !Number.isInteger(row.region_id) || typeof row.value !== "number" || !Number.isFinite(row.value)) throw new Error("図の出典を確認できません。");
     return {field: row.field_id, region: row.region_id as number, value: row.value, state: "included" as const};
   });
   return {points, summaries: figure.result.field_summary.map(row => ({field: row.field_id, n: row.selected_rows,
@@ -176,20 +187,20 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       const jobs = await client.request<Job[]>(`/v1/workspaces/${workspace}/jobs`);
       const job = jobs.find(item => item.id === id);
       if (job) onState?.(job.state);
-      if (!job) throw new Error("処理が見つかりません。作業の保存期限を確認してください");
+      if (!job) throw new Error("処理が見つかりません。作業の保存期限を確認してください。");
       if (job.state === "succeeded") return job;
-      if (job.state === "failed" || job.state === "cancelled") throw new TerminalJobError(job.error ? errorCodeMessage(job.error) : "処理を中止しました");
+      if (job.state === "failed" || job.state === "cancelled") throw new TerminalJobError(job.error ? errorCodeMessage(job.error) : "処理を中止しました。");
       await client.wait();
     }
   }
   async function readResult(revision: string, field: string, recipe?: Recipe): Promise<SavedResult> {
     if (recipe) revisionRecipes.set(revision, recipe);
     const report = await client.request<Report>(`/v1/revisions/${revision}/region-measurements`);
-    if (report.revision_id !== revision) throw new Error("保存された測定値の解析版が一致しません");
+    if (report.revision_id !== revision) throw new Error("保存された測定値と解析版が一致しません。");
     const failure = report.field_failures.find(item => item.field_id === field);
-    if (failure) throw new Error(`この視野の解析に失敗しました (${failure.reason})`);
+    if (failure) throw new Error(`この視野の解析に失敗しました（${failure.reason}）。`);
     const table = report.field_tables[field];
-    if (!table) throw new Error("この視野の測定値がありません");
+    if (!table) throw new Error("この視野の測定値がありません。");
     const masks = await client.request<SavedResult["masks"]>(`/v1/revisions/${revision}/region-masks?field_id=${encodeURIComponent(field)}`);
     const record=revisionConfigs.has(revision)?{config:revisionConfigs.get(revision)}:await client.request<{config?:RevisionRecord["config"]}>(`/v1/revisions/${revision}`);
     return {regionSet: revisionRecipes.get(revision)?.region_set_id || "nuclei", revision, field, rows: table.rows, masks, exclusions: report.exclusions, protocol: report.protocol_version,
@@ -227,7 +238,7 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       return entry;
     },
     async upload(workspace: string, field: GroupedField, channels: Grouping["channels"], files: Map<string, File>, entryId?: string) {
-      if (channels.length > 4) throw new Error("1視野につき4チャンネルまで取り込めます");
+      if (channels.length > 4) throw new Error("1視野のチャンネルは4つまでです。");
       const data = new FormData();
       const presentChannels = channels.filter(channel => field.files[channel.token]);
       const modes = new Set(presentChannels.map(channel => field.files[channel.token].inputMode || "native"));
@@ -235,7 +246,7 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       presentChannels.forEach((channel, index) => {
         const added = field.files[channel.token];
         const file = added && files.get(added.path);
-        if (!file) throw new Error(`チャンネル ${channel.stain || channel.token} の画像がありません`);
+        if (!file) throw new Error(`チャンネル ${channel.stain || channel.token} の画像がありません。`);
         data.set(`ch${index}`, file);
       });
       const key = `${workspace}:${field.key}`;
@@ -265,7 +276,7 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       await assertSelection(workspace);
       const key = `${workspace}:${field}:${JSON.stringify(recipe)}:${measurement.mode}:${options.adopt !== false}`;
       let created = runs.get(key);
-      if (created === "uncertain") throw new Error("受付状態を確認できません。再読み込みで保存済みの処理状態を確認してください。");
+      if (created === "uncertain") throw new Error("受付状態を確認できません。再読み込みして処理状態を確認してください。");
       if (created && created.recipe !== JSON.stringify(recipe)) throw new Error("受付済みの解析条件が異なります。再読み込みして処理状態を確認してください。");
       if (!created) {
         runs.set(key, "uncertain");
@@ -315,7 +326,7 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       return adopt(workspace, await readResult(revision, field));
     },
     async editMask(workspace: string, result: SavedResult, recipe: Recipe, operation: MaskOperation, polygon: Point[], region?: number, merged: number[] = []) {
-      if (operation === "merge" ? merged.length < 2 : polygon.length < 3 || (operation !== "add" && !region)) throw new Error("修正する領域と輪郭を指定してください");
+      if (operation === "merge" ? merged.length < 2 : polygon.length < 3 || (operation !== "add" && !region)) throw new Error("修正する領域と輪郭を指定してください。");
       await assertSelection(workspace);
       await client.post(`/v1/workspaces/${workspace}/current`, {revision_id: result.revision});
       const created = await client.post<{job_id: string; revision_id: string}>(`/v1/revisions/${result.revision}/region-edits`, {
@@ -329,6 +340,32 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
     async gfpGate(workspace: string, body: {gfp_channel_id: string; percentile: number; unit?: "nucleus" | "cell_roi"; method?: "negative_control" | "manual" | "batch_otsu"; threshold?: number; values?: "raw" | "corrected"; fields: Array<{field_id: string; revision_id: string; control: boolean}>}) {
       return client.post<GfpGateResult>(`/v1/workspaces/${workspace}/gfp-gate`, body);
     },
+    async channelGate(workspace:string, body:components["schemas"]["ChannelGateRequest"]){
+      return client.post<components["schemas"]["ChannelGateResult"]>(`/v1/workspaces/${workspace}/channel-gate`,body);
+    },
+    /** One row per nucleus of a nuclear revision with every channel, and the adopted nucleoli of
+     * `nucleolarRevision` when given (computed by the API from saved rows and labels). */
+    async nucleusTable(revision: string, field: string, nucleolarRevision?: string) {
+      const query = `field_id=${encodeURIComponent(field)}${nucleolarRevision ? `&nucleolar_revision_id=${encodeURIComponent(nucleolarRevision)}` : ""}`;
+      return client.request<NucleusTableData>(`/v1/revisions/${revision}/nucleus-table?${query}`);
+    },
+    /** Saves the same nucleus table as a ZIP: the CSV, each column's unit and definition, and the JSON. */
+    async saveNucleusTable(revision: string, field: string, nucleolarRevision?: string) {
+      const query = `field_id=${encodeURIComponent(field)}${nucleolarRevision ? `&nucleolar_revision_id=${encodeURIComponent(nucleolarRevision)}` : ""}`;
+      const blob = await client.blob(`/v1/revisions/${revision}/nucleus-table.zip?${query}`);
+      const url = URL.createObjectURL(blob), anchor = document.createElement("a");
+      anchor.href = url; anchor.download = `nucleus-table-${field}.zip`; anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    },
+    async regionPartition(value:RegionPartitionRequest) {
+      return client.request<RegionPartitionData>(partitionPath(value));
+    },
+    async saveRegionPartition(value:RegionPartitionRequest) {
+      const blob=await client.blob(partitionPath(value,true));
+      const url=URL.createObjectURL(blob),anchor=document.createElement("a");
+      anchor.href=url;anchor.download=`region-partition-${value.fieldId}.csv`;anchor.click();
+      setTimeout(()=>URL.revokeObjectURL(url),1000);
+    },
     async compartmentSummary(revision: string, field: string) {
       return client.request<CompartmentSummaryFile>(`/v1/revisions/${revision}/compartment-summary?field_id=${encodeURIComponent(field)}`);
     },
@@ -339,12 +376,20 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       });
       await waitJob(workspace, created.job_id);
       const saved = await client.request<DescriptiveResult>(`/v1/jobs/${created.job_id}/result`);
-      if (saved.revision_id !== result.revision) throw new Error("図と測定値の解析版が一致しません");
+      if (saved.revision_id !== result.revision) throw new Error("図と測定値の解析版が一致しません。");
       return {job: created.job_id, revision: result.revision, choice, result: saved};
     },
     figureFiles(figure: SavedFigure) {
       const view = descriptiveFigureView(figure.result);
       return {view, files: figure.result.figure.source_files};
+    },
+    /** The stored discussion of one saved comparison, or null when none was made (AC-06). */
+    async discussion(job: string): Promise<DiscussionView | null> {
+      return client.request<DiscussionView | null>(`/v1/jobs/${job}/discussion`);
+    },
+    /** Sends the saved result (never images, file names or paths) after the researcher confirmed it (AC-02, AC-03). */
+    async draftDiscussion(job: string, experiment: ExperimentNote, retryFailed = false): Promise<DiscussionView> {
+      return client.post<DiscussionView>(`/v1/jobs/${job}/discussion`, {transmission_confirmed: true, experiment, ...(retryFailed ? {retry_failed: true} : {})});
     },
     async draft(workspace: string, goal: string, retryFailed = false, continuation?: {current_processing: ProposalProcessing | null; previous_goal: string; previous_proposal: ProposalDraft | null;field_id?:string}) {
       // Called only after the one-time scope notice has been accepted in this workspace.
@@ -354,3 +399,5 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
   };
 }
 export type ApiAdapter = ReturnType<typeof createApiAdapter>;
+export type DiscussionView = components["schemas"]["DiscussionView"];
+export type ExperimentNote = components["schemas"]["ExperimentNote"];

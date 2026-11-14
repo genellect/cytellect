@@ -1,0 +1,193 @@
+{
+  "schema_version": "1.0.0",
+  "kind": "landing-page-product-evidence",
+  "captured_by": "apps/web/scripts/capture-lp-evidence.mjs",
+  "note": "Browser captures of the public demo. Each asset is one rectangle of one screen; no interface element or value is edited.",
+  "demo": {
+    "origin": "https://cytellect.app",
+    "generated_from_commit": "ea47baa98cf598d0bf699e6ddd372030320c37b9",
+    "runtime_generated_from_commit": "29d42479ef5dacf84e11614ad941e3f669a1bad8+uncommitted"
+  },
+  "assets": [
+    {
+      "file": "lp-screen-statistics.webp",
+      "sha256": "ca0dbe40fd678262e86d3ac0492d47d57f799e4e855fd40ea6622f26c9ee0062",
+      "bytes": 145928,
+      "width": 2400,
+      "height": 1185,
+      "css_width": 1600,
+      "css_height": 790,
+      "scene": "cpg0016-jump-source13-plk1",
+      "step": "statistics",
+      "region": "統計の画面",
+      "viewport": [
+        1600,
+        790
+      ],
+      "device_scale_factor": 1.5,
+      "source": "https://github.com/broadinstitute/cellpainting-gallery",
+      "license": "CC0-1.0",
+      "attribution": "Images: JUMP Cell Painting Consortium, Cell Painting Gallery cpg0016-jump, source_13 (CC0 1.0); plates CP-CC9-R1-01, CP-CC9-R2-01, CP-CC9-R3-01, sites 4-6 of wells A02 and A23; DNA channel only."
+    },
+    {
+      "file": "lp-focus-conclusion.webp",
+      "sha256": "faf1e182fb117c393cee56923afe5b40ef833f71ed0b9f79a2243c9fc8c2bf44",
+      "bytes": 52120,
+      "width": 1278,
+      "height": 540,
+      "css_width": 426,
+      "css_height": 180,
+      "scene": "cpg0016-jump-source13-plk1",
+      "step": "statistics",
+      "region": "結果のまとめ：結論の一文、指標の意味、要点",
+      "viewport": [
+        1600,
+        1000
+      ],
+      "device_scale_factor": 3,
+      "source": "https://github.com/broadinstitute/cellpainting-gallery",
+      "license": "CC0-1.0",
+      "attribution": "Images: JUMP Cell Painting Consortium, Cell Painting Gallery cpg0016-jump, source_13 (CC0 1.0); plates CP-CC9-R1-01, CP-CC9-R2-01, CP-CC9-R3-01, sites 4-6 of wells A02 and A23; DNA channel only."
+    },
+    {
+      "file": "lp-focus-discussion.webp",
+      "sha256": "bc8422799640ac186620cd08d4087ed832f667dc50455ee4dc5872bc2068d77b",
+      "bytes": 108696,
+      "width": 1278,
+      "height": 915,
+      "css_width": 426,
+      "css_height": 305,
+      "scene": "cpg0016-jump-source13-plk1",
+      "step": "statistics",
+      "region": "考察：解釈、限界・代替説明、追加検証",
+      "viewport": [
+        1600,
+        1000
+      ],
+      "device_scale_factor": 3,
+      "source": "https://github.com/broadinstitute/cellpainting-gallery",
+      "license": "CC0-1.0",
+      "attribution": "Images: JUMP Cell Painting Consortium, Cell Painting Gallery cpg0016-jump, source_13 (CC0 1.0); plates CP-CC9-R1-01, CP-CC9-R2-01, CP-CC9-R3-01, sites 4-6 of wells A02 and A23; DNA channel only."
+    },
+    {
+      "file": "lp-focus-table.webp",
+      "sha256": "07494287a81d87d9319a20d6b843aa582b980da47a3f46b4c0dfbd5e6f00ea7e",
+      "bytes": 173694,
+      "width": 3500,
+      "height": 746,
+      "css_width": 1750,
+      "css_height": 373,
+      "scene": "zenodo-6643470-oxaliplatin",
+      "step": "image",
+      "region": "核ごとの表",
+      "viewport": [
+        2800,
+        1000
+      ],
+      "device_scale_factor": 2,
+      "source": "https://zenodo.org/records/6643470",
+      "license": "CC-BY-4.0",
+      "attribution": "Images: Schmidt HB, Rohatgi R, Brandman O (2022), DS6a_5EU_Pulse_RawData, Zenodo, doi:10.5281/zenodo.6643470, CC BY 4.0; 640 x 640 crops placed on the Hoechst stain, channels Hoechst, NPM1 and 5-EU."
+    },
+    {
+      "file": "lp-screen-ai.webp",
+      "sha256": "d8ad632ae59278d22af1c892e74fb1225006699256a8986bdc23849b25e9695e",
+      "bytes": 161030,
+      "width": 2400,
+      "height": 1185,
+      "css_width": 1600,
+      "css_height": 790,
+      "scene": "cpg0016-jump-source13-plk1",
+      "step": "statistics",
+      "region": "統計の画面と AI のパネル",
+      "viewport": [
+        1600,
+        790
+      ],
+      "device_scale_factor": 1.5,
+      "source": "https://github.com/broadinstitute/cellpainting-gallery",
+      "license": "CC0-1.0",
+      "attribution": "Images: JUMP Cell Painting Consortium, Cell Painting Gallery cpg0016-jump, source_13 (CC0 1.0); plates CP-CC9-R1-01, CP-CC9-R2-01, CP-CC9-R3-01, sites 4-6 of wells A02 and A23; DNA channel only."
+    },
+    {
+      "file": "lp-focus-ai.webp",
+      "sha256": "e1de37ba9df17238b66a372932be3d2038d3b25a9a310b4f802284ef465f2cad",
+      "bytes": 31502,
+      "width": 960,
+      "height": 395,
+      "css_width": 320,
+      "css_height": 132,
+      "scene": "cpg0016-jump-source13-plk1",
+      "step": "statistics",
+      "region": "AI：指示の一文と、組み立てた設定の説明",
+      "viewport": [
+        1600,
+        790
+      ],
+      "device_scale_factor": 3,
+      "source": "https://github.com/broadinstitute/cellpainting-gallery",
+      "license": "CC0-1.0",
+      "attribution": "Images: JUMP Cell Painting Consortium, Cell Painting Gallery cpg0016-jump, source_13 (CC0 1.0); plates CP-CC9-R1-01, CP-CC9-R2-01, CP-CC9-R3-01, sites 4-6 of wells A02 and A23; DNA channel only."
+    },
+    {
+      "file": "lp-screen-figure.webp",
+      "sha256": "0c0d5d69f0b8aa574da2cc4063cdd3907b4562756f6b9a6a0cc991928a038f28",
+      "bytes": 95330,
+      "width": 2400,
+      "height": 1185,
+      "css_width": 1600,
+      "css_height": 790,
+      "scene": "cpg0016-jump-source13-plk1",
+      "step": "figure",
+      "region": "グラフの画面",
+      "viewport": [
+        1600,
+        790
+      ],
+      "device_scale_factor": 1.5,
+      "source": "https://github.com/broadinstitute/cellpainting-gallery",
+      "license": "CC0-1.0",
+      "attribution": "Images: JUMP Cell Painting Consortium, Cell Painting Gallery cpg0016-jump, source_13 (CC0 1.0); plates CP-CC9-R1-01, CP-CC9-R2-01, CP-CC9-R3-01, sites 4-6 of wells A02 and A23; DNA channel only."
+    },
+    {
+      "file": "lp-focus-figure-layout.webp",
+      "sha256": "477a9895ec91933e331607372c4ebe11d1a7fc7cedf74ad7f152f91ebed174c1",
+      "bytes": 28416,
+      "width": 864,
+      "height": 678,
+      "css_width": 288,
+      "css_height": 226,
+      "scene": "cpg0016-jump-source13-plk1",
+      "step": "figure",
+      "region": "グラフの設定：図の幅とレイアウト",
+      "viewport": [
+        1600,
+        1000
+      ],
+      "device_scale_factor": 3,
+      "source": "https://github.com/broadinstitute/cellpainting-gallery",
+      "license": "CC0-1.0",
+      "attribution": "Images: JUMP Cell Painting Consortium, Cell Painting Gallery cpg0016-jump, source_13 (CC0 1.0); plates CP-CC9-R1-01, CP-CC9-R2-01, CP-CC9-R3-01, sites 4-6 of wells A02 and A23; DNA channel only."
+    },
+    {
+      "file": "lp-focus-figure-size.webp",
+      "sha256": "61345285181a8518c5e75a71a9686307039cca30e182799f283c2db31db41017",
+      "bytes": 10414,
+      "width": 864,
+      "height": 750,
+      "css_width": 288,
+      "css_height": 250,
+      "scene": "cpg0016-jump-source13-plk1",
+      "step": "figure",
+      "region": "グラフの設定：幅・高さ（mm）と文字（pt）",
+      "viewport": [
+        1600,
+        1000
+      ],
+      "device_scale_factor": 3,
+      "source": "https://github.com/broadinstitute/cellpainting-gallery",
+      "license": "CC0-1.0",
+      "attribution": "Images: JUMP Cell Painting Consortium, Cell Painting Gallery cpg0016-jump, source_13 (CC0 1.0); plates CP-CC9-R1-01, CP-CC9-R2-01, CP-CC9-R3-01, sites 4-6 of wells A02 and A23; DNA channel only."
+    }
+  ]
+}

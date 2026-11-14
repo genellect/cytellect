@@ -1,11 +1,15 @@
 /** Comparison transport uses immutable server cohorts and explicit research decisions. */
+import type {StratumRequest} from "./experiment-design";
 import {API, errorCodeMessage, fetchBlob, post, request} from "../api";
 import {defaultFigureEdits} from "../figure-controls";
 import {comparisonMethod, type CommonComparisonRequest, type CommonPlotKind} from "../common-statistics";
 import type {components} from "../generated";
 import type {Job} from "../types";
 import {assertWorkspaceConnection, refusedWrite, type SavedResult, type Transport, type WorkspaceSelection} from "./api-adapter";
+import type {ChannelGateFilter} from "./channel-gate";
 
+/** The stratum a cohort holds, bound to the saved design by its hash (experiment design 1.1.0). */
+export type CohortStratum = StratumRequest;
 export type ComparisonResult = components["schemas"]["CommonComparisonView"];
 export type Metadata = components["schemas"]["RegionFieldMetadata"];
 export interface ComparisonSource {field: string; revision: string; label: string; result: SavedResult; metadata: Metadata}
@@ -16,13 +20,12 @@ export type CompartmentComparisonMetric = Extract<Selection, {source: "compartme
 export const COMPARTMENT_METRICS: readonly CompartmentComparisonMetric[] = ["log2_nucleoplasm_over_nucleolus", "nucleolar_area_fraction", "nucleolar_count", "nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity"];
 /** Nucleolar total area and shape need compartment-summary selection 1.1.0; the others keep 1.0.0. */
 const NUCLEOLAR_V11: readonly string[] = ["nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity"];
-/** Metrics the descriptive (distribution) contract accepts; per-field counts and the 1.1.0
- * nucleolar summaries are offered through the comparison only. */
-export const descriptiveSupported = (metric: string) => !["positive_count", "positive_fraction"].includes(metric);
+/** The descriptive contract accepts the metrics exposed by this workspace. */
+export function descriptiveSupported(metric:string){void metric;return true;}
 const isCompartmentMetric = (metric: string): metric is CompartmentComparisonMetric => (COMPARTMENT_METRICS as readonly string[]).includes(metric);
-/** One value per field from the adopted nuclei (field-summary selection 1.0.0). Positivity is not connected yet. */
-export type FieldSummaryMetric = "nucleus_count" | "nucleus_density_per_mm2";
-export const FIELD_SUMMARY_METRICS: readonly FieldSummaryMetric[] = ["nucleus_count", "nucleus_density_per_mm2"];
+/** One value per field from adopted nuclei, with the recorded gate for positivity. */
+export type FieldSummaryMetric = "nucleus_count" | "nucleus_density_per_mm2" | "positive_count" | "positive_fraction";
+export const FIELD_SUMMARY_METRICS: readonly FieldSummaryMetric[] = ["nucleus_count", "nucleus_density_per_mm2", "positive_count", "positive_fraction"];
 export const isFieldSummaryMetric = (metric: string): metric is FieldSummaryMetric => (FIELD_SUMMARY_METRICS as readonly string[]).includes(metric);
 export type ComparisonMetric = RegionComparisonMetric | CompartmentComparisonMetric | FieldSummaryMetric;
 export type GfpGateFilter = components["schemas"]["GfpGateFilter"];
@@ -50,13 +53,19 @@ export function gfpGateFilter(choice: GfpSelectionChoice): GfpGateFilter | compo
   if (!Number.isFinite(percentile) || percentile < 50 || percentile >= 100) throw new Error("陰性対照の percentile は 50 以上 100 未満で指定してください。");
   return {version: "1.0.0", gate_protocol: "gfp-gate/2.0.0", gfp_channel_id: choice.channel, percentile, control_field_ids: controls, keep: choice.keep ?? "positive"};
 }
-export function comparisonSelection(regionSet: string, metric: ComparisonMetric, channel: string | null, gfp: GfpSelectionChoice | null = null): Selection {
+export function comparisonSelection(regionSet: string, metric: ComparisonMetric, channel: string | null, gfp: GfpSelectionChoice | null = null, channelGate:ChannelGateFilter|null=null): Selection {
+  if(gfp&&channelGate)throw new Error("核の分類を一つ選んでください。");
   if (isFieldSummaryMetric(metric)) {
+    if(metric.startsWith("positive_")){
+      if(!channelGate)throw new Error("陽性核数・陽性率には、チャンネルによる核の分類が必要です。");
+      return {source:"field-summary",version:"1.0.0",region_set_id:regionSet,metric,positivity:channelGate};
+    }
     if (gfp) throw new Error("視野あたりの核数には、GFP による核の選別を使えません。");
+    if(channelGate)throw new Error("視野あたりの全核数には選別を使えません。分類を解除するか、陽性核数を選んでください。");
     return {source: "field-summary", version: "1.0.0", region_set_id: regionSet, metric};
   }
   // Without a GFP decision the selection is sent exactly as before (no gfp_gate key).
-  const gate = gfp ? {gfp_gate: gfpGateFilter(gfp)} : {};
+  const gate = gfp ? {gfp_gate: gfpGateFilter(gfp)} : channelGate ? {channel_gate:channelGate} : {};
   if(isCompartmentMetric(metric)&&gate.gfp_gate?.version==="1.1.0"&&gate.gfp_gate.unit==="cell_roi")throw new Error("細胞ROIのGFP分類は、核小体数・面積割合・核質／核小体比の選別には使用できません。");
   // The ratio is per channel; nucleolar count and area fraction are channel-neutral.
   if (isCompartmentMetric(metric)) {
@@ -74,6 +83,7 @@ export interface ComparisonChoices {
   kind: CommonPlotKind; width: number; height: number; yLabel: string;
   /** Optional GFP nucleus filter; absent or null compares every nucleus. */
   gfp?: GfpSelectionChoice | null;
+  channelGate?:ChannelGateFilter|null;
   /** Treatment − control estimates for one declared contrast [treatment, control] (comparison-estimates/1.0.0). */
   estimates?: boolean;
   /** False: a descriptive comparison (test "none") while run independence is unconfirmed (E-05). */
@@ -89,7 +99,7 @@ export function comparisonRequest(choices: ComparisonChoices): CommonComparisonR
   if (choices.design === "paired" && !choices.pairingBasis.trim()) throw new Error("対応の根拠を指定してください。");
   const settings = inference ? comparisonMethod(choices.method, choices.design, conditions.length)! : {version: "2.0.0" as const, test: "none" as const, omnibus: null};
   return {mode: "region-experimental-unit", ...settings,
-    selection: comparisonSelection(choices.regionSet, choices.metric, choices.channel, choices.gfp ?? null),
+    selection: comparisonSelection(choices.regionSet, choices.metric, choices.channel, choices.gfp ?? null,choices.channelGate??null),
     design: {kind: choices.design, confirmed: true, unit_definition: choices.unitDefinition.trim(), pairing_basis: choices.design === "paired" ? choices.pairingBasis.trim() : null},
     conditions, comparison_family: {family_id: "workspace-planned", kind: "planned", control: null, contrasts: choices.contrasts},
     acquisition_review: {confirmed: true, basis: choices.metric === "area_um2" ? "calibrated-area" : "same-settings", field_batches: {}, spatial_sampling_confirmed: choices.sampling},
@@ -141,10 +151,11 @@ export function createComparisonAdapter(overrides: Partial<Transport> = {}) {
     async compartmentLedger(revision: string, field: string) {
       check(); return (await client.request<CompartmentLedger>(`/v1/revisions/${revision}/compartment-ledger?field_id=${encodeURIComponent(field)}`)).fields;
     },
-    async cohort(workspace: string, sources: ComparisonSource[], metadata: Record<string, Metadata>, selection: WorkspaceSelection | null = null, missingPolicy: typeof MISSING_POLICY | null = null) {
-      if (sources.length < 2 || new Set(sources.map(source => source.field)).size !== sources.length) throw new Error("異なる視野を2件以上選択してください。");
+    /** ``stratum``: the one declared stratum of a stratified design (experiment design 1.1.0); the API checks it against the saved design. */
+    async cohort(workspace: string, sources: ComparisonSource[], metadata: Record<string, Metadata>, selection: WorkspaceSelection | null = null, missingPolicy: typeof MISSING_POLICY | null = null, allowSingle=false, stratum: CohortStratum | null = null) {
+      if (sources.length < (allowSingle?1:2) || new Set(sources.map(source => source.field)).size !== sources.length) throw new Error(allowSingle?"採用した視野を選択してください。":"異なる視野を2件以上選択してください。");
       check(); const current = await client.request<{active_revision: string | null}>(`/v1/workspaces/${workspace}`);
-      const result = await accepted(workspace, `/v1/workspaces/${workspace}/region-cohorts`, {expected_active_revision_id: current.active_revision, ...(selection ? {workspace_selection: selection} : {}), sources: sources.map(source => ({field_id: source.field, revision_id: source.revision})), metadata, ...(missingPolicy ? {compartment_missing: missingPolicy} : {})}, {sources: sources.map(source => [source.field, source.revision]), metadata, selection, missingPolicy});
+      const result = await accepted(workspace, `/v1/workspaces/${workspace}/region-cohorts`, {expected_active_revision_id: current.active_revision, ...(selection ? {workspace_selection: selection} : {}), sources: sources.map(source => ({field_id: source.field, revision_id: source.revision})), metadata, ...(missingPolicy ? {compartment_missing: missingPolicy} : {}), ...(stratum ? {stratum} : {})}, {sources: sources.map(source => [source.field, source.revision]), metadata, selection, missingPolicy, stratum});
       if (!result.revision_id) throw new Error("集合の解析版がありません。");
       return result.revision_id;
     },

@@ -15,7 +15,9 @@ from pydantic import (
 )
 from pydantic.json_schema import SkipJsonSchema
 
+from .channel_gate_contracts import ChannelGateFilter
 from .contracts import PlotSpec, StrictModel
+from .experiment_strata import StratumRecord
 from .regions import Id
 from .statistical_methods import StatisticalMethodsTemplate
 
@@ -162,9 +164,17 @@ class _OptionalGate(StrictModel):
     @model_serializer(mode="wrap")
     def omit_absent_gate(self, handler):
         value = handler(self)
-        if isinstance(value, dict) and getattr(self, "gfp_gate", None) is None:
-            value.pop("gfp_gate", None)
+        if isinstance(value, dict):
+            for key in ("gfp_gate", "channel_gate"):
+                if getattr(self, key, None) is None:
+                    value.pop(key, None)
         return value
+
+    @model_validator(mode="after")
+    def one_gate(self):
+        if getattr(self, "gfp_gate", None) is not None and getattr(self, "channel_gate", None) is not None:
+            raise ValueError("channel_gate_conflicting_filters")
+        return self
 
 
 class DescriptivePlot(PlotSpec):
@@ -182,6 +192,7 @@ class RegionSelection(_OptionalGate):
     channel_id: Id | None = None
     metric: RegionMetric
     gfp_gate: GfpFilter | None = Field(default=None, json_schema_extra=_omit_default)
+    channel_gate: ChannelGateFilter | None = Field(default=None, json_schema_extra=_omit_default)
 
     @model_validator(mode="after")
     def channel_for_intensity_only(self):
@@ -209,6 +220,7 @@ class CompartmentSummarySelection(_OptionalGate):
     channel_id: Id | None = None
     metric: CompartmentSummaryMetric
     gfp_gate: GfpFilter | None = Field(default=None, json_schema_extra=_omit_default)
+    channel_gate: ChannelGateFilter | None = Field(default=None, json_schema_extra=_omit_default)
 
     @model_validator(mode="after")
     def channel_for_intensity_ratio_only(self):
@@ -243,14 +255,14 @@ class FieldSummarySelection(StrictModel):
     version: Literal["1.0.0"] = FIELD_SUMMARY_VERSION
     region_set_id: Id
     metric: FieldSummaryMetric
-    positivity: GfpFilter | None = Field(default=None, json_schema_extra=_omit_default)
+    positivity: GfpFilter | ChannelGateFilter | None = Field(default=None, json_schema_extra=_omit_default)
 
     @model_validator(mode="after")
     def positivity_for_positive_metrics(self):
         positive = self.metric.startswith("positive_")
         if positive != (self.positivity is not None):
             raise ValueError("field_summary_positivity_mismatch")
-        if self.positivity is not None and self.positivity.keep != "positive":
+        if self.positivity is not None and not isinstance(self.positivity, ChannelGateFilter) and self.positivity.keep != "positive":
             raise ValueError("field_summary_positivity_keep_positive_required")
         return self
 
@@ -267,6 +279,7 @@ class CompartmentSummarySelectionV11(_OptionalGate):
     channel_id: Id | None = Field(default=None, json_schema_extra=_omit_default)
     metric: CompartmentSummaryMetric | NucleolarSummaryMetric
     gfp_gate: GfpFilter | None = Field(default=None, json_schema_extra=_omit_default)
+    channel_gate: ChannelGateFilter | None = Field(default=None, json_schema_extra=_omit_default)
 
     @model_validator(mode="after")
     def channel_for_intensity_ratio_only(self):
@@ -350,10 +363,14 @@ class DescriptiveResult(StrictModel):
     compartment_missing: CompartmentMissingSummary | None = Field(default=None, json_schema_extra=_omit_default)
     # Present for region results created with the mask-correction ledger (absent from older results).
     mask_corrections: MaskCorrectionSummary | None = Field(default=None, json_schema_extra=_omit_default)
+    # Present only for a source of a stratified design (experiment design 1.1.0; absent from older results).
+    stratum: StratumRecord | None = Field(default=None, json_schema_extra=_omit_default)
 
     @model_serializer(mode="wrap")
     def omit_absent_review_marker(self, handler):
         result = handler(self)
+        if self.stratum is None:
+            result.pop("stratum", None)
         if self.source_review is None:
             result.pop("source_review", None)
         if self.compartment_missing is None:

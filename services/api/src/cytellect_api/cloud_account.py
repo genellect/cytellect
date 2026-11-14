@@ -39,7 +39,7 @@ DEFAULT_CLOUD_URL = "https://api.cytellect.app"
 RESPONSE_LIMIT = 64 * 1024
 REQUEST_TIMEOUT_SECONDS = 15
 # The cloud counts the start-up wait as GPU time, so a warm-up gives up after two
-# minutes and the researcher decides whether to try again (「もう一度試す」).
+# minutes and the researcher decides whether to try again (「再試行」).
 WARM_UP_SECONDS = 120
 WARM_UP_REUSE_SECONDS = 60
 # A sent code is valid for 10 minutes on the service; after that, start again.

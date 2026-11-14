@@ -67,7 +67,7 @@ export function ConnectedGfp({adapter,workspace,fields,channels,disabled=false,o
     {method==="negative_control"&&<fieldset><legend>陰性対照の視野</legend>{fields.map(field=><label key={field.fieldId} style={{display:"block"}}><input type="checkbox" checked={controls.includes(field.fieldId)} disabled={disabled||busy} onChange={event=>setControls(previous=>event.target.checked?[...previous,field.fieldId]:previous.filter(id=>id!==field.fieldId))}/>{field.label}</label>)}</fieldset>}
     <label>集計対象<select value={keep} onChange={event=>setKeep(event.target.value as typeof keep)} disabled={disabled||busy}><option value="positive">GFP陽性{unit==="nucleus"?"核":"細胞ROI"}</option><option value="negative">GFP陰性{unit==="nucleus"?"核":"細胞ROI"}</option></select></label>
     <button type="button" disabled={disabled||busy||!valid} onClick={()=>void classify()}>{busy?"分類中…":"GFPで分類"}</button>
-    {!fields.length&&<p>{unit==="nucleus"?"核の検出後":"細胞ROIの保存後"}に分類できます。</p>}
+    {!fields.length&&<p>分類には{unit==="nucleus"?"核の検出":"細胞ROIの保存"}が必要です。</p>}
     {totals&&<output aria-live="polite">陽性 {totals.positive} · 陰性 {totals.negative} · 未判定 {totals.pending}</output>}
     {result&&Object.entries(result.dates).map(([date,item])=><small key={date}>{date==="all"?"全視野":date||"撮影日未設定"} · {item.threshold===null?"しきい値未確定":`しきい値 ${item.threshold.toPrecision(5)}`}</small>)}
     {error&&<ErrorText text={error}/>}

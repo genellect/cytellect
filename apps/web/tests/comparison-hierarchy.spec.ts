@@ -43,12 +43,12 @@ async function verifyReadiness(page:Page,fixture:string,practice:PracticeField[]
  const initial=await post(page,`/v1/workspaces/${workspace.id}/region-analyses`,{recipe:{id:"region-2d",version:"1.0.0",region_set_id:"regions",label:"人工領域",source:"imported"},backgrounds:Object.fromEntries(fields.map(field=>[field.id,{signal:bg}])),exclusions:[]});
  await waitJob(page,initial.job_id);await post(page,`/v1/revisions/${initial.revision_id}/review`,{});
  await page.setViewportSize({width:1440,height:1000});await workbench(page,title);await page.getByRole("button",{name:/03 統計解析/}).click();
- const panel=byLabel(page,"統計解析");const readiness=byLabel(page,"比較の前に確認すること");const submit=panel.getByRole("button",{name:"比較と図を作成",exact:true});
+ const panel=byLabel(page,"統計解析");const readiness=byLabel(page,"比較前の確認");const submit=panel.getByRole("button",{name:"比較と図を作成",exact:true});
  const conditions=panel.getByRole("group",{name:"比較に含める条件",exact:true});
  const confirm=async()=>{
   await panel.getByRole("checkbox",{name:"独立性と、必要な対応関係を実験記録で確認しました。",exact:true}).check();
   await panel.getByRole("checkbox",{name:"撮影・標識・背景と非飽和の信号を比較できると確認しました。",exact:true}).check();
-  await panel.getByRole("checkbox",{name:"除外・欠測と比較対象を確認しました。",exact:true}).check();
+  await panel.getByRole("checkbox",{name:"除外・欠測と比較対象を確認済み",exact:true}).check();
  };
  const choose=async()=>{
   await byLabel(panel,"比較する測定値").selectOption("signal-mean_corrected");
@@ -63,10 +63,10 @@ async function verifyReadiness(page:Page,fixture:string,practice:PracticeField[]
  await shot(page,"comparison-readiness-missing-desktop.png",readiness);await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await shot(page,"comparison-readiness-missing-mobile.png");
  await readiness.getByRole("button",{name:"視野 1 の試料へ",exact:true}).click();await expect(byLabel(page,"視野 1 の試料")).toBeFocused();await byLabel(page,"視野 1 の試料").fill("practice-s0");
  await expect(readiness).toContainText("入力した実験情報を新しい解析版に保存");await expect(readiness).not.toContainText("視野 1：試料が未記録");
- await byLabel(page,"視野 3 の撮影日／バッチ").fill("practice-batch");await readiness.getByRole("button",{name:"実験情報を保存する操作へ",exact:true}).click();
+ await byLabel(page,"視野 3 の撮影日／バッチ").fill("practice-batch");await readiness.getByRole("button",{name:"実験情報の保存へ",exact:true}).click();
  const save=panel.getByRole("button",{name:"実験情報を新しい解析版に保存",exact:true});await expect(save).toBeFocused();
  const saving=page.waitForResponse(response=>new URL(response.url()).pathname.endsWith("/region-metadata")&&response.request().method()==="POST");await save.click();const discard=page.getByRole("dialog",{name:"未保存の変更を確認"});await expect(discard).toContainText("比較条件");await discard.getByRole("button",{name:"変更を破棄して続ける",exact:true}).click();const child=await json(await saving);await waitJob(page,child.job_id);
- await expect.poll(async()=>byLabel(page,"比較の前に確認すること").textContent()).toContain("この解析版の品質確認を完了");
+ await expect.poll(async()=>byLabel(page,"比較前の確認").textContent()).toContain("この解析版の品質確認を完了");
  const old=await json(await page.request.get(`${api}/v1/revisions/${initial.revision_id}`));expect(old.config.field_snapshot[fields[0].id].metadata.sample).toBeNull();expect(old.config.field_snapshot[fields[2].id].metadata.acquisition_date).toBeNull();
  await readiness.getByRole("button",{name:"画像と品質確認へ",exact:true}).click();await expect(page.getByTestId("image-canvas")).toBeVisible();
  await post(page,`/v1/revisions/${child.revision_id}/review`,{});await workbench(page,title);await page.getByRole("button",{name:/03 統計解析/}).click();await choose();
@@ -74,9 +74,9 @@ async function verifyReadiness(page:Page,fixture:string,practice:PracticeField[]
  await panel.getByRole("checkbox",{name:"B と C",exact:true}).check();await confirm();await expect(submit).toBeEnabled();await expect(readiness).toBeHidden();
  await byLabel(panel,"比較する組み合わせ").selectOption("control");await byLabel(panel,"対照群").selectOption("A");await conditions.getByRole("checkbox",{name:"A",exact:true}).uncheck();await confirm();
  await expect(readiness).toContainText("対照群「A」が比較対象から外れています");await expect(byLabel(panel,"対照群")).toHaveValue("A");await expect(submit).toBeDisabled();
- await readiness.getByRole("button",{name:"対照群を確認する",exact:true}).click();await expect(byLabel(panel,"対照群")).toBeFocused();await shot(page,"comparison-readiness-stale-control-mobile.png");
+ await readiness.getByRole("button",{name:"対照群を確認",exact:true}).click();await expect(byLabel(panel,"対照群")).toBeFocused();await shot(page,"comparison-readiness-stale-control-mobile.png");
  await conditions.getByRole("checkbox",{name:"A",exact:true}).check();await byLabel(panel,"比較する組み合わせ").selectOption("planned");await conditions.getByRole("checkbox",{name:"C",exact:true}).uncheck();
- await expect(readiness).toContainText("事前に決めた比較の組み合わせを選んで");await panel.getByRole("checkbox",{name:"B と A",exact:true}).check();await confirm();await expect(submit).toBeEnabled();expect(comparisonPosts).toBe(0);
+ await expect(readiness).toContainText("事前指定した比較の組み合わせを選択");await panel.getByRole("checkbox",{name:"B と A",exact:true}).check();await confirm();await expect(submit).toBeEnabled();expect(comparisonPosts).toBe(0);
  const creating=page.waitForResponse(response=>new URL(response.url()).pathname.endsWith("/region-comparisons")&&response.request().method()==="POST");await submit.click();const response=await creating;
  const body=response.request().postDataJSON();expect(body.conditions).toEqual(["B","A"]);expect(body.comparison_family.contrasts).toEqual([["B","A"]]);
  const job=await json(response);await waitJob(page,job.job_id);await expect(byLabel(page,"保存済みの群間比較")).toBeVisible();expect(comparisonPosts).toBe(1);

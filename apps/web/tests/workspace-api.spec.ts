@@ -1,3 +1,4 @@
+import {nucleusTableFixture} from "./nucleus-table-fixture";
 import {expect,test,type BrowserContext,type Page} from "@playwright/test";
 import type {WorkspaceSelection} from "../src/lib/workspace/api-adapter";
 
@@ -37,6 +38,8 @@ async function savedWorkspace(context:BrowserContext,page:Page,failed=false){
     if(path.endsWith("/review"))return json({});
     if(path.endsWith("/common-statistics")){if(method==="POST"){statistics=body;return json({job_id:"stats"},202);}return json({revision_id:"cohort",source_kind:"region-2d",analysis_kind:"region-comparison",region_comparison_version:"2.0.0",spec:statistics,comparisons:[],counts:[],warnings:[],source_fields:[],figure:{source_files:[]}});}
     if(path.endsWith("/region-measurements")){const rid=path.split("/")[3],fid=rid==="r2"?"f2":"f1",ids=rid==="edited"?[2]:[1,2];return json({revision_id:rid,protocol_version:"3.0.0",measurement:{version:"1.1.0",mode:"raw_intensity"},field_failures:[],exclusions:[],field_tables:{[fid]:{rows:ids.map(region_id=>({region_id,channel_id:"c1",area_px:region_id*10,area_um2:null,mean:30,median:29,integrated:300}))}}});}
+    // Adopted nuclei open on their nucleus table (MV-07).
+    if(path.endsWith("/nucleus-table")){const rid=path.split("/")[3];return json(nucleusTableFixture({fieldId:new URL(req.url()).searchParams.get("field_id")??"f1",revision:rid,channels:[{channel_id:"c1",label:"DAPI",stain:"DAPI"}],nuclei:rid==="edited"?[2]:[1,2]}));}
     if(path.endsWith("/region-masks")){const rid=path.split("/")[3];return json({regions:(rid==="edited"?[2]:[1,2]).map(id=>({id,points:id===1?[[3,3],[12,3],[12,12],[3,12]]:[[18,18],[28,18],[28,28],[18,28]]})),metadata:{mask_revision_id:`mask-${rid}`}});}
     if(path.endsWith("/preview"))return route.fulfill({headers,contentType:"image/svg+xml",body:'<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="#869fff"/></svg>'});
     const record=revisions().find(value=>path.endsWith(`/revisions/${value.id}`));if(record)return json(record);
@@ -94,8 +97,8 @@ test("failed saved entries remain visible until explicitly excluded from compari
   await panel.getByLabel("独立実験単位",{exact:true}).fill("Transport independent units");
   for(let i=0;i<2;i++)for(const key of ["condition","sample","experimental_unit"])await panel.locator(`input[aria-label$=" ${key}"]`).nth(i).fill(`${key}-${i}`);
   await panel.getByLabel("condition-0 / condition-1",{exact:true}).check();
-  await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認した",{exact:true}).check();
-  await panel.getByLabel("測定領域と採用する視野を確認した",{exact:true}).check();
+  await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み",{exact:true}).check();
+  await panel.getByLabel("測定領域と採用する視野を確認済み",{exact:true}).check();
   await expect(panel.getByRole("button",{name:"計算",exact:true})).toBeEnabled();
   await panel.getByRole("button",{name:"計算",exact:true}).click();
   await expect.poll(()=>fixture.cohort()).not.toBeNull();

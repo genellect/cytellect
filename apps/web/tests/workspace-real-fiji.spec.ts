@@ -91,7 +91,7 @@ test("registered BBBC007 bytes pass real Fiji, raw measurement, correction and v
     await page.getByRole("navigation",{name:"作業の切替"}).getByRole("button", {name: "統計", exact: true}).click();
     await page.getByRole("complementary",{name:"解析対象"}).getByRole("combobox",{name:"指標",exact:true}).selectOption("mean");
     await page.getByRole("complementary",{name:"解析対象"}).getByRole("combobox",{name:"染色",exact:true}).selectOption("c1");
-    await page.getByLabel("測定領域と採用する視野を確認した",{exact:true}).check();
+    await page.getByLabel("測定領域と採用する視野を確認済み",{exact:true}).check();
     const response=page.waitForResponse(value=>new URL(value.url()).pathname===`/v1/revisions/${revision}/descriptive`&&value.request().method()==="POST");
     await page.getByRole("button",{name:"計算",exact:true}).click();
     const queued=await response;expect(queued.status()).toBe(202);const job=await queued.json();

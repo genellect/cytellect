@@ -1,0 +1,30 @@
+/* The table of the nucleolus-and-nucleoplasm colour mode, in the table area under or beside the image (MV-05). */
+.panel { display: block; color: #1d3027; min-width: 0; font-size: 14px; }
+.panel h3, .panel p { margin: 0; }
+.panel > * + * { margin-top: 10px; }
+.intro, .hint { max-width: 72ch; line-height: 1.6; }
+.source { padding: 10px 12px; background: #f3f7f4; border-left: 3px solid #49735b; }
+.choices { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 12px; }
+.choices > span { padding-bottom: 8px; color: #526b5c; }
+.choices legend { padding: 0 5px; }
+.choices label, .toolbar label { display: grid; gap: 6px; }
+.panel select { min-height: 34px; max-width: 100%; border: 1px solid #889b8d; border-radius: 5px; padding: 7px 9px; background: white; color: #1d3027; font: inherit; }
+.panel button { min-height: 32px; width: fit-content; }
+.panel :is(button, select):focus-visible, .tableScroll:focus-visible { outline: 3px solid #5d9772; outline-offset: 3px; }
+.hint { color: #526b5c; font-size: 0.875rem; }
+.toolbar { display: flex; gap: 16px; align-items: end; justify-content: space-between; flex-wrap: wrap; padding-top: 6px; }
+.definition { font-weight: 600; line-height: 1.6; }
+.tableScroll { max-height: 420px; overflow: auto; border: 1px solid #d2ddd5; }
+.tableScroll table { border-collapse: collapse; min-width: 900px; width: 100%; font-variant-numeric: tabular-nums; }
+.tableScroll caption { text-align: left; padding: 10px; font-weight: 600; }
+.tableScroll th, .tableScroll td { border-top: 1px solid #e0e7e1; padding: 9px 10px; text-align: right; vertical-align: top; }
+.tableScroll thead th { background: #f3f7f4; position: sticky; top: 0; font-size: 0.875rem; }
+.tableScroll :is(th, td):nth-child(4) { text-align: left; min-width: 180px; max-width: 260px; line-height: 1.55; white-space: normal; }
+.tableScroll tr[aria-selected="true"] { background: #edf6ee; }
+.tableScroll tr[data-excluded] { color: #6f6c64; background: #f5f4f0; }
+.provenance { border-top: 1px solid #d2ddd5; padding-top: 12px; line-height: 1.6; }
+.provenance summary { cursor: pointer; }
+.provenance dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 5px 14px; }
+.provenance dd { margin: 0; overflow-wrap: anywhere; }
+.provenance p { margin-top: 12px; max-width: 76ch; overflow-wrap: anywhere; }
+@media (max-width: 700px) { .toolbar { align-items: start; } }

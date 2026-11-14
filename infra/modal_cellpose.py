@@ -17,8 +17,8 @@ import subprocess
 
 import modal
 
-# Published by .github/workflows/cellpose-gpu-image.yml from main 1d96814.
-IMAGE = "ghcr.io/genellect/cytellect-cellpose-gpu@sha256:cf061eb495f418732d31868180d6880b4101b5b9c1d445997d38606fdccfa934"
+# Published by .github/workflows/cellpose-gpu-image.yml from main 0dccdf7 (run 41315810570).
+IMAGE = "ghcr.io/genellect/cytellect-cellpose-gpu@sha256:beaf5218535e20e18fda78cad406bf2c0fc6273bf5afaf6ae401f006ced306c5"
 PORT = 8080
 # Idle seconds before scaling to zero: short enough that a finished batch stops
 # billing quickly, long enough to keep the model loaded between fields of a batch.

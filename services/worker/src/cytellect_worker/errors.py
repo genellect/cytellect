@@ -2,6 +2,7 @@
 
 from cytellect_analysis.common_statistics import SAFE_ERROR_CODES as COMMON_STATISTICS_ERRORS
 from cytellect_analysis.descriptive import SAFE_ERROR_CODES as DESCRIPTIVE_ERRORS
+from cytellect_analysis.experiment_strata import SAFE_ERROR_CODES as STRATUM_ERRORS
 from cytellect_analysis.plan_adoption import SAFE_ERROR_CODES as PLAN_ADOPTION_ERRORS
 from cytellect_analysis.planning import SAFE_ERROR_CODES as PLANNING_ERRORS
 from cytellect_analysis.region_comparison import SAFE_ERROR_CODES as REGION_COMPARISON_ERRORS
@@ -126,6 +127,8 @@ SAFE_ERRORS = frozenset(
         "fiji_detection_capacity_exceeded",
         "fiji_temporary_path_too_long",
         "fiji_temporary_path_invalid",
+        "fiji_temporary_cleanup_failed",
+        "fiji_temporary_cleanup_pending",
         "single_series_required",
         "fiji_timeout",
         "replay_requires_complete_reviewed_masks",
@@ -152,4 +155,4 @@ SAFE_ERRORS = frozenset(
         "figure_numeric_x_requires_scatter",
         "figure_text_outside_canvas",
     }
-) | DESCRIPTIVE_ERRORS | REGION_COMPARISON_ERRORS | PLAN_ADOPTION_ERRORS | PLANNING_ERRORS | COMMON_STATISTICS_ERRORS
+) | DESCRIPTIVE_ERRORS | REGION_COMPARISON_ERRORS | PLAN_ADOPTION_ERRORS | PLANNING_ERRORS | COMMON_STATISTICS_ERRORS | STRATUM_ERRORS

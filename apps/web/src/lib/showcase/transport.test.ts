@@ -358,7 +358,7 @@ describe("showcase notices through the API client", () => {
     expect(showcase.isShowcaseNotice(api.errorMessage(error))).toBe(true);
     expect(showcase.isShowcaseNotice(api.errorMessage(new api.ApiError("invalid_analysis_input", 422)))).toBe(false);
     for (const code of ["showcase_detection_not_recorded", "showcase_proposal_not_recorded", "showcase_upload_disabled", "showcase_action_not_recorded"])
-      expect(showcase.isShowcaseNotice(`視野 1：${api.errorCodeMessage(code)} 実行条件を確認してください。`)).toBe(true);
+      expect(showcase.isShowcaseNotice(`視野 1：${api.errorCodeMessage(code)} 実行条件してください。`)).toBe(true);
     await expect(api.fetchPrivateResponse("/v1/region-fields/f/preview")).rejects.toEqual(new api.ApiError("showcase_unavailable", 503));
   });
 });
