@@ -71,7 +71,7 @@ jobs:
             const checks = await github.paginate(github.rest.checks.listForRef, {
               ...context.repo, ref: commit, filter: 'latest', per_page: 100
             });
-            for (const name of ['python', 'web', 'fiji-browser', 'cellpose-gpu-image', 'local-windows', 'windows-installed', 'windows-installer', 'python-windows-314']) {
+            for (const name of ['python', 'web', 'fiji-browser', 'browser-e2e', 'cellpose-gpu-image', 'local-windows', 'windows-installed', 'windows-installer', 'python-windows-314']) {
               const check = checks.find(c => c.name === name && c.app?.slug === 'github-actions');
               if (check?.conclusion !== 'success') throw new Error(`${name} has not passed on ${commit}`);
             }

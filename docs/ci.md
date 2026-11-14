@@ -20,7 +20,8 @@
 | `lp` | LP のビルドとブラウザ試験 | LP だけの変更 |
 | `local-windows` | Windows のセットアップとランチャー | Windows 版に関わる変更 |
 | `windows-tests` → `python-windows-314` | Windows・Python 3.14 でのテスト一式を 4 つに分けて並列に実行し、1 回の完全な実行として照合する | Windows 版に関わる変更 |
-| `fiji-browser` | 実際の Fiji、API とブラウザの連携、本番のコンテナ | `main` だけ |
+| `fiji-browser` | 実際の Fiji と ImageJ との照合、本番のコンテナ、ローカル版の配信 | `main` だけ |
+| `browser-e2e` | 実際の API・worker・Fiji と画面の E2E（`pnpm test:e2e`）。失敗したテストだけ Playwright のトレースを成果物 `browser-e2e-failures` に 7 日残す | 画面・API・解析に関わる変更（`fiji` の区分） |
 | `cellpose-gpu-image` | GPU 推論のイメージが CPU 版と同じラベルを返すこと | `main` だけ |
 | `windows-installed` | 配布 ZIP の新規導入と、前の版からの更新 | `main` と手動実行だけ |
 | `windows-installer` | インストーラーの新規導入（ネットワークなし）、再実行、中断からの再開、アンインストール、0.1.0-local.20 からの更新、アプリ内の更新と失敗時の復帰（`packaging/windows/smoke.ps1`） | `main` と手動実行だけ |
@@ -40,7 +41,7 @@ PR では、`scripts/ci_changes.py` が、`main` との差分のファイルか�
 
 ## マージ前に境界を確かめる
 
-統合試験は PR では実行しないため、統合試験で初めて見つかっていた失敗のうち、数十秒で確かめられるものは PR のジョブで確かめる。
+画面の E2E（`browser-e2e`）を除く統合試験は PR では実行しないため、統合試験で初めて見つかっていた失敗のうち、数十秒で確かめられるものは PR のジョブで確かめる。
 
 - **ローカル版の Web 出力**（`web`）：生成するファイルが配布物の許可リストに収まるか。例：`sitemap.xml` を加えたとき。パッケージ化のスクリプトを変えたときも実行する。
 
@@ -48,9 +49,9 @@ PR では、`scripts/ci_changes.py` が、`main` との差分のファイルか�
 
 ## 配布の条件
 
-Windows 版は、配布する `main` のコミットで次の 8 つのジョブがすべて成功している場合にだけ配布する（`.github/workflows/local-release.yml` が確かめる）。配布するコミットは、実行した時点の `main` の先頭か、入力 `commit` で指定したその祖先で、成功の確認・ビルド・署名・タグはすべてそのコミットに対して行う（[配布する](release-signing.md#4-配布する)）。ブランチ保護の必須チェックは、`windows-installer` を除く 7 つのまま。
+Windows 版は、配布する `main` のコミットで次の 9 つのジョブがすべて成功している場合にだけ配布する（`.github/workflows/local-release.yml` が確かめる）。配布するコミットは、実行した時点の `main` の先頭か、入力 `commit` で指定したその祖先で、成功の確認・ビルド・署名・タグはすべてそのコミットに対して行う（[配布する](release-signing.md#4-配布する)）。ブランチ保護の必須チェックは、`windows-installer` と `browser-e2e` を除く 7 つのまま。`browser-e2e` は PR でも実行するが、必須チェックへの追加はオーナーが設定で行う（未設定）。それまでは、マージの前に `browser-e2e` の成功も確かめる。
 
-`python`、`web`、`fiji-browser`、`cellpose-gpu-image`、`local-windows`、`windows-installed`、`windows-installer`、`python-windows-314`
+`python`、`web`、`fiji-browser`、`browser-e2e`、`cellpose-gpu-image`、`local-windows`、`windows-installed`、`windows-installer`、`python-windows-314`
 
 加えて、インストーラーが同梱する GPL・LGPL などのソフトの、同梱した版ちょうどのソース（`Cytellect-<版>-gpl-sources.zip`）がそろわなければ、下書きのリリースを作らない。ソースが必要なのに固定されたソースがない部品は、例外の一覧（`engines/fiji/source-exceptions.json`）に同じ SHA-256 で載っているものだけを通し、それ以外の部品や、同梱物と合わなくなった例外があればビルドが失敗する。作成後に資産が添付されていなければ下書きを削除する（[GPL などの対応するソース](oss.md#gpl-などの対応するソース)）。
 
