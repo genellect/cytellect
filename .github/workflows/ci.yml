@@ -24,7 +24,7 @@ jobs:
       fiji: ${{ steps.classify.outputs.fiji }}
       windows: ${{ steps.classify.outputs.windows }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with: {fetch-depth: 0}
       - name: Select job areas from changed paths
         id: classify
@@ -39,9 +39,9 @@ jobs:
     # Font provisioning can consume twelve minutes before the seven-minute suite.
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with: {fetch-depth: 0}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with: {python-version: "3.12"}
       - name: Install Japanese figure font for required rendering checks
         if: needs.changes.outputs.python == 'true'
@@ -62,7 +62,7 @@ jobs:
         run: uv run python scripts/scientific_review.py --junit /tmp/cytellect-scientific-tests.xml --collection /tmp/cytellect-scientific-collection.json --output /tmp/cytellect-compliance/scientific-review.json --source-commit "${{ github.sha }}"
       - name: Retain scoped scientific evidence without raw logs
         if: always() && needs.changes.outputs.python == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: scientific-review
           path: /tmp/cytellect-compliance/scientific-review.json
@@ -85,7 +85,7 @@ jobs:
         run: uv run python scripts/scan_secrets.py --repo . --cache-dir /tmp/cytellect-security-tools --output /tmp/cytellect-compliance/secrets.json
       - name: Retain aggregate scanner receipt only
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: security-scan-summary
           path: /tmp/cytellect-compliance/secrets.json
@@ -102,7 +102,7 @@ jobs:
           uv run pip-audit --local --format cyclonedx-json --output /tmp/cytellect-compliance/python.cdx.json
       - name: Retain successful Python dependency SBOM
         if: needs.changes.outputs.python == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: python-dependency-sbom
           path: /tmp/cytellect-compliance/python.cdx.json
@@ -117,10 +117,10 @@ jobs:
       NEXT_TELEMETRY_DISABLED: "1"
       CYTELLECT_DATA_DIR: /tmp/cytellect-contracts
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
         with: {node-version: "24"}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with: {python-version: "3.12"}
       - run: npm install --global pnpm@11.19.0
       - run: python -m pip install uv==0.12.2
@@ -140,7 +140,7 @@ jobs:
         run: echo "version=$(node -p "require('./apps/web/node_modules/@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
       - name: Restore the test browser
         id: browsers
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-chromium-${{ runner.os }}-${{ steps.playwright.outputs.version }}
@@ -172,7 +172,7 @@ jobs:
       - name: Verify installed license evidence and generate combined inventory
         run: uv run python scripts/sbom.py --output /tmp/cytellect-compliance/dependency-inventory.json --web-notices /tmp/cytellect-compliance/THIRD_PARTY_WEB_NOTICES.txt
       - name: Retain dependency inventory and redistribution notices
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: dependency-license-evidence
           path: |
@@ -191,15 +191,15 @@ jobs:
     env:
       NEXT_TELEMETRY_DISABLED: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
         with: {node-version: "24"}
       - run: npm install --global pnpm@11.19.0
       - name: Locate the pnpm store
         id: pnpm-store
         run: echo "dir=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
       - name: Restore the pnpm store
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ steps.pnpm-store.outputs.dir }}
           key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
@@ -213,7 +213,7 @@ jobs:
         run: echo "version=$(node -p "require('./apps/web/node_modules/@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
       - name: Restore the test browser
         id: browsers
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-chromium-${{ runner.os }}-${{ steps.playwright.outputs.version }}
@@ -250,10 +250,10 @@ jobs:
       NEXT_PUBLIC_API_ORIGIN: http://localhost:8000
       NEXT_TELEMETRY_DISABLED: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
         with: {node-version: "24"}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with: {python-version: "3.12"}
       - run: bash scripts/install_figure_font.sh
       - run: python -m pip install uv==0.12.2
@@ -273,7 +273,7 @@ jobs:
           uv run python scripts/check_public_uploads.py /tmp/cytellect-workspace-inputs
       - name: Retain public-image execution summary only
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: public-bbbc007-execution
           path: /tmp/cytellect-bbbc007-run/benchmark.json
@@ -299,7 +299,7 @@ jobs:
           pnpm test:e2e
       - name: Retain only registered public workspace evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: public-workspace-fiji
           path: |
@@ -358,8 +358,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with: {python-version: "3.12"}
       - name: Free disk space for the CUDA wheels
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
@@ -386,11 +386,11 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
         with: {node-version: "24"}
       - run: node --test apps/web/scripts/finalize-local-export.test.mjs
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with: {python-version: "3.12"}
       - run: python -m pip install uv==0.12.2
       - run: uv sync --locked --dev
@@ -408,10 +408,10 @@ jobs:
       PREVIOUS_VERSION: 0.1.0-local.17
       PREVIOUS_SHA256: 1532f1e0b32eb7f9f457f82b6a9847e85c9a919a178c766b27f835cdcc0df51c
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
         with: {node-version: "24"}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with: {python-version: "3.12"}
       - run: python -m pip install uv==0.12.2
       - run: uv sync --locked --group build
@@ -464,7 +464,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Installed native DLL cleanup/recovery verification failed' }
       - name: Retain the scoped native cleanup receipt
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: windows-cleanup-recovery
           path: ${{ runner.temp }}/windows-cleanup-recovery*.json
@@ -579,10 +579,10 @@ jobs:
       MIGRATE_VERSION: 0.1.0-local.20
       MIGRATE_SHA256: bcbefa59857b29c4221603045266b167fb7019311d512f1c475fbaef0608525a
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
         with: {node-version: "24"}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with: {python-version: "3.12"}
       - run: python -m pip install uv==0.12.2
       - run: uv sync --locked --group build
@@ -609,7 +609,7 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'Package build failed' }
           }
       - name: Restore pinned public downloads (content-addressed, verified again on use)
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ runner.temp }}/installer-cache
           key: windows-installer-${{ hashFiles('engines/fiji/runtime.lock.json', 'engines/python/windows-runtime.lock.json', 'scripts/local_setup.ps1', 'scripts/build_windows_installer.py') }}
@@ -722,8 +722,8 @@ jobs:
     env:
       PYTHONDONTWRITEBYTECODE: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with: {python-version: "3.14.8"}
       - run: python -m pip install uv==0.12.2
       - run: uv sync --locked --dev --python 3.14.8 --no-python-downloads
@@ -735,7 +735,7 @@ jobs:
         if: always()
         run: uv run --no-sync python -B scripts/merge_test_shards.py strip --junit "${{ runner.temp }}/scientific-windows.xml" --collection "${{ runner.temp }}/scientific-windows-collection.json" --output-dir "${{ runner.temp }}/shard"
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: windows-tests-${{ matrix.shard }}
           path: ${{ runner.temp }}/shard/
@@ -752,12 +752,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with: {python-version: "3.12"}
       - run: python -m pip install uv==0.12.2
       - run: uv sync --locked --dev
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           pattern: windows-tests-*
           path: /tmp/windows-shards
@@ -767,7 +767,7 @@ jobs:
         run: uv run python scripts/scientific_review.py --junit /tmp/scientific-windows.xml --collection /tmp/scientific-windows-collection.json --output /tmp/cytellect-compliance/scientific-windows-receipt.json --source-commit "${{ github.sha }}"
       - name: Retain aggregate Windows compatibility evidence only
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: scientific-windows-314
           path: /tmp/cytellect-compliance/scientific-windows-receipt.json
