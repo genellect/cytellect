@@ -149,7 +149,7 @@ def test_every_job_that_builds_signs_or_tags_uses_the_resolved_commit():
     for name in ("package", "draft"):
         text = job(RELEASE, name)
         assert "RELEASE_COMMIT: ${{ needs.source.outputs.commit }}" in text, name
-        checkouts = re.findall(r"- uses: actions/checkout@v4\n\s+with: \{(.*)\}", text)
+        checkouts = re.findall(r"- uses: actions/checkout@v\d+(?:\.\d+)*\n\s+with: \{(.*)\}", text)
         assert checkouts and all('ref: "${{ needs.source.outputs.commit }}"' in c for c in checkouts), name
         assert text.count("actions/checkout@") == len(checkouts), name
     package = job(RELEASE, "package")

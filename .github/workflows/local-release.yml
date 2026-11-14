@@ -34,7 +34,7 @@ jobs:
     steps:
       - name: Resolve the released main commit and require successful checks on it
         id: resolve
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             if (!/^\d+\.\d+\.\d+-local\.\d+$/.test(process.env.RELEASE_VERSION)) {
@@ -94,7 +94,7 @@ jobs:
       CYTELLECT_WEB_URL: http://127.0.0.1:8765
       CYTELLECT_TEST_API_ORIGIN: http://127.0.0.1:8765
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with: {ref: "${{ needs.source.outputs.commit }}"}
       - name: Build only the resolved commit
         shell: pwsh
@@ -102,9 +102,9 @@ jobs:
           if ($env:RELEASE_COMMIT -cnotmatch '^[0-9a-f]{40}$' -or (git rev-parse HEAD) -cne $env:RELEASE_COMMIT) {
             throw 'The checkout is not the resolved release commit'
           }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with: {node-version: "24"}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with: {python-version: "3.12"}
       - run: python -m pip install uv==0.12.2
       - run: uv sync --locked --group build
@@ -135,7 +135,7 @@ jobs:
           "CYTELLECT_RELEASE_DIR=$releaseDir" | Out-File -FilePath $env:GITHUB_ENV -Append
           "CYTELLECT_RELEASE_ZIP=$archive" | Out-File -FilePath $env:GITHUB_ENV -Append
       - name: Restore pinned public downloads (content-addressed, verified again on use)
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ runner.temp }}/installer-cache
           key: windows-installer-${{ hashFiles('engines/fiji/runtime.lock.json', 'engines/fiji/corresponding-source.lock.json', 'engines/fiji/source-exceptions.json', 'engines/python/windows-runtime.lock.json', 'uv.lock', 'scripts/local_setup.ps1', 'scripts/build_windows_installer.py', 'scripts/corresponding_source.py') }}
@@ -286,7 +286,7 @@ jobs:
           }
       - name: Retain scoped acceptance receipts only
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: installed-release-acceptance
           path: |
@@ -294,7 +294,7 @@ jobs:
             ${{ env.CYTELLECT_ACCEPTANCE_DIR }}/generated-regions/receipt.json
           if-no-files-found: ignore
           retention-days: 14
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: windows-release
           path: ${{ env.CYTELLECT_RELEASE_DIR }}/*
@@ -314,7 +314,7 @@ jobs:
       RELEASE_VERSION: ${{ inputs.version }}
       RELEASE_COMMIT: ${{ needs.source.outputs.commit }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with: {fetch-depth: 0, ref: "${{ needs.source.outputs.commit }}"}
       - name: Sign and tag only the resolved commit, and only while it is on main
         shell: bash
@@ -325,11 +325,11 @@ jobs:
           git merge-base --is-ancestor "$RELEASE_COMMIT" refs/remotes/origin/main
           # The release text is built from this checkout; an older commit would stop after the tag is made.
           test -f scripts/release_notes.py || { echo "::error::The release commit predates scripts/release_notes.py" >&2; exit 1; }
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with: {python-version: "3.12"}
       - run: python -m pip install uv==0.12.2
       - run: uv sync --locked --no-dev
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: windows-release
           path: release
@@ -366,7 +366,7 @@ jobs:
           fi
           uv run --no-sync python scripts/update_manifest.py verify --release-dir release --version "$RELEASE_VERSION" --previous-source "$previous"
       - name: Create the exact source tag without overwriting an existing ref
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             await github.rest.git.createRef({
