@@ -75,7 +75,11 @@ def plan(files: dict[str, Path], channel_arrays: dict[str, str], minimum_bytes: 
                             "bytes": path.stat().st_size})
         else:
             by_digest[digest] = name
-    return entries
+    # Restore runs in list order: a TIFF that is itself a copy (scenes sharing a field) is copied back
+    # before an array is decoded from it, and copies of decoded arrays come after the decoding.
+    sources = {entry["decode_tiff"] for entry in entries if "decode_tiff" in entry}
+    first = [entry for entry in entries if "copy_of" in entry and entry["path"] in sources]
+    return first + [entry for entry in entries if entry not in first]
 
 
 def restore(data_dir: Path) -> int:

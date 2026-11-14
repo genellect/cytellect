@@ -24,7 +24,7 @@ export interface ColorByChoice {id: ColorBy; label: string; reason: string | nul
 /** Every colour mode, with why it cannot be chosen now (MV-01: shown but not selectable, naming what is missing). */
 export function colorByChoices(inputs: ColorByInputs): ColorByChoice[] {
   const saved = inputs.saved ? "図の保存時の版や検出候補では選べません" : null;
-  const nuclei = !inputs.nuclei ? "採用した核の結果が必要です" : null;
+  const nuclei = !inputs.nuclei ? "採用した核が必要です" : null;
   return [
     {id: "outline", label: COLOR_BY_LABELS.outline, reason: null},
     {id: "positivity", label: COLOR_BY_LABELS.positivity, reason: saved ?? nuclei ?? (inputs.gateChannels ? null : "判定できる染色がありません")},
@@ -101,11 +101,11 @@ export function tableHeading(view:
 /** The one next step beside the table (MV-09): the comparison of groups that the colour mode leads to. */
 export interface NextComparison {label: string; metric: string; target: ReviewTarget; channel: string | null; reclassify: boolean; note?: string}
 export function nextComparison(view: {colorBy: ColorBy; metric: string; target: ReviewTarget; channel: string; stain: string}): NextComparison {
-  if (view.colorBy === "positivity") return {label: "陽性率を群で比べる", metric: "positive_fraction", target: "nuclei", channel: null, reclassify: true,
-    note: "比べる視野を、同じ判定の規則で判定し直してから計算します。"};
-  if (view.colorBy === "compartments") return {label: "核質／核小体の比を群で比べる", metric: "log2_nucleoplasm_over_nucleolus", target: "nucleoplasm", channel: view.channel, reclassify: false};
+  if (view.colorBy === "positivity") return {label: "陽性率を群間で比較", metric: "positive_fraction", target: "nuclei", channel: null, reclassify: true,
+    note: "比較する視野を同じ規則で再判定してから計算します。"};
+  if (view.colorBy === "compartments") return {label: "核質／核小体の比を群間で比較", metric: "log2_nucleoplasm_over_nucleolus", target: "nucleoplasm", channel: view.channel, reclassify: false};
   const choice = metricChoice(view.metric);
   const channel = choice?.channel ? view.channel : null;
   const target = choice?.target ?? view.target;
-  return {label: `${choice?.label ?? view.metric}${channel ? `（${view.stain}）` : ""}を群で比べる`, metric: view.metric, target, channel, reclassify: false};
+  return {label: `${choice?.label ?? view.metric}${channel ? `（${view.stain}）` : ""}を群間で比較`, metric: view.metric, target, channel, reclassify: false};
 }

@@ -52,9 +52,9 @@ export const showcaseNotices: Record<ShowcaseNoticeCode, string> = {
   showcase_detection_not_recorded: "公開デモでは、記録した検出条件だけを実行できます。一覧から条件を選んでください。",
   showcase_proposal_not_recorded: "公開デモのAIは、記録した指示の例だけに応答します。入力欄の上の例から選んでください。",
   showcase_upload_disabled: "公開デモでは画像を追加できません。Windows版・Docker版をご利用ください。",
-  showcase_engine_unavailable: "この操作の結果は公開デモで表示できません。保存済みの解析結果はそのまま試せます。",
+  showcase_engine_unavailable: "この操作の結果は公開デモでは表示できません。",
   showcase_unavailable: "公開デモのデータを読み込めませんでした。時間をおいて再読み込みしてください。",
-  showcase_action_not_recorded: "この操作の結果は公開デモに記録していません。「使い方」の手順、統計・図・測定・AIの例は、そのまま試せます。お手元の画像の解析は Windows 版で行えます。",
+  showcase_action_not_recorded: "この操作の結果は公開デモに記録していません。お手元の画像の解析は Windows 版で行えます。",
 };
 export const isShowcaseNoticeCode = (code: string): code is ShowcaseNoticeCode => (SHOWCASE_NOTICE_CODES as readonly string[]).includes(code);
 /** A displayed message that only reports a demo limitation (shown as information, not as an error). */
@@ -72,7 +72,11 @@ export interface ShowcaseDataset {title: string; attribution: string; licence: s
   reported: {source: string; comparison: string; direction: string; quantity: string; scope: string; independence?: string} | null;
   /** Channels the demo classifies nuclei by: stains whose positive and negative nuclei mean something in
    * this scene (empty: the scene offers no classification; null: older recordings, every channel). */
-  gateChannels: string[] | null}
+  gateChannels: string[] | null;
+  /** A plain-language note for visitors who are not biologists (DM-11): what was done to which cells, what the
+   * colours show and what was found, one sentence each, and the terms worth a one-line explanation. */
+  explainer: SceneExplainer | null}
+export interface SceneExplainer {what: string; colors: string; finding: string; terms: string[]}
 const httpsUrl = (value: unknown) => {try {return typeof value === "string" && new URL(value).protocol === "https:" ? value : "";} catch {return "";}};
 export function validDataset(value: unknown): ShowcaseDataset | null {
   if (!value || typeof value !== "object") return null;
@@ -83,7 +87,17 @@ export function validDataset(value: unknown): ShowcaseDataset | null {
     caveats: Array.isArray(record.caveats) ? record.caveats.filter((item): item is string => typeof item === "string" && !!item.trim()).slice(0, 8) : [],
     regions: Array.isArray(record.regions) ? record.regions.filter((item): item is "nuclei" | "nucleoli" | "nucleoplasm" => item === "nuclei" || item === "nucleoli" || item === "nucleoplasm") : null,
     reported: reportedChange(record.reportedChange),
-    gateChannels: Array.isArray(record.gateChannels) ? record.gateChannels.filter((item): item is string => typeof item === "string" && /^[\w.-]{1,64}$/.test(item)) : null};
+    gateChannels: Array.isArray(record.gateChannels) ? record.gateChannels.filter((item): item is string => typeof item === "string" && /^[\w.-]{1,64}$/.test(item)) : null,
+    explainer: sceneExplainer(record.explainer)};
+}
+function sceneExplainer(value: unknown): SceneExplainer | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const line = (key: string) => typeof record[key] === "string" ? (record[key] as string).trim().slice(0, 240) : "";
+  const what = line("what"), colors = line("colors"), finding = line("finding");
+  if (!what || !colors || !finding) return null;
+  const terms = Array.isArray(record.terms) ? record.terms.filter((item): item is string => typeof item === "string" && !!item.trim()).slice(0, 8) : [];
+  return {what, colors, finding, terms};
 }
 function reportedChange(value: unknown): ShowcaseDataset["reported"] {
   if (!value || typeof value !== "object") return null;

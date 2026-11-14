@@ -4,9 +4,9 @@
 
 [![Cytellect](docs/images/readme-hero.webp)](https://cytellect.app/)
 
-[プロダクト LP](https://cytellect.app/) · [公開デモ](https://cytellect.app/demo) · [Windows](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.21) · [Docker](docs/docker-desktop.md) · [統計解析手法](docs/implementation-overview.ja.md#統計解析) · [ドキュメント](docs/README.md)
+[プロダクト LP](https://cytellect.app/) · [公開デモ](https://cytellect.app/demo) · [Windows](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.23) · [Docker](docs/docker-desktop.md) · [統計解析手法](docs/implementation-overview.ja.md#統計解析) · [ドキュメント](docs/README.md)
 
-Cytellect は、顕微鏡画像の解析から統計処理、グラフ出力までを一貫して引き受ける生命科学研究者のための解析基盤である。画像処理には学習済みの深層学習モデルである StarDist と Cellpose-SAM、数理計算処理には Python を採用している。
+Cytellect は、顕微鏡画像の解析から統計処理、グラフ出力までを一貫して引き受ける生命科学研究者のための解析基盤である。インスタンスセグメンテーションには深層学習モデルの StarDist と Cellpose-SAM（SAM ViT-L）、定量と統計的推論には NumPy・SciPy・statsmodels による共通実装を用いる。
 
 ## 開発に参加する方へ
 
@@ -27,15 +27,15 @@ Cytellect は、顕微鏡画像の解析から統計処理、グラフ出力ま�
 ```
 解析ジョブ
   apps/web                Next.js。画像・測定表・統計・図を一つの画面で編集
-  → services/api          FastAPI。設定を版で保存し、ジョブを SQLite に登録
-  → services/worker       実行権を compare-and-swap で取得し、ジョブごとに子プロセスで実行
+  → services/api          FastAPI。設定のバージョニングと、ジョブの永続化（SQLite）
+  → services/worker       リース（実行権）による排他実行。ジョブ単位のプロセス分離
     → engines/fiji        核の検出（StarDist · TensorFlow Java）
-    → engines/cellpose    核小体・細胞質の検出（Cellpose-SAM · PyTorch）。CPU または Modal の GPU
+    → engines/cellpose    核小体・細胞質の検出（Cellpose-SAM · PyTorch）。CPU、またはクラウド中継経由で Modal の GPU
     → packages/analysis   測定・統計・作図（NumPy · SciPy · statsmodels · Matplotlib）
 
 AI による解析設定
   services/api → services/proposal-worker（Cloudflare Workers · D1）→ OpenAI Responses API
-  → API で検証 → 研究者が採用 → 手動設定と同じジョブ
+  → API で検証 → 設定に反映し、選んだ視野でプレビュー → 手動設定と同じジョブ
 ```
 
 ### 実行環境
@@ -43,9 +43,9 @@ AI による解析設定
 | 環境 | 実行場所 | 構成 | 外部に送るデータ |
 |---|---|---|---|
 | Windows 版 | 研究室の PC | 専用の Python・Fiji 環境。`127.0.0.1` で待ち受け | — |
-| Docker 版 | 研究室の PC | Web・API・ワーカーを別コンテナで実行。ワーカーはネットワークなし | — |
-| GPU 推論 | Modal（L4 優先、A10 を予備候補） | GHCR の digest 固定イメージ。使用後 20 秒で停止（`infra/modal_cellpose.py`） | 検出用の 1 チャンネルと核マスク |
-| LLM の中継 | Cloudflare Workers · D1 | 費用の予約と精算（`services/proposal-worker`） | 指示文・チャンネルの対応・画像寸法・現在の設定 |
+| Docker 版 | 研究室の PC | Web・API・ワーカーを別コンテナで実行。ワーカーはネットワークから隔離 | — |
+| GPU 推論 | Modal（L4 優先、A10 を予備候補） | GHCR の digest 固定イメージ。クラウド中継を経由して呼び出し、アイドル 20 秒でスケールダウン（`infra/modal_cellpose.py`） | 検出対象の 1 チャンネル、核マスク、検出の条件 |
+| クラウド中継 | Cloudflare Workers · D1 | LLM と GPU 推論の中継。認証と、利用量・費用の管理（`services/proposal-worker`） | LLM へは、指示文・染色とチャンネルの対応・実験デザイン（視野・群・実験回の数）・画像の寸法と画素サイズ・現在の設定 |
 | 公開サイト | Vercel | LP と公開デモ。`main` へのマージで自動デプロイ | 研究画像は受け付けない |
 
 ### ディレクトリ構成
@@ -56,8 +56,8 @@ AI による解析設定
 | [`packages/analysis`](packages/analysis) | 検出・測定・統計・作図の共通実装。API・ワーカー・公開デモが同じコードを使う |
 | [`packages/contracts`](packages/contracts) | API の OpenAPI 定義と既定レシピ。TypeScript 型の生成元 |
 | [`services/api`](services/api) | 解析 API（FastAPI） |
-| [`services/worker`](services/worker) | 計算ワーカー。ジョブごとに子プロセスで検出・測定・統計を実行 |
-| [`services/proposal-worker`](services/proposal-worker) | LLM の中継と費用の管理（Cloudflare Workers · D1） |
+| [`services/worker`](services/worker) | 計算ワーカー。ジョブ単位のプロセス分離で検出・測定・統計を実行 |
+| [`services/proposal-worker`](services/proposal-worker) | LLM と GPU 推論の中継、認証、費用の管理（Cloudflare Workers · D1） |
 | [`services/showcase`](services/showcase) | 公開デモの記録と再生（Pyodide） |
 | [`engines/fiji`](engines/fiji) | StarDist による核の検出（Fiji プラグイン） |
 | [`engines/cellpose`](engines/cellpose) | Cellpose-SAM の推論 runner と GPU サーバー。依存とモデルを固定 |
@@ -73,22 +73,22 @@ AI による解析設定
 
 ![画像から論文の図まで](docs/images/pipeline.webp)
 
-StarDist で検出した核を親として、核小体・細胞質を Cellpose-SAM で検出する階層的なインスタンス分割。
+StarDist で検出した核を親領域として、核小体・細胞質を Cellpose-SAM で検出する階層的インスタンスセグメンテーション。
 
 ```
 1. 原画像        SHA-256 で固定。測定は常に原画素から計算
 2. 核の検出      StarDist（Fiji · TensorFlow Java）
-3. 背景の正規化  核ごとに推定し、検出用のコピーにだけ適用
-4. 推論          Cellpose-SAM（SAM ViT-L）を親の核で条件付けて実行
-5. 誤候補の除去  核全体を拾った候補を除外
-6. 境界の補正    Multi-Otsu · 距離変換 · Watershed
-→ 原画像座標の整数ラベル。核小体は親核の ID を保持
+3. 背景の正規化  親領域ごとに推定し、検出用の複製にのみ適用
+4. 推論          Cellpose-SAM（SAM ViT-L）。親領域による条件付き推論
+5. 候補の棄却    親領域全体を覆う候補、核の境界をまたぐ候補、局所コントラストの低い候補を棄却
+6. 境界の精緻化  Multi-Otsu · 距離変換 · Watershed
+→ 原画像座標系の整数ラベル。核小体は親核の ID を保持
 ```
 
-- 検出用の画像と測定用の原画素を分ける。背景補正や正規化を測定値に混ぜないため
-- 推論を親の核で条件付ける。汎用モデルが核全体や核外の構造を核小体として拾うのを防ぐため
-- Fiji／TensorFlow Java と Cellpose-SAM／PyTorch を別の環境で実行し、依存パッケージとモデルの SHA-256 を読み込み前に照合する。実行時のダウンロードと外部通信は禁止
-- GPU 推論は PC と同じ `runner.py`・モデル・ライブラリ版を使い、float32・TF32 無効・決定的アルゴリズムで実行する。返った結果は版のハッシュを照合し、一致しなければ採用しない
+- 検出パスと測定パスの分離。前処理は検出用の複製に限定し、定量は原画素に対して行う
+- 親領域による条件付き推論。基盤モデルの過検出（核全体・核外構造）を抑制する
+- 実行環境の分離と固定。Fiji／TensorFlow Java と Cellpose-SAM／PyTorch を別の環境で実行し、依存パッケージとモデルの SHA-256 を読み込み前に照合する。実行時のネットワークアクセスを遮断
+- CPU／GPU 間の再現性。GPU 推論は PC と同じ `runner.py` とモデルを、ハッシュで固定した依存パッケージの上で、float32・TF32 無効・決定的アルゴリズムで実行する。応答に含まれる `runner.py`・モデル・依存のハッシュを照合し、一致しなければ採用しない。CI は、リモート推論のラベルが PC と完全に一致することを検証する
 
 ### 追加学習
 
@@ -100,36 +100,36 @@ StarDist で検出した核を親として、核小体・細胞質を Cellpose-S
 |---|---|
 | 教師データ | 染色画像と、研究者が修正したインスタンスマスク |
 | 対象 | 核小体・細胞質ごとに Cellpose-SAM を追加学習 |
-| 評価 | 試料・撮影バッチを分け、輪郭精度・過分割・結合誤りを評価 |
+| 評価 | 試料・撮影バッチ単位で分割し、境界精度・過分割・過少分割を評価 |
 | 公開 | 学習データ・重み・推論条件を一組で版管理し、重みを [Hugging Face](https://huggingface.co/Genellect/Cytellect) で公開 |
 
 ## AI による解析設定
 
-研究目的の一文を、LLM（GPT-6.1 Sol）が検出・測定・選別・統計・図の構造化設定に変換する。LLM が担うのは設定の提案だけで、数値は検証済みの Python が計算する。
+研究目的の一文を、LLM（GPT-6.1 Sol）が検出・測定・選別・統計・図の構造化設定に変換する。LLM の責務は設定の生成に限定し、数値計算は決定的な共通実装（`packages/analysis`）が行う。
 
-- 送るのは指示文・染色とチャンネルの対応・画像寸法・現在の設定。原画像・測定値・ファイル名は送らない
-- 応答は Structured Outputs で受け、API が型・数値範囲・登録チャンネルを検証する。研究者が採用した設定だけを、手動設定と同じジョブで実行
-- 利用額は Workers と D1 で管理する。呼び出し前に最大の費用を原子的に予約し、完了後に精算。精算されなかった予約も上限に数え、障害時にも上限を超えない
+- データ最小化。送信するのは指示文・染色とチャンネルの対応・実験デザイン（視野・群・実験回の数）・画像の寸法と画素サイズ・現在の設定のみ。原画像・測定値・ファイル名は送信しない
+- スキーマ検証。応答は Structured Outputs で受け、API 側で型・値域・チャンネルの整合性を再検証する。検証を通った設定は、選んだ視野でのプレビューを経て、手動設定と同じジョブで実行する
+- コスト制御。利用額は Workers と D1 で管理し、呼び出し前に最大の費用を原子的に予約、完了後に精算する。未精算の予約も上限に算入し、障害時にも上限を超えない
 
 ## 統計と論文の図
 
-- 細胞・視野・試料・独立した実験を区別し、独立した実験を n として検定する。細胞数を n にすると、差のないデータからも誤った有意差が出るため
-- 設定・マスク・測定値・統計・図を版で関連付ける。輪郭を直すと依存する測定・統計・図が更新対象になり、古い結果は混ざらない
-- 図の点から、その値を計算した画像と領域を開ける
-- グラフの色や軸の変更は再描画だけ。測定と検定はやり直さない
-- 図は SVG（文字を編集可能）・PDF（フォント埋め込み）・CSV で出力し、入力ハッシュ・マスク・設定・環境・再計算スクリプトを同梱
+- 実験単位に基づく推論。細胞・視野・試料・独立した実験を区別し、独立した実験を n として検定する。細胞を n とする擬似反復（pseudoreplication）を排除する
+- 来歴（provenance）の追跡。設定・マスク・測定値・統計・図を版で関連付け、上流（輪郭）の変更は、依存する測定・統計・図を無効化する
+- トレーサビリティ。図の各データ点から、算出元の画像と領域へ遡及できる
+- 計算と描画の分離。体裁（色・軸）の変更は再描画のみで、測定と検定は再実行しない
+- 再現可能な出力。図は SVG（文字を編集可能）・PDF（フォント埋め込み）・PNG（300 dpi）、値は CSV で出力する。論文用パッケージには、入力ハッシュ・マスク・設定・環境・再計算スクリプトを同梱する
 
 ## 結果の整合性
 
 同じ入力と設定からは同じ結果を出し、古い計算が新しい結果を上書きしない。
 
-| 仕組み | 防ぐこと |
+| 性質 | 実装 |
 |---|---|
-| ジョブを DB に永続化し、要求 ID で重複実行を防ぐ | 二重送信による重複計算 |
-| 実行権を compare-and-swap で取得し、確定時にも検証 | 止まった古いワーカーの結果による上書き |
-| 設定の更新は版を照合し、競合時は `409` | 複数の画面からの編集による設定の巻き戻し |
-| 画面は対象と設定の版が一致する応答だけを表示 | 設定変更前の計算が遅れて届いたときの取り違え |
-| 実行ごとの作業ディレクトリと子プロセス | 1 つのジョブの停止・失敗の波及 |
+| 冪等性 | ジョブを DB に永続化。解析の実行・図の描画・画像の登録は、要求 ID で重複を排除 |
+| 排他制御 | リース（実行権）をトランザクションで直列に付与し、heartbeat と結果の確定を compare-and-swap で検証 |
+| 楽観的並行性制御 | 設定・チャンネルの割り当て・採用状態の更新時に版を照合し、競合時は `409 Conflict` |
+| 表示の一貫性 | 結果を、視野・版・採用状態・実験デザインの識別子と結び付け、識別子が変わった結果は再描画の対象から外す。遅れて届いた応答は破棄 |
+| 障害の分離 | ジョブ単位の作業ディレクトリとプロセス |
 
 ## セキュリティと研究データの扱い
 
@@ -146,7 +146,7 @@ Cytellect は、未発表の研究データという秘匿性の高い情報を�
 | [クラウド開発](CONTRIBUTING.md#クラウド開発) | 固定版の開発ツールと Fiji を備えたクラウド環境。手元への導入は不要 | Claude Code は `bash .claude/cloud-setup.sh`、Codex は `bash .codex/setup.sh` |
 | [ローカル開発](CONTRIBUTING.md#ローカル開発) | 手元の PC とブラウザで操作。開発サーバーで Web の変更を即時に反映 | `python3 scripts/dev.py setup --fiji ~/cytellect-fiji` |
 
-どちらの環境も `python3 scripts/dev.py serve` で起動し、PR の前に `python3 scripts/dev.py check` で CI と同じ検査を行う。CI の対象は、型・API 契約、数値計算、実 Fiji とブラウザの連携、Windows 版の導入、依存パッケージの監査である。統計結果は独立した数式や全列挙による計算と照合している。
+どちらの環境も `python3 scripts/dev.py serve` で起動し、PR の前に `python3 scripts/dev.py check` で、CI の Python と Web の検査（型・API 契約、数値計算）を手元で行う。CI はこれに加えて、実 Fiji とブラウザの連携、コンテナでの実行、Windows 版の導入、依存パッケージの監査を検証する。統計の実装は、閉形式解と全列挙による独立実装で検証している。
 
 ## ライセンス
 

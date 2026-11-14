@@ -1,5 +1,6 @@
 import {expect,test,type BrowserContext,type Page} from "@playwright/test";
 import type {WorkspaceSelection} from "../src/lib/workspace/api-adapter";
+import {nucleusTableFixture} from "./nucleus-table-fixture";
 
 /** Requirements Q-05 (genellect/cytellect#109), transport and UI only: a nucleus whose nucleolus could not
  * be established is listed by group, unit and reason before the calculation; the comparison runs once
@@ -49,6 +50,9 @@ async function nucleolarWorkspace(context:BrowserContext,page:Page){
     if(path.endsWith("/common-statistics")){if(method==="POST"){statistics=body;return json({job_id:"stats"},202);}
       return json({revision_id:"cohort",source_kind:"region-2d",analysis_kind:"region-comparison",region_comparison_version:"2.0.0",spec:statistics,comparisons:[],counts:[],warnings:["compartment_missing_rate_differs"],source_fields:[],estimates:null,compartment_missing:missing,figure:{source_files:[]}});}
     if(path.endsWith("/region-measurements")){const rid=path.split("/")[3],fid=rid.endsWith("2")?"f2":"f1";return json({revision_id:rid,protocol_version:"3.0.0",measurement:{version:"1.1.0",mode:"raw_intensity"},field_failures:[],exclusions:[],field_tables:{[fid]:{rows:[1,2].map(region_id=>({region_id,channel_id:"c2",area_px:region_id*10,area_um2:null,mean:30,median:29,integrated:300}))}}});}
+    // Adopted nuclei open on their nucleus table before the statistics tab is chosen (MV-07); whether that request
+    // is sent before the switch depends on timing, so the fixture always answers it.
+    if(path.endsWith("/nucleus-table")){const fid=url.searchParams.get("field_id")??"f1";return json(nucleusTableFixture({fieldId:fid,revision:path.split("/")[3],channels:fields[0].image_info.channels,nuclei:[1,2]}));}
     if(path.endsWith("/region-masks")){const rid=path.split("/")[3];return json({regions:[1,2].map(id=>({id,points:id===1?[[3,3],[12,3],[12,12],[3,12]]:[[18,18],[28,18],[28,28],[18,28]]})),metadata:{mask_revision_id:`mask-${rid}`}});}
     if(path.endsWith("/preview"))return route.fulfill({headers,contentType:"image/svg+xml",body:'<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="#869fff"/></svg>'});
     const record=revisions.find(value=>path.endsWith(`/revisions/${value.id}`));if(record)return json(record);
@@ -74,8 +78,8 @@ test("unresolved nucleoli are confirmed by group, unit and reason, then kept as 
   await panel.getByLabel("独立実験単位",{exact:true}).fill("Transport independent units");
   for(let i=0;i<2;i++)for(const [key,value] of [["condition",i?"B":"A"],["sample",`sample-${i}`],["experimental_unit",`unit-${i}`]])await panel.locator(`input[aria-label$=" ${key}"]`).nth(i).fill(value);
   await panel.getByLabel("A / B",{exact:true}).check();
-  await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認した",{exact:true}).check();
-  await panel.getByLabel("測定領域と採用する視野を確認した",{exact:true}).check();
+  await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み",{exact:true}).check();
+  await panel.getByLabel("測定領域と採用する視野を確認済み",{exact:true}).check();
   // The list names each group and unit with its missing nuclei over all nuclei and the reason.
   const list=panel.getByRole("region",{name:"核小体を確定できない核"});
   await expect(list).toBeVisible();
@@ -90,11 +94,10 @@ test("unresolved nucleoli are confirmed by group, unit and reason, then kept as 
   await expect.poll(()=>fixture.review()).not.toBeNull();
   expect(fixture.cohort()).toMatchObject({compartment_missing:"unresolved-as-missing/1.0.0"});
   expect(fixture.review()).toEqual({accept_invalidated_fields:[],compartment_missing:{policy:"unresolved-as-missing/1.0.0",confirmed:{f1:{no_candidate:1}}}});
-  // Right under the result sentence: what the values describe, all missing over all nuclei and the
+  // Beside the result: all missing over all nuclei, in the basis line of a comparison (RS-07), and the
   // within-run warning; the same card lists every group and unit.
   const summary=page.getByRole("region",{name:"結果のまとめ"}).or(page.getByRole("region",{name:"測定結果の統計解析"})).first();
-  await expect(summary.getByText("核小体を確定できた核についての値です。")).toBeVisible();
-  await expect(summary).toContainText("確定できない核 1 / 5（20%）");
+  await expect(summary).toContainText(/確定できない核 1 \/ 5/);
   await expect(summary.getByRole("status").filter({hasText:"群の間の欠測の割合が"})).toContainText("群の間の欠測の割合が 33.3 ポイント違います（基準 10 ポイント）");
   const shown=page.getByRole("group",{name:"核小体を確定できない核の内訳"});
   await expect(shown.getByRole("row").filter({hasText:"unit-0"})).toContainText("1 / 3（33.3%）");

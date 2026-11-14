@@ -38,7 +38,7 @@ for i in range(3):
  expect(savedRevision.reviewed).toBe(false);expect(savedReport.field_masks[registered[1].id].mask_revision_id).toBe(initial.revision_id);
  await reopen(page,title);await expectGfpPreview(page);const overview=page.getByRole("region",{name:"全視野の品質一覧",exact:true});
  await expect(overview).toContainText("この解析版全体：品質確認前");await expect(overview.getByRole("row",{name:/品質一覧の視野/})).toHaveCount(3);
- const first=overview.getByRole("row",{name:`品質一覧の視野 ${number(registered[0].id)}`,exact:true});await expect(first).toContainText("2 領域");await expect(first).toContainText("この診断で該当なし");
+ const first=overview.getByRole("row",{name:`品質一覧の視野 ${number(registered[0].id)}`,exact:true});await expect(first).toContainText("2 領域");await expect(first).toContainText("該当なし");
  const second=overview.getByRole("row",{name:`品質一覧の視野 ${number(registered[1].id)}`,exact:true});await expect(second.getByLabel(`視野 ${number(registered[1].id)} 確認信号 の診断`,{exact:true})).toContainText("取得時飽和：採用対象 1 / 除外対象 0 領域");
  const third=overview.getByRole("row",{name:`品質一覧の視野 ${number(registered[2].id)}`,exact:true});await expect(third).toContainText("2 領域");await expect(third).toContainText("画像端：採用対象 0 / 除外対象 1 領域");await expect(third).toContainText("取得上限不明");await expect(third).toContainText("保存形式上限：採用対象 0 / 除外対象 1 領域");
  await overview.scrollIntoViewIfNeeded();await screenshot(page,"quality-overview-desktop.png");if(evidence)await overview.screenshot({path:path.join(evidence,"quality-table-desktop.png")});

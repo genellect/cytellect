@@ -8,14 +8,14 @@ type Row = NucleusTableData["rows"][number];
 type Values = Row["channels"][number];
 
 const reasons:Record<string,string>={
-  no_candidate:"核小体の候補なし",indeterminate:"核小体を判定できない",review_required:"候補の確認待ち",
+  no_candidate:"核小体の候補なし",indeterminate:"核小体を判定不能",review_required:"候補の確認待ち",
   processing_failed:"処理に失敗",no_adopted_nucleolus:"採用した核小体なし",nucleus_excluded:"除外した核",
-  unclassified:"核小体を分類していない",legacy_candidate:"旧版の候補（未確認）",none_after_edit:"修正後に核小体なし",not_measured_recipe:"この条件では核小体を測らない",
-  nucleolar_state_unknown:"検出の記録がない",nucleolar_field_excluded:"核小体の解析で視野を除外",nucleolar_revision_not_adopted:"核小体は未採用",
-  nucleolar_revision_not_selected:"核小体は未解析",nucleolar_revision_unavailable:"この視野の核小体を読み込めない",degenerate_objects:"1 画素の核小体だけで形を測れない",
-  calibration_unknown:"画素寸法が未確認",calibration_mismatch:"核と核小体で画素寸法が異なる",not_requested:"輝度は測定していない",
-  background_not_established:"背景を決めていない",acquisition_limit_unknown:"検出器の飽和値が未確認",
-  automatic_background_insufficient_tiles:"背景の候補が足りない",automatic_background_insufficient_coverage:"背景の候補が画像の一部に偏る",
+  unclassified:"核小体は未分類",legacy_candidate:"旧版の候補（未確認）",none_after_edit:"修正後に核小体なし",not_measured_recipe:"この条件では核小体は測定対象外",
+  nucleolar_state_unknown:"検出の記録なし",nucleolar_field_excluded:"核小体の解析で視野を除外",nucleolar_revision_not_adopted:"核小体は未採用",
+  nucleolar_revision_not_selected:"核小体は未解析",nucleolar_revision_unavailable:"この視野の核小体を読み込めない",degenerate_objects:"1 画素の核小体のみで形状を測定できない",
+  calibration_unknown:"画素寸法が未確認",calibration_mismatch:"核と核小体で画素寸法が異なる",not_requested:"輝度は未測定",
+  background_not_established:"背景が未確定",acquisition_limit_unknown:"検出器の飽和値が未確認",
+  automatic_background_insufficient_tiles:"背景の候補が不足",automatic_background_insufficient_coverage:"背景の候補が画像の一部に偏る",
 };
 export const reasonText=(reason:string|null|undefined)=>reason?reasons[reason]??reason:"";
 const missing=(reason?:string|null):Cell=>({text:"—",title:reasonText(reason)||"値なし"});
@@ -43,7 +43,7 @@ export function nucleusTableView(table:NucleusTableData,channels:NucleusTableCha
   const corrected=new Set(order.filter(({id})=>table.rows.some(row=>row.channels.some(item=>item.channel_id===id&&(item.mean_corrected!==null||item.integrated_corrected!==null)))).map(({id})=>id));
   const nucleoli=table.nucleolar_source!==null;
   const columns:Column[]=[{key:"id",label:"核"}];
-  if(gate)columns.push({key:"gate",label:"判定",title:`${gate.stain}による陽性・陰性の判定（保存した判定の記録）`},
+  if(gate)columns.push({key:"gate",label:"判定",title:`${gate.stain}による陽性・陰性の判定（保存済み）`},
     {key:"gate:value",label:`${gate.stain} 判定値`,title:"判定に使った核内の平均輝度"},{key:"gate:threshold",label:"しきい値",title:"その撮影日のしきい値"});
   columns.push({key:"area",label:calibrated?"核面積 / µm²":"核面積 / px²"});
   const cells:Array<{id:string;cell:(values:Values)=>Cell}>=[];
@@ -97,7 +97,7 @@ function ledger(table:NucleusTableData,nucleoli:boolean,channels:Array<{id:strin
   }else{
     // Analysed nucleoli that could not be read for this field are named; they are not "not analysed yet".
     const unavailable=rows.some(row=>row.nucleoli.reason==="nucleolar_revision_unavailable");
-    parts.push(unavailable?reasonText("nucleolar_revision_unavailable"):"核小体を解析すると、核ごとの核小体の値が加わります");
+    parts.push(unavailable?reasonText("nucleolar_revision_unavailable"):"核小体：未解析");
   }
   for(const {id,name} of channels){
     // Pixels at the detector's saturation value or, when that value is unknown, at the file's maximum.

@@ -42,7 +42,7 @@ export function AnalysisPlanner() {
     <header className={styles.header}><Link href="/" className={styles.brand}>cytellect</Link><nav aria-label="ナビゲーション"><Link href="/">{API_CONFIGURED || LOCAL_MODE ? "ワークスペース" : "ホーム"}</Link><Link href="/demo">デモ</Link></nav></header>
     <div className={styles.intro}>
       <h1>解析設定</h1>
-      <p>測定項目、画像形式、実験条件を入力してください。対応する解析方法と必要な設定を表示します。</p>
+      <p>測定項目・画像形式・実験条件に対応する解析方法と、必要な設定を表示します。</p>
     </div>
     <div className={styles.layout}>
       <div className={styles.questions}>
@@ -56,30 +56,30 @@ export function AnalysisPlanner() {
           <Choice name="input" label="測定に使う画像" value={answers.input} onChange={change} options={[["unknown", "未確認"], ["grayscale-2d", "2DグレースケールTIFF / OME-TIFF"], ["rgb", "表示用RGB画像"], ["zt", "Zスタック・時系列"]]} />
           <Choice name="nuclear_stain" label="核染色チャンネル" value={answers.nuclear_stain} onChange={change} options={[["unknown", "未確認"], ["yes", "ある（撮影記録で確認）"], ["no", "ない"]]} />
           {allArea?<p className={styles.note}>面積のみの測定では、背景ROIは不要です。</p>:<Choice name="background" label="画像内の背景領域" value={answers.background} onChange={change} options={[["unknown", "画像で確認が必要"], ["yes", "対象の蛍光を含まない領域がある"], ["no", "適切な領域がない"]]} />}
-          <Choice name="acquisition" label="比較する画像の撮影・染色条件" value={answers.acquisition} onChange={change} options={[["unknown", "未確認"], ["matched", "比較可能な条件で取得している"], ["different", "露光・染色条件などが異なる"]]} />
+          <Choice name="acquisition" label="比較する画像の撮影・染色条件" value={answers.acquisition} onChange={change} options={[["unknown", "未確認"], ["matched", "比較可能な条件で取得"], ["different", "露光・染色条件などが異なる"]]} />
         </div></section>
         <section className={styles.section} aria-labelledby="design"><h2 id="design">統計</h2><div className={styles.fields}>
           <Choice name="comparison" label="解析内容" value={answers.comparison} onChange={change} options={[["unknown", "未設定"], ["descriptive", "測定値の分布"], ["independent", "対応のない群間比較"], ["paired", "対応のある群間比較"]]} />
           {answers.comparison !== "descriptive" && <Choice name="allocation" label="処置を割り付けた単位" value={answers.allocation} onChange={change} options={[["unknown", "未確認"], ["biological", "独立した動物・培養など"], ["fields", "同一試料内の細胞・視野"]]} hint="同じ動物から得た10視野は、独立した10実験にはなりません。別wellや別日の試料についても、培養条件と処置の割り付けを確認してください。" />}
-          <Choice name="gating" label="GFPによる陽性選別" value={answers.gating} onChange={change} options={[["none", "行わない"], ["negative-control", "陽性選別用の陰性対照がある"], ["exploratory", "手動閾値・Otsuを使いたい"]]} />
+          <Choice name="gating" label="GFPによる陽性選別" value={answers.gating} onChange={change} options={[["none", "行わない"], ["negative-control", "陽性選別用の陰性対照がある"], ["exploratory", "手動しきい値・Otsu（探索的）"]]} />
         </div></section>
       </div>
       <aside className={styles.result} aria-label="解析方法">
         <h2>解析方法</h2>
-        <p className={styles.resultLead}>{result.candidates.length?"入力条件に対応する解析方法です。使用する方法を指定してください。":"測定項目と画像の条件を入力すると、利用できる解析方法が表示されます。"}</p>
+        <p className={styles.resultLead}>{result.candidates.length?"入力条件に対応する解析方法です。":"解析方法の表示には、測定項目と画像の条件が必要です。"}</p>
         {!!result.candidates.length&&<fieldset className={styles.candidates}><legend>使用する方法</legend>{result.candidates.map(candidate=><label key={candidate.id}><input type="radio" name="plan-candidate" value={candidate.id} checked={selected===candidate.id} onChange={()=>setSelected(candidate.id)}/>{candidate.label}</label>)}</fieldset>}
         {(API_CONFIGURED||LOCAL_MODE)&&<button className={styles.save} disabled={!selected} onClick={()=>{if(selected){memory.setPending({input:planReceipt(answers,version),candidateId:selected});router.push("/legacy");}}}>この設定で作成</button>}
-        <button className={styles.export} onClick={save}>設定を書き出す</button>
-        <p className={styles.note}>設定をJSONファイルに保存します。{API_CONFIGURED||LOCAL_MODE?"画像登録後の確認は別途必要です。":"Windows版で読み込むと、設定を引き継げます。"}ページを再読み込みすると入力内容は消去されます。</p>
+        <button className={styles.export} onClick={save}>設定を書き出し</button>
+        <p className={styles.note}>設定をJSONファイルに保存します。{API_CONFIGURED||LOCAL_MODE?"画像登録後に、実画像での確認が必要です。":"Windows版で読み込めます。"}入力内容はページの再読み込みで消去されます。</p>
         {started && <>
-          <div role="status" className={styles.status}>{result.questions.length ? `要確認 ${result.questions.length}件` : "追加の確認項目はありません"}{result.limits.length > 0 && ` · 適用条件 ${result.limits.length}件`}</div>
+          <div role="status" className={styles.status}>{result.questions.length ? `要確認 ${result.questions.length}件` : "要確認なし"}{result.limits.length > 0 && ` · 適用条件 ${result.limits.length}件`}</div>
           {result.questions.length > 0 && <div className={styles.findings}><h3>確認が必要な項目</h3>{result.questions.map(planningDisplay).map(f => <article key={f.id}><h4>{f.title}</h4><p>{f.detail}</p></article>)}</div>}
           {result.limits.length > 0 && <div className={styles.findings}><h3>適用条件・制限</h3>{result.limits.map(planningDisplay).map(f => <article key={f.id}><h4>{f.title}</h4><p>{f.detail}</p></article>)}</div>}
           {result.decisions.length > 0 && <details className={styles.findings}><summary>測定・集計の説明</summary>{result.decisions.map(planningDisplay).map(f => <article key={f.id}><h4>{f.title}</h4><p>{f.detail}</p></article>)}</details>}
         </>}
       </aside>
     </div>
-    <details className={styles.sources}><summary>参考文献・解析方法について</summary><p>各方法の適用には実験条件の確認が必要です。この画面では、実験に必要な反復数の算出や、画像を用いた適合性の判定は行いません。</p><ul>{planReferences.map(r => <li key={r.id}><a href={r.url} rel="noreferrer" target="_blank">{r.label} ↗</a></li>)}</ul></details>
-    <footer className={styles.footer}><span>入力内容はブラウザ内で処理します。外部への送信はありません。</span><span>解析設定 {version}</span></footer>
+    <details className={styles.sources}><summary>参考文献・適用範囲</summary><p>各方法の適用には実験条件の確認が必要です。この画面では、必要な反復数の算出と、画像による適合性の判定は行いません。</p><ul>{planReferences.map(r => <li key={r.id}><a href={r.url} rel="noreferrer" target="_blank">{r.label} ↗</a></li>)}</ul></details>
+    <footer className={styles.footer}><span>入力内容はブラウザ内で処理し、外部に送信しません。</span><span>解析設定 {version}</span></footer>
   </main>;
 }

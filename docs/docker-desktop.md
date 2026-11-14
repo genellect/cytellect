@@ -81,7 +81,7 @@ Windows に Python や Fiji を入れずに、Docker Desktop の Linux コンテ
 | `Install and start Docker Desktop with Linux containers first.` | Docker Desktop をインストールし、Linux コンテナで起動する |
 | `Start Docker Desktop and wait until its Linux engine is running.` | Docker Desktop を起動し、Linux エンジンの準備が終わってから再実行する。Docker Desktop 自体がエラーを表示している場合は、Cytellect を入れ直しても解決しない |
 | 3087 または 8001 ポートが使用中 | そのポートを使っているアプリを確認し、ポートを空ける。自動接続は `127.0.0.1:3087`（Web）と `127.0.0.1:8001`（API）に固定されているため、Compose のポートを変更すると接続できなくなる |
-| 画面が「接続を確認しています」から進まない、またはエラーになる | `Status` で全サービスが起動しているか確認し、「再接続」を押す |
+| 画面が「接続を確認中…」から進まない、またはエラーになる | `Status` で全サービスが起動しているか確認し、「再接続」を押す |
 | Windows で `dockerInference` ソケットのエラー 1920 | 原因を確認する前に Factory Reset や WSL の削除を行わない。保存データが失われる |
 
 ## 7. アンインストール

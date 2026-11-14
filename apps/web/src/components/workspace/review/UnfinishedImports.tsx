@@ -12,7 +12,7 @@ export function UnfinishedImports({items, disabled, onExclude}: {items: Unfinish
     {items.length > 1 && <ExclusionForm key={items.map(item => item.entry).join()} label={`登録できなかった ${items.length} 件をまとめて除外`} initial={reasons.size === 1 ? proposed(items[0].reason) : ""}
       disabled={disabled} onSubmit={reason => onExclude(items.map(item => item.entry), reason)} button="まとめて除外"/>}
     {items.map(item => <li key={item.entry} className={styles.unfinishedImport}>
-      <span><strong>{item.name ?? "名前の記録がない登録"}</strong>：{item.reason ?? "登録が完了していません。もう一度追加するか、理由を付けて除外してください。"}</span>
+      <span><strong>{item.name ?? "名称不明"}</strong>：{item.reason ?? "登録が完了していません。再度追加するか、理由を付けて除外してください。"}</span>
       <ExclusionForm initial={proposed(item.reason)} disabled={disabled} onSubmit={reason => onExclude([item.entry], reason)} button="除外"/>
     </li>)}
   </>;

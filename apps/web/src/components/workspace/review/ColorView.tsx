@@ -27,5 +27,5 @@ export function TableHeading({heading,next,children}:{heading:string;next?:NextA
 }
 /** The next step (MV-09). Before judging the compared fields again it says so, beside the button. */
 export function NextStep({next}:{next:NextAction}){
-  return <span className={styles.nextStep}><button type="button" disabled={next.disabled} title={next.disabled?"陽性・陰性を判定すると比べられます":next.note} onClick={next.onClick}>{next.label} →</button>{next.note&&!next.disabled&&<small>{next.note}</small>}</span>;
+  return <span className={styles.nextStep}><button type="button" disabled={next.disabled} title={next.disabled?"比較には陽性・陰性の判定が必要です":next.note} onClick={next.onClick}>{next.label} →</button>{next.note&&!next.disabled&&<small>{next.note}</small>}</span>;
 }

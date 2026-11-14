@@ -97,7 +97,7 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
       return <section key={pane.group.id} className={styles.pane} aria-label={label}>
         <header className={styles.paneHead}>
           <strong title={pane.group.label}>{pane.group.label}</strong>{pane.group.id===design.control_group_id&&<span className={styles.badge}>対照</span>}
-          {stratumName&&<span className={styles.badge} title="この実験回の、この層の視野だけを並べます">層：{stratumName}</span>}
+          {stratumName&&<span className={styles.badge} title="この実験回・この層の視野のみ表示">層：{stratumName}</span>}
           {pane.ids.length>1&&<select aria-label={`${pane.group.label} の視野`} value={field?.id} onChange={event=>{const id=event.target.value;setChosen(previous=>({...previous,[pane.key]:id}));
             // The chosen field is also the selected one, so measuring and candidates act on what is shown.
             onSelect(id,channel);}}>
@@ -105,7 +105,7 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
           <small>{pane.ids.length} 視野 · {count===null?"未測定":`${targets[target]} ${count}`}{saved?" · 図の保存時の版":candidate?" · 検出候補":""}</small>
         </header>
         <div className={styles.paneBody} ref={index===0?body:undefined}>
-        <div className={styles.paneImage}>{!field?<p className={styles.empty}>{layoutPanes.unassigned?"選んだ視野は層が決まっていないため、ほかの視野と並べません。「実験」で層を選んでください。":stratumName?`この実験回の層「${stratumName}」には、この群の画像がありません。`:"この実験回の画像がありません。"}</p>:urls[index]&&layout.scale>0?<ReviewImageCanvas
+        <div className={styles.paneImage}>{!field?<p className={styles.empty}>{layoutPanes.unassigned?"選択した視野は層が未設定のため、並べて表示しません。「実験」で層を設定してください。":stratumName?`この実験回の層「${stratumName}」には、この群の画像がありません。`:"この実験回の画像がありません。"}</p>:urls[index]&&layout.scale>0?<ReviewImageCanvas
           src={urls[index]!} width={field.width} height={field.height} contours={value?.masks.regions||[]}
           // The colour mode applies to both panes, so the two groups are read the same way (MV-01, MV-03).
           classification={saved||candidate?undefined:states(field.id)} colorBy={colorBy} legend={saved||candidate?undefined:legend(field.id)} fills={saved||candidate?undefined:fills(field.id)}
@@ -133,7 +133,7 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
           {nuclear&&(nucleusView||colorBy==="positivity")?<ConnectedNucleusTable load={r.adapter.nucleusTable} save={r.adapter.saveNucleusTable} field={field.id} nuclearRevision={nuclear.revision}
             nucleolarRevision={r.currentResult(field.id,"nucleoli")?.revision} exclusion={field.exclusionReason} channels={field.channels} gate={colorBy==="positivity"?gateTable(field.id):undefined} selected={shown} onSelect={select}
             aside={index===panes.length-1&&next?<NextStep next={next}/>:undefined}/>
-          :rows.length?<MeasurementTable rows={rows} selected={shown} onSelect={select}/>:<p className={styles.tableEmpty}>{value?"この染色の測定値はありません。":"「測定」で輪郭と測定値を作ります。"}</p>}</>}</div>}
+          :rows.length?<MeasurementTable rows={rows} selected={shown} onSelect={select}/>:<p className={styles.tableEmpty}>{value?"この染色の測定値はありません。":"未測定"}</p>}</>}</div>}
         </div>
       </section>;
     })}
@@ -153,8 +153,8 @@ function useNarrow(){
 /** Pair toolbar text for the brightness transform (V-03): the shared range, or why each image uses its own. */
 export function pairDisplayText(value:PairDisplay):{label:string;detail:string}{
   return value.shared
-    ?{label:"共通の表示範囲",detail:`2 つの画像を、同じ表示範囲（保存値 ${format(value.black!)}–${format(value.white!)}。2 つの画像の画素の 0.5〜99.5 パーセンタイル）の共通の明るさの変換で描いています。範囲の外の値は黒または白で示すので、その差と、表示の階調による差は、この表示からは比べられません。露光・ゲインなど撮影条件の違いは補正していません。拡大は画素単位でそろえています。`}
-    :{label:"表示範囲は画面ごと",detail:"この画像では表示範囲をそろえられないため、それぞれの画像の範囲で描いています。明るさを比べず、測定値で比べてください。"};
+    ?{label:"共通の表示範囲",detail:`2 画像を共通の表示範囲（保存値 ${format(value.black!)}–${format(value.white!)}、2 画像の画素の 0.5〜99.5 パーセンタイル）で描画しています。範囲外の値は黒または白で表示するため、その差と表示の階調による差は、この表示では比較できません。露光・ゲインなど撮影条件の差は補正していません。拡大は画素単位で揃えています。`}
+    :{label:"表示範囲：画像ごと",detail:"表示範囲を揃えられないため、各画像の範囲で描画しています。明るさではなく測定値で比較してください。"};
 }
 
 const format=(value:number)=>Number.isInteger(value)?String(value):value.toPrecision(4);

@@ -17,7 +17,7 @@ export const emptyPlan:PlanAnswers={measurement:"unknown",region:"unknown",defin
 export const planReferences=catalog.references as PlanDecision["references"];
 export function parsePlan(value:unknown):PlanInput{
  if(!value||typeof value!=="object"||Array.isArray(value))throw Error("計画ファイルの形式を確認してください。");const input=value as Record<string,unknown>;
- if(typeof input.version==="string"&&input.version.startsWith("1.0."))throw Error("以前の計画メモです。現在の計画ガイドで内容を確認し直してください。");
+ if(typeof input.version==="string"&&input.version.startsWith("1.0."))throw Error("以前の計画形式のため、読み込めません。解析設定で作成し直してください。");
  if((input.format!==undefined&&input.format!=="cytellect-analysis-plan")||input.version!==PLAN_VERSION||Object.keys(input).some(key=>!["format","version","answers"].includes(key)))throw Error("対応していない計画ファイルです。");
  if(!input.answers||typeof input.answers!=="object"||Array.isArray(input.answers))throw Error("計画の回答がありません。");const answers=input.answers as Record<string,unknown>;
  if(Object.keys(answers).some(key=>!(key in answerOptions))||Object.entries(answerOptions).some(([key,values])=>answers[key]!==undefined&&!values.some(value=>value===answers[key])))throw Error("計画の回答を確認してください。");

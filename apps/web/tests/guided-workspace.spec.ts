@@ -42,13 +42,13 @@ test("successive public-image fields retain explicit experiment metadata but res
  await page.getByLabel("測定対象",{exact:true}).selectOption("gfp");
  const metadata={condition:"Public sample",experimental_unit:"culture-1",sample:"slide-1",acquisition_date:"reference-batch",pair:"pair-1",repeat_length:"",pixel_size_um:""};
  for(const [name,value] of Object.entries(metadata))await upload.locator(`input[name="${name}"]`).fill(value);
- async function files(){await upload.locator('input[name="dapi"]').setInputFiles(path.join(root,"fixtures/public/bbbc013/A01-dapi.tif"));await upload.locator('input[name="gfp"]').setInputFiles(path.join(root,"fixtures/public/bbbc013/A01-gfp.tif"));await page.getByLabel("登録する画像の染色とチャンネル対応を確認しました。").check();}
+ async function files(){await upload.locator('input[name="dapi"]').setInputFiles(path.join(root,"fixtures/public/bbbc013/A01-dapi.tif"));await upload.locator('input[name="gfp"]').setInputFiles(path.join(root,"fixtures/public/bbbc013/A01-gfp.tif"));await page.getByLabel("登録する画像の染色とチャンネル対応を確認済み").check();}
  await files();await mutation(page,"/fields",()=>page.getByRole("button",{name:"この視野を登録",exact:true}).click());
  await expect(upload).not.toHaveAttribute("open","");
  await upload.locator(":scope > summary").click();
  for(const [name,value] of Object.entries(metadata))await expect(upload.locator(`input[name="${name}"]`)).toHaveValue(value);
  await expect(upload.locator('input[name="dapi"]')).toHaveValue("");await expect(upload.locator('input[name="gfp"]')).toHaveValue("");
- await expect(page.getByLabel("登録する画像の染色とチャンネル対応を確認しました。")).not.toBeChecked();
+ await expect(page.getByLabel("登録する画像の染色とチャンネル対応を確認済み")).not.toBeChecked();
  await expect(page.getByText("前の視野の実験情報を引き継いでいます。異なる項目だけ変更してください。")).toBeVisible();
  await upload.locator('input[name="sample"]').fill("slide-2");await files();
  await mutation(page,"/fields",()=>page.getByRole("button",{name:"この視野を登録",exact:true}).click());
@@ -90,7 +90,7 @@ test("edited representative masks survive batch expansion and re-detection requi
  let requested=0;page.on("request",request=>{if(request.method()==="POST"&&request.url().endsWith("/analyses"))requested++;});
  await page.getByRole("button",{name:"条件を固定して全視野を解析",exact:true}).click();
  const confirmation=page.getByRole("alert",{name:"再検出の確認"});await expect(confirmation).toContainText("全 6 視野を再検出");expect(requested).toBe(0);
- await confirmation.getByRole("button",{name:"取消",exact:true}).click();await expect(confirmation).not.toBeVisible();expect(requested).toBe(0);
+ await confirmation.getByRole("button",{name:"取り消し",exact:true}).click();await expect(confirmation).not.toBeVisible();expect(requested).toBe(0);
  const unchanged=await json(await page.request.get(`${api}/v1/workspaces/${workspace.id}`));expect(unchanged.active_revision).toBe(batch.revision_id);
  await page.getByRole("button",{name:"この視野で試す",exact:true}).click();await expect(confirmation).toContainText("選択中の1視野を再検出");expect(requested).toBe(0);
  const confirmed=page.waitForRequest(r=>r.url().endsWith("/analyses")&&r.method()==="POST");

@@ -56,7 +56,7 @@ describe("nucleus table view",()=>{
     const view=nucleusTableView({...table,nucleolar_source:null,calibration:null,rows:[row(1,{...missing("nucleolar_revision_not_selected"),status:"not_measured"})]},channels);
     expect(view.columns.map(column=>column.label)).toEqual(["核","核面積 / px²","Hoechst 積算","NPM1 平均","NPM1 平均（背景補正）","状態"]);
     expect(view.rows[0].cells[0].text).toBe("25");
-    expect(view.ledger).toBe("核 1 個 · 核小体を解析すると、核ごとの核小体の値が加わります");
+    expect(view.ledger).toBe("核 1 個 · 核小体：未解析");
   });
   it("shows uncalibrated nucleolar area in pixels, unconfirmed review candidates as missing, and unadopted nuclei",()=>{
     const view=nucleusTableView({...table,calibration:null,nuclear_adopted:false,rows:[row(1,measured),row(2,missing("review_required"))]},channels);
