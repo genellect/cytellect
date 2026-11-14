@@ -118,4 +118,4 @@ python3 scripts/dev.py contracts       # API を変えたとき（OpenAPI、既�
 python3 scripts/dev.py audit           # 依存パッケージを変えたとき（結果は checkout の外に保存）
 ```
 
-ブラウザ、コンテナ、Windows の統合試験は CI が担う（[CI の構成](docs/ci.md)）。ブラウザの試験を手元で行うときは、`serve` を起動したまま、CI の `fiji-browser` ジョブ（[ci.yml](.github/workflows/ci.yml)）と同じ手順で公開画像を準備して `pnpm test:e2e` を実行する。`CYTELLECT_TEST_DATA_DIR` には `serve` の作業データの場所を指定する。PR の説明は、[PR テンプレート](.github/pull_request_template.md)のすべての項目を書く。
+ブラウザ、コンテナ、Windows の統合試験は CI が担う（[CI の構成](docs/ci.md)）。ブラウザの試験を手元で行うときは、`serve` を起動したまま、CI の `browser-e2e` ジョブ（[ci.yml](.github/workflows/ci.yml)）と同じ手順で公開画像を準備して `pnpm test:e2e` を実行する。`CYTELLECT_TEST_DATA_DIR` には `serve` の作業データの場所を指定する。PR の説明は、[PR テンプレート](.github/pull_request_template.md)のすべての項目を書く。

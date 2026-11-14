@@ -19,7 +19,7 @@ RELEASE = (WORKFLOWS / "local-release.yml").read_text(encoding="utf-8")
 CI = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
 HEAD = "a" * 40
 OLDER = "b" * 40
-CHECKS = ["python", "web", "fiji-browser", "cellpose-gpu-image", "local-windows", "windows-installed",
+CHECKS = ["python", "web", "fiji-browser", "browser-e2e", "cellpose-gpu-image", "local-windows", "windows-installed",
           "windows-installer", "python-windows-314"]
 
 

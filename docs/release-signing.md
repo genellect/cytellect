@@ -63,7 +63,7 @@ ssh-keygen -Y verify -f allowed_signers -I cytellect-update -n cytellect-update 
 
 マージが続くと、`main` の先頭の CI（約 55 分）が終わる前に次のコミットが入る。その間も、CI がすべて通った前のコミットを `commit` に指定すれば配布できる。`main` の CI は後のマージで取り消されないため、どのコミットにも完全な結果が残る（[CI の構成](ci.md#配布の条件)）。
 
-- 指定できるのは、`main` の先頭か、その祖先のコミットで、[配布の条件](ci.md#配布の条件)の 8 つのジョブがすべて成功したものだけ。候補は **Actions → Verify** で、ブランチ `main`、イベント `push` の成功した実行から探せる（`gh run list --workflow ci.yml --branch main --event push --status success`）。
+- 指定できるのは、`main` の先頭か、その祖先のコミットで、[配布の条件](ci.md#配布の条件)の 9 つのジョブがすべて成功したものだけ。候補は **Actions → Verify** で、ブランチ `main`、イベント `push` の成功した実行から探せる（`gh run list --workflow ci.yml --branch main --event push --status success`）。
 - 小文字の 16 進 40 文字以外（短い SHA、大文字、ブランチ名・タグ名）と、`main` にないコミットは、最初の `source` ジョブが何も作らずに止める。8 つのジョブの成功も、ここでそのコミットについて確かめる。
 - 以後の `package` と `draft` は、そのコミットだけを checkout する。ZIP、インストーラー、対応するソース、受入のレシート、署名した manifest の `source_commit`、タグ、リリースは、すべてそのコミットを指す。`draft` は、checkout がそのコミットで `main` の祖先であることと、インストーラーのレシートの `source_commit` が一致することを、署名の前にもう一度確かめる。
 - workflow 自体は常に `main` の先頭のものが動き、`release` environment の承認・`main` だけの許可・secret の確認・既存のタグとリリースの拒否は変わらない。署名の検証は、そのコミットに組み込まれた公開鍵か、最後に公開したリリースの鍵で行う。
