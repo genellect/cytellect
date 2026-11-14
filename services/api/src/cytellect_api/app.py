@@ -50,6 +50,7 @@ from .common_statistics import register_common_statistics_routes
 from .config import Settings, configure_private_tmp
 from .db import Store, digest, fields, invitations, jobs, revisions, sessions, tables, uid, workspaces
 from .descriptive import register_descriptive_routes
+from .discussions import register_discussion_routes
 from .field_links import register_field_link_routes
 from .figure_render import register_figure_render_routes
 from .nucleus_tables import register_nucleus_table_routes
@@ -1144,6 +1145,7 @@ def create_app(settings: Settings | None = None, *, proposal_credentials=None):
     register_common_statistics_routes(api, store, owner, revision, result_root, queue, job_record)
     register_planning_routes(api, owner)
     register_proposal_routes(api, store, settings, owner, workspace, credentials=proposal_credentials)
+    register_discussion_routes(api, store, settings, owner, job_record, credentials=proposal_credentials)
     register_workspace_selection_routes(api, store, owner, workspace, touch)
     register_channel_assignment_routes(api, store, owner, workspace, touch)
     register_analysis_spec_routes(api, store, owner, workspace, touch)

@@ -11,7 +11,7 @@ describe("colour modes (MV-01)", () => {
     const nucleiOnly = colorByChoices({...all, nucleoli: false, nucleoplasm: false, gateChannels: 0});
     expect(nucleiOnly.find(choice => choice.id === "positivity")?.reason).toBe("判定できる染色がありません");
     expect(nucleiOnly.find(choice => choice.id === "compartments")?.reason).toBe("核小体と核質の結果が必要です");
-    expect(colorByChoices({...all, nuclei: false}).filter(choice => choice.reason === "採用した核の結果が必要です")).toHaveLength(2);
+    expect(colorByChoices({...all, nuclei: false}).filter(choice => choice.reason === "採用した核が必要です")).toHaveLength(2);
     // A saved version or a candidate is read-only: only its outlines are drawn.
     expect(colorByChoices({...all, saved: true}).filter(choice => choice.reason === null).map(choice => choice.id)).toEqual(["outline"]);
   });
@@ -74,12 +74,12 @@ describe("table heading (MV-06)", () => {
 describe("next step (MV-09)", () => {
   const view = {metric: "mean", target: "nucleoli" as const, channel: "eu5", stain: "5-EU"};
   it("compares groups by what the colour mode shows", () => {
-    expect(nextComparison({...view, colorBy: "outline"})).toMatchObject({label: "平均輝度（5-EU）を群で比べる", metric: "mean", target: "nucleoli", channel: "eu5", reclassify: false});
-    expect(nextComparison({...view, metric: "area_px", colorBy: "outline"})).toMatchObject({label: "面積（px²）を群で比べる", channel: null});
+    expect(nextComparison({...view, colorBy: "outline"})).toMatchObject({label: "平均輝度（5-EU）を群間で比較", metric: "mean", target: "nucleoli", channel: "eu5", reclassify: false});
+    expect(nextComparison({...view, metric: "area_px", colorBy: "outline"})).toMatchObject({label: "面積（px²）を群間で比較", channel: null});
     // Positivity says that the compared fields are judged again by the same rule (M22).
     const positivity = nextComparison({...view, colorBy: "positivity"});
-    expect(positivity).toMatchObject({label: "陽性率を群で比べる", metric: "positive_fraction", target: "nuclei", channel: null, reclassify: true});
-    expect(positivity.note).toContain("判定し直して");
+    expect(positivity).toMatchObject({label: "陽性率を群間で比較", metric: "positive_fraction", target: "nuclei", channel: null, reclassify: true});
+    expect(positivity.note).toContain("再判定してから");
     expect(nextComparison({...view, colorBy: "compartments"})).toMatchObject({metric: "log2_nucleoplasm_over_nucleolus", target: "nucleoplasm", channel: "eu5"});
   });
 });

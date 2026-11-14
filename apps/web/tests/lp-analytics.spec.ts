@@ -141,11 +141,11 @@ test("the analysis workspace and other routes, standalone frame, localhost and p
 test("blocking Google leaves navigation usable", async ({page, baseURL}) => {
   await isolatedSite(page, baseURL!, true);
   await page.goto(origin + "/");
-  await page.getByRole("tab", { name: "自動検出", exact: true }).click();
   await page.locator('[data-lp-event="demo_image"]').click();
-  await expect(page).toHaveURL(`${origin}/demo?step=image`);
+  await expect(page).toHaveURL(url => url.origin === origin && url.pathname === "/demo" && url.searchParams.get("step") === "image" && /^[0-9a-f-]{36}$/.test(url.searchParams.get("id") ?? ""));
   await expect(page.getByRole("link", { name: "cytellect" }).first()).toBeVisible();
-  expect(await commands(page)).toEqual([]);
+  // Leaving the LP removes its measurement frame; read whichever frame is attached once it settles.
+  await expect.poll(async () => { try { return await commands(page); } catch { return null; } }).toEqual([]);
 });
 
 test("the LP and the analysis screen are separate, and /product moves to the LP", async ({page, baseURL}) => {

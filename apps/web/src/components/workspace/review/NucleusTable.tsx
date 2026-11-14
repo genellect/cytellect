@@ -49,7 +49,7 @@ export function ConnectedNucleusTable({load,save,field,nuclearRevision,nucleolar
       error=>{if(current)setState({key,error:error instanceof Error?error.message:String(error)});});
     return()=>{current=false;};
   },[key,field,nuclearRevision,nucleolarRevision]);
-  if(!nuclearRevision)return <p>核を検出して採用すると、核ごとの表が表示されます。</p>;
+  if(!nuclearRevision)return <p>核ごとの表には、核の検出と採用が必要です。</p>;
   if(state.key!==key)return <p>核ごとの表を読み込み中…</p>;
   if(state.error)return <p role="alert">核ごとの表を読み込めませんでした（{state.error}）。</p>;
   return <NucleusTable table={state.table!} channels={channels} gate={gate} aside={aside} selected={selected} onSelect={onSelect}

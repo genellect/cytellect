@@ -60,6 +60,40 @@ M2 は元画像での解像・対象同定・校正を開始条件とする。M3
 
 2026-11-11 のオーナーの指摘を受けた計画。本番もデモも、画像の画面から何ができるのかが分からない。核ごとの表・区画への分配・陽性率を加えても、画面はほとんど変わらなかった。画像の「色分け」（輪郭／陽性・陰性／核小体と核質）を測定の入口にし、表の見出しで何を測っているかを示し、次の一手を 1 つ置く。[要件定義書](drafts/image-measurement-view/requirements.md)と[実装案](drafts/image-measurement-view/implementation.md)は 2026-11-11 にオーナーが承認し、分配の向き（核質 ÷ 核小体）・「値の強さ」の色分けを加えない・核ごとの表を既定にする、の 3 点を決めた。ブランチ `feat/image-measurement-view` で実装した（genellect/cytellect#194・#195 を取り込んだ上に積む）。色分け、表の見出し、分配の統合、操作の整理、次の一手、判定の復元を入れ、要件 M24 に移した。研究者による評価（[操作評価課題](usability-tasks.ja.md)の課題 6、受入条件 C-09）は未実施。
 
+### 結果の表現とデモの素材
+
+統計の結果とデモの見せ方を見直す（2026-11-12、オーナーが方向性と 7 つの判断を承認。[要件定義書（案）](drafts/results-and-demo-story/requirements.md)、[実装案](drafts/results-and-demo-story/implementation.md)）。3 本の PR に分け、次の順でマージする。デモの記録を 1 回で済ませるため、全画面の文言（`claude/ui-copy`）は 3 に含める（2026-11-12、オーナーの判断）。
+
+| 順 | PR・ブランチ | 内容 | 状態（2026-11-12） |
+|---|---|---|---|
+| 1 | genellect/cytellect#198 `claude/affectionate-knuth-vbir8l` | 結果の見出し・要点・根拠の 1 行、前提の 1 回の表示、デモを複数染色の核小体の場面から開く、UI の文言の規則（UC） | 統計画面の領域の同期を修正し、デモの記録を作り直し中 |
+| 2 | genellect/cytellect#199 `claude/result-discussion` | 考察（LLM）の契約・検証・API・提案サービスの経路・画面の枠。有料の呼び出しはしない | #198 の取り込み待ち |
+| 3 | `claude/demo-platinum-story` | オキサリプラチン・シスプラチンの場面、場面の概要（DM-11）、デモの考察のモック（AC-08）、全画面の文言（UC-01〜UC-07） | 4 場面でデモを作り直して PR |
+
+1 が `main` に入ったら、2 の宛先を `main` に変え、`main` を取り込んで CI を通してからマージする。3 も同じ。取り込みで `apps/web/public/showcase/**` が衝突したら、後に積んだ側を採る。
+
+#### 並行作業の分担
+
+同じファイルを同時に変えないため、担当ごとに触れる範囲を決める（2026-11-12）。範囲の外を変える必要が出たら、変える前に、その範囲の担当の PR にコメントで知らせる。どの担当も、`main` へのマージ・デプロイ・有料 API の呼び出しをせず、他の担当のブランチを rebase・force-push しない。
+
+段 1（上の 3 本を仕上げる間）：
+
+| 担当 | ブランチ | 変えてよい範囲 | 変えない範囲 |
+|---|---|---|---|
+| Claude A（最初のセッション） | 1・2、`claude/ui-copy`（3 に取り込む文言の修正） | `apps/web/src/**`、`apps/web/tests/**`、`packages/analysis/src/cytellect_analysis/discussion_*`、`services/api/src/cytellect_api/discussions.py`、`services/proposal-worker/**`、`docs/requirements.md`、`docs/drafts/results-and-demo-story/**`、画面の文言を引用する文書。1・2 のブランチでは `apps/web/public/showcase/**` も（記録と実行環境の作り直し） | 3 のブランチの `services/showcase/**`・`apps/web/public/showcase/**` |
+| Claude B（別のクラウドセッション） | 3 | `services/showcase/**`、`apps/web/public/showcase/**`、`apps/web/public/fonts/**`、`fixtures/public/allowlist.json`、`scripts/security-tools.lock.json`（フォントの記録の確認済みの値の追加だけ）、`docs/showcase.md` | `apps/web/src/**` と `apps/web/tests/**`（デモの作り直しで見つかった不具合は Claude A に知らせ、Claude A が `claude/ui-copy` で直す） |
+| Codex | `main` から `codex/<topic>` | `.github/workflows/**`（Node.js 24 への対応、検出を手動で走らせる Actions）、`docs/drafts/gfp-scene/**`（GFP の場面の候補調査） | 上の 3 本の PR が触るすべてのファイル |
+
+段 2（3 本が `main` に入った後。互いに重ならない 3 つを並行で進める）：
+
+| 単位 | 担当 | 内容 | 主なファイル |
+|---|---|---|---|
+| 考察の画面の残り | Claude A | AC-02（有効かどうかを押す前に示す 1 行）、AC-03（設定画面での開示）、AC-06（「前の結果の考察」の表示と再生成）、試験 C-11・C-14・C-15 | `apps/web/src/components/workspace/review/DiscussionPanel.tsx`、`ProposalPanels.tsx`、`api-adapter.ts`、`services/api/src/cytellect_api/discussions.py`・`db.py` と試験 |
+| 公開サイズの自動検査 | Claude A（genellect/cytellect#202、`main` から並行で作成済み） | DM-10：公開デモが 700 MiB を超えたら CI で止める（2 進で読む。2026-11-13、オーナーの判断） | `scripts/check_public_tree.py` と試験 |
+| 文書の移し替え | Claude B | 要件定義書 §9 の移し替え（S-01・S-05・X-01・X-02・D-10 を群間比較の要件へ）、場面の順序の記述をそろえる、この節を完了の状態に更新する | `docs/drafts/group-comparison/requirements.md`、`docs/drafts/results-and-demo-story/requirements.md`、`docs/showcase.md`、この文書 |
+
+段 3（オーナーの判断の後）：GFP の場面の登録（Claude B、[候補調査](https://github.com/genellect/cytellect/pull/201) の判断の後）、考察の本番での有効化（AC-09、デプロイ・有効化・有料の呼び出しの確認をそれぞれオーナーの許可を得て行う）。
+
 ### 評価する項目
 
 モデルの検出精度、面積・輝度の測定誤差、手補正にかかる時間。
@@ -72,7 +106,7 @@ M2 は元画像での解像・対象同定・校正を開始条件とする。M3
 | 研究者による評価 | 複数の研究室の研究者による、作業の完了・時間・修正の負担・理解・再利用の評価（[評価タスク](usability-tasks.ja.md)） |
 | Windows 版 | Cellpose は CPU では 1 視野に数十分かかり実用にならないため、推論をクラウド GPU（[設定](cloud-gpu.ja.md)）で行う。実 GPU での所要時間・費用と CPU との一致度の受入、Windows のセットアップ画面からの設定。別の PC で起きた Smart App Control によるブロックへの対応。0.1.0-local.21 の公開後、公開されたインストーラーの SHA-256 を確かめてから、サイトのダウンロードの記録（`apps/web/src/lib/published-release.json`）を `"asset": "installer"` に切り替える（サイトは対応済み。[手順](../apps/web/README.md#windows-release-link)） |
 | ホスト型の解析 | 公開 TLS とドメイン、利用者が不在の間の継続的な削除、運用サーバーの分離。研究画像をクラウドで受け付ける前に満たす |
-| LP | 2026-10-23 にヒーロー映像（培養プレートから始まる実写の版）と本文（具体的な主張と解析例の実画面、「できること」4 つのタブ）をオーナーが承認した。患者へつながる将来性のカードは、既存の深緑の面に、研究から患者への 3 段階を細→太の線でつなぐ案を実装（Vercel プレビューでオーナーが線の版を選択）。PC・スマートフォンの画面でオーナーが判定することが受入条件（[美術方針](lp-art-direction.md#5-世界観と章立て)）。そのほかの残りは、ヒーロー映像の改良（Codex が担当、[美術方針](lp-art-direction.md) §9・§10）、研究室での撮影の可否、核小体の検出の前後比較の画像と研究室の利用者の声を公開してよいかの確認 |
+| LP | 2026-10-23 にヒーロー映像（培養プレートから始まる実写の版）と本文（具体的な主張と解析例の実画面、「できること」4 つのタブ）をオーナーが承認した。患者へつながる将来性のカードは、既存の深緑の面に、研究から患者への 3 段階を細→太の線でつなぐ案を実装（Vercel プレビューでオーナーが線の版を選択）。PC・スマートフォンの画面でオーナーが判定することが受入条件（[美術方針](lp-art-direction.md#5-世界観と章立て)）。そのほかの残りは、ヒーロー映像の改良（Codex が担当、[美術方針](lp-art-direction.md) §9・§10）、研究室での撮影の可否、核小体の検出の前後比較の画像と研究室の利用者の声を公開してよいかの確認。2026-11-13 のオーナーの指摘（新機能との乖離、掲載画像が古い、デザインの水準）を受け、承認された実装方針に沿って、今のページを土台にページ全体を作り替えた版（検出と測定を最初に開くタブと、その横の Three.js の 3D 空間、実写）をブランチ `claude/festive-planck-86etrw` で実装した（[実装方針と実装](drafts/lp-renewal/implementation.md)）。プレビューでのオーナーの判定が受入条件 |
 | 核ごとの表 | 保存した表（CSV・JSON）は 1 視野ごとで、列の染色名までを記録する。視野の表示名、群・実験回・条件を表に加え、複数の視野をまとめて保存できるようにする（[計画](drafts/research-measurements/plan.md) の M1「試料属性・条件・時点を保持」） |
 | 今後の機能 | アカウント、チーム、長期保存、決済 |
 

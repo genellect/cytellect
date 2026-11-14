@@ -31,7 +31,7 @@ Three routine operations:
    images per group and independent run ([group comparison](drafts/group-comparison/requirements.md),
    E-01–E-08, owner decision amending U01). The first images added before the form
    is chosen wait for it (2026-10-28 owner decision): 1 screen takes them, 2 screens ask for the
-   run and group, and "形を決めずに登録" registers them without a design, with groups
+   run and group, and "実験デザインなしで登録" registers them without a design, with groups
    typed per field in statistics; images added to a design without a place are listed
    as unassigned fields.
 2. **Review the proposal and press 解析を実行.** The analysis goal is optional

@@ -17,50 +17,50 @@ export function InstallGuide() {
     <header className={lp.guideHeader}><Link href="/" className={lp.wordmark} aria-label="Cytellect ホーム">cytellect</Link><a data-lp-event="contact" href={CONTACT_URL} target="_blank" rel="noopener noreferrer">お問い合わせ <Out /></a></header>
     <main className={lp.guideMain}>
       <h1>Windows版のインストール</h1>
-      <p className={lp.guideLead}>5〜10分で、解析を始められます。管理者権限もコマンド入力も要りません。</p>
+      <p className={lp.guideLead}>所要時間は5〜10分です。管理者権限とコマンド入力は不要です。</p>
       {WINDOWS_RELEASE_URL ? <>
         <DownloadStart url={WINDOWS_RELEASE_URL} installer={INSTALLER} guide={false} />
-        <p className={lp.meta}>{INSTALLER ? "インストーラー" : "ZIP"}{size && `・${size}・v${PUBLISHED_RELEASE!.version}`}<br />Windows 10／11（64ビット）・メモリ 8 GB 以上・空き容量 6 GB 以上を推奨</p>
-      </> : <p>ダウンロードできる版を準備中です。<Link href="/demo">デモ</Link>で操作を試せます。</p>}
+        <p className={lp.meta}>{INSTALLER ? "インストーラー" : "ZIP"}{size && `・${size}・v${PUBLISHED_RELEASE!.version}`}<br />推奨：Windows 10／11（64ビット）・メモリ 8 GB 以上・空き容量 6 GB 以上</p>
+      </> : <p>配布版は準備中です。操作は<Link href="/demo">デモ</Link>で確認できます。</p>}
 
       {INSTALLER ? <section aria-labelledby="flow-title">
-        <h2 id="flow-title">インストールで起きること</h2>
+        <h2 id="flow-title">インストールの手順</h2>
         <ol className={lp.guideSteps}>
-          <li><b>ダウンロードしたファイルを開く</b><span>「Cytellect-Setup{PUBLISHED_RELEASE ? `-${PUBLISHED_RELEASE.version}` : ""}.exe」{size && `（${size}）`}です。</span></li>
-          <li><b>「PCが保護されました」と出たら、「詳細情報」→「実行」</b><span>開発版にはまだ署名がないため表示されます。この1回だけ実行を許可する操作で、PCの設定は変わりません。</span></li>
-          <li><b>「インストール」を押す</b><span>PCが条件を満たしているかを確かめてから、解析に必要なものをすべて入れます。インストール中は、インターネットにつながりません。</span></li>
-          <li><b>作業画面が開く</b><span>ブラウザで作業画面が開きます。次からは、デスクトップの「Cytellect」から開けます。</span></li>
+          <li><b>ダウンロードしたファイルを開きます。</b><span>「Cytellect-Setup{PUBLISHED_RELEASE ? `-${PUBLISHED_RELEASE.version}` : ""}.exe」{size && `（${size}）`}</span></li>
+          <li><b>「PCが保護されました」と表示されたら、「詳細情報」→「実行」を押します。</b><span>開発版は未署名のため表示されます。この操作で許可するのは今回の実行だけで、PCの設定は変わりません。</span></li>
+          <li><b>「インストール」を押します。</b><span>PCの要件を確認してから、解析に必要なものをすべてインストールします。インストール中はインターネットに接続しません。</span></li>
+          <li><b>ブラウザに開いた作業画面を確認します。</b><span>次回からはデスクトップの「Cytellect」から開きます。</span></li>
         </ol>
       </section> : <section aria-labelledby="flow-title">
-        <h2 id="flow-title">インストールで起きること</h2>
+        <h2 id="flow-title">インストールの手順</h2>
         <ol className={lp.guideSteps}>
-          <li><b>ZIPを展開する</b><span>ダウンロードフォルダーなど、短い場所に展開します。</span></li>
-          <li><b>「Cytellect Setup」を開く</b><span>初回は、解析に必要なものをインターネットから取得します。</span></li>
-          <li><b>「セットアップ」を押し、終わったら「開く」</b><span>ブラウザで作業画面が開きます。</span></li>
+          <li><b>ZIPを展開します。</b><span>展開先は、ダウンロードフォルダーなど短いパスの場所にします。</span></li>
+          <li><b>「Cytellect Setup」を開きます。</b><span>初回は、解析に必要なものをインターネットから取得します。</span></li>
+          <li><b>「セットアップ」を押し、完了後に「開く」を押します。</b><span>ブラウザで作業画面が開きます。</span></li>
         </ol>
       </section>}
 
       <section aria-labelledby="trouble-title">
-        <h2 id="trouble-title">うまくいかないとき</h2>
+        <h2 id="trouble-title">トラブルシューティング</h2>
         <dl className={lp.guideList}>
-          <dt>「Smart App Control」と表示されて止まった</dt><dd>画面からは許可できません。設定は変えずに、<a data-lp-event="contact" href={CONTACT_URL} target="_blank" rel="noopener noreferrer">お問い合わせ <Out /></a>ください。</dd>
-          <dt>空き容量が足りないと表示された</dt><dd>空きを作ってから、同じファイルをもう一度開きます。</dd>
-          <dt>途中で閉じた・電源が切れた</dt><dd>同じファイルをもう一度開くと、未完成の分を削除して、準備をやり直します。ダウンロードし直す必要はありません。</dd>
+          <dt>「Smart App Control」で停止した</dt><dd>画面からは許可できません。設定を変更せずに、<a data-lp-event="contact" href={CONTACT_URL} target="_blank" rel="noopener noreferrer">お問い合わせ <Out /></a>ください。</dd>
+          <dt>空き容量の不足が表示された</dt><dd>空き容量を確保し、同じファイルを開き直します。</dd>
+          <dt>途中で閉じた・電源が切れた</dt><dd>同じファイルを開き直します。未完了の部分を削除して準備をやり直すため、再ダウンロードは不要です。</dd>
         </dl>
       </section>
 
       <section aria-labelledby="remove-title">
-        <h2 id="remove-title">やめるとき</h2>
-        <p>Windowsの「設定」→「アプリ」で「Cytellect」を選び、「アンインストール」を押します。研究データは、残すか削除するかを選べます（既定は残す）。</p>
+        <h2 id="remove-title">アンインストール</h2>
+        <p>Windowsの「設定」→「アプリ」で「Cytellect」を選び、「アンインストール」を押します。研究データは、保持か削除かを選択します（既定：保持）。</p>
       </section>
 
       <section aria-labelledby="cloud-title">
-        <h2 id="cloud-title">GPU推論とLLMも使うなら</h2>
-        <p>Windows版だけで、核のセグメンテーションから統計、論文の図まで使えます。GPU推論による核小体や細胞の検出と、LLMによる解析の設定は、研究室のクラウドで加わります。料金は応相談、大学内での試験導入は基本無料です。</p>
+        <h2 id="cloud-title">GPU推論とLLMの利用</h2>
+        <p>Windows版は、核のセグメンテーションから統計、論文の図までに対応します。GPU推論による核小体・細胞の検出と、LLMによる解析の設定は、研究室のクラウドで提供します。料金は応相談で、大学内での試験導入は基本無料です。</p>
         <a className={lp.secondary} data-lp-event="consult" href={CONTACT_URL} target="_blank" rel="noopener noreferrer">研究室で導入を相談 <Out /></a>
       </section>
 
-      <p className={lp.guideMore}><a data-lp-event="setup" href={docs + "install-windows.ja.md"} target="_blank" rel="noopener noreferrer">詳しいインストールの手順 <Out /></a><Link href="/">Cytellect のトップへ</Link></p>
+      <p className={lp.guideMore}><a data-lp-event="setup" href={docs + "install-windows.ja.md"} target="_blank" rel="noopener noreferrer">インストールの詳細手順 <Out /></a><Link href="/">Cytellect のトップへ</Link></p>
     </main>
   </div>;
 }

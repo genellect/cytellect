@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { breakdown, formatNumber, formatP, summarize, type ComparisonEstimates } from "./result-summary";
+import { breakdown, formatNumber, formatP, summarize, tidy, type ComparisonEstimates } from "./result-summary";
 
 // Saved-result shapes (comparison-estimates/1.0.0); the numbers are illustrative inputs to the text only.
 const interval = (estimate: number | null, low: number | null, high: number | null, reason: string | null = null) =>
@@ -16,84 +16,95 @@ const base = (overrides: Partial<ComparisonEstimates> = {}): ComparisonEstimates
 });
 
 describe("result summary", () => {
-  it("states the direction, size, interval, change and n of a paired t test", () => {
+  const none = interval(null, null, null, "inference_not_requested");
+  const descriptive = (overrides: Partial<ComparisonEstimates> = {}) => base({test: "none", difference: none, ratio: none, ...overrides});
+
+  it("states a paired t test as a heading, points and one basis line (RS-01–RS-04)", () => {
     const summary = summarize(base(), {method: "paired t-test", p_value: 0.012}, "核の面積", "µm²");
-    expect(summary.headline).toBe("核の面積は、DMSOに比べDrugで 20 µm² 小さい値でした。");
-    expect(summary.interval).toBe("実験回ごとの差の平均（Drug − DMSO）の 95% 信頼区間：-35 〜 -5 µm²。対照に対する変化：−20%（95% 信頼区間 −30% 〜 −8%、実験回ごとの比の幾何平均）");
-    expect(summary.test).toBe("実験回 n = 3（対）、対応のある t 検定 p = 0.012");
-    expect(summary.runs).toBe("3 回中、Drugが小さい回 3、大きい回 0。実験回ごとの差（Drug − DMSO）：r1 −20、r2 −23、r3 −17 µm²");
-    expect(summary.cautions[0]).toContain("n = 3");
+    expect(summary.heading).toBe("Drug で、核の面積が約 20% 縮小");
+    expect(summary.points).toEqual([
+      "3 回の実験すべてで縮小",
+      "平均：100 → 80 µm²",
+      "差（実験回ごとの差の平均）：−20 µm²、95% 信頼区間 −35〜−5（変化率 −20%、−30%〜−8%）",
+      "実験回ごとの変化：r1 −20%、r2 −22%、r3 −18%",
+    ]);
+    expect(summary.basis).toEqual({label: "対応のある t 検定 · n = 3 回 · p = 0.012", reason: null, action: null});
+    expect(summary.cautions).toEqual(["実験回が少ない（n = 3）。p 値だけで判断せず、各回の値と信頼区間を確認"]);
   });
 
-  it("describes a comparison without confirmed independence by its runs, never by a test", () => {
-    const none = interval(null, null, null, "inference_not_requested");
-    const summary = summarize(base({test: "none", difference: none, ratio: none,
-      groups: base().groups.map(group => ({...group, ci_low: null, ci_high: null, unavailable_reason: "inference_not_requested"}))}), {}, "核の面積", "µm²");
-    expect(summary.headline).toBe("核の面積をDMSOとDrugで比べました（実験単位の平均：DMSO 100、Drug 80 µm²）。");
-    expect(summary.interval).toBe("実験回の独立性が確認されていないため、差の信頼区間と検定は計算していません");
-    expect(summary.test).toBe("実験回 n = 3（対）、検定なし（記述のみ）");
-    expect(summary.runs).toContain("r1 −20、r2 −23、r3 −17 µm²");
-    expect(summary.cautions[0]).toContain("記述です");
-    expect(summary.cautions[1]).toBe("n は記録した実験回の数です（独立性は未確認）。核や視野の数は n ではありません。");
+  it("describes a comparison without confirmed independence by its runs, and states that once, in the basis (NT-01, NT-02)", () => {
+    const summary = summarize(descriptive({metric: "nucleus_count", ratio: none,
+      runs: [{pair: "Run1", control: 456, treatment: 80, difference: -376, ratio: 0.175}, {pair: "Run2", control: 347, treatment: 73, difference: -274, ratio: 0.21},
+        {pair: "Run3", control: 450, treatment: 70.3, difference: -380, ratio: 0.156}],
+      groups: [{condition: "Non-targeting", n: 3, mean: 418, sd: 1, ci_low: null, ci_high: null, unavailable_reason: "inference_not_requested"},
+        {condition: "PLK1 KO", n: 3, mean: 74.4, sd: 1, ci_low: null, ci_high: null, unavailable_reason: "inference_not_requested"}],
+      control: "Non-targeting", treatment: "PLK1 KO"}), {}, "視野あたりの核数", "個／視野");
+    expect(summary.heading).toBe("PLK1 KO で、視野あたりの核数が 79〜84% 減少");
+    expect(summary.points).toEqual(["3 回の実験すべてで減少", "平均：418 → 74.4 個／視野", "実験回ごとの変化：Run1 −82.5%、Run2 −79%、Run3 −84.4%"]);
+    expect(summary.basis.label).toBe("記述統計 · n = 3 回");
+    expect(summary.basis.reason).toBe("実験回の独立性が未確認のため、検定と信頼区間は算出していません。");
+    expect(summary.basis.action).toBe("experiment");
+    // The premise is not repeated in the heading, the points or the cautions.
+    for (const text of [summary.heading, ...summary.points, ...summary.cautions]) expect(text).not.toMatch(/独立|検定なし|記述のみ|記述統計/);
     expect(JSON.stringify(summary)).not.toContain("p ");
+  });
+
+  it("names an exploratory threshold in the basis and offers no experiment edit for it", () => {
+    const summary = summarize(descriptive({metric: "positive_fraction", scale: "fraction",
+      runs: base().runs.map((run, index) => ({...run, difference: 10 + index, ratio: null}))}), {}, "陽性率", "", {exploratory: true});
+    expect(summary.basis.label).toBe("記述統計（探索的なしきい値） · n = 3 回");
+    expect(summary.basis.reason).toContain("陰性対照");
+    expect(summary.basis.action).toBeNull();
+    expect(summary.heading).toBe("Drug で、陽性率が 10〜12 ポイント上昇");
+  });
+
+  it("puts the missing nuclei in the basis line (RS-07)", () => {
+    const summary = summarize(base(), {method: "paired t-test", p_value: 0.012}, "核の面積", "µm²", {missing: "核小体を確定できない核 3 / 158 は欠測"});
+    expect(summary.basis.label).toBe("対応のある t 検定 · n = 3 回 · p = 0.012 · 核小体を確定できない核 3 / 158 は欠測");
   });
 
   it("uses percentage points for fractions and never a ratio", () => {
     // Saved fraction differences are in percentage points (comparison-estimates/1.0.0).
     const summary = summarize(base({metric: "positive_fraction", scale: "fraction", difference: interval(15, 5, 25),
-      ratio: interval(null, null, null, "ratio_not_applicable")}), {method: "paired t-test", p_value: 0.0004}, "陽性の割合", "");
-    expect(summary.headline).toBe("陽性の割合は、DMSOに比べDrugで 15 ポイント 高い値でした。");
-    expect(summary.interval).toBe("実験回ごとの差の平均（Drug − DMSO）の 95% 信頼区間：5 〜 25 ポイント");
-    expect(summary.test).toContain("p < 0.001");
+      ratio: interval(null, null, null, "ratio_not_applicable"), groups: [{condition: "DMSO", n: 3, mean: 0.2, sd: 0.01, ci_low: null, ci_high: null, unavailable_reason: null},
+        {condition: "Drug", n: 3, mean: 0.35, sd: 0.01, ci_low: null, ci_high: null, unavailable_reason: null}],
+      runs: base().runs.map(run => ({...run, difference: 15, ratio: null}))}), {method: "paired t-test", p_value: 0.0004}, "陽性率", "");
+    expect(summary.heading).toBe("Drug で、陽性率が約 15 ポイント上昇");
+    expect(summary.points).toContain("平均：20% → 35%");
+    expect(summary.points).toContain("差（実験回ごとの差の平均）：+15 ポイント、95% 信頼区間 +5〜+25");
+    expect(summary.basis.label).toContain("p < 0.001");
   });
 
-  it("flags intervals that include zero and does not call that no change", () => {
-    const summary = summarize(base({difference: interval(-3, -10, 4), ratio: interval(0.97, 0.9, 1.04)}), {method: "paired t-test", p_value: 0.3}, "核の面積", "µm²");
-    expect(summary.interval).toMatch(/信頼区間は 0 を含みます$/);
-    expect(summary.cautions[0]).toContain("「変化がない」ことを示すものではありません");
-  });
-
-  it("reports rank tests with their effect size and no mean-difference interval", () => {
-    const summary = summarize(base({test: "wilcoxon", difference: interval(null, null, null, "rank_test"), ratio: interval(null, null, null, "rank_test")}),
-      {method: "Wilcoxon signed-rank", p_value: 0.25, effect: -1, effect_name: "matched rank-biserial correlation A minus B"}, "核の面積", "µm²");
-    expect(summary.headline).toBe("核の面積をDMSOとDrugで比べました（実験単位の平均：DMSO 100、Drug 80 µm²）。");
-    expect(summary.interval).toBe("順位に基づく検定では平均の差の信頼区間を出しません。効果量（順位双列相関）：-1");
-    expect(summary.test).toBe("実験回 n = 3（対）、Wilcoxon 符号付き順位検定 p = 0.25");
-  });
-
-  it("describes independent designs by group sizes", () => {
-    const summary = summarize(base({design: "independent", test: "welch-t", n_pairs: null, n_treatment: 4, runs: []}), {method: "Welch t-test", p_value: 0.04}, "核数", "");
-    expect(summary.test).toBe("実験単位 n = 3（DMSO）、4（Drug）、Welch の t 検定 p = 0.04");
-    expect(summary.runs).toBeNull();
-    expect(summary.interval).toContain("群の平均の差");
-  });
-
-  it("opens with a conclusion: the direction, about how much, and whether the runs agree (S-01)", () => {
-    expect(summarize(base(), {method: "paired t-test", p_value: 0.012}, "核の面積", "µm²").conclusion)
-      .toBe("Drugで、核の面積がDMSOに比べ約 20% 小さくなりました。3 回の実験すべてで同じ向きでした。");
-    // Runs that disagree are said so, not hidden behind the mean.
-    const mixed = base({runs: [...base().runs.slice(0, 2), {pair: "r3", control: 95, treatment: 99, difference: 4, ratio: 1.04}]});
-    expect(summarize(mixed, {method: "paired t-test", p_value: 0.04}, "核の面積", "µm²").conclusion).toMatch(/同じ向きだったのは 3 回中 2 回です。$/);
-    // A large change reads as a fold change; a fraction in percentage points.
+  it("reads a large change as a fold change", () => {
     expect(summarize(base({metric: "nucleolar_count", difference: interval(3, 1, 5), ratio: interval(2.4, 1.5, 3.8),
-      runs: base().runs.map(run => ({...run, difference: 3, ratio: 2.4}))}), {method: "paired t-test", p_value: 0.02}, "核小体の数", "").conclusion)
-      .toBe("Drugで、核小体の数がDMSOに比べ約 2.4 倍になりました。3 回の実験すべてで同じ向きでした。");
-    expect(summarize(base({metric: "positive_fraction", scale: "fraction", difference: interval(15, 5, 25), ratio: interval(null, null, null, "ratio_not_applicable"),
-      runs: base().runs.map(run => ({...run, difference: 15, ratio: null}))}), {method: "paired t-test", p_value: 0.0004}, "陽性の割合", "").conclusion)
-      .toBe("Drugで、陽性の割合がDMSOに比べ約 15 ポイント 高くなりました。3 回の実験すべてで同じ向きでした。");
-    // Independent groups have no runs to agree.
-    expect(summarize(base({design: "independent", test: "welch-t", metric: "nucleus_count", n_pairs: null, difference: interval(-4, -7, -1), ratio: interval(null, null, null, "nonpositive_values"), runs: []}),
-      {method: "Welch t-test", p_value: 0.03}, "核数", "").conclusion).toBe("Drugで、核数がDMSOに比べ約 4 少なくなりました。");
+      runs: base().runs.map(run => ({...run, difference: 3, ratio: 2.4}))}), {method: "paired t-test", p_value: 0.02}, "核小体の数", "").heading)
+      .toBe("Drug で、核小体の数が約 2.4 倍に増加");
+    const folds = descriptive({metric: "nucleolar_count", runs: base().runs.map((run, index) => ({...run, difference: 50, ratio: 2 + index / 10}))});
+    expect(summarize(folds, {}, "核小体の数", "").heading).toBe("Drug で、核小体の数が 2〜2.2 倍に増加");
+  });
+
+  it("says when the runs disagree, without hiding it behind the mean", () => {
+    const partly = descriptive({runs: [...base().runs.slice(0, 2), {pair: "r3", control: 95, treatment: 99, difference: 4, ratio: 1.04}]});
+    const summary = summarize(partly, {}, "核の面積", "µm²");
+    expect(summary.heading).toBe("Drug による核の面積の変化は、実験回で不一致");
+    expect(summary.points[0]).toBe("3 回中 2 回で縮小、1 回で拡大");
+    expect(summary.points).toContain("実験回ごとの変化：r1 −20%、r2 −22%、r3 +4%");
+    const mixed = base({runs: [...base().runs.slice(0, 2), {pair: "r3", control: 95, treatment: 99, difference: 4, ratio: 1.04}]});
+    expect(summarize(mixed, {method: "paired t-test", p_value: 0.04}, "核の面積", "µm²").points[0]).toBe("3 回中 2 回で縮小、1 回で拡大");
   });
 
   it("calls an interval that includes zero, or a rank test with p ≥ 0.05, not clear, never no change (S-07)", () => {
-    const unclear = summarize(base({difference: interval(-3, -10, 4), ratio: interval(0.97, 0.9, 1.04)}), {method: "paired t-test", p_value: 0.3}, "核の面積", "µm²").conclusion;
-    expect(unclear).toBe("この実験では、Drugによる核の面積の違いははっきりしませんでした（差の 95% 信頼区間が 0 を含みます）。違いがないことを示すものではありません。");
+    const unclear = summarize(base({difference: interval(-3, -10, 4), ratio: interval(0.97, 0.9, 1.04)}), {method: "paired t-test", p_value: 0.3}, "核の面積", "µm²");
+    expect(unclear.heading).toBe("Drug による核の面積の違いは不明確");
+    expect(unclear.points[0]).toBe("違いがないことを示すものではない");
     const rank = (p: number) => summarize(base({test: "wilcoxon", difference: interval(null, null, null, "rank_test"), ratio: interval(null, null, null, "rank_test")}),
-      {method: "Wilcoxon signed-rank", p_value: p, effect: 1, effect_name: "matched rank-biserial correlation A minus B", group_a: "DMSO", group_b: "Drug"}, "核の面積", "µm²").conclusion;
-    expect(rank(0.25)).toBe("この実験では、Drugによる核の面積の違いははっきりしませんでした（p = 0.25）。違いがないことを示すものではありません。");
-    expect(rank(0.03)).toBe("Drugで、核の面積がDMSOに比べ小さくなりました（順位に基づく検定、p = 0.03）。3 回の実験すべてで同じ向きでした。");
-    for (const text of [unclear, rank(0.25)]) expect(text).not.toMatch(/変化がない|変わらな|差がない/);
+      {method: "Wilcoxon signed-rank", p_value: p, effect: 1, effect_name: "matched rank-biserial correlation A minus B", group_a: "DMSO", group_b: "Drug"}, "核の面積", "µm²");
+    expect(rank(0.25).heading).toBe("Drug による核の面積の違いは不明確");
+    expect(rank(0.03).heading).toBe("Drug で、核の面積が縮小");
+    expect(rank(0.03).basis.label).toBe("Wilcoxon 符号付き順位検定 · n = 3 回 · p = 0.03");
+    expect(rank(0.03).points).toContain("効果量（順位双列相関）：1");
+    expect(rank(0.03).notes).toContain("順位に基づく検定では、平均の差の信頼区間を出しません。");
+    for (const text of [unclear.heading, ...unclear.points, rank(0.25).heading]) expect(text).not.toMatch(/変化がない|変わらな|差がない/);
   });
 
   it("takes a rank test's direction from its saved effect, not from the means or the runs' majority", () => {
@@ -102,29 +113,37 @@ describe("result summary", () => {
       difference: interval(null, null, null, "rank_test"), ratio: interval(null, null, null, "rank_test"),
       groups: [{condition: "DMSO", n: 8, mean: 13.5, sd: 2, ci_low: null, ci_high: null, unavailable_reason: "rank_test"},
         {condition: "Drug", n: 8, mean: 128, sd: 350, ci_low: null, ci_high: null, unavailable_reason: "rank_test"}]});
-    const conclusion = (effect: number | null, groupA = "Drug", groupB = "DMSO") => summarize(independent,
-      {method: "Mann–Whitney U", p_value: 0.0104, effect, effect_name: "probability of superiority A over B (ties half)", group_a: groupA, group_b: groupB}, "核の面積", "µm²").conclusion;
-    expect(conclusion(0.125)).toBe("Drugで、核の面積がDMSOに比べ小さくなりました（順位に基づく検定、p = 0.01）。");
+    const heading = (effect: number | null, groupA = "Drug", groupB = "DMSO") => summarize(independent,
+      {method: "Mann–Whitney U", p_value: 0.0104, effect, effect_name: "probability of superiority A over B (ties half)", group_a: groupA, group_b: groupB}, "核の面積", "µm²").heading;
+    expect(heading(0.125)).toBe("Drug で、核の面積が縮小");
     // The same effect saved with the groups the other way round reads the same.
-    expect(conclusion(0.875, "DMSO", "Drug")).toBe("Drugで、核の面積がDMSOに比べ小さくなりました（順位に基づく検定、p = 0.01）。");
+    expect(heading(0.875, "DMSO", "Drug")).toBe("Drug で、核の面積が縮小");
     // Without an effect whose groups are known, no direction is claimed.
-    expect(conclusion(null)).toBe("DrugとDMSOで、核の面積の分布に違いが見られました（順位に基づく検定、p = 0.01）。");
-    expect(conclusion(0.125, "A", "B")).toBe("DrugとDMSOで、核の面積の分布に違いが見られました（順位に基づく検定、p = 0.01）。");
+    expect(heading(null)).toBe("Drug と DMSO で、核の面積の分布が異なる");
+    expect(heading(0.125, "A", "B")).toBe("Drug と DMSO で、核の面積の分布が異なる");
   });
 
-  it("states a descriptive comparison by the recorded runs and says it is not a test", () => {
-    const none = interval(null, null, null, "inference_not_requested");
-    expect(summarize(base({test: "none", difference: none, ratio: none}), {}, "核の面積", "µm²").conclusion)
-      .toBe("記録した 3 回の実験すべてで、Drugの核の面積はDMSOより 18〜22% 小さい値でした（記述のみ・検定なし）。");
-    const partly = base({test: "none", difference: none, ratio: none, runs: [...base().runs.slice(0, 2), {pair: "r3", control: 95, treatment: 99, difference: 4, ratio: 1.04}]});
-    expect(summarize(partly, {}, "核の面積", "µm²").conclusion)
-      .toBe("記録した 3 回の実験のうち 2 回で、Drugの核の面積はDMSOより小さい値でした（実験回ごとの変化 −22%〜+4%、記述のみ・検定なし）。");
-    const fractions = base({test: "none", metric: "positive_fraction", scale: "fraction", difference: none, ratio: none, runs: base().runs.map((run, index) => ({...run, difference: 10 + index, ratio: null}))});
-    expect(summarize(fractions, {}, "陽性の割合", "").conclusion).toBe("記録した 3 回の実験すべてで、Drugの陽性の割合はDMSOより 10〜12 ポイント 高い値でした（記述のみ・検定なし）。");
-    const folds = base({test: "none", metric: "nucleolar_count", difference: none, ratio: none, runs: base().runs.map((run, index) => ({...run, difference: 50, ratio: 2 + index / 10}))});
-    expect(summarize(folds, {}, "核小体の数", "").conclusion).toBe("記録した 3 回の実験すべてで、Drugの核小体の数はDMSOの 2〜2.2 倍の値でした（記述のみ・検定なし）。");
-    const split = base({test: "none", difference: none, ratio: none, runs: [base().runs[0], {pair: "r2", control: 100, treatment: 110, difference: 10, ratio: 1.1}]});
-    expect(summarize(split, {}, "核の面積", "µm²").conclusion).toBe("記録した実験回では、DrugとDMSOで核の面積の向きは揃いませんでした（記述のみ・検定なし）。");
+  it("describes independent designs by group sizes", () => {
+    const summary = summarize(base({design: "independent", test: "welch-t", metric: "nucleus_count", n_pairs: null, n_treatment: 4, runs: [],
+      difference: interval(-4, -7, -1), ratio: interval(null, null, null, "nonpositive_values")}), {method: "Welch t-test", p_value: 0.03}, "核数", "");
+    expect(summary.heading).toBe("Drug で、核数が約 4 減少");
+    expect(summary.basis.label).toBe("Welch の t 検定 · n = 3・4（実験単位） · p = 0.03");
+    expect(summary.points.some(point => point.startsWith("差（群の平均の差）"))).toBe(true);
+    expect(summary.notes).toContain("0 以下の値を含むため、比は示しません。");
+  });
+
+  it("gives the same text for the same saved result, with at most four points (C-02, C-03)", () => {
+    const one = summarize(base(), {method: "paired t-test", p_value: 0.012}, "核の面積", "µm²");
+    expect(summarize(base(), {method: "paired t-test", p_value: 0.012}, "核の面積", "µm²")).toEqual(one);
+    expect(one.points.length).toBeLessThanOrEqual(4);
+    // More than five runs leave the per-run line to the table.
+    const many = base({runs: Array.from({length: 6}, (_, index) => ({pair: `r${index + 1}`, control: 100, treatment: 80, difference: -20, ratio: 0.8})), n_pairs: 6});
+    expect(summarize(many, {method: "paired t-test", p_value: 0.01}, "核の面積", "µm²").points.some(point => point.startsWith("実験回ごと"))).toBe(false);
+  });
+
+  it("spaces names in Latin script from the Japanese around them", () => {
+    expect(tidy("PLK1 KOで、核数がNon-targetingより少ない")).toBe("PLK1 KO で、核数が Non-targeting より少ない");
+    expect(tidy("（ DMSO ）、 Drug")).toBe("（DMSO）、Drug");
   });
 
   it("formats numbers and p values", () => {

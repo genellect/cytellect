@@ -16,10 +16,13 @@ def test_font_subset_covers_ui_text():
     sources = [*WEB.glob("components/**/*.tsx"), *WEB.glob("app/**/*.tsx"), *WEB.glob("lib/*catalog*.json"),
                # UI text also lives in models beside the components and in lib/workspace (test files excluded).
                *(path for path in WEB.glob("components/**/*.ts") if not path.name.endswith(".test.ts")),
-               *(path for path in WEB.glob("lib/**/*.ts") if not path.name.endswith(".test.ts") and path.name != "generated.ts")]
+               *(path for path in WEB.glob("lib/**/*.ts") if not path.name.endswith(".test.ts") and path.name != "generated.ts"),
+               # The demo's scene texts are shown in the same face.
+               *(ROOT / "services/showcase/datasets").glob("*.json")]
     missing = {}
     for path in sources:
         for char in path.read_text(encoding="utf-8"):
             if ord(char) not in covered:
                 missing.setdefault(char, path.relative_to(ROOT).as_posix())
     assert not missing, f"Regenerate the font subset; missing: {missing}"
+

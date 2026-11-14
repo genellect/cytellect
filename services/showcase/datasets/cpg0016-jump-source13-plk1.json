@@ -29,7 +29,19 @@
    "核数は視野に写った核の数で、生存率や増殖率そのものではありません。PLK1 のノックアウトでは大きく不規則な核や、断片化した核の塊も見え、塊は小さな物体に分かれて検出・計数されることがあります。両群に同じ検出を当て、物体の大きさによる除外はしていません。デモでは核の形を解釈しません。",
    "デモの数値は公開画像による例示で、研究室の画像での妥当性を示すものではありません。",
    "デモのAI解析案は、例文に対して用意した設定案を返します（外部AIは呼び出しません）。"
-  ]
+  ],
+  "explainer": {
+   "what": "ヒト骨肉腫細胞（U2OS）。CRISPR で PLK1 をノックアウトし、非標的ガイドの対照と比較。",
+   "colors": "核＝Hoechst（DNA）。線＝検出した輪郭。",
+   "finding": "視野あたりの核数は 3 回とも大きく減少。分裂に必須の遺伝子の欠失で細胞が増えないことと整合。",
+   "terms": [
+    "核",
+    "Hoechst",
+    "PLK1",
+    "ノックアウト",
+    "実験回"
+   ]
+  }
  },
  "channels": [
   {
@@ -782,7 +794,21 @@
   },
   "background": "automatic",
   "background_note": "Measured with the automatic background estimate so the raw and background-corrected intensity metrics the panel offers are both available; the planned nucleus-count comparison does not use intensities.",
-  "presentation_amendment": "Presentation amended 2026-10-26 by the owner, after the scene was published: the display comparing the adopted nuclei with the CellProfiler objects JUMP published for the same images is withdrawn, because its purpose was not clear to visitors. It was display only; no field, rule, measurement or comparison changes, and the planned comparison (nuclei per field) is unchanged."
+  "presentation_amendment": "Presentation amended 2026-10-26 by the owner, after the scene was published: the display comparing the adopted nuclei with the CellProfiler objects JUMP published for the same images is withdrawn, because its purpose was not clear to visitors. It was display only; no field, rule, measurement or comparison changes, and the planned comparison (nuclei per field) is unchanged.",
+  "discussion_example": {
+   "implications": [
+    "PLK1 の欠失で視野あたりの細胞数が全実験回で減少しており、PLK1 の増殖への必要性と整合する。"
+   ],
+   "alternatives": [
+    "細胞死による減少か増殖停止によるものかは、核数のみでは区別できない。",
+    "実験回の独立性が未確認で、回間のばらつきを過小評価している可能性がある。"
+   ],
+   "next_steps": [
+    "分裂期と細胞死のマーカーで、細胞数減少の機序を調べる。",
+    "別のガイド配列で再現性を確認し、ガイド依存の効果を除く。"
+   ]
+  },
+  "journal": "story"
  },
  "derivation_amendment": "Amendment recorded before publication: the approved requirement D-08 asks for at least three fields per group and run, so sites 4 and 6 (with site 5 the centre row of the 3 x 3 sites; F004-F006 in the published file names) were added for every well. The site-5 nuclei-per-field result (Run1-Run3: 471/244/376 non-targeting, 37/44/45 PLK1) had been computed before this amendment; the added sites are fixed by position only, not by any measured value, and no site is removed. The comparison plan is unchanged.",
  "scene_label": "核数：PLK1 ノックアウトと対照（JUMP）",

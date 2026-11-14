@@ -27,7 +27,7 @@ const reasonLabels:Record<string,string> = {
   empty_target:"対象領域がありません", empty_reference:"参照領域がありません",
   background_not_confirmed:"測定用の背景ROIが未確認です", source_excluded:"保存された除外があります",
   nonpositive_target_mean:"対象の平均値が0以下です", nonpositive_reference_mean:"参照の平均値が0以下です",
-  ratio_out_of_range:"比が計算できる数値範囲を超えています",
+  ratio_out_of_range:"比が計算可能な数値範囲を超えています",
   target_review_required:"対象領域の確認が必要です", reference_review_required:"参照領域の確認が必要です",
   target_no_candidate:"対象領域が確定していません", reference_no_candidate:"参照領域が確定していません",
   target_indeterminate:"対象領域を判定できません", reference_indeterminate:"参照領域を判定できません",
@@ -78,8 +78,8 @@ export function ConnectedPartition({fieldId,fieldLabel,nuclearRevisionId,sources
     finally{setExporting(false);}
   }
   return <section className={styles.panel} aria-label="区画への分配">
-    {!nuclearRevisionId?<p>この視野の核領域を採用すると、核の中の区画への分配を表示します。</p>
-    :sources.length<2?<p>核の中の 2 つの領域（核小体と核質など）を測定すると、その間で信号の分配を比べられます。{sources.length?`この視野で測定した核の中の領域は ${sources.length} つです。`:"この視野では、核の中の領域をまだ測定していません。"}</p>:<>
+    {!nuclearRevisionId?<p>区画への分配の表示には、核領域の採用が必要です。</p>
+    :sources.length<2?<p>分配の比較には、核内の 2 領域（例：核小体と核質）の測定が必要です。{sources.length?`測定済みの核内領域：${sources.length}`:"測定済みの核内領域：なし"}</p>:<>
       <div className={styles.choices}>
         <label htmlFor={`${controlId}-target`}>対象<select id={`${controlId}-target`} value={pair.target} onChange={event=>onPair({target:event.target.value,reference:event.target.value===pair.reference?pair.target:pair.reference})}>
           {sources.map(source=><option key={source.name} value={source.name}>{source.label}</option>)}</select></label>
@@ -93,14 +93,14 @@ export function ConnectedPartition({fieldId,fieldLabel,nuclearRevisionId,sources
     </>}
     {current?.error&&<p role="alert">{current.error}</p>}
     {table&&<>
-      {table.review_status==="preview"&&<p role="status">領域を確認するための計算表です。統計に使う前に、領域・欠測・除外を確認してください。</p>}
+      {table.review_status==="preview"&&<p role="status">確認用の計算表です。統計に使う前に、領域・欠測・除外を確認してください。</p>}
       <div className={styles.toolbar}><label htmlFor={`${controlId}-basis`}>表示する輝度<select id={`${controlId}-basis`} value={basis} onChange={event=>setBasis(event.target.value as "raw"|"corrected")}>
         <option value="raw">原値</option><option value="corrected">背景補正値</option>
       </select></label><button type="button" disabled={exporting} onClick={()=>void download()}>{exporting?"CSVを保存中…":"原値・補正値をCSV保存"}</button></div>
-      <p className={styles.definition}>K = 対象の平均輝度 ÷ 参照の平均輝度（同じ染色）。統計の「核質／核小体 log₂ 比」と同じ向きにするには、対象を核質、参照を核小体にします。</p>
-      <p className={styles.definition}>この表は区画内の飽和を評価していません。飽和した画素を含む核では、K が実際より小さく出ることがあります。</p>
-      <p role="status">{table.background.status==="confirmed"?"保存済みの確認済み背景ROIを用いて補正しています。":"測定用の背景ROIが未確認のため、補正値は欠測です。"}</p>
-      <div className={styles.tableScroll} tabIndex={0} role="region" aria-label="核ごとの分配表を横にスクロール">
+      <p className={styles.definition}>K = 対象の平均輝度 ÷ 参照の平均輝度（同じ染色）。統計の「核質／核小体 log₂ 比」と同じ向きは、対象：核質、参照：核小体です。</p>
+      <p className={styles.definition}>区画内の飽和：未評価。飽和画素を含む核では、K が実際より小さく出ることがあります。</p>
+      <p role="status">{table.background.status==="confirmed"?"背景補正：保存済みの確認済み背景ROI":"測定用の背景ROIが未確認のため、補正値は欠測です。"}</p>
+      <div className={styles.tableScroll} tabIndex={0} role="region" aria-label="核ごとの分配表">
         <table><caption>{fieldLabel}の分配表 · {table.target_source.label} ÷ {table.reference_source.label} · {basis==="raw"?"原値":"背景補正値"}</caption><thead><tr>
           <th scope="col">核</th><th scope="col">K</th><th scope="col">log2K</th><th scope="col">状態・欠測理由</th>
           <th scope="col">対象面積<br/>{areaUnit}</th><th scope="col">参照面積<br/>{areaUnit}</th>
@@ -120,8 +120,8 @@ export function ConnectedPartition({fieldId,fieldLabel,nuclearRevisionId,sources
           </tr>;
         })}</tbody></table>
       </div>
-      {!table.rows.length&&<p>保存された核領域がありません。核の測定値は作成されていません。</p>}
-      <details className={styles.provenance}><summary>採用した入力と測定の定義を確認</summary>
+      {!table.rows.length&&<p>保存済みの核領域がないため、核の測定値はありません。</p>}
+      <details className={styles.provenance}><summary>採用した入力と測定の定義</summary>
         <dl><dt>核</dt><dd>{table.nuclear_source.label} / {table.nuclear_source.revision_id} · {table.nuclear_source.adopted?"現在の採用領域":"保存された領域"} · {table.nuclear_source.reviewed?"確認済み":"確認前"}</dd>
           <dt>対象</dt><dd>{table.target_source.label} / {table.target_source.revision_id} · {table.target_source.adopted?"現在の採用領域":"保存された領域"} · {table.target_source.reviewed?"確認済み":"確認前"}</dd>
           <dt>参照</dt><dd>{table.reference_source.label} / {table.reference_source.revision_id} · {table.reference_source.adopted?"現在の採用領域":"保存された領域"} · {table.reference_source.reviewed?"確認済み":"確認前"}</dd>

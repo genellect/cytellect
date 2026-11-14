@@ -16,7 +16,7 @@ describe("server-authored native signal diagnostics",()=>{
  });
  it("does not label an unset threshold or old report as passed",()=>{
   const cell={...row,gfp_signal_to_background:-0.5,gfp_weak_signal:null,gfp_signal_qc_reason:"threshold_not_set"};
-  expect(signalQualityItems(cell).find(item=>item.prefix==="gfp")).toMatchObject({value:"-0.5",weak:false,reason:"閾値未設定"});
+  expect(signalQualityItems(cell).find(item=>item.prefix==="gfp")).toMatchObject({value:"-0.5",weak:false,reason:"しきい値未設定"});
   expect(signalQualityItems({...row,signal_qc_protocol_version:null})).toEqual([]);
  });
 });
