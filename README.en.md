@@ -52,20 +52,17 @@ API data types are defined with Pydantic, and the frontend TypeScript types are 
 
 ### Repository layout
 
-```
-cytellect/
-├── apps/
-│   └── web/            Web workspace and public site (Next.js)
-├── packages/
-│   ├── analysis/       Shared detection, measurement, statistics and figure code
-│   └── contracts/      API type definitions (OpenAPI)
-├── services/           Analysis API, calculation worker and LLM relay
-├── engines/            Fiji and Cellpose-SAM runtimes
-├── infra/              Docker configuration
-├── scripts/            Setup and verification
-├── tests/              Tests
-└── docs/               Specifications and operations
-```
+| Directory | Contents |
+|---|---|
+| [`apps/web`](apps/web) | Web workspace and public site (Next.js) |
+| [`packages/analysis`](packages/analysis) | Shared detection, measurement, statistics and figure code |
+| [`packages/contracts`](packages/contracts) | API type definitions (OpenAPI) |
+| [`services`](services) | Analysis API, calculation worker and LLM relay |
+| [`engines`](engines) | Fiji and Cellpose-SAM runtimes |
+| [`infra`](infra) | Docker configuration |
+| [`scripts`](scripts) | Setup and verification |
+| [`tests`](tests) | Tests |
+| [`docs`](docs) | Specifications and operations |
 
 ## Image recognition and measurement
 
