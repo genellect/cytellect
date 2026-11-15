@@ -130,7 +130,7 @@ import os
 import sys
 from pathlib import Path
 from cytellect_analysis.engine import compile_fiji_bridge, runtime_info
-from cytellect_api.local import installed_source_revision
+from cytellect_api.local_release import installed_source_revision
 root, commit = Path(sys.argv[1]), sys.argv[2]
 if installed_source_revision(root) != commit:
     raise SystemExit("msix_installed_revision_mismatch")

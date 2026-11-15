@@ -3,6 +3,8 @@ import json
 import os
 import shutil
 import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 from cytellect_api import local
@@ -35,6 +37,25 @@ def test_packaged_revision_requires_unchanged_and_complete_source(tmp_path):
     source = tmp_path / "packages/analysis/src/cytellect_analysis/__init__.py"
     source.write_bytes(b"# changed source!\n")
     assert installed_source_revision(tmp_path) is None
+
+
+def test_msix_build_can_verify_release_without_api_dependencies(tmp_path):
+    release(tmp_path)
+    api_source = Path(__file__).resolve().parents[1] / "services/api/src"
+    check = """
+import sys
+from pathlib import Path
+
+sys.path.insert(0, sys.argv[1])
+from cytellect_api.local_release import installed_source_revision
+
+assert installed_source_revision(Path(sys.argv[2])) == 'a' * 40
+"""
+    subprocess.run(
+        [sys.executable, "-I", "-S", "-B", "-c", check, str(api_source), str(tmp_path)],
+        check=True,
+        timeout=30,
+    )
 
 
 def test_unlisted_extra_source_or_missing_manifest_never_claim_commit(tmp_path):
