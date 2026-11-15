@@ -1,3 +1,4 @@
+import {appAlerts} from "./app-alerts";
 import {nucleusTableFixture} from "./nucleus-table-fixture";
 import {expect,test,type BrowserContext,type Page} from "@playwright/test";
 
@@ -172,7 +173,7 @@ test("a drop of image files adds them as the 画像 button does",async({page,con
   await expect.poll(()=>fixture.uploads).toEqual([["A03_c1.tif","A03_c2.tif"]]);
   await expect(cards).toHaveCount(3);
   await expect(page.getByRole("dialog",{name:"画像の追加"})).toHaveCount(0);
-  await expect(page.getByRole("alert").filter({hasText:/./})).toHaveCount(0);
+  await expect(appAlerts(page).filter({hasText:/./})).toHaveCount(0);
   expect(fixture.unexpected).toEqual([]);
 });
 
