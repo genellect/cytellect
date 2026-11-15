@@ -4,9 +4,15 @@ Status: Windows development preview. Each version is advertised only after its b
 
 The accepted [0.1.0-local.20 release](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.20) is available for Windows x86-64. It is the first package with the redesigned two-group comparison (one or two screens, groups and independent runs, a result sentence and a figure with the run as n), keeps workspaces until explicit deletion by default and sends Cellpose inference to an administrator-provided cloud GPU. See its [acceptance record](local-release-0.1.0-local.20.md) for the exact source, checksums, all 27 installed browser cases, numerical replay and evidence limits. The [local.19](local-release-0.1.0-local.19.md) and [local.17](local-release-0.1.0-local.17.md) records remain evidence for those packages. Start with the [public-image guide](quickstart.ja.md). The [local.11 record](archive/local-release-0.1.0.md) remains historical evidence for that immutable package.
 
+## Microsoft Store edition
+
+On Windows 11 (x64), use [Cytellect's installation page](https://cytellect.app/download) to open the Microsoft Store. Select **Get**, then **Open** when installation completes. The Start menu opens Cytellect on subsequent launches. [Microsoft Store listing](https://apps.microsoft.com/detail/9PGKTQGV7X5C)
+
+The Store delivers automatic app updates. Uninstall Cytellect from **Settings → Apps → Installed apps**. Updates and uninstallation keep research data. To delete a saved workspace, use the workspace's delete action before uninstalling. The Store and EXE editions share the workspace folder at the EXE's default location, `%LOCALAPPDATA%\Cytellect`. Close the EXE edition before opening the Store edition, and choose to keep research data if uninstalling the EXE.
+
 ## Researcher flow
 
-Source after 0.1.0-local.20 builds two deliverables from the same accepted ZIP: the per-user installer `Cytellect-Setup-<version>.exe` (stage 1, requirements I1–I8 of the Windows access plan under owner review) and the setup ZIP, which stays available until the owner retires it. No released version contains the installer yet.
+The earlier Windows distribution uses the per-user installer `Cytellect-Setup-<version>.exe` or the setup ZIP. The [published 0.1.0-local.23 installer](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.23) remains available during the transition.
 
 1. Download `Cytellect-Setup-<version>.exe` and open it. It installs for the current user only (`PrivilegesRequired=lowest`) into `%LOCALAPPDATA%\Cytellect`; there is no administrator prompt, command, extraction or destination choice. Whether Windows warns before it runs depends on signing and reputation ([application control](#windows-application-control), D4 below).
 2. Before changing anything, the installer checks Windows 10 1809 or later / Windows 11 on x64, at least 8 GB of memory (7 GiB as reported after hardware reservations) and free space (4 GB plus the unpacked payload for a first installation, 1.5 GB plus the payload for an update that reuses Fiji and Python). A failed check shows the reason and the next action in Japanese and exits without changes. A destination that holds files without Cytellect's ownership marker is also refused unchanged.

@@ -4,7 +4,9 @@
 
 [![Cytellect](docs/images/readme-hero.webp)](https://cytellect.app/)
 
-[プロダクト LP](https://cytellect.app/) · [公開デモ](https://cytellect.app/demo) · [Windows](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.23) · [Docker](docs/docker-desktop.md) · [統計解析手法](docs/implementation-overview.ja.md#統計解析) · [ドキュメント](docs/README.md)
+[プロダクト LP](https://cytellect.app/) · [公開デモ](https://cytellect.app/demo) · [Windows 11 版（Microsoft Store）](https://apps.microsoft.com/detail/9PGKTQGV7X5C) · [Docker](docs/docker-desktop.md) · [統計解析手法](docs/implementation-overview.ja.md#統計解析) · [ドキュメント](docs/README.md)
+
+[Windows の導入・更新・削除](docs/install-windows.ja.md#microsoft-store-版) · [従来の Windows インストーラー](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.23)
 
 Cytellect は、顕微鏡画像の解析から統計処理、グラフ出力までを一貫して引き受ける生命科学研究者のための解析基盤である。インスタンスセグメンテーションには深層学習モデルの StarDist と Cellpose-SAM（SAM ViT-L）、定量と統計的推論には NumPy・SciPy・statsmodels による共通実装を用いる。
 

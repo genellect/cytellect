@@ -49,3 +49,14 @@ export function resolveWindowsReleaseUrl(override:string|undefined,local:boolean
  return windowsReleaseUrl(override===undefined?PUBLISHED_RELEASE?.url:override,local,apiConfigured);
 }
 export const WINDOWS_RELEASE_URL=resolveWindowsReleaseUrl(process.env.NEXT_PUBLIC_WINDOWS_RELEASE_URL,LOCAL_MODE,API_CONFIGURED);
+
+const STORE_PRODUCT_ID = "9PGKTQGV7X5C";
+const STORE_LINKS = {
+ app: `ms-windows-store://pdp/?ProductId=${STORE_PRODUCT_ID}`,
+ web: `https://apps.microsoft.com/detail/${STORE_PRODUCT_ID}`,
+} as const;
+
+export function windowsStoreLinks(legacyOverride: string | undefined, local: boolean, apiConfigured: boolean) {
+ return legacyOverride !== undefined || local || apiConfigured ? null : STORE_LINKS;
+}
+export const WINDOWS_STORE_LINKS = windowsStoreLinks(process.env.NEXT_PUBLIC_WINDOWS_RELEASE_URL,LOCAL_MODE,API_CONFIGURED);

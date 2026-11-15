@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PUBLISHED_RELEASE, WINDOWS_RELEASE_URL, releaseSize, windowsReleaseAsset } from "@/lib/release";
+import { PUBLISHED_RELEASE, WINDOWS_RELEASE_URL, WINDOWS_STORE_LINKS, releaseSize, windowsReleaseAsset } from "@/lib/release";
 import { CONTACT_URL } from "@/lib/site";
 import { DownloadStart } from "./DownloadStart";
 import { LandingAnalytics } from "./LandingAnalytics";
@@ -9,6 +9,29 @@ const INSTALLER = windowsReleaseAsset(WINDOWS_RELEASE_URL) === "installer";
 const docs = "https://github.com/genellect/cytellect/blob/main/docs/";
 const Out = () => <span aria-hidden="true">↗</span>;
 
+function StoreInstallSteps({ app, web }: { app: string; web: string }) {
+  return <>
+    <p className={lp.guideLead}>Windows 11（x64）で利用できます。管理者権限とコマンド入力は不要です。</p>
+    <a className={lp.primary} data-lp-event="download" href={app}>Microsoft Store で入手 <Out /></a>
+    <p className={lp.meta}><a href={web}>Store の掲載ページ</a></p>
+    <section aria-labelledby="flow-title">
+      <h2 id="flow-title">インストールと起動</h2>
+      <ol className={lp.guideSteps}>
+        <li><b>Microsoft Store で「入手」を押します。</b></li>
+        <li><b>「開く」を押します。</b><span>次回からはスタートメニューの「Cytellect」から起動できます。</span></li>
+      </ol>
+    </section>
+    <section aria-labelledby="update-title">
+      <h2 id="update-title">更新</h2>
+      <p>Microsoft Store のアプリの自動更新で、新しい版が届きます。</p>
+    </section>
+    <section aria-labelledby="remove-title">
+      <h2 id="remove-title">アンインストール</h2>
+      <p>Windows の設定で「アプリ」→「インストールされているアプリ」から Cytellect を削除できます。研究データは保持されます。作業データも削除する場合は、アンインストール前に Cytellect のワークスペースで該当する作業を削除してください。</p>
+    </section>
+  </>;
+}
+
 /** What installing the Windows version looks like, before and after the download. Kept off the LP. */
 export function InstallGuide() {
   const size = PUBLISHED_RELEASE?.url === WINDOWS_RELEASE_URL ? releaseSize(PUBLISHED_RELEASE.size_bytes) : "";
@@ -17,6 +40,7 @@ export function InstallGuide() {
     <header className={lp.guideHeader}><Link href="/" className={lp.wordmark} aria-label="Cytellect ホーム">cytellect</Link><a data-lp-event="contact" href={CONTACT_URL} target="_blank" rel="noopener noreferrer">お問い合わせ <Out /></a></header>
     <main className={lp.guideMain}>
       <h1>Windows版のインストール</h1>
+      {WINDOWS_STORE_LINKS ? <StoreInstallSteps {...WINDOWS_STORE_LINKS} /> : <>
       <p className={lp.guideLead}>所要時間は5〜10分です。管理者権限とコマンド入力は不要です。</p>
       {WINDOWS_RELEASE_URL ? <>
         <DownloadStart url={WINDOWS_RELEASE_URL} installer={INSTALLER} guide={false} />
@@ -53,6 +77,7 @@ export function InstallGuide() {
         <h2 id="remove-title">アンインストール</h2>
         <p>Windowsの「設定」→「アプリ」で「Cytellect」を選び、「アンインストール」を押します。研究データは、保持か削除かを選択します（既定：保持）。</p>
       </section>
+      </>}
 
       <section aria-labelledby="cloud-title">
         <h2 id="cloud-title">GPU推論とLLMの利用</h2>

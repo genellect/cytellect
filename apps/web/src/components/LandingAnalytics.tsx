@@ -52,8 +52,10 @@ export function LandingAnalytics({ page }: { page: MeasuredPage }) {
       }
       const anchor = target;
       const url = new URL(anchor.href);
+      // External application links need the original click to launch their protocol handler.
       // Preserve normal modified-click, hash navigation and new-tab behavior.
-      const navigating = !event.defaultPrevented && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey
+      const navigating = (url.protocol === "http:" || url.protocol === "https:")
+        && !event.defaultPrevented && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey
         && (!anchor.target || anchor.target === "_self") && !anchor.hasAttribute("download")
         && (url.origin !== location.origin || url.pathname !== location.pathname);
       if (navigating) {
