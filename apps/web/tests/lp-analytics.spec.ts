@@ -183,7 +183,10 @@ test("installed-user guidance is visible without contacting a local service", as
   await expect(page.locator("#launch")).toBeInViewport();
   await page.locator("#launch summary").click();
   await expect(page.locator("#launch")).toContainText("「作業画面を開く」");
-  await expect(page.locator("#launch")).toContainText("デスクトップの「Cytellect」から開けます。");
+  const launchText = process.env.CYTELLECT_EXPECT_RELEASE_URL === undefined
+    ? "スタートメニューで「Cytellect」を選びます。"
+    : "デスクトップの「Cytellect」から開けます。";
+  await expect(page.locator("#launch")).toContainText(launchText);
   expect(localRequests).toEqual([]);
 });
 
