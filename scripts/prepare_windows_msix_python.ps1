@@ -9,6 +9,18 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $env:PSModulePath = (Join-Path $PSHOME 'Modules') + [IO.Path]::PathSeparator + $env:PSModulePath
+# Reuse the EXE's path checks without running its setup entry point.
+$tokens = $null
+$parseErrors = $null
+$setup = [Management.Automation.Language.Parser]::ParseFile(
+    (Join-Path $PSScriptRoot 'local_setup.ps1'), [ref]$tokens, [ref]$parseErrors)
+if ($parseErrors.Count) { throw 'msix_setup_parse_failed' }
+$safeChild = $setup.Find({
+    param($node)
+    $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq 'Get-SafeChild'
+}, $false)
+if ($null -eq $safeChild) { throw 'msix_path_validator_missing' }
+. ([scriptblock]::Create($safeChild.Extent.Text))
 . (Join-Path $Release 'scripts\windows_runtime.ps1')
 $script:PinnedPythonInput = $Archive
 

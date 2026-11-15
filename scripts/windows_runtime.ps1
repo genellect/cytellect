@@ -1,29 +1,6 @@
-﻿# Functions only. Explicit setup supplies Update-SetupStatus.
+﻿# Functions only. Explicit setup supplies Get-SafeChild and Update-SetupStatus.
 # No system Python, PATH, registry, application-control or MSI changes.
 Set-StrictMode -Version Latest
-
-function Get-SafeChild([string]$Root, [string]$Relative) {
-    if ([IO.Path]::IsPathRooted($Relative) -or $Relative.Contains(':') -or $Relative.Contains('\') -or
-        @($Relative.Split('/') | Where-Object { $_ -in @('', '.', '..') }).Count -gt 0) {
-        throw 'unsafe_release_path'
-    }
-    $base = [IO.Path]::GetFullPath($Root).TrimEnd('\', '/')
-    $child = [IO.Path]::GetFullPath((Join-Path $base $Relative))
-    if (-not $child.StartsWith($base + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
-        throw 'unsafe_release_path'
-    }
-    $cursor = $child
-    while ($cursor.Length -ge $base.Length) {
-        if (Test-Path -LiteralPath $cursor) {
-            if ((Get-Item -LiteralPath $cursor -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) {
-                throw 'redirected_install_path'
-            }
-        }
-        if ($cursor -eq $base) { break }
-        $cursor = Split-Path -Parent $cursor
-    }
-    return $child
-}
 
 function Test-RuntimeFile([string]$Path, [long]$Bytes, [string]$Sha256) {
     return ((Test-Path -LiteralPath $Path -PathType Leaf) -and
