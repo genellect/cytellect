@@ -359,7 +359,7 @@ class WorkerSupervisor:
                    CYTELLECT_RETENTION_SECONDS=str(self.settings.retention_seconds),
                    CYTELLECT_WORKSPACE_RETENTION_MODE=self.settings.workspace_retention_mode)
         parent = psutil.Process()
-        # The worker runs with the launcher's own isolation from PYTHON* variables (-E).
+        # Preserve the launcher's isolation from user Python settings and packages.
         flags = ["-B"] if sys.dont_write_bytecode else []
         if sys.flags.isolated:
             flags.append("-I")

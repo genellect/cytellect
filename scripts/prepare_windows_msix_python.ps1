@@ -10,11 +10,12 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $env:PSModulePath = (Join-Path $PSHOME 'Modules') + [IO.Path]::PathSeparator + $env:PSModulePath
 . (Join-Path $Release 'scripts\windows_runtime.ps1')
+$script:PinnedPythonInput = $Archive
 
 function Update-SetupStatus([string]$Phase, [string]$Text) { }
 function Copy-OfflineArtifact([string]$Sha256, [long]$Bytes, [string]$Target) {
-    if (-not (Test-RuntimeFile $Archive $Bytes $Sha256)) { throw 'msix_python_archive_mismatch' }
-    [IO.File]::Copy($Archive, $Target)
+    if (-not (Test-RuntimeFile $script:PinnedPythonInput $Bytes $Sha256)) { throw 'msix_python_archive_mismatch' }
+    [IO.File]::Copy($script:PinnedPythonInput, $Target)
     return $true
 }
 

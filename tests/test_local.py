@@ -542,14 +542,15 @@ def test_windowless_launcher_configures_its_server_without_standard_streams(monk
     sys.stderr.close()
 
 
-def test_isolated_launcher_starts_its_worker_isolated_too(tmp_path, monkeypatch):
-    """The shortcut runs Python with -E; the worker must not read the user's PYTHON* variables."""
+@pytest.mark.parametrize(("isolated", "flag"), [(False, "-E"), (True, "-I")])
+def test_isolated_launcher_starts_its_worker_isolated_too(tmp_path, monkeypatch, isolated, flag):
+    """The worker must use the same Python isolation as the EXE or MSIX shortcut."""
     launched = []
 
     class LauncherSys:
         """The launcher module's view of sys only: imports and pytest keep the real sys.flags."""
 
-        flags = SimpleNamespace(ignore_environment=True)
+        flags = SimpleNamespace(ignore_environment=True, isolated=isolated)
         dont_write_bytecode = True
 
         def __getattr__(self, name):
@@ -564,4 +565,4 @@ def test_isolated_launcher_starts_its_worker_isolated_too(tmp_path, monkeypatch)
                             pid=456, stdout=io.BytesIO(b"456 4.0\n")))
     monkeypatch.setattr(local_module, "process_alive", lambda identity: identity == (456, 4.0))
     WorkerSupervisor(Settings(tmp_path / "private"), lambda: None)._spawn()
-    assert launched == [[sys.executable, "-B", "-E", "-m", "cytellect_api.local_worker", "123", "4.0"]]
+    assert launched == [[sys.executable, "-B", flag, "-m", "cytellect_api.local_worker", "123", "4.0"]]
