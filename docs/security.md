@@ -2,6 +2,8 @@
 
 The security policy and current measures are maintained in [SECURITY.md](../SECURITY.md). This document gives the data-protection specification and operating details behind them.
 
+The [Microsoft Store privacy policy](https://cytellect.app/privacy) describes the Windows app's data use in Japanese and links to the existing contact form for privacy requests.
+
 This early prototype has local automated tests for invitation replay/revocation, Origin/CSRF, cross-session ownership, immutable versions, stale leases, job timeout/retry and expiry/deletion. These tests do not certify a hosted deployment. Run the acceptance checks on the actual analysis host before receiving private research data.
 
 ## Data boundaries
