@@ -1,4 +1,4 @@
-"""Check that prepared public inputs are byte-identical to fixtures/public/uploads.json (CI fiji-browser)."""
+"""Check that prepared public inputs are byte-identical to fixtures/public/uploads.json (CI browser-e2e)."""
 import hashlib
 import json
 import sys

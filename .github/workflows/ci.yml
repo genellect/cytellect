@@ -236,8 +236,9 @@ jobs:
           pnpm --filter @cytellect/web exec playwright test tests/marketing.spec.ts tests/public-demo.spec.ts tests/lp-viewport-review.spec.ts tests/lp-analytics.spec.ts --grep-invert "published Windows asset downloads"
   fiji-browser:
     needs: changes
-    # Integration jobs run after merge (every push to main) and on manual runs (the batch verification
-    # before merging), not on each pull request; the release workflow still requires them on the released commit.
+    # Fiji, container and local-delivery checks run after merge (every push to main) and on manual runs (the
+    # batch verification before merging), not on each pull request; the release workflow still requires them on
+    # the released commit. The browser workflow is the separate browser-e2e job, which also runs on pull requests.
     if: github.event_name != 'pull_request' && needs.changes.outputs.fiji == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -269,47 +270,12 @@ jobs:
           uv run python scripts/public_bbbc007.py --data-dir /tmp/cytellect-bbbc007 --download
           uv run python scripts/public_bbbc007.py --data-dir /tmp/cytellect-bbbc007 --evaluate /tmp/cytellect-bbbc007-run --fiji /tmp/cytellect-fiji
           uv run python scripts/public_bbbc007.py --data-dir /tmp/cytellect-bbbc007 --check-report /tmp/cytellect-bbbc007-run/benchmark.json
-          uv run python scripts/prepare_workspace_bbbc007.py --data-dir /tmp/cytellect-bbbc007 --output /tmp/cytellect-workspace-inputs
-          uv run python scripts/check_public_uploads.py /tmp/cytellect-workspace-inputs
       - name: Retain public-image execution summary only
         if: always()
         uses: actions/upload-artifact@v6
         with:
           name: public-bbbc007-execution
           path: /tmp/cytellect-bbbc007-run/benchmark.json
-          if-no-files-found: error
-          retention-days: 14
-      - run: pnpm build
-      - name: Browser workflow against real API and Fiji
-        env:
-          CYTELLECT_WEB_URL: http://localhost:3000
-          CYTELLECT_TEST_API_ORIGIN: http://localhost:8000
-          CYTELLECT_REAL_INPUTS: /tmp/cytellect-workspace-inputs
-          CYTELLECT_REAL_OUTPUT: /tmp/cytellect-workspace-evidence
-          CYTELLECT_REQUIRE_REAL_FIJI: "1"
-        run: |
-          export CYTELLECT_TEST_PYTHON="$(uv run python -c 'import sys; print(sys.executable)')"
-          uv run cytellect serve > /tmp/cytellect-api.log 2>&1 &
-          uv run cytellect-worker > /tmp/cytellect-worker.log 2>&1 &
-          pnpm --filter @cytellect/web start > /tmp/cytellect-web.log 2>&1 &
-          for i in $(seq 1 60); do
-            if curl --fail --silent http://localhost:3000 >/dev/null && curl --fail --silent http://localhost:8000/v1/health >/dev/null; then break; fi
-            sleep 1
-          done
-          pnpm test:e2e
-      - name: Retain only registered public workspace evidence
-        if: always()
-        uses: actions/upload-artifact@v6
-        with:
-          name: public-workspace-fiji
-          path: |
-            /tmp/cytellect-workspace-evidence/receipt.json
-            /tmp/cytellect-workspace-evidence/bbbc007-before.png
-            /tmp/cytellect-workspace-evidence/bbbc007-after.png
-            /tmp/cytellect-workspace-evidence/figure.svg
-            /tmp/cytellect-workspace-evidence/figure.pdf
-            /tmp/cytellect-workspace-evidence/plot-data.csv
-            /tmp/cytellect-workspace-evidence/methods.md
           if-no-files-found: error
           retention-days: 14
       - name: Compose configuration
@@ -352,6 +318,82 @@ jobs:
             sleep 1
           done
           pnpm --filter @cytellect/web exec playwright test tests/local-workspace.spec.ts tests/local-workspace-start.spec.ts
+  browser-e2e:
+    needs: changes
+    # The browser workflow against the real API, worker and Fiji. It runs on every pull request that touches the
+    # screens, API or analysis (the fiji area), so a change that breaks a workflow fails before merge, and on main.
+    # Only failed tests keep a Playwright trace (public and synthetic fixtures only), for seven days.
+    if: needs.changes.outputs.fiji == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CYTELLECT_DATA_DIR: /tmp/cytellect-browser
+      CYTELLECT_TEST_DATA_DIR: /tmp/cytellect-browser
+      CYTELLECT_APP_ORIGIN: http://localhost:3000
+      CYTELLECT_SECURE_COOKIES: "false"
+      CYTELLECT_FIJI_EXECUTABLE: /tmp/cytellect-fiji
+      NEXT_PUBLIC_API_ORIGIN: http://localhost:8000
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with: {node-version: "24"}
+      - uses: actions/setup-python@v6
+        with: {python-version: "3.12"}
+      - run: bash scripts/install_figure_font.sh
+      - run: python -m pip install uv==0.12.2
+      - run: npm install --global pnpm@11.19.0
+      - run: uv sync --locked --dev
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @cytellect/web exec playwright install --with-deps chromium
+      - run: uv run python scripts/fiji_setup.py /tmp/cytellect-fiji --platform linux-x64
+      - name: Registered public BBBC007 inputs for the workspace tests
+        timeout-minutes: 10
+        run: |
+          uv run python scripts/public_bbbc007.py --data-dir /tmp/cytellect-bbbc007 --download
+          uv run python scripts/prepare_workspace_bbbc007.py --data-dir /tmp/cytellect-bbbc007 --output /tmp/cytellect-workspace-inputs
+          uv run python scripts/check_public_uploads.py /tmp/cytellect-workspace-inputs
+      - run: pnpm build
+      - name: Browser workflow against real API and Fiji
+        env:
+          CYTELLECT_WEB_URL: http://localhost:3000
+          CYTELLECT_TEST_API_ORIGIN: http://localhost:8000
+          CYTELLECT_REAL_INPUTS: /tmp/cytellect-workspace-inputs
+          CYTELLECT_REAL_OUTPUT: /tmp/cytellect-workspace-evidence
+          CYTELLECT_REQUIRE_REAL_FIJI: "1"
+        run: |
+          export CYTELLECT_TEST_PYTHON="$(uv run python -c 'import sys; print(sys.executable)')"
+          uv run cytellect serve > /tmp/cytellect-api.log 2>&1 &
+          uv run cytellect-worker > /tmp/cytellect-worker.log 2>&1 &
+          pnpm --filter @cytellect/web start > /tmp/cytellect-web.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://localhost:3000 >/dev/null && curl --fail --silent http://localhost:8000/v1/health >/dev/null; then break; fi
+            sleep 1
+          done
+          pnpm test:e2e --trace retain-on-failure
+      - name: Retain only registered public workspace evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: public-workspace-fiji
+          path: |
+            /tmp/cytellect-workspace-evidence/receipt.json
+            /tmp/cytellect-workspace-evidence/bbbc007-before.png
+            /tmp/cytellect-workspace-evidence/bbbc007-after.png
+            /tmp/cytellect-workspace-evidence/figure.svg
+            /tmp/cytellect-workspace-evidence/figure.pdf
+            /tmp/cytellect-workspace-evidence/plot-data.csv
+            /tmp/cytellect-workspace-evidence/methods.md
+          if-no-files-found: error
+          retention-days: 14
+      - name: Retain traces of failed browser tests (public and synthetic fixtures only)
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: browser-e2e-failures
+          path: apps/web/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
   cellpose-gpu-image:
     needs: changes
     if: github.event_name != 'pull_request' && needs.changes.outputs.fiji == 'true'

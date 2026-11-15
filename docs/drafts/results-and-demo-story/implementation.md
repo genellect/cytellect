@@ -89,7 +89,7 @@ WP5 設計・契約 ─────────────────► PR D�
 | ブラウザ（`workspace-layout.spec.ts`） | C-08。今の「the sentence first」の確認を、見出しの確認に書き換える |
 | 書き換えが要る確認 | 今の文を文字列で確かめている箇所：`showcase.spec.ts`（「検定なし（記述のみ）」）、`workspace-layout.spec.ts`（「（記述のみ・検定なし）」）、`workspace-jump-plk1.spec.ts`（「実験回 n = 3（対）、検定なし（記述のみ）」「n は記録した実験回の数です…」）、`workspace-image-view.spec.ts`、`workspace-unresolved-nucleoli.spec.ts` |
 
-`workspace-jump-plk1.spec.ts` などは、CI の `fiji-browser` で動く。変更の範囲によっては PR で実行されないので、手元で実行する（[CONTRIBUTING](../../../CONTRIBUTING.md)）。
+`workspace-jump-plk1.spec.ts` などは、CI の `browser-e2e` で動く。画面・API・解析に関わる PR では実行されるが、文書だけの変更などでは実行されないので、必要なら手元で実行する（[CONTRIBUTING](../../../CONTRIBUTING.md)）。
 
 ### 文書
 
