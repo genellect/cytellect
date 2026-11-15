@@ -10,6 +10,7 @@ $ErrorActionPreference = 'Stop'
 if ($env:GITHUB_ACTIONS -cne 'true' -or $env:RUNNER_ENVIRONMENT -cne 'github-hosted') {
     throw 'MSIX migration runs only on a disposable GitHub-hosted Windows runner'
 }
+[IO.Directory]::CreateDirectory((Split-Path -Parent $Output)) | Out-Null
 . (Join-Path (Split-Path -Parent $PSScriptRoot) 'installer-helpers.ps1')
 . (Join-Path $PSScriptRoot 'ci-activation.ps1')
 
