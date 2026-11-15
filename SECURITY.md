@@ -12,6 +12,7 @@ Cytellect は、研究者の未発表の顕微鏡画像を研究者の PC で解
 |---|---|---|
 | Modal（Cytellect Worker 経由） | クラウド GPU で細胞を検出するときの、検出対象の 1 プレーンと検出の条件。核小体の検出では、採用済みの核のラベルも送る | 中継も推論も本文を保存せず、ログに残さない |
 | OpenAI（Cytellect Worker 経由） | 利用者が AI に解析の指示を送ったときの、研究の目的とメタデータ（チャネル名、寸法、群の数など） | `store: false` で送る |
+| OpenAI（Cytellect Worker 経由） | 利用者が考察の生成を依頼したときの、保存した比較結果の集計値と入力した実験目的 | `store: false` で送る |
 | Resend | ログインのコードと、それを届けるメールアドレス | — |
 
 - ファイル名、パス、実験条件、他のチャネル、測定値は送らない。
@@ -98,6 +99,7 @@ Images, masks, measurement tables and figures stay in a private area of the rese
 |---|---|---|
 | Modal (via the Cytellect Worker) | The plane to detect and the detection parameters for cloud GPU cell detection; for nucleolar detection, also the adopted nuclear labels | Neither the relay nor inference stores or logs the body |
 | OpenAI (via the Cytellect Worker) | The research goal and metadata (channel names, dimensions, group counts) when the user sends an instruction to the AI | Sent with `store: false` |
+| OpenAI (via the Cytellect Worker) | Aggregate values from a saved comparison and the experiment purpose the user enters when requesting a discussion draft | Sent with `store: false` |
 | Resend | The sign-in code and the e-mail address it is sent to | — |
 
 - File names, paths, conditions, other channels and measurements are never sent.
