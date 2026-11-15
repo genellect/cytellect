@@ -25,6 +25,11 @@ function StoreInstallSteps({ app, web }: { app: string; web: string }) {
       <h2 id="update-title">更新</h2>
       <p>Microsoft Store のアプリの自動更新で、新しい版が届きます。</p>
     </section>
+    <section aria-labelledby="migration-title">
+      <h2 id="migration-title">従来版からの移行</h2>
+      <p>従来版を終了してから Store 版を開き、保存していた作業が開けることを確認してください。従来版をアンインストールするときは、作業データの保持を選びます。</p>
+      <p>Windows 10 を使っている方や、研究室の PC で Microsoft Store を使えない方は、<a className={lp.guideInlineLink} href={docs + "install-windows.ja.md#2-ダウンロードと確認"}>従来版の導入手順</a>をご覧ください。</p>
+    </section>
     <section aria-labelledby="remove-title">
       <h2 id="remove-title">アンインストール</h2>
       <p>Windows の設定で「アプリ」→「インストールされているアプリ」から Cytellect を削除できます。研究データは保持されます。作業データも削除する場合は、アンインストール前に Cytellect のワークスペースで該当する作業を削除してください。</p>

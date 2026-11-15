@@ -92,6 +92,9 @@ test("the install guide matches the public Windows distribution",async({page})=>
   await expect(page.getByRole("heading",{name:"インストールと起動"})).toBeVisible();
   await expect(page.getByRole("heading",{name:"更新",exact:true})).toBeVisible();
   await expect(page.getByRole("link",{name:"Store の掲載ページ"})).toHaveAttribute("href",storeWeb);
+  const migration=page.getByRole("region",{name:"従来版からの移行"});
+  await expect(migration.getByText(/作業データの保持を選びます/)).toBeVisible();
+  await expect(migration.getByRole("link",{name:"従来版の導入手順"})).toHaveAttribute("href",/install-windows\.ja\.md#2-ダウンロードと確認$/);
  }else{
   await expect(page.getByRole("heading",{name:"インストールの手順"})).toBeVisible();
   await expect(page.getByRole("heading",{name:"トラブルシューティング"})).toBeVisible();
