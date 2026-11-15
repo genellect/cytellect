@@ -182,7 +182,7 @@
 .invite .primary{min-height:58px;border-color:#f6f6f3;background:#f6f6f3;color:var(--green)!important}
 .invite .primary:hover{background:#fff}
 .inviteMark{position:absolute;z-index:-1;right:var(--gutter);bottom:clamp(-70px,-4.6vw,-28px);font-size:clamp(110px,17vw,300px);font-weight:650;letter-spacing:-.06em;line-height:1;color:#ffffff12;white-space:nowrap;pointer-events:none}
-.download{padding-top:var(--section-space)}
+.download{padding-top:var(--section-space);padding-bottom:clamp(96px,9vw,160px)}
 .secondary{border:1px solid var(--green);background:transparent;color:var(--green)!important}
 .secondary:hover{background:#14231e0d;text-decoration:none!important}
 /* Reference: a short install pitch for beginners, then guides and questions. */
