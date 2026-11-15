@@ -50,24 +50,45 @@ AI による解析設定
 
 ### ディレクトリ構成
 
-| ディレクトリ | 内容 |
-|---|---|
-| [`apps/web`](apps/web) | Web ワークスペース、LP、公開デモ（Next.js） |
-| [`packages/analysis`](packages/analysis) | 検出・測定・統計・作図の共通実装。API・ワーカー・公開デモが同じコードを使う |
-| [`packages/contracts`](packages/contracts) | API の OpenAPI 定義と既定レシピ。TypeScript 型の生成元 |
-| [`services/api`](services/api) | 解析 API（FastAPI） |
-| [`services/worker`](services/worker) | 計算ワーカー。ジョブ単位のプロセス分離で検出・測定・統計を実行 |
-| [`services/proposal-worker`](services/proposal-worker) | LLM と GPU 推論の中継、認証、費用の管理（Cloudflare Workers · D1） |
-| [`services/showcase`](services/showcase) | 公開デモの記録と再生（Pyodide） |
-| [`engines/fiji`](engines/fiji) | StarDist による核の検出（Fiji プラグイン） |
-| [`engines/cellpose`](engines/cellpose) | Cellpose-SAM の推論 runner と GPU サーバー。依存とモデルを固定 |
-| [`engines/python`](engines/python) | Windows 版の Python ランタイムの固定 |
-| [`infra`](infra) | Docker（Web・API・ワーカー）、Caddy による TLS、Modal の GPU サーバー |
-| [`packaging/windows`](packaging/windows) | Windows 版のインストーラー（Inno Setup）、導入前の確認、CI での導入試験 |
-| [`scripts`](scripts) | 開発の入口 `dev.py`、セットアップ、配布物と公開デモの構築、検証 |
-| [`tests`](tests) | 数値計算・API・ブラウザ・Windows 導入の試験 |
-| [`fixtures/public`](fixtures/public) | 試験と公開デモに使う公開画像。出典・ライセンス・ハッシュを登録 |
-| [`docs`](docs) | 仕様、計算方法、運用の文書 |
+```text
+cytellect/
+├── apps/
+│   └── web/                          Web アプリ（TypeScript · Next.js）
+│       ├── src/
+│       │   ├── app/                  ページ（workspace、demo、product など）
+│       │   ├── components/           画面の部品
+│       │   └── lib/                  API の呼び出し、画面の状態。単体試験（*.test.ts）も同じ場所
+│       ├── tests/                    ブラウザ試験（Playwright）
+│       └── public/                   静的ファイル
+├── services/
+│   ├── api/src/cytellect_api/        解析 API（Python · FastAPI）。DB のマイグレーションは migrations/
+│   ├── worker/src/cytellect_worker/  解析ジョブを実行するワーカー（Python）
+│   ├── proposal-worker/              LLM と GPU 推論の中継（TypeScript · Cloudflare Workers）
+│   │   ├── src/
+│   │   └── migrations/               D1 のマイグレーション
+│   └── showcase/                     公開デモの記録と再生
+│       ├── src/cytellect_showcase/   記録の構築（Python）
+│       ├── pyodide/                  ブラウザでの再生（Pyodide）
+│       └── datasets/                 公開デモのデータセットの指定
+├── packages/
+│   ├── analysis/src/cytellect_analysis/  検出・測定・統計・作図（Python）
+│   └── contracts/                    API の定義（openapi.json）と既定レシピ
+├── engines/
+│   ├── fiji/                         核の検出に使う Fiji プラグイン（Java）
+│   ├── cellpose/                     Cellpose-SAM の推論（runner.py）と GPU サーバー（server.py）
+│   └── python/                       Windows 版の Python ランタイムの固定
+├── infra/                            Dockerfile、Compose の構成、Modal の GPU サーバー
+├── packaging/windows/                Windows 版のインストーラー
+├── scripts/                          開発・構築・検証のスクリプト（入口は dev.py）
+├── tests/                            Python の試験（pytest）
+├── fixtures/
+│   ├── public/                       試験と公開デモに使う公開画像
+│   └── planning/                     解析設定の試験データ
+├── validation/                       科学的な検証の対応表
+├── docs/                             文書
+├── pyproject.toml                    Python の依存と設定（uv）
+└── package.json                      TypeScript の依存と設定（pnpm）
+```
 
 ## 画像認識
 
