@@ -14,32 +14,11 @@ if ($env:GITHUB_ACTIONS -cne 'true' -or $env:RUNNER_ENVIRONMENT -cne 'github-hos
 . (Join-Path $PSScriptRoot 'ci-activation.ps1')
 
 $root = Join-Path $env:LOCALAPPDATA 'Cytellect'
-$previousTest = Join-Path $env:LOCALAPPDATA 'Cytellect-msix-ci-fresh'
 $parent = (Resolve-Path -LiteralPath $env:LOCALAPPDATA).Path
-if (((Resolve-Path -LiteralPath $root).Path -ine (Join-Path $parent 'Cytellect')) -or
-    ((Get-Item -LiteralPath $root).Attributes -band [IO.FileAttributes]::ReparsePoint) -or
-    ([IO.Path]::GetFullPath($previousTest) -ine (Join-Path $parent 'Cytellect-msix-ci-fresh')) -or
-    (Test-Path -LiteralPath $previousTest)) {
-    throw 'The hosted runner workspace location was not isolated'
+if (([IO.Path]::GetFullPath($root) -ine (Join-Path $parent 'Cytellect')) -or
+    (Test-Path -LiteralPath $root)) {
+    throw 'The migration runner must start without a Cytellect workspace'
 }
-$marker = Get-Content -LiteralPath (Join-Path $root 'setup-root.json') -Raw | ConvertFrom-Json
-if ($marker.product -cne 'cytellect-local' -or $marker.channel -cne 'store') {
-    throw 'Expected an isolated workspace created by the preceding MSIX test'
-}
-# Rename the verified runner-only directory on the same volume. AppX and
-# antivirus can retain handles briefly after Remove-AppxPackage returns.
-$renamed = $false
-for ($attempt = 0; $attempt -lt 40; $attempt++) {
-    try {
-        [IO.Directory]::Move($root, $previousTest)
-        $renamed = $true
-        break
-    } catch [IO.IOException] {
-        if (($_.Exception.HResult -band 65535) -notin 32, 33) { throw }
-        Start-Sleep -Milliseconds 500
-    }
-}
-if (-not $renamed) { throw 'The runner kept the previous MSIX workspace locked after uninstall' }
 
 $legacyVersion = '0.1.0-local.23'
 $legacySha256 = 'c54805cb5afa15912b52b53f44c0442db79b86986be83121fe46676ba94fe2fe'
