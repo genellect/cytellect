@@ -34,7 +34,8 @@ RUNTIME_RECORDS = {"engines/python/windows-runtime.lock.json", "engines/python/w
 RUNTIME_DATA = "engines/python/windows-tcltk-9.0.4-data.zip"
 INSTALL_REQUIREMENTS = "engines/python/windows-requirements.txt"
 INSTALL_MANIFEST = "engines/python/windows-install.json"
-DOCS = {"docs/oss.md", "docs/local.md", "docs/security.md", "docs/hosting-costs.ja.md", "docs/windows-runtime.md"}
+DOCS = {"docs/oss.md", "docs/local.md", "docs/security.md", "docs/hosting-costs.ja.md", "docs/windows-runtime.md",
+        "docs/windows-msix.md"}
 DATA_NOTICES = {"fixtures/public/allowlist.json"}
 # ".xml" is the generated sitemap.xml; the local build serves an empty one beside robots.txt.
 WEB_SUFFIXES = {".html", ".js", ".css", ".json", ".txt", ".xml", ".svg", ".woff2", ".woff", ".ttf",

@@ -34,28 +34,7 @@ $script:StatusLabel = $null
 $script:LaunchInfo = $null
 $script:Offline = $null
 
-function Get-SafeChild([string]$Root, [string]$Relative) {
-    if ([IO.Path]::IsPathRooted($Relative) -or $Relative.Contains(':') -or $Relative.Contains('\') -or
-        @($Relative.Split('/') | Where-Object { $_ -in @('', '.', '..') }).Count -gt 0) {
-        throw 'unsafe_release_path'
-    }
-    $base = [IO.Path]::GetFullPath($Root).TrimEnd('\', '/')
-    $child = [IO.Path]::GetFullPath((Join-Path $base $Relative))
-    if (-not $child.StartsWith($base + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
-        throw 'unsafe_release_path'
-    }
-    $cursor = $child
-    while ($cursor.Length -ge $base.Length) {
-        if (Test-Path -LiteralPath $cursor) {
-            if ((Get-Item -LiteralPath $cursor -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) {
-                throw 'redirected_install_path'
-            }
-        }
-        if ($cursor -eq $base) { break }
-        $cursor = Split-Path -Parent $cursor
-    }
-    return $child
-}
+. (Join-Path $PSScriptRoot 'windows_runtime.ps1')
 
 function Write-SetupMarker([string]$Path, [string]$Value) {
     if (-not $Path) { return }
@@ -827,7 +806,6 @@ function Install-Cytellect {
     if ($uvWasPresent -and (Get-Variable -Scope Script -Name UvStorageFiles -ErrorAction SilentlyContinue)) {
         $runtimeClaims[$uvRelative] = @{files=@($script:UvStorageFiles)}
     }
-    . (Get-SafeChild $app 'scripts/windows_runtime.ps1')
     Update-SetupStatus 'install_python' '専用のPython環境を準備しています…'
     $pythonSpec = Get-Content -LiteralPath (Get-SafeChild $app 'engines/python/windows-runtime.lock.json') -Raw | ConvertFrom-Json
     $pythonRelative = 'runtimes/python-' + $pythonSpec.composition_version
