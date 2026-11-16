@@ -40,7 +40,7 @@ Claude Code・Codex のクラウド環境で、手元への導入なしに開発
 
 3. [外部サービス](#外部サービス)を使う場合は、その環境変数を環境の設定に登録する。Claude Code では、セッションのタイトルバーのクラウド環境のメニュー → Edit から設定する。環境変数は新しいセッションから読み込まれ、セットアップスクリプトからは参照できない。
 
-4. セッションで起動する。`env.sh` は、固定版のツール、Fiji、試験用の Chromium の場所と、クラウド GPU の接続キーを設定する。セットアップスクリプトが `~/.bashrc` に読み込みを加えるため、セッションのシェルでは固定版のツールが先に見つかる。読み込まれていないシェルでは `source "$HOME/.local/share/cytellect-cloud/env.sh"` を実行する。
+4. セッションで起動する。`env.sh` は、固定版のツール、Fiji、試験用の Chromium の場所と、クラウド GPU の接続キーを設定する。Claude Code では、セッションの開始時にフック（[.claude/hooks/session-start.sh](.claude/hooks/session-start.sh)）が `env.sh` を読み込む設定をするため、各コマンドで固定版のツールが先に見つかる。ほかのシェルでは `source "$HOME/.local/share/cytellect-cloud/env.sh"` を実行する。
 
    ```bash
    python3 scripts/dev.py doctor   # ツール、フォント、Fiji、外部サービスの準備を確認
