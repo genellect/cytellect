@@ -12605,6 +12605,11 @@
             "title": "Transmission Confirmed",
             "default": false
           },
+          "include_previews": {
+            "type": "boolean",
+            "title": "Include Previews",
+            "default": true
+          },
           "retry_failed": {
             "type": "boolean",
             "title": "Retry Failed",

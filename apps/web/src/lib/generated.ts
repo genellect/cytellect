@@ -4609,6 +4609,11 @@ export interface components {
              */
             transmission_confirmed: boolean;
             /**
+             * Include Previews
+             * @default true
+             */
+            include_previews: boolean;
+            /**
              * Retry Failed
              * @default false
              */

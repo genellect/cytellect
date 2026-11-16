@@ -288,3 +288,14 @@ def test_preimport_context_from_real_empty_workspace(tmp_path):
     context, links = proposals.build_context(app.state.store, wid, "核面積を比較したい")
     assert context.field_count == 0 and context.channels == [] and links == []
     assert not context.units_known and not context.background_available
+
+
+def test_previews_follow_the_researchers_setting(tmp_path, monkeypatch):
+    """With previews turned off in settings, only the context is sent (docs/drafts/llm-assistant/plan.md §4.5)."""
+    body = json.dumps({"draft": ACTIN_DRAFT, "model": "claude-opus-5-5", "prompt_version": PROPOSAL_PROMPT_VERSION}).encode()
+    client, wid, calls = configured(tmp_path, monkeypatch, lambda request: FakeResponse(body))
+    response = client.post(f"/v1/workspaces/{wid}/proposal-drafts",
+                           json={"goal": "核の大きさ", "transmission_confirmed": True, "include_previews": False}, headers=HEADERS)
+    assert response.status_code == 200, response.text
+    assert "previews" not in calls[0]
+    assert response.json()["proposal"]["model"] == "claude-opus-5-5"

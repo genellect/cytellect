@@ -4,6 +4,7 @@
 import {useEffect, useState} from "react";
 import {ApiError, errorMessage} from "@/lib/api";
 import type {ApiAdapter, DiscussionView} from "@/lib/workspace/api-adapter";
+import {discussionScopeSeen, markDiscussionScopeSeen} from "@/lib/workspace/ai-settings";
 import {GeneratedContentReportLink} from "./GeneratedContentReportLink";
 import styles from "./discussion.module.css";
 
@@ -34,6 +35,7 @@ export function DiscussionPanel({adapter, job, demo}: {adapter: Pick<ApiAdapter,
     setBusy(true); setFailure(null);
     try {
       setView(await adapter.draftDiscussion(job, purpose.trim() ? {purpose: purpose.trim(), stains: []} : {stains: []}, retry));
+      markDiscussionScopeSeen();
       setAsking(false);
     } catch (error) {
       const rejected = error instanceof ApiError && error.status === 502 && error.code === "request_failed";
@@ -45,10 +47,11 @@ export function DiscussionPanel({adapter, job, demo}: {adapter: Pick<ApiAdapter,
   if (!view) return <section className={styles.panel} aria-label="考察">
     <h4>考察</h4>
     {!asking ? <button type="button" onClick={() => setAsking(true)}>考察を生成</button> : <div className={styles.ask}>
-      <p>{SENT}</p>
+      {/* The scope is shown in full until the researcher has sent once; afterwards it stays one click away. */}
+      {discussionScopeSeen() ? <details><summary>送信内容</summary><p>{SENT}</p></details> : <p>{SENT}</p>}
       <label>実験の目的（任意）<textarea maxLength={500} rows={2} value={purpose} onChange={event => setPurpose(event.target.value)}/></label>
       <div className={styles.actions}>
-        <button type="button" disabled={busy} onClick={() => void make(false)}>送信して生成</button>
+        <button type="button" disabled={busy} onClick={() => void make(false)}>{discussionScopeSeen() ? "生成" : "送信して生成"}</button>
         <button type="button" disabled={busy} onClick={() => setAsking(false)}>キャンセル</button>
       </div>
     </div>}

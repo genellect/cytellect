@@ -192,6 +192,8 @@ class ProposalDraftRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     goal: Annotated[str, Field(max_length=2000)] = ""
     transmission_confirmed: StrictBool = False
+    # The researcher's setting: also send display-scaled previews of one representative field (default on).
+    include_previews: StrictBool = True
     retry_failed: StrictBool = False
     field_id: Annotated[str, Field(min_length=1, max_length=128)] | None = None
     current_processing: Annotated[dict, Field(max_length=4)] | None = None
@@ -485,7 +487,8 @@ def register_proposal_routes(api, store, settings, owner, workspace, credentials
         service = effective_settings(settings, credentials)
         identity = {"context": context_sha256(context), "protocol": PROPOSAL_PROTOCOL,
                     "model": settings.proposal_model, "prompt": settings.proposal_prompt_version,
-                    "service": service.proposal_url, "channels": [link.model_dump() for link in links], "source": source_stamp}
+                    "service": service.proposal_url, "channels": [link.model_dump() for link in links], "source": source_stamp,
+                    "previews": body.include_previews}
         key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
         request_id = str(uuid.uuid4())
         now = time.time()
@@ -511,7 +514,8 @@ def register_proposal_routes(api, store, settings, owner, workspace, credentials
                     lease_until=now + settings.proposal_timeout_seconds + 30))
         proposal = None
         try:
-            payload = request_draft(service, context, request_id, representative_previews(store, wid, links, body.field_id))
+            previews = representative_previews(store, wid, links, body.field_id) if body.include_previews else []
+            payload = request_draft(service, context, request_id, previews)
             if payload["model"] not in {settings.proposal_model, *settings.proposal_models} or payload["prompt_version"] != settings.proposal_prompt_version:
                 raise ProposalServiceError(502, "proposal_service_version_mismatch")
             proposal = validate_draft(context, payload.get("draft"), model=payload["model"],
