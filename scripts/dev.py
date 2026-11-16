@@ -40,8 +40,10 @@ APP_ORIGIN = "http://localhost:3000"
 # The deployed Modal server (infra/modal_cellpose.py, Cellpose Modal deploy workflow); authentication required.
 MODAL_CELLPOSE_URL = "https://genellect--cytellect-cellpose-cellposeserver.us-east.modal.direct"
 USER_AGENT = "cytellect-dev"  # Cloudflare refuses Python's default agent (error 1010)
-# Where .claude/cloud-setup.sh provisions pinned tools and Fiji (its env.sh exports them).
-CLOUD_RUNTIME = Path.home() / ".local/share/cytellect-cloud"
+# Where scripts/linux_setup.sh provisions pinned tools and Fiji (its env.sh exports them).
+DEV_RUNTIME = Path.home() / ".local/share/cytellect-dev"
+# Keys kept on a development machine (CONTRIBUTING.md, 外部サービス); env.sh loads it.
+KEY_FILE = Path.home() / ".config/cytellect/dev.env"
 CONTRACT_OUTPUTS = ("packages/contracts", "apps/web/src/lib/generated.ts", "apps/web/src/lib/recipe-defaults.json")
 OPENAPI = ("uv", "run", "cytellect", "openapi", "--output", "packages/contracts/openapi.json",
            "--recipe-defaults", "apps/web/src/lib/recipe-defaults.json")
@@ -236,7 +238,7 @@ def fiji_path() -> str:
     configured = os.environ.get("CYTELLECT_FIJI_EXECUTABLE", "")
     if configured:
         return configured
-    provisioned = CLOUD_RUNTIME / "fiji"
+    provisioned = DEV_RUNTIME / "fiji"
     return str(provisioned) if provisioned.exists() else ""
 
 
@@ -260,7 +262,7 @@ def tool_version(argv: tuple[str, ...]) -> str:
 
 def doctor(args: argparse.Namespace) -> None:
     failed = False
-    hint = f' (run `source "{CLOUD_RUNTIME / "env.sh"}"` first)' if (CLOUD_RUNTIME / "env.sh").exists() else ""
+    hint = f' (run `source "{DEV_RUNTIME / "env.sh"}"` first)' if (DEV_RUNTIME / "env.sh").exists() else ""
 
     def report(state: str, name: str, detail: str, cloud: bool = False) -> None:
         """Cloud services only warn unless required: development continues while a GPU is unavailable."""
@@ -287,6 +289,10 @@ def doctor(args: argparse.Namespace) -> None:
                              "from cytellect_analysis.figures import japanese_font; print(japanese_font())"))
         report("ok" if font else "NG", "Japanese figure font",
                font or "install fonts-noto-cjk (`bash scripts/install_figure_font.sh`) after `setup`")
+    if KEY_FILE.exists():
+        private = os.name == "nt" or KEY_FILE.stat().st_mode & 0o077 == 0
+        report("ok" if private else "NG", "Key file", "readable only by you" if private
+               else f"other users can read it: `chmod 600 {KEY_FILE}`")
     chromium = os.environ.get("CYTELLECT_CHROMIUM_EXECUTABLE", "")
     if chromium:
         report("ok" if Path(chromium).exists() else "NG", "Browser for tests", chromium)

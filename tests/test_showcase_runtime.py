@@ -384,7 +384,7 @@ def test_checkout_detection_keeps_repository_protection(tmp_path):
 
 
 def node():
-    return shutil.which("node") or next((str(p) for p in Path.home().glob(".local/share/cytellect-cloud/node-*/bin/node")), None)
+    return shutil.which("node") or next((str(p) for p in Path.home().glob(".local/share/cytellect-dev/node-*/bin/node")), None)
 
 
 def test_runtime_config_lists_hashed_files():

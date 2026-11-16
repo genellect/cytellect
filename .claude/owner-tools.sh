@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# The owner's cloud environment only (CONTRIBUTING.md, オーナーの環境): CLIs for the services the
-# owner operates, at pinned versions. Run after .claude/cloud-setup.sh. wrangler comes from the
+# The owner's environments only, cloud and WSL (CONTRIBUTING.md, オーナーの環境): CLIs for the services
+# the owner operates, at pinned versions. Run after scripts/linux_setup.sh (or .claude/cloud-setup.sh). wrangler comes from the
 # lockfile (services/proposal-worker); Modal deploys through GitHub Actions. Credentials are not
 # read here: the environment's network secrets reach the services through its proxy.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-runtime="$HOME/.local/share/cytellect-cloud"
+runtime="$HOME/.local/share/cytellect-dev"
 . "$runtime/env.sh"
 vercel_version=65.16.0
 huggingface_hub_version=2.4.0
