@@ -4,6 +4,7 @@
 import {useEffect, useState} from "react";
 import {ApiError, errorMessage} from "@/lib/api";
 import type {ApiAdapter, DiscussionView} from "@/lib/workspace/api-adapter";
+import {GeneratedContentReportLink} from "./GeneratedContentReportLink";
 import styles from "./discussion.module.css";
 
 const HEADINGS = [["implications", "解釈"], ["alternatives", "限界・代替説明"], ["next_steps", "追加検証"]] as const;
@@ -63,5 +64,6 @@ export function SavedDiscussion({view}: {view: DiscussionView}) {
   return <section className={styles.panel} aria-label="考察">
     <h4>考察 <small>{example ? "デモ用サンプル（参考）" : `AI 生成（参考）· ${view.discussion.model} · ${day(view.created)}`}</small></h4>
     {HEADINGS.map(([key, label]) => (draft[key] ?? []).length > 0 && <div key={key}><h5>{label}</h5><ul>{(draft[key] ?? []).map(item => <li key={item}>{item}</li>)}</ul></div>)}
+    {!example && <GeneratedContentReportLink/>}
   </section>;
 }

@@ -5,3 +5,4 @@
 .panel button{font:inherit;font-size:13px;border:1px solid #d8dde5;background:#fff;border-radius:5px;padding:3px 12px;cursor:pointer;color:#1757b6}
 .ask p{margin:0 0 6px;font-size:13px;color:#4c5663}.ask label{display:flex;flex-direction:column;gap:4px;font-size:13px}.ask textarea{font:inherit;font-size:13px}
 .actions{display:flex;gap:8px;margin-top:8px}.failure{margin:8px 0 0;font-size:13px;color:#7a4b00}.failure button{margin-left:8px}
+.reportLink{display:inline-block;margin-top:8px;color:#1757b6;font-size:13px;text-decoration:underline}

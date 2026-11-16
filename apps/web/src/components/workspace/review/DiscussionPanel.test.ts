@@ -7,7 +7,8 @@ import {SavedDiscussion} from "./DiscussionPanel";
 const view = (origin: "model" | "example"): DiscussionView => ({job_id: "job", created: Date.UTC(2026, 10, 12) / 1000, discussion: {
   protocol: "result-discussion/1.0.0", origin, context_sha256: "a".repeat(64), prompt_version: "2026-11-12.2", model: origin === "example" ? "demo-example" : "gpt-6.1-sol",
   draft: {protocol: "result-discussion/1.0.0", implications: ["核小体が小さくなる可能性がある。"], alternatives: [], next_steps: ["視野を増やして確かめる。"]}}});
-const text = (value: DiscussionView) => renderToStaticMarkup(createElement(SavedDiscussion, {view: value})).replace(/<[^>]+>/g, " ");
+const markup = (value: DiscussionView) => renderToStaticMarkup(createElement(SavedDiscussion, {view: value}));
+const text = (value: DiscussionView) => markup(value).replace(/<[^>]+>/g, " ");
 
 describe("saved discussion (AC-01, AC-06, AC-08)", () => {
   it("names its source, model and day as a reference, not a computed value", () => {
@@ -22,5 +23,9 @@ describe("saved discussion (AC-01, AC-06, AC-08)", () => {
     const page = text(view("example"));
     expect(page).toContain("デモ用サンプル（参考）");
     expect(page).not.toContain("AI 生成");
+  });
+  it("opens the developer's contact form for generated content without passing workspace data", () => {
+    expect(markup(view("model"))).toContain('href="https://compass-official.pages.dev/contact/" target="_blank" rel="noopener noreferrer">AI の出力を報告');
+    expect(markup(view("example"))).not.toContain("AI の出力を報告");
   });
 });

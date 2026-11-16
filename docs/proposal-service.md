@@ -59,6 +59,10 @@ that new user action receives a new UUID. Transport resends must not invent new
 UUIDs. Worker idempotency prevents duplicate charges for an already submitted UUID.
 Response model/prompt provenance must exactly match the local configuration.
 
+### Reporting generated content
+
+The workspace links to the developer's contact form from an AI analysis proposal and from a model-generated discussion shown with a saved result. Opening the form sends no prompt, generated text, images or workspace identifiers. The user decides what to submit in the form. The product owner reviews incoming reports and takes action on confirmed inappropriate output.
+
 ## Cloud access: e-mail login, approval and GPU gateway
 
 Status: implemented and tested locally; not deployed. It follows the draft plan
