@@ -1,4 +1,4 @@
-/** The researcher's AI settings on this PC (docs/drafts/llm-assistant/plan.md §4.5): whether proposals also
+/** The researcher's AI settings on this PC (docs/drafts/llm-assistant/plan.md, 4.5): whether proposals also
  * send display-scaled previews, and whether the discussion's transmission scope has been acknowledged once.
  * Stored per browser profile; a blocked storage falls back to the defaults (previews on, scope not yet seen). */
 const PREVIEWS_SETTING = "cytellect.ai.include-previews";
