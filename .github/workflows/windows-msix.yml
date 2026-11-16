@@ -94,8 +94,13 @@ jobs:
         shell: pwsh
         run: |
           # The first scenario keeps its workspace on purpose; this one starts from an empty folder.
+          # The package's processes release their files shortly after it is removed.
           $kept = Join-Path $env:LOCALAPPDATA 'Cytellect'
-          if (Test-Path -LiteralPath $kept) { Remove-Item -LiteralPath $kept -Recurse -Force }
+          $watch = [Diagnostics.Stopwatch]::StartNew()
+          while (Test-Path -LiteralPath $kept) {
+            try { Remove-Item -LiteralPath $kept -Recurse -Force -ErrorAction Stop }
+            catch { if ($watch.Elapsed.TotalSeconds -ge 120) { throw }; Start-Sleep -Seconds 3 }
+          }
           ./packaging/windows/msix/ci-migration.ps1 -Msix $env:CYTELLECT_MSIX -Version $env:MSIX_VERSION -Checkout (Get-Location).Path -Output (Join-Path $env:RUNNER_TEMP 'msix-verification/exe-migration.json')
       - name: Retain the build and acceptance receipts
         if: always()

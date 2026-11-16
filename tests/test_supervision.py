@@ -199,7 +199,8 @@ def test_generic_child_failure_is_reported_as_analysis_failed_not_supervision_fa
             "(d.parent/'status.json').write_text(json.dumps({'error':'analysis_failed'}))")
 
     def launch(args, **kwargs):
-        return original([sys.executable, "-c", code, args[3]], **kwargs)
+        # The descriptor is the next-to-last argument, after any interpreter flags.
+        return original([sys.executable, "-c", code, args[-2]], **kwargs)
 
     monkeypatch.setattr(subprocess, "Popen", launch)
     assert execute(store, settings, job)
