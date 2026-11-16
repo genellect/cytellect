@@ -79,11 +79,16 @@ def test_sends_only_the_saved_result_and_stores_the_checked_draft(tmp_path, serv
     [call] = service
     assert call["path"] == "/v1/discussions"
     sent = json.dumps(call["content"], ensure_ascii=False)
-    # Channel IDs, labels, field IDs, file names, paths and run labels stay local (AC-03).
-    for private in ("actin", "Actin", "field", "revision", ".tif", "workspaces", str(tmp_path)):
-        assert private not in sent
+    # The model reads the result as the researcher sees it: the channel's label, the researcher's run names and
+    # the metric's name (docs/drafts/llm-assistant/plan.md). Field and revision IDs, file names and paths are not
+    # part of a discussion and are not sent (AC-03).
+    for unrelated in ("field", "revision", ".tif", "workspaces", str(tmp_path)):
+        assert unrelated not in sent
     result = call["content"]["context"]["result"]
-    assert [run["run"] for run in result["runs"]] == ["run 1", "run 2", "run 3"]
+    assert call["content"]["context"]["protocol"] == "result-discussion/1.1.0"
+    saved_result = json.loads(next(store.root.rglob("result.json")).read_text(encoding="utf-8"))
+    assert [run["run"] for run in result["runs"]] == [run["pair"] for run in saved_result["estimates"]["runs"]]
+    assert result["channel_label"] == "Actin" and result["metric_label"]
     assert result["stain"] == "phalloidin" and result["heading"] is None
     assert client.get(f"/v1/jobs/{job}/discussion").json()["discussion"] == saved
     # The same result and setting reuse the stored discussion instead of paying again.

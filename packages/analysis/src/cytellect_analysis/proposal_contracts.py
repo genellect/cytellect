@@ -22,6 +22,9 @@ from .signal_engine import SignalDetectorSpec
 PROPOSAL_PROTOCOL = "1.1.0"
 PROPOSAL_PROMPT_VERSION = "2026-10-09.1"
 PROPOSAL_MODEL = "gpt-6.1-sol"
+# Models the service may answer with (docs/drafts/llm-assistant/plan.md): the response names the one it used, and
+# the workspace stores that name with the draft. A model outside this list is refused as a version mismatch.
+PROPOSAL_MODELS = ("gpt-6.1-sol", "claude-opus-5-5", "claude-sonnet-5-5")
 
 Token = Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9_.-]{0,31}$")]
 Stain = Annotated[str, Field(min_length=1, max_length=40)]

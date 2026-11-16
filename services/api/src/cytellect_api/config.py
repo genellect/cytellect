@@ -6,7 +6,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from cytellect_analysis.discussion_contracts import DISCUSSION_PROMPT_VERSION
-from cytellect_analysis.proposal_contracts import PROPOSAL_PROMPT_VERSION
+from cytellect_analysis.proposal_contracts import PROPOSAL_MODELS, PROPOSAL_PROMPT_VERSION
 
 from .public_uploads import load_allowlist
 
@@ -70,9 +70,11 @@ class Settings:
     proposal_token: str = ""
     proposal_timeout_seconds: int = 300
     proposal_model: str = "gpt-6.1-sol"
+    # Every model the service may answer with; the service chooses one per prompt version and names it in the
+    # response, which must be one of these (and is stored with the draft).
+    proposal_models: tuple[str, ...] = PROPOSAL_MODELS
     proposal_prompt_version: str = PROPOSAL_PROMPT_VERSION
-    # Result discussions use the same service, credential and model (requirements AC-07): the service has one
-    # model, so a separate model name here could only be refused after the call was paid for.
+    # Result discussions use the same service, credential and models (requirements AC-07).
     discussion_prompt_version: str = DISCUSSION_PROMPT_VERSION
     desktop_owner: bool = False
     workspace_retention_mode: str = "ttl"
@@ -122,6 +124,8 @@ class Settings:
             proposal_token=_proposal_token_from_env(),
             proposal_timeout_seconds=int(os.environ.get("CYTELLECT_PROPOSAL_TIMEOUT_SECONDS", "300")),
             proposal_model=os.environ.get("CYTELLECT_PROPOSAL_MODEL", "gpt-6.1-sol"),
+            proposal_models=tuple(name.strip() for name in os.environ["CYTELLECT_PROPOSAL_MODELS"].split(",") if name.strip())
+            if os.environ.get("CYTELLECT_PROPOSAL_MODELS") else PROPOSAL_MODELS,
             proposal_prompt_version=os.environ.get("CYTELLECT_PROPOSAL_PROMPT_VERSION", PROPOSAL_PROMPT_VERSION),
             discussion_prompt_version=os.environ.get("CYTELLECT_DISCUSSION_PROMPT_VERSION", DISCUSSION_PROMPT_VERSION),
             desktop_owner=os.environ.get("CYTELLECT_DESKTOP_OWNER", "false").lower() == "true",

@@ -1896,6 +1896,20 @@
         "additionalProperties": false,
         "description": "One saved comparison, as the result summary states it (RS-01–RS-04); every number is saved.",
         "properties": {
+          "channel_label": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Channel Label"
+          },
           "control": {
             "maxLength": 80,
             "minLength": 1,
@@ -1965,6 +1979,34 @@
             "minLength": 1,
             "title": "Metric",
             "type": "string"
+          },
+          "metric_definition": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Metric Definition"
+          },
+          "metric_label": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Metric Label"
           },
           "n_control": {
             "minimum": 0,
@@ -2079,7 +2121,7 @@
           },
           "unit": {
             "default": "",
-            "maxLength": 20,
+            "maxLength": 120,
             "title": "Unit",
             "type": "string"
           },
@@ -2261,8 +2303,11 @@
         "type": "string"
       },
       "protocol": {
-        "const": "result-discussion/1.0.0",
-        "default": "result-discussion/1.0.0",
+        "default": "result-discussion/1.1.0",
+        "enum": [
+          "result-discussion/1.0.0",
+          "result-discussion/1.1.0"
+        ],
         "title": "Protocol",
         "type": "string"
       },

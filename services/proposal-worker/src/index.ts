@@ -10,7 +10,7 @@
 import { draftProposal, inputTokenCeiling, MODEL, ModelError, PROMPT_VERSION, NUCLEAR_FILTER_PREVIOUS_PROMPT_VERSION, PARENT_PREVIOUS_PROMPT_VERSION, CELLPOSE_PREVIOUS_PROMPT_VERSION, OBJECT_PREVIOUS_PROMPT_VERSION, NCL_PREVIOUS_PROMPT_VERSION, PREVIOUS_PROMPT_VERSION, PROCESSING_PROMPT_VERSION, LEGACY_PROMPT_VERSION, PREIMPORT_PROMPT_VERSION, observedCost, type Preview, type Provider, type ReasoningEffort } from "./openai";
 import { ANTHROPIC_MODELS } from "./anthropic";
 import { D1Store, type D1Database, type Store } from "./store";
-import { checkDiscussionRequest, discussionTokenCeiling, draftDiscussion, DISCUSSION_PROMPT_VERSION } from "./discussion";
+import { checkDiscussionRequest, discussionTokenCeiling, draftDiscussion, DISCUSSION_PROMPT_VERSION, DISCUSSION_PROMPT_VERSIONS } from "./discussion";
 import contract from "./contract.json";
 import { matchesSchema } from "./schema";
 import { D1AuthStore } from "./auth-store";
@@ -65,7 +65,7 @@ interface ProviderConfig {
 /** Prompt versions written for the redesigned assistant (docs/drafts/llm-assistant/plan.md). They use Claude
  * when it is configured and otherwise the OpenAI model; every other version came from an installed client that
  * accepts only the OpenAI model, so it never moves. */
-export const CLAUDE_PROMPT_VERSIONS = new Set<string>();
+export const CLAUDE_PROMPT_VERSIONS = new Set<string>([DISCUSSION_PROMPT_VERSION]);
 
 interface Config {
   provider: Provider;
@@ -280,7 +280,7 @@ export async function handle(request: Request, env: Env, store: Store, options: 
     const requested = body!.prompt_version ?? (discussion ? null : LEGACY_PROMPT_VERSION);
     if (typeof requested !== "string") return failure(400, "prompt_version_unsupported");
     const promptVersion: string = requested;
-    if (discussion ? promptVersion !== DISCUSSION_PROMPT_VERSION
+    if (discussion ? !DISCUSSION_PROMPT_VERSIONS.includes(promptVersion)
       : ![PROMPT_VERSION, NUCLEAR_FILTER_PREVIOUS_PROMPT_VERSION, PARENT_PREVIOUS_PROMPT_VERSION, CELLPOSE_PREVIOUS_PROMPT_VERSION, OBJECT_PREVIOUS_PROMPT_VERSION, NCL_PREVIOUS_PROMPT_VERSION, PREVIOUS_PROMPT_VERSION, PROCESSING_PROMPT_VERSION, PREIMPORT_PROMPT_VERSION, LEGACY_PROMPT_VERSION].includes(promptVersion)) return failure(400, "prompt_version_unsupported");
     if (!discussion && checked.context.field_count === 0 && promptVersion === LEGACY_PROMPT_VERSION) return failure(400, "prompt_version_unsupported");
     const selected = selectProvider(config, promptVersion);

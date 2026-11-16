@@ -8,7 +8,7 @@ import {GeneratedContentReportLink} from "./GeneratedContentReportLink";
 import styles from "./discussion.module.css";
 
 const HEADINGS = [["implications", "解釈"], ["alternatives", "限界・代替説明"], ["next_steps", "追加検証"]] as const;
-const SENT = "送信内容：保存済みの集計値（群の値、差と信頼区間、実験回ごとの値、n、検定、p 値）と実験の目的。画像・ファイル名・パスは送信しません。";
+const SENT = "送信内容：保存済みの結果（指標とその定義、群と実験回の名前、群の値、差と信頼区間、実験回ごとの値、n、検定、p 値、チャネル名）と実験の目的。";
 
 function day(seconds: number) {
   const date = new Date(seconds * 1000);

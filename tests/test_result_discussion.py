@@ -80,8 +80,12 @@ def test_the_shape_is_fixed_and_bounded():
     with pytest.raises(DiscussionRejected) as rejected:
         validate_discussion({"implications": [], "alternatives": [], "next_steps": []}, DESCRIPTIVE, model="m")
     assert rejected.value.codes == ["discussion_schema_invalid"]
+    # Up to four implications, each a point with its reasoning of at most 400 characters.
+    validate_discussion(draft("a", "b", "c", "d"), DESCRIPTIVE, model="m")
     with pytest.raises(DiscussionRejected):
-        validate_discussion(draft("a", "b", "c", "d"), DESCRIPTIVE, model="m")
+        validate_discussion(draft("a", "b", "c", "d", "e"), DESCRIPTIVE, model="m")
+    with pytest.raises(DiscussionRejected):
+        validate_discussion(draft("あ" * 401), DESCRIPTIVE, model="m")
     with pytest.raises(DiscussionRejected):
         validate_discussion({**draft("a"), "values": [1]}, DESCRIPTIVE, model="m")
     schema = draft_json_schema()
@@ -161,3 +165,24 @@ def test_run_counts_and_percentages_of_a_fraction_are_the_results_own():
         "runs": [{"run": "run 1", "control": 0.45, "treatment": 0.31, "difference": -14},
                  {"run": "run 2", "control": 0.39, "treatment": 0.29, "difference": -10}]})
     validate_discussion(draft("陽性率は 42% から 30% で、ある回では 45% から 31% へ 14 ポイント低い可能性がある。"), fraction, model="m")
+
+
+def test_positivity_units_and_the_researchers_names_are_accepted():
+    """Protocol 1.1.0: a unit never blocks a discussion, and numbers in the researcher's names may be repeated."""
+    result = DESCRIPTIVE.result.model_dump()
+    result.update(metric="positive_fraction", metric_label="判定可能な核の陽性率", unit="fraction of evaluable nuclei",
+                  metric_definition="positive / all evaluable positive and negative nuclei before subset selection",
+                  channel_label="GFP 488", treatment="Oxaliplatin 10 µM",
+                  runs=[{**run, "run": f"Rep{index + 1} 2021-12-0{index + 1}"} for index, run in enumerate(result["runs"])])
+    result["groups"] = [{**group, "condition": result["treatment"]} if group["condition"] == DESCRIPTIVE.result.treatment else group
+                        for group in result["groups"]]
+    context = DiscussionContext(experiment=DESCRIPTIVE.experiment, result=result)
+    assert context.protocol == DISCUSSION_PROTOCOL == "result-discussion/1.1.0"
+    validate_discussion(draft("Oxaliplatin 10 µM の処理で、Rep1 の陽性率が下がる可能性がある。"), context, model="m")
+
+
+def test_protocol_1_0_contexts_and_drafts_remain_readable():
+    legacy = DiscussionContext.model_validate({**DESCRIPTIVE.model_dump(mode="json"), "protocol": "result-discussion/1.0.0"})
+    assert legacy.protocol == "result-discussion/1.0.0" and legacy.result.metric_label is None
+    stored = DiscussionDraft.model_validate({"protocol": "result-discussion/1.0.0", **draft("a")})
+    assert stored.protocol == "result-discussion/1.0.0"

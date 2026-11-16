@@ -452,7 +452,7 @@ def register_proposal_routes(api, store, settings, owner, workspace, credentials
         proposal = None
         try:
             payload = request_draft(service, context, request_id)
-            if payload["model"] != settings.proposal_model or payload["prompt_version"] != settings.proposal_prompt_version:
+            if payload["model"] not in {settings.proposal_model, *settings.proposal_models} or payload["prompt_version"] != settings.proposal_prompt_version:
                 raise ProposalServiceError(502, "proposal_service_version_mismatch")
             proposal = validate_draft(context, payload.get("draft"), model=payload["model"],
                                       prompt_version=payload["prompt_version"])

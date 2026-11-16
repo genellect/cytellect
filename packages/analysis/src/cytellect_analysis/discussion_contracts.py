@@ -1,9 +1,12 @@
-"""Result discussion protocol 1.0.0 (requirements AC-01–AC-09, docs/drafts/results-and-demo-story).
+"""Result discussion protocol 1.1.0 (requirements AC-01–AC-09, docs/drafts/results-and-demo-story,
+docs/drafts/llm-assistant/plan.md).
 
-A language model drafts a short discussion of one saved two-group comparison: what it may suggest,
-other explanations and limits, and what to check next. It never produces values, significance or
-references. `DiscussionContext` is all that leaves the PC: the saved result's numbers and labels and
-the researcher's short description of the experiment, never images, file names or paths (AC-03).
+A language model drafts a discussion of one saved two-group comparison: what it may suggest, other
+explanations and limits, and what to check next. It never produces values, significance or references.
+`DiscussionContext` is what the model reads: the saved result's numbers, the researcher's own names for
+groups, runs and channels, the metric's definition, and the researcher's description of the experiment.
+Protocol 1.0.0 (installed clients up to 0.1.0-local.23) sent anonymous run labels and no definitions;
+its contexts and stored discussions remain readable.
 `DiscussionDraft` is what the model may return; it is checked by `discussion_validation` before it is
 shown, and shown apart from the computed result (AC-01).
 """
@@ -13,12 +16,16 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat
 
-DISCUSSION_PROTOCOL: Literal["result-discussion/1.0.0"] = "result-discussion/1.0.0"
-DISCUSSION_PROMPT_VERSION = "2026-11-12.2"
+Protocol = Literal["result-discussion/1.0.0", "result-discussion/1.1.0"]
+DISCUSSION_PROTOCOL: Protocol = "result-discussion/1.1.0"
+DISCUSSION_PROMPT_VERSION = "2026-11-16.1"
+# The prompt of protocol 1.0.0, still answered by the service for installed clients.
+DISCUSSION_LEGACY_PROMPT_VERSION = "2026-11-12.2"
 
 Label = Annotated[str, Field(min_length=1, max_length=80)]
 Note = Annotated[str, Field(min_length=1, max_length=500)]
-Item = Annotated[str, Field(min_length=1, max_length=200)]
+# One point of the discussion, with its reasoning: up to a few sentences.
+Item = Annotated[str, Field(min_length=1, max_length=400)]
 WarningCode = Annotated[str, Field(pattern=r"^[a-z0-9_]{1,120}$")]
 
 
@@ -55,9 +62,16 @@ class RunValue(DiscussionModel):
 class DiscussionResult(DiscussionModel):
     """One saved comparison, as the result summary states it (RS-01–RS-04); every number is saved."""
     metric: Label
+    # What the metric is, in the words the workspace shows (for example 「判定可能な核の陽性率」), and its
+    # recorded definition (denominator, region, protocol) when the analysis records one.
+    metric_label: Label | None = None
+    metric_definition: Note | None = None
     region: Label | None = None
     stain: Label | None = None
-    unit: Annotated[str, Field(max_length=20)] = ""
+    # The researcher's name for the measured channel.
+    channel_label: Label | None = None
+    # The analysis package's unit; never a reason to refuse a discussion.
+    unit: Annotated[str, Field(max_length=120)] = ""
     scale: Literal["difference", "ratio", "fraction", "log2"]
     control: Label
     treatment: Label
@@ -82,7 +96,7 @@ class DiscussionResult(DiscussionModel):
 
 
 class DiscussionContext(DiscussionModel):
-    protocol: Literal["result-discussion/1.0.0"] = DISCUSSION_PROTOCOL
+    protocol: Protocol = DISCUSSION_PROTOCOL
     language: Literal["ja"] = "ja"
     experiment: ExperimentNote = Field(default_factory=ExperimentNote)
     result: DiscussionResult
@@ -90,14 +104,14 @@ class DiscussionContext(DiscussionModel):
 
 class DiscussionDraft(DiscussionModel):
     """The three headings of the discussion (AC-04), one sentence per item."""
-    protocol: Literal["result-discussion/1.0.0"] = DISCUSSION_PROTOCOL
-    implications: list[Item] = Field(min_length=1, max_length=3)
-    alternatives: list[Item] = Field(default_factory=list, max_length=2)
-    next_steps: list[Item] = Field(default_factory=list, max_length=3)
+    protocol: Protocol = DISCUSSION_PROTOCOL
+    implications: list[Item] = Field(min_length=1, max_length=4)
+    alternatives: list[Item] = Field(default_factory=list, max_length=3)
+    next_steps: list[Item] = Field(default_factory=list, max_length=4)
 
 
 class ValidatedDiscussion(DiscussionModel):
-    protocol: Literal["result-discussion/1.0.0"] = DISCUSSION_PROTOCOL
+    protocol: Protocol = DISCUSSION_PROTOCOL
     # "example": written for the public demo, not by a model, and shown as such (AC-08). It passes the same checks.
     origin: Literal["model", "example"] = "model"
     context_sha256: Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]

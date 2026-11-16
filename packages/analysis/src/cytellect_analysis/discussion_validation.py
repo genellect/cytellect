@@ -94,6 +94,12 @@ def allowed_numbers(context: DiscussionContext) -> list[float]:
             values += [run.ratio, (run.ratio - 1) * 100]
     if result.heading:
         values += _text_numbers(result.heading)
+    # Numbers in the researcher's own names (a dose in a group name, a date in a run name) and in the metric's
+    # name, definition and unit may be repeated.
+    names = [result.control, result.treatment, *(run.run for run in result.runs), *(group.condition for group in result.groups),
+             result.metric_label or "", result.metric_definition or "", result.channel_label or "", result.stain or "", result.unit]
+    for text in names:
+        values += _text_numbers(text)
     # What the researcher wrote (a dose, a time) may be repeated.
     for text in (context.experiment.purpose or "", context.experiment.cells or "", *context.experiment.stains):
         values += _text_numbers(text)

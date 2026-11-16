@@ -1,9 +1,9 @@
-"""What a result discussion sends, derived from one saved two-group comparison (requirements AC-03).
+"""What a result discussion sends, derived from one saved two-group comparison (requirements AC-03,
+docs/drafts/llm-assistant/plan.md).
 
-Only the saved result's numbers and fixed identifiers leave the PC: the metric key, the region set
-when it is one of the registered compartments, the recorded stain, the group names, the values,
-intervals, n and the test. Run labels, channel IDs, file names, field IDs and paths stay local; runs
-are sent as `run 1`, `run 2`… in their saved order.
+The model reads the result as the researcher sees it: the metric with its name and recorded definition,
+the region set, the recorded stain and the channel's label, the researcher's group and run names, the
+values, intervals, n and the test. Numbers come only from the saved result.
 """
 from __future__ import annotations
 
@@ -17,6 +17,27 @@ _REGIONS = frozenset({"nucleus", "nuclei", "nucleoli", "nucleoplasm", "cell", "c
 _WARNING = r"^[a-z0-9_]{1,120}$"
 # A positivity threshold set without a negative control (the summary's "探索的なしきい値").
 _EXPLORATORY = frozenset({"channel_gate_exploratory_threshold_without_negative_control", "gfp_gate_exploratory"})
+
+
+# The workspace's names for per-region metrics; compartment and field-summary metrics use their figure labels.
+_REGION_METRICS = {
+    "area_px": "面積（px²）", "area_um2": "面積", "mean": "平均輝度", "median": "輝度の中央値",
+    "integrated": "積算輝度", "mean_corrected": "平均輝度（背景補正）", "median_corrected": "輝度の中央値（背景補正）",
+    "integrated_corrected": "積算輝度（背景補正）",
+}
+
+
+def _metric_text(metric: str) -> tuple[str | None, str | None]:
+    """The metric's Japanese name and, when the analysis records one, its definition."""
+    from .common_statistics_figures import COMPARTMENT_LABELS, FIELD_SUMMARY_LABELS
+    from .field_summary_source import DEFINITIONS
+    label = _REGION_METRICS.get(metric) or (COMPARTMENT_LABELS.get(metric) or FIELD_SUMMARY_LABELS.get(metric) or (None, None))[1]
+    definition = DEFINITIONS.get(metric)
+    return label, definition[:500] if definition else None
+
+
+def _short(value: Any) -> str | None:
+    return value.strip()[:80] if isinstance(value, str) and value.strip() else None
 
 
 class DiscussionUnsupported(ValueError):
@@ -44,15 +65,20 @@ def discussion_context(result: dict[str, Any], experiment: ExperimentNote | None
     channel = result.get("channel") or {}
     stain = channel.get("stain") if isinstance(channel.get("stain"), str) and channel.get("stain") else None
     warnings = [code for code in result.get("warnings") or [] if isinstance(code, str) and re.match(_WARNING, code)]
-    runs = [{"run": f"run {index + 1}", "control": run["control"], "treatment": run["treatment"],
+    # The researcher's run names (the pairing key); `run N` only when a run has none.
+    runs = [{"run": _short(run.get("pair")) or f"run {index + 1}", "control": run["control"], "treatment": run["treatment"],
              "difference": run["difference"], "ratio": run.get("ratio")}
             for index, run in enumerate(estimates.get("runs") or [])]
     p_value = comparison.get("p_value")
     effect = comparison.get("effect")
+    metric_label, metric_definition = _metric_text(estimates["metric"])
     return DiscussionContext.model_validate({
         "experiment": (experiment or ExperimentNote()).model_dump(),
         "result": {
             "metric": estimates["metric"],
+            "metric_label": metric_label,
+            "metric_definition": metric_definition,
+            "channel_label": _short(channel.get("label")),
             "region": region if region in _REGIONS else None,
             "stain": stain,
             "unit": result.get("unit") or "",

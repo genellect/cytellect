@@ -122,7 +122,7 @@ def register_discussion_routes(api, store, settings, owner, job_record, credenti
         try:
             payload = post_to_service(service, "/v1/discussions", {
                 "context": context.model_dump(mode="json"), "prompt_version": settings.discussion_prompt_version}, request_id)
-            if payload["model"] != settings.proposal_model or payload["prompt_version"] != settings.discussion_prompt_version:
+            if payload["model"] not in {settings.proposal_model, *settings.proposal_models} or payload["prompt_version"] != settings.discussion_prompt_version:
                 raise ProposalServiceError(502, "proposal_service_version_mismatch")
             discussion = validate_discussion(payload.get("draft"), context, model=payload["model"],
                                              prompt_version=payload["prompt_version"])

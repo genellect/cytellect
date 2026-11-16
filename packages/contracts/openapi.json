@@ -7486,39 +7486,42 @@
         "properties": {
           "protocol": {
             "type": "string",
-            "const": "result-discussion/1.0.0",
+            "enum": [
+              "result-discussion/1.0.0",
+              "result-discussion/1.1.0"
+            ],
             "title": "Protocol",
-            "default": "result-discussion/1.0.0"
+            "default": "result-discussion/1.1.0"
           },
           "implications": {
             "items": {
               "type": "string",
-              "maxLength": 200,
+              "maxLength": 400,
               "minLength": 1
             },
             "type": "array",
-            "maxItems": 3,
+            "maxItems": 4,
             "minItems": 1,
             "title": "Implications"
           },
           "alternatives": {
             "items": {
               "type": "string",
-              "maxLength": 200,
+              "maxLength": 400,
               "minLength": 1
             },
             "type": "array",
-            "maxItems": 2,
+            "maxItems": 3,
             "title": "Alternatives"
           },
           "next_steps": {
             "items": {
               "type": "string",
-              "maxLength": 200,
+              "maxLength": 400,
               "minLength": 1
             },
             "type": "array",
-            "maxItems": 3,
+            "maxItems": 4,
             "title": "Next Steps"
           }
         },
@@ -18511,9 +18514,12 @@
         "properties": {
           "protocol": {
             "type": "string",
-            "const": "result-discussion/1.0.0",
+            "enum": [
+              "result-discussion/1.0.0",
+              "result-discussion/1.1.0"
+            ],
             "title": "Protocol",
-            "default": "result-discussion/1.0.0"
+            "default": "result-discussion/1.1.0"
           },
           "origin": {
             "type": "string",
@@ -18532,7 +18538,7 @@
           "prompt_version": {
             "type": "string",
             "title": "Prompt Version",
-            "default": "2026-11-12.2"
+            "default": "2026-11-16.1"
           },
           "model": {
             "type": "string",

@@ -1,18 +1,39 @@
-/** Result discussion drafts (protocol result-discussion/1.0.0, requirements AC-01–AC-09).
+/** Result discussion drafts (protocol result-discussion/1.1.0, requirements AC-01–AC-09,
+ * docs/drafts/llm-assistant/plan.md).
  *
- * The model receives one saved two-group comparison (numbers, fixed identifiers, warning codes) and the
- * researcher's short description, and returns three lists of sentences. It never computes values. The
- * local API checks every number and forbidden claim before anything is shown; this relay checks only the
- * shape. Prompt and context are never logged or stored.
+ * The model receives one saved two-group comparison as the researcher sees it (numbers, the researcher's
+ * names, the metric's definition, warning codes) and the researcher's description, and returns three lists
+ * of reasoned points. It never computes values. The local API checks every number and forbidden claim
+ * before anything is shown; this relay checks only the shape. Prompt and context are never logged or stored.
+ * Installed clients up to 0.1.0-local.23 still send protocol 1.0.0 with the legacy prompt version.
  */
 import contract from "./contract.json";
 import { matchesSchema } from "./schema";
 import { structuredCall, type ModelResult, type ModelSettings } from "./openai";
 
-export const DISCUSSION_PROMPT_VERSION = "2026-11-12.2";
-export const DISCUSSION_PROTOCOL = "result-discussion/1.0.0";
+export const DISCUSSION_PROMPT_VERSION = "2026-11-16.1";
+export const DISCUSSION_LEGACY_PROMPT_VERSION = "2026-11-12.2";
+export const DISCUSSION_PROTOCOL = "result-discussion/1.1.0";
+export const DISCUSSION_PROMPT_VERSIONS = [DISCUSSION_PROMPT_VERSION, DISCUSSION_LEGACY_PROMPT_VERSION];
 
-export const DISCUSSION_SYSTEM_PROMPT = `You write a short discussion of one saved microscopy comparison for Cytellect, in Japanese.
+export const DISCUSSION_SYSTEM_PROMPT = `You write the discussion of one saved microscopy comparison for Cytellect, in Japanese, for the researcher who ran the experiment.
+The input is the saved result as the researcher sees it: the metric with its name (metric_label) and recorded definition (metric_definition), the region, stain and channel label, the researcher's group and run names, group means, the treatment-minus-control difference or ratio with its 95% interval when one was computed, per-run values, n, the test and its p value, warning codes, and the researcher's purpose, cells and stains.
+Return three lists. Each item is one point with its reasoning, in one to three sentences:
+- implications (1 to 4): what the result may suggest biologically, connected to the purpose, cells, stains and treatment. Name the structures, processes, genes, proteins, pathways or mechanisms that could explain it, as hypotheses to examine.
+- alternatives (0 to 3): other explanations, technical (acquisition, detection, background, field selection, cell density) and biological (cell cycle, cell number, morphology), and what this experiment cannot tell.
+- next_steps (0 to 4): concrete experiments, controls, markers or measurements that would tell the explanations apart.
+Rules, all checked after your answer:
+- Do not compute, round differently or invent numbers. State a number only as it appears in the input: a value, a percent change of a ratio, a fraction as a percentage, n, a run count, or a number inside a name (a dose, a date).
+- Read the metric through its definition: say what it is a fraction or count of (for a positivity rate, of the nuclei that could be classified), not a broader quantity.
+- When test is "none", the result is descriptive: never say significant (有意), proven, shown, established or confirmed (示された, 確認された, 明らかになった). Use 可能性がある, 〜と整合する, 〜を示唆する.
+- When the interval includes no difference (0 for a difference, 1 for a ratio) or a test has p of at least 0.05 or none, the difference is unclear: never say there is no change, no effect or no difference.
+- When runs disagree in direction, say so with the runs' names and do not choose one.
+- Do not write citations, "et al.", DOIs, PMIDs or links. Genes, proteins, pathways and drugs may be named as hypotheses, never as findings of this experiment.
+- Warning codes describe limits of the data (few independent runs, independence not confirmed, exploratory threshold, missing values); use them in alternatives rather than repeating them.
+- Style: academic Japanese, as in the discussion section of a paper; である調; no polite form or filler; do not repeat the same caveat across items.`;
+
+/** Protocol 1.0.0's prompt (installed clients up to 0.1.0-local.23); unchanged. */
+export const DISCUSSION_LEGACY_SYSTEM_PROMPT = `You write a short discussion of one saved microscopy comparison for Cytellect, in Japanese.
 The input is the saved result only: metric, region, stain, groups, group means, the treatment-minus-control difference or ratio with its 95% interval when one was computed, per-run values, n, the test and its p value, warning codes, and the researcher's optional purpose, cells and stains.
 Return three lists, one plain sentence per item:
 - implications (1 to 3): what the result may suggest biologically.
@@ -47,7 +68,8 @@ export function discussionPayload(settings: ModelSettings, context: unknown, rep
     reasoning: { effort: settings.reasoningEffort ?? "medium" },
     max_output_tokens: settings.maxOutputTokens,
     input: [
-      { role: "system", content: [{ type: "input_text", text: DISCUSSION_SYSTEM_PROMPT }] },
+      { role: "system", content: [{ type: "input_text", text: settings.promptVersion === DISCUSSION_LEGACY_PROMPT_VERSION
+        ? DISCUSSION_LEGACY_SYSTEM_PROMPT : DISCUSSION_SYSTEM_PROMPT }] },
       { role: "user", content },
     ],
     text: { format: { type: "json_schema", name: "cytellect_result_discussion", strict: true, schema: SCHEMA } },

@@ -2674,10 +2674,10 @@ export interface components {
         DiscussionDraft: {
             /**
              * Protocol
-             * @default result-discussion/1.0.0
-             * @constant
+             * @default result-discussion/1.1.0
+             * @enum {string}
              */
-            protocol: "result-discussion/1.0.0";
+            protocol: "result-discussion/1.0.0" | "result-discussion/1.1.0";
             /** Implications */
             implications: string[];
             /** Alternatives */
@@ -6576,10 +6576,10 @@ export interface components {
         ValidatedDiscussion: {
             /**
              * Protocol
-             * @default result-discussion/1.0.0
-             * @constant
+             * @default result-discussion/1.1.0
+             * @enum {string}
              */
-            protocol: "result-discussion/1.0.0";
+            protocol: "result-discussion/1.0.0" | "result-discussion/1.1.0";
             /**
              * Origin
              * @default model
@@ -6590,7 +6590,7 @@ export interface components {
             context_sha256: string;
             /**
              * Prompt Version
-             * @default 2026-11-12.2
+             * @default 2026-11-16.1
              */
             prompt_version: string;
             /** Model */
