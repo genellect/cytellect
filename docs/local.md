@@ -2,6 +2,8 @@
 
 Status: Windows development preview. Each version is advertised only after its built package passes installation and browser checks; release notes record the accepted source and evidence. Local execution is an initial deployment option; the product remains a browser workspace with a future hosted backend.
 
+The Windows 11 Microsoft Store package is being verified under [Issue #215](https://github.com/genellect/cytellect/issues/215). See [Windows MSIX](windows-msix.md) for the build, shared workspace location and acceptance steps.
+
 The accepted [0.1.0-local.20 release](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.20) is available for Windows x86-64. It is the first package with the redesigned two-group comparison (one or two screens, groups and independent runs, a result sentence and a figure with the run as n), keeps workspaces until explicit deletion by default and sends Cellpose inference to an administrator-provided cloud GPU. See its [acceptance record](local-release-0.1.0-local.20.md) for the exact source, checksums, all 27 installed browser cases, numerical replay and evidence limits. The [local.19](local-release-0.1.0-local.19.md) and [local.17](local-release-0.1.0-local.17.md) records remain evidence for those packages. Start with the [public-image guide](quickstart.ja.md). The [local.11 record](archive/local-release-0.1.0.md) remains historical evidence for that immutable package.
 
 ## Researcher flow
