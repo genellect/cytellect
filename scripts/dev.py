@@ -438,9 +438,10 @@ def owner_checks() -> list[tuple[str, str, str]]:
     pins = owner_tool_pins()
     for tool, argv, expected in (("Vercel CLI", ("vercel", "--version"), pins["vercel"]),
                                  ("Hugging Face CLI", ("hf", "version"), f"version={pins['huggingface_hub']}")):
-        found = tool_version(argv).splitlines()[-1:] or [""]
-        results.append(("ok" if found[0] == expected else "NG", tool,
-                        found[0] or "not installed (`bash .claude/owner-tools.sh`)"))
+        # Match the version line only: a freshly installed CLI may add hints to its output.
+        lines = tool_version(argv).splitlines()
+        results.append(("ok" if expected in lines else "NG", tool, expected if expected in lines
+                        else (lines[0] if lines else "not installed (`bash .claude/owner-tools.sh`)")))
     return results
 
 

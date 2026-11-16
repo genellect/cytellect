@@ -242,7 +242,8 @@ def test_owner_checks_report_each_account_without_printing_credentials(monkeypat
         monkeypatch.delenv("VERCEL_TOKEN", raising=False)
         pins = dev.owner_tool_pins()
         monkeypatch.setattr(dev, "tool_version", lambda argv: {
-            "vercel": pins["vercel"], "hf": f"version={pins['huggingface_hub']}"}.get(argv[0], ""))
+            "vercel": pins["vercel"],
+            "hf": f"version={pins['huggingface_hub']}\nHint: a freshly installed CLI may add lines"}.get(argv[0], ""))
 
         def github(login):
             return lambda path: {"user": {"login": login}, f"repos/{dev.REPOSITORY}": {"permissions": {"admin": True}},
