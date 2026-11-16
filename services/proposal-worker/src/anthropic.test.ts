@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { normalizedUsage, toMessages, ANTHROPIC_URL } from "./anthropic";
-import { draftProposal, ModelError, PROMPT_VERSION, requestPayload } from "./openai";
+import { ASSISTANT_INSTRUCTION, ASSISTANT_PROMPT_VERSION, draftProposal, hasDraftShape, ModelError, PROMPT_VERSION, requestPayload } from "./openai";
 import { CLAUDE_PROMPT_VERSIONS, readConfig, selectProvider, type Env } from "./index";
 
 const DRAFT = {
@@ -131,5 +131,19 @@ describe("provider configuration and routing", () => {
     } finally {
       CLAUDE_PROMPT_VERSIONS.delete(redesigned);
     }
+  });
+});
+
+describe("assistant prompt version", () => {
+  it("keeps the latest rules and schema and adds the records-and-images instruction", () => {
+    const latest = requestPayload({ ...SETTINGS, promptVersion: PROMPT_VERSION }, {}, []);
+    const assistant = requestPayload({ ...SETTINGS, promptVersion: ASSISTANT_PROMPT_VERSION }, {}, []);
+    expect(assistant.input[0].content[0].text).toBe(`${latest.input[0].content[0].text}\n${ASSISTANT_INSTRUCTION}`);
+    expect(assistant.text.format.schema).toEqual(latest.text.format.schema);
+    expect(hasDraftShape(DRAFT, ASSISTANT_PROMPT_VERSION)).toBe(hasDraftShape(DRAFT, PROMPT_VERSION));
+  });
+  it("is routed to Claude", () => {
+    expect(CLAUDE_PROMPT_VERSIONS.has(ASSISTANT_PROMPT_VERSION)).toBe(true);
+    expect(selectProvider(readConfig({ ...BASE, ...CLAUDE })!, ASSISTANT_PROMPT_VERSION)?.model).toBe("claude-opus-5-5");
   });
 });

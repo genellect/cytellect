@@ -122,6 +122,20 @@
       "ContextChannel": {
         "additionalProperties": false,
         "properties": {
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Label"
+          },
           "role": {
             "anyOf": [
               {
@@ -163,6 +177,84 @@
           "token"
         ],
         "title": "ContextChannel",
+        "type": "object"
+      },
+      "ContextField": {
+        "additionalProperties": false,
+        "description": "One image field as the researcher recorded it: its name and metadata, never a path.",
+        "properties": {
+          "acquisition_date": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Acquisition Date"
+          },
+          "condition": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Condition"
+          },
+          "experimental_unit": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Experimental Unit"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Name"
+          },
+          "pair": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Pair"
+          }
+        },
+        "title": "ContextField",
         "type": "object"
       },
       "ContextImage": {
@@ -1736,7 +1828,7 @@
       }
     },
     "additionalProperties": false,
-    "description": "Normalized metadata sent to the proposal service; no paths, names or values.",
+    "description": "What the proposal service's model reads: the goal, channels with their labels, the fields with their names\nand recorded metadata, counts and current settings. Paths and measured values are not part of it; downscaled\npreviews travel next to it.",
     "properties": {
       "acquired_dates_known": {
         "default": false,
@@ -1810,6 +1902,14 @@
         "title": "Field Count",
         "type": "integer"
       },
+      "fields": {
+        "items": {
+          "$ref": "#/$defs/ContextField"
+        },
+        "maxItems": 200,
+        "title": "Fields",
+        "type": "array"
+      },
       "goal": {
         "default": "",
         "maxLength": 2000,
@@ -1857,8 +1957,11 @@
         "default": null
       },
       "protocol": {
-        "const": "1.1.0",
-        "default": "1.1.0",
+        "default": "1.2.0",
+        "enum": [
+          "1.1.0",
+          "1.2.0"
+        ],
         "title": "Protocol",
         "type": "string"
       },

@@ -145,8 +145,11 @@ def test_only_a_goal_is_asked_and_the_context_is_derived_from_the_workspace(tmp_
     assert first.json()["channels"] == [{"token": "ch1", "channel_id": "actin", "stain": None}]
     assert first.json()["proposal"]["needs_confirmation"] == []
     sent = calls[0]["context"]
-    # Derived, not entered: counts and flags only; no labels, file names, metadata values or pixels.
-    assert sent == {"protocol": "1.1.0", "goal": "細胞ごとのアクチン輝度", "channels": [{"token": "ch1", "stain": None, "role": None}],
+    # Derived, not entered (docs/drafts/llm-assistant/plan.md): the model reads the researcher's channel label and
+    # field records, the counts and flags, and a downscaled preview of a representative field. No paths.
+    fields_sent = sent.pop("fields")
+    assert sent == {"protocol": "1.2.0", "goal": "細胞ごとのアクチン輝度",
+                    "channels": [{"token": "ch1", "stain": None, "role": None, "label": "Actin"}],
                     "field_count": 1, "condition_count": 1, "units_known": False, "pairing_known": False,
                     "supplied_regions": True, "measured_table": False, "background_available": False,
                     "units_per_condition": [0], "complete_pair_count": 0,
@@ -155,7 +158,11 @@ def test_only_a_goal_is_asked_and_the_context_is_derived_from_the_workspace(tmp_
                     "negative_control_fields_known": False, "acquired_dates_known": False,
                     "image_metadata": [{"width": 12, "height": 12, "axes": "YX", "input_mode": "native",
                                         "pixel_size_x_um": None, "pixel_size_y_um": None}]}
-    assert "Actin" not in json.dumps(calls) and "untrusted-original-name" not in json.dumps(calls)
+    assert len(fields_sent) == 1 and set(fields_sent[0]) == {"name", "condition", "experimental_unit", "pair", "acquisition_date"}
+    assert all("/" not in (value or "") and "\\" not in (value or "") for value in fields_sent[0].values())
+    [preview] = calls[0]["previews"]
+    assert preview["channel"] == "ch1" and preview["png_base64"].startswith("iVBORw0KGgo")
+    assert str(tmp_path) not in json.dumps(calls) and "workspaces" not in json.dumps(calls)
     assert client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": "x", "field_count": 9, "transmission_confirmed": True},
                        headers=HEADERS).status_code == 422
     # An empty goal is valid: the proposal is built from the images alone.

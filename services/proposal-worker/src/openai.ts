@@ -5,6 +5,9 @@ import { boundedJson, matchesSchema } from "./schema";
 import { messagesText, normalizedUsage, postMessages, readMessages, type ResponsesPayload } from "./anthropic";
 
 export const PROMPT_VERSION = "2026-10-09.1";
+/** The redesigned assistant (docs/drafts/llm-assistant/plan.md): PROMPT_VERSION's rules and schema, plus the
+ * researcher's labels, field records and previews (context 1.2.0). Routed to Claude when it is configured. */
+export const ASSISTANT_PROMPT_VERSION = "2026-11-16.1";
 export const NUCLEAR_FILTER_PREVIOUS_PROMPT_VERSION = "2026-10-08.5";
 export const PARENT_PREVIOUS_PROMPT_VERSION = "2026-10-08.4";
 export const CELLPOSE_PREVIOUS_PROMPT_VERSION = "2026-10-08.3";
@@ -70,6 +73,11 @@ const SELECTION_INSTRUCTION = `Shared measurement and selection settings:
 - For an empty workspace return background and gfp_selection null. Applying a proposal only changes a saved configuration and the selected-field detection preview, never automatically starts batch measurements, inference or replaces accepted masks.`;
 
 export type Provider = "openai" | "anthropic";
+
+export const ASSISTANT_INSTRUCTION = `Researcher's records and images (context 1.2.0):
+- channels[].label is the researcher's name for each channel. fields lists every field's name and its recorded condition, experimental unit, pair and acquisition date. Read them to understand the experiment: which channel is which, the conditions, the replicates and the pairing. A label or name may suggest a stain or a role: suggest it with the reason and list it for confirmation. Only a recorded stain establishes a stain.
+- Previews are display-scaled renderings of one representative field, one per channel. Look at them: where each signal lies (nuclear, nucleolar, cytoplasmic, membrane, puncta), how dense the cells are, whether nuclei touch or overlap, whether a signal looks saturated, dim or out of focus, and whether the proposed detection and region suit what you see. Say briefly in rationale what you saw. Display scaling is not measurement: never state an intensity, a count or a size from a preview.
+- In rationale, explain your reasoning to the researcher in plain Japanese. When the goal cannot be met with the registered recipes, say what is missing and what would be needed.`;
 
 export interface ModelSettings {
   promptVersion?: string;
@@ -161,7 +169,8 @@ function outputText(body: { output?: { type: string; content?: { type: string; t
 }
 
 /** Closed structural validation; the local API additionally checks scientific semantics. */
-export function hasDraftShape(value: unknown, promptVersion?: string): boolean {
+export function hasDraftShape(value: unknown, requestedVersion?: string): boolean {
+  const promptVersion = requestedVersion === ASSISTANT_PROMPT_VERSION ? PROMPT_VERSION : requestedVersion;
   const compatible = value && typeof value === "object" && !Array.isArray(value)
     ? { ...value as Record<string, unknown> } : value;
   if (compatible && typeof compatible === "object" && "processing" in compatible) {
@@ -233,7 +242,10 @@ function schemaForClient(schema: unknown, version: string): unknown {
 }
 
 export function requestPayload(settings: ModelSettings, context: unknown, previews: Preview[], repair?: string) {
-  const version = settings.promptVersion ?? PROMPT_VERSION;
+  const requested = settings.promptVersion ?? PROMPT_VERSION;
+  const assistant = requested === ASSISTANT_PROMPT_VERSION;
+  // The assistant version keeps the latest rules and schema; only its added instruction differs.
+  const version = assistant ? PROMPT_VERSION : requested;
   const current = version === PROMPT_VERSION || version === NUCLEAR_FILTER_PREVIOUS_PROMPT_VERSION || version === PARENT_PREVIOUS_PROMPT_VERSION || version === CELLPOSE_PREVIOUS_PROMPT_VERSION || version === OBJECT_PREVIOUS_PROMPT_VERSION || version === NCL_PREVIOUS_PROMPT_VERSION || version === PREVIOUS_PROMPT_VERSION;
   const processing = current || version === PROCESSING_PROMPT_VERSION;
   const methods = processing ? SYSTEM_PROMPT
@@ -258,6 +270,7 @@ export function requestPayload(settings: ModelSettings, context: unknown, previe
     .replace("supplied-regions: only when the context says supplied_regions is true.", "supplied-regions: supplied_regions true, or an explicit registered processing.cells Cellpose proposal on an acquired cell-defining stain.")
     .replace("For none, measured-table, supplied-regions and field_count 0, processing must be null.", "For none, measured-table and field_count 0, processing must be null. Supplied-regions may use processing.cells; other processing components remain null.")
     .replace("cell_roi needs supplied_regions true and explicit manual cell ROIs.", "cell_roi requires explicit adopted cell ROIs or registered processing.cells on an acquired cell-defining stain; candidates must be reviewed before measurement.");
+  if (assistant) prompt += "\n" + ASSISTANT_INSTRUCTION;
   const schema = current ? contract.draft_schema : processing ? contract.processing_draft_schema : contract.legacy_draft_schema;
   return {
     model: settings.model, store: false, service_tier: "default",

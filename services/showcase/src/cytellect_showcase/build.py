@@ -1483,7 +1483,7 @@ def record_proposals(manifest: dict, seed_data: Path, work: Path, origin_port: i
     entries: dict[str, dict] = {}
     original = route.request_draft
 
-    def authored(settings, context, request_id=None):
+    def authored(settings, context, request_id=None, previews=None):
         draft = drafts.get(context.goal)
         if draft is None:
             raise route.ProposalServiceError(409, "showcase_proposal_not_recorded")
