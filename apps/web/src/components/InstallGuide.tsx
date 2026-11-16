@@ -2,6 +2,7 @@ import Link from "next/link";
 import { PUBLISHED_RELEASE, WINDOWS_RELEASE_URL, WINDOWS_STORE_LINKS, releaseSize, windowsReleaseAsset } from "@/lib/release";
 import { CONTACT_URL } from "@/lib/site";
 import { DownloadStart } from "./DownloadStart";
+import { StoreLink } from "./StoreLink";
 import { LandingAnalytics } from "./LandingAnalytics";
 import lp from "./optical-landing.module.css";
 
@@ -12,7 +13,7 @@ const Out = () => <span aria-hidden="true">↗</span>;
 function StoreInstallSteps({ app, web }: { app: string; web: string }) {
   return <>
     <p className={lp.guideLead}>Windows 11（x64）で利用できます。管理者権限とコマンド入力は不要です。</p>
-    <a className={lp.primary} data-lp-event="download" href={app}>Microsoft Store で入手 <Out /></a>
+    <StoreLink app={app} web={web} className={lp.primary}>Microsoft Store で入手 <Out /></StoreLink>
     <p className={lp.meta}><a href={web}>Store の掲載ページ</a></p>
     <section aria-labelledby="flow-title">
       <h2 id="flow-title">インストールと起動</h2>
@@ -33,6 +34,7 @@ function StoreInstallSteps({ app, web }: { app: string; web: string }) {
     <section aria-labelledby="remove-title">
       <h2 id="remove-title">アンインストール</h2>
       <p>Windows の設定で「アプリ」→「インストールされているアプリ」から Cytellect を削除できます。研究データは保持されます。作業データも削除する場合は、アンインストール前に Cytellect のワークスペースで該当する作業を削除してください。</p>
+      <p>アンインストールの後に残ったデータをすべて消すには、エクスプローラーのアドレス欄に <code>%LOCALAPPDATA%\Cytellect</code> と入力して開き、このフォルダーを削除します。作業データ、設定、ログ、クラウドへのログイン情報が消えます。従来版も入れている場合は、このフォルダーを直接消さず、従来版のアンインストールで研究データの削除を選んでください。</p>
     </section>
   </>;
 }

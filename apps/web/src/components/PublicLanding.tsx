@@ -12,6 +12,7 @@ import { LandingInvite } from "./LandingInvite";
 import { LandingDownload } from "./LandingDownload";
 import { LandingDemoBar } from "./LandingDemoBar";
 import { WINDOWS_STORE_LINKS } from "@/lib/release";
+import { StoreLink } from "./StoreLink";
 import { demoSceneHref } from "@/lib/showcase/scene-links";
 import styles from "./product.module.css";
 import lp from "./optical-landing.module.css";
@@ -48,7 +49,7 @@ export default function PublicLanding() {
           <div className={lp.heroActions}>
             <Link data-lp-event="example" href="/demo" className={lp.primary}>デモを体験する <Forward /></Link>
             {WINDOWS_STORE_LINKS
-              ? <a data-lp-event="download" href={WINDOWS_STORE_LINKS.app} className={lp.heroSecondary}>Microsoft Store で入手 <Arrow /></a>
+              ? <StoreLink {...WINDOWS_STORE_LINKS} className={lp.heroSecondary}>Microsoft Store で入手 <Arrow /></StoreLink>
               : <a data-lp-event="download_section" href="#download" className={lp.heroSecondary}>ダウンロード <span aria-hidden="true">↓</span></a>}
           </div>
         </div>

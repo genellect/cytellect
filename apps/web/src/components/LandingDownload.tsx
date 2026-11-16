@@ -2,6 +2,7 @@ import Link from "next/link";
 import { PUBLISHED_RELEASE, WINDOWS_RELEASE_URL, WINDOWS_STORE_LINKS, releaseSize, windowsReleaseAsset } from "@/lib/release";
 import { CONTACT_URL } from "@/lib/site";
 import { DownloadStart } from "./DownloadStart";
+import { StoreLink } from "./StoreLink";
 import lp from "./optical-landing.module.css";
 
 const INSTALLER = windowsReleaseAsset(WINDOWS_RELEASE_URL) === "installer";
@@ -18,7 +19,7 @@ export function LandingDownload() {
           <h3>Windows版は無料。</h3>
           <p>検出と測定から、統計、結論と考察、論文の図まで。画像はPCの外に出ません。</p>
           {WINDOWS_STORE_LINKS ? <>
-            <a className={lp.primary} data-lp-event="download" href={WINDOWS_STORE_LINKS.app}>Microsoft Store で入手 <Out /></a>
+            <StoreLink {...WINDOWS_STORE_LINKS} className={lp.primary}>Microsoft Store で入手 <Out /></StoreLink>
             <p className={lp.meta}><span>Windows 11（x64）</span><br /><Link data-lp-event="install_guide" href="/download">インストールの流れ</Link> · <a href={WINDOWS_STORE_LINKS.web}>Store の掲載ページ</a></p>
           </> : WINDOWS_RELEASE_URL ? <>
             <DownloadStart url={WINDOWS_RELEASE_URL} installer={INSTALLER} />
