@@ -2,7 +2,7 @@
 
 Status: Windows development preview. Each version is advertised only after its built package passes installation and browser checks; release notes record the accepted source and evidence. Local execution is an initial deployment option; the product remains a browser workspace with a future hosted backend.
 
-The accepted [0.1.0-local.20 release](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.20) is available for Windows x86-64. It is the first package with the redesigned two-group comparison (one or two screens, groups and independent runs, a result sentence and a figure with the run as n), keeps workspaces until explicit deletion by default and sends Cellpose inference to an administrator-provided cloud GPU. See its [acceptance record](local-release-0.1.0-local.20.md) for the exact source, checksums, all 27 installed browser cases, numerical replay and evidence limits. The [local.19](local-release-0.1.0-local.19.md) and [local.17](local-release-0.1.0-local.17.md) records remain evidence for those packages. Start with the [public-image guide](quickstart.ja.md). The [local.11 record](archive/local-release-0.1.0.md) remains historical evidence for that immutable package.
+The [0.1.0-local.23 EXE](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.23) is the latest release of the previous Windows installer. The [local.20 acceptance record](local-release-0.1.0-local.20.md) describes the first package with the redesigned two-group comparison, its source, checksums, the 27 installed browser cases and numerical replay. Earlier packages have their own evidence in the [local.19](local-release-0.1.0-local.19.md), [local.17](local-release-0.1.0-local.17.md) and [local.11](archive/local-release-0.1.0.md) records. Start with the [public-image guide](quickstart.ja.md).
 
 ## Microsoft Store edition
 
@@ -163,11 +163,9 @@ Change no security setting, and do not unblock or move files.
 8. Uninstall from Settings → Apps, choose to keep data, and confirm that `data/`
    remains under `%LOCALAPPDATA%\Cytellect`.
 
-Distribution (D4, owner decision 2026-10-30): stage 0 uses the unsigned installer and
-records how SmartScreen and Smart App Control treat it. If Smart App Control blocks it,
-free distribution through the Microsoft Store is tried first; a paid code-signing
-certificate is compared only if that is not enough. Passing CI on GitHub's runner is not
-this evidence.
+Distribution (D4): stage 0 uses the unsigned installer and records how SmartScreen and
+Smart App Control treat it. The Microsoft Store edition uses the Store's free signing.
+Record the result on a Windows 11 PC with Smart App Control enabled.
 
 ## What stays the same
 
