@@ -47,6 +47,8 @@ for round in 1 2; do
       if sha256sum --check --status <<<"$sha256  $deb"; then
         # dpkg installs this file itself; apt would fetch the same version again from the slow mirror.
         sudo dpkg -i "$deb"
+        # Matplotlib keeps its own font list; drop it so the next figure finds the new face.
+        rm -f "${MPLCONFIGDIR:-$HOME/.cache/matplotlib}"/fontlist-*.json
         exit 0
       fi
       echo "The file from $mirror does not match the apt index; discarding it." >&2
