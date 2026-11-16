@@ -36,14 +36,13 @@ Claude Code・Codex のクラウド環境で、手元への導入なしに開発
    | 公開画像 | `bbbc.broadinstitute.org`、`cellpainting-gallery.s3.amazonaws.com`、`zenodo.org` |
    | Cellpose のモデル（`setup --cellpose`） | `huggingface.co` と、大きなファイルの転送先 |
    | 外部サービス | `*.modal.direct`、`api.cytellect.app` |
-   | 運用（[オーナーの環境](#オーナーの環境)） | `api.cloudflare.com`、`api.vercel.com`、`huggingface.co`、使う AWS のエンドポイント |
+   | 運用（[オーナーの環境](#オーナーの環境)） | `api.cloudflare.com`、`api.vercel.com`、`huggingface.co` |
 
 3. [外部サービス](#外部サービス)を使う場合は、その環境変数を環境の設定に登録する。Claude Code では、セッションのタイトルバーのクラウド環境のメニュー → Edit から設定する。環境変数は新しいセッションから読み込まれ、セットアップスクリプトからは参照できない。
 
-4. セッションで起動する。`env.sh` は、固定版のツール、Fiji、試験用の Chromium の場所と、クラウド GPU の接続キーを設定する。
+4. セッションで起動する。`env.sh` は、固定版のツール、Fiji、試験用の Chromium の場所と、クラウド GPU の接続キーを設定する。セットアップスクリプトが `~/.bashrc` に読み込みを加えるため、セッションのシェルでは固定版のツールが先に見つかる。読み込まれていないシェルでは `source "$HOME/.local/share/cytellect-cloud/env.sh"` を実行する。
 
    ```bash
-   source "$HOME/.local/share/cytellect-cloud/env.sh"
    python3 scripts/dev.py doctor   # ツール、フォント、Fiji、外部サービスの準備を確認
    python3 scripts/dev.py serve    # Web をビルドして API・計算ワーカーと起動し、招待コードを表示
    ```
@@ -113,17 +112,43 @@ GPU 推論（Cellpose-SAM）と解析提案（LLM）は、次の環境変数を�
 
 オーナー（運用者）のクラウド環境は、ネットワークを制限せず、運用の認証情報も持つ。開発から運用までを同じセッションで行える。マージ・デプロイ・有料サービスの利用は、権限があっても、オーナーが対象を指示したときだけ行う（[AGENTS.md](AGENTS.md)）。
 
-| サービス | 認証情報の置き場所 | クラウドセッションでの使い方 |
+環境のセットアップスクリプトは次のとおり。正本のセットアップのあとに、Vercel と Hugging Face の CLI を固定版で入れる（[.claude/owner-tools.sh](.claude/owner-tools.sh)）。
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+if [ -d cytellect ]; then
+  bash cytellect/.claude/cloud-setup.sh
+  if [ -f cytellect/.claude/owner-tools.sh ]; then bash cytellect/.claude/owner-tools.sh; fi
+fi
+```
+
+| サービス | 認証情報 | クラウドセッションでの使い方 |
 |---|---|---|
 | GitHub | セッションの GitHub 接続（オーナーのアカウント） | REST の API と GitHub のコネクタ。GraphQL はクラウドセッションで使えないため、`gh pr list`・`gh pr merge` などは REST で行う（[マージ](docs/team-development.md#2-開発の流れ)） |
-| Cloudflare（解析提案の Worker） | API トークンは `api.cloudflare.com` 宛てのネットワークシークレット。`CLOUDFLARE_ACCOUNT_ID` は環境変数 | `pnpm --filter @cytellect/proposal-worker cf <wrangler の引数>`。wrangler はロックファイルの固定版 |
-| Vercel | トークンは `api.vercel.com` 宛てのネットワークシークレット。claude.ai の Vercel コネクタも使える | Vercel CLI またはコネクタ |
-| Hugging Face | トークンは `huggingface.co` 宛てのネットワークシークレット。公開モデルの取得には要らない | `hf` CLI |
-| AWS | 署名方式のため、環境変数（`AWS_ACCESS_KEY_ID`・`AWS_SECRET_ACCESS_KEY`） | AWS CLI |
+| Cloudflare（解析提案の Worker） | API トークン（`api.cloudflare.com` 宛てのネットワークシークレット）と、環境変数 `CLOUDFLARE_ACCOUNT_ID` | `pnpm --filter @cytellect/proposal-worker cf <wrangler の引数>`。wrangler はロックファイルの固定版 |
+| Vercel | claude.ai の Vercel コネクタ（接続済み） | デプロイの状態・ログ・ロールバックはコネクタで行う。Vercel CLI を使う場合だけ、トークンを `api.vercel.com` 宛てのネットワークシークレットに登録する |
+| Hugging Face | モデルを公開するときだけ、書き込みのトークン（`huggingface.co` 宛てのネットワークシークレット）。公開モデルの取得には要らない | `hf` CLI |
 | Modal（GPU サーバー） | `MODAL_TOKEN_ID`・`MODAL_TOKEN_SECRET` は GitHub の Actions の秘密の値 | Actions の「Cellpose Modal deploy」を `main` から起動する。Modal の CLI は gRPC がプロキシを通らないため、クラウドセッションから接続できない |
 | OpenAI、`ADMIN_TOKEN`（解析提案の Worker） | Worker の secret（`cf secret put`） | セッションに置く必要はない |
 
-ネットワークシークレットは、環境の設定の Network secrets に登録する。値はコンテナに入らず、環境のプロキシが通信に付ける。Vercel・Hugging Face・AWS の CLI は、セットアップスクリプトではまだ入らない（[#220](https://github.com/genellect/cytellect/issues/220)）。
+ネットワークシークレットの値はコンテナに入らず、環境のプロキシが通信に付ける。AWS は現在使っていない。公開画像の一部は AWS Open Data にあるが、匿名の HTTPS で取得するため、アカウントも CLI も要らない。
+
+#### 鍵の登録
+
+鍵の作成と登録は、オーナーが Windows のブラウザ（または Claude アプリ）で行う。値はチャット・Issue・PR・ファイルに書かない。
+
+1. Cloudflare の API トークンを作る。
+   1. Cloudflare のダッシュボードで **My Profile** → **API Tokens** を開き、**Create Token** を選ぶ。
+   2. テンプレートの **Edit Cloudflare Workers** を選ぶ。Workers のスクリプト・ルート・ログの権限が入る。
+   3. 解析提案の Worker は D1 を使うため、権限に **D1** の編集を加える。
+   4. 対象のアカウントは Cytellect のアカウントだけ、ゾーンは `cytellect.app` だけにする。
+   5. **Continue to summary** → **Create Token** を選び、表示されたトークンをコピーする。トークンは一度しか表示されない。
+2. モデルを公開する場合だけ、Hugging Face のトークンを作る。`https://huggingface.co/settings/tokens` で **New token** を選び、**Fine-grained** で `Genellect/Cytellect` への書き込みだけを許可する。
+3. claude.ai で、オーナーの環境（`cytellect`）に登録する。次のどちらかで行う。
+   - セッションで Claude に登録を頼む。Claude が出す入力欄に貼る。接続先は入力済みになる。
+   - セッションのタイトルバーのクラウド環境のメニュー → **Edit** → **Network secrets** に、接続先（`api.cloudflare.com`、`huggingface.co`）と値を加える。ヘッダーは `Authorization`、接頭辞は `Bearer`。
+4. 新しいセッションを開き、Claude に確認を頼む。CLI がトークンの指定を求める場合、Claude は形式だけ合わせた仮の値を環境変数に置き（プロキシが本物に置き換える）、`cf whoami` と `hf auth whoami` で確かめる。
 
 ## PR を出す前に
 

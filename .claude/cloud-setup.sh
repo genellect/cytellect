@@ -64,7 +64,14 @@ EOS
   echo "$end"
 } >> "$runtime/env.sh.new"
 mv "$runtime/env.sh.new" "$runtime/env.sh"
+# New interactive shells load env.sh. Claude Code reads ~/.bashrc when the session starts, so the
+# pinned tools come first without a manual `source`. Appended once; lines the user keeps survive.
+rc_begin='# >>> cytellect env.sh >>>' rc_end='# <<< cytellect env.sh <<<'
+touch "$HOME/.bashrc"
+if ! grep -qxF "$rc_begin" "$HOME/.bashrc"; then
+  printf '\n%s\n[ -f %q ] && . %q\n%s\n' "$rc_begin" "$runtime/env.sh" "$runtime/env.sh" "$rc_end" >> "$HOME/.bashrc"
+fi
 bash .codex/setup.sh
 pnpm --filter @cytellect/proposal-worker check
 pnpm --filter @cytellect/proposal-worker test
-echo 'In subsequent commands: source "$HOME/.local/share/cytellect-cloud/env.sh"; then python3 scripts/dev.py doctor'
+echo 'New shells load env.sh; in this shell: source "$HOME/.local/share/cytellect-cloud/env.sh"; then python3 scripts/dev.py doctor'
