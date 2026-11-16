@@ -128,8 +128,10 @@ def check(args: argparse.Namespace) -> None:
     unknown = sorted(set(areas) - set(CHECKS))
     if unknown:
         sys.exit(f"Unknown area: {', '.join(unknown)} (choose from {', '.join(CHECKS)})")
-    if args.fiji and not os.environ.get("CYTELLECT_FIJI_EXECUTABLE"):
-        sys.exit("--fiji needs CYTELLECT_FIJI_EXECUTABLE (run `setup --fiji DIR` first)")
+    if "python" in areas:
+        ensure_figure_font()
+    if args.fiji:
+        ensure_fiji()
     with tempfile.TemporaryDirectory(prefix="cytellect-check-") as scratch:
         env = scratch_env(Path(scratch))
         for area in areas:
@@ -233,6 +235,36 @@ def cloud_env(base: dict[str, str]) -> dict[str, str]:
     return env
 
 
+def figure_font() -> str:
+    """The face the figure code selects (any Japanese font is not enough); empty when there is none."""
+    return tool_version(("uv", "run", "--project", str(ROOT), "--no-sync", "python", "-c",
+                         "from cytellect_analysis.figures import japanese_font; print(japanese_font())"))
+
+
+def ensure_figure_font() -> None:
+    """Linux: install the Japanese figure font on first use, for figures and their tests."""
+    if not sys.platform.startswith("linux") or figure_font():
+        return
+    print("Installing the Japanese figure font (first use)", flush=True)
+    run(("bash", "scripts/install_figure_font.sh"))
+    if not figure_font():
+        sys.exit("The Japanese figure font is still unavailable (see CONTRIBUTING.md)")
+
+
+def ensure_fiji() -> str:
+    """Fiji for `serve`, `check --fiji` and `e2e`: the configured one, installed on first use (pinned, hash-checked)."""
+    fiji = fiji_path() or (str(DEV_RUNTIME / "fiji") if DEV_RUNTIME.exists() else "")
+    if not fiji:
+        sys.exit("Fiji is not set up: run `bash scripts/linux_setup.sh` (Linux) or `setup --fiji DIR` "
+                 "and export CYTELLECT_FIJI_EXECUTABLE")
+    path = outside_checkout(Path(fiji).expanduser(), "Fiji runtime")
+    if not path.exists():
+        print(f"Installing the pinned Fiji in {path} (first use, about a minute)", flush=True)
+        run(("uv", "run", "python", "scripts/fiji_setup.py", str(path)))
+    os.environ["CYTELLECT_FIJI_EXECUTABLE"] = str(path)
+    return str(path)
+
+
 def fiji_path() -> str:
     """CYTELLECT_FIJI_EXECUTABLE, else the cloud setup's Fiji, so a shell without env.sh still finds it."""
     configured = os.environ.get("CYTELLECT_FIJI_EXECUTABLE", "")
@@ -285,10 +317,9 @@ def doctor(args: argparse.Namespace) -> None:
     report("ok" if ready else "NG", "uv", (uv or "not installed") + ("" if ready else hint))
     if sys.platform.startswith("linux"):
         # Ask the figure code itself: any Japanese font is not enough, figures need one of FONT_FAMILIES.
-        font = tool_version(("uv", "run", "--project", str(ROOT), "--no-sync", "python", "-c",
-                             "from cytellect_analysis.figures import japanese_font; print(japanese_font())"))
-        report("ok" if font else "NG", "Japanese figure font",
-               font or "install fonts-noto-cjk (`bash scripts/install_figure_font.sh`) after `setup`")
+        font = figure_font()
+        report("ok" if font else "--", "Japanese figure font",
+               font or "installed on first use by `check` and `serve` (`bash scripts/install_figure_font.sh`)")
     if KEY_FILE.exists():
         private = os.name == "nt" or KEY_FILE.stat().st_mode & 0o077 == 0
         report("ok" if private else "NG", "Key file", "readable only by you" if private
@@ -297,14 +328,17 @@ def doctor(args: argparse.Namespace) -> None:
     if chromium:
         report("ok" if Path(chromium).exists() else "NG", "Browser for tests", chromium)
 
-    fiji = fiji_path()
+    fiji = fiji_path() or (str(DEV_RUNTIME / "fiji") if DEV_RUNTIME.exists() else "")
     if not fiji:
-        report("NG", "Fiji (StarDist)", "set CYTELLECT_FIJI_EXECUTABLE (run `setup --fiji DIR`)")
+        report("NG", "Fiji (StarDist)", "run `bash scripts/linux_setup.sh` (Linux) or `setup --fiji DIR`")
     else:
         path = Path(fiji).expanduser().resolve()
         inside = path == ROOT or ROOT in path.parents
-        report("ok" if path.exists() and not inside else "NG", "Fiji (StarDist)",
-               "outside the checkout" if path.exists() and not inside else f"missing or inside the checkout: {path}")
+        if inside:
+            report("NG", "Fiji (StarDist)", f"inside the checkout: {path}")
+        else:
+            report("ok" if path.exists() else "--", "Fiji (StarDist)", "outside the checkout" if path.exists()
+                   else "installed on first use by `serve`, `check --fiji` and `e2e`")
 
     env = cloud_env(dict(os.environ))
     url, key = env.get("CYTELLECT_CELLPOSE_REMOTE_URL", "").strip(), env.get("CYTELLECT_CELLPOSE_REMOTE_TOKEN", "")
@@ -383,9 +417,8 @@ def stop(processes: list[subprocess.Popen], grace: float = 20) -> None:
 
 
 def serve(args: argparse.Namespace) -> None:
-    fiji = fiji_path()
-    if not fiji or not Path(fiji).expanduser().exists():
-        sys.exit("serve needs Fiji: run `setup --fiji DIR` and export CYTELLECT_FIJI_EXECUTABLE")
+    fiji = ensure_fiji()
+    ensure_figure_font()
     for url in (API_ORIGIN + "/v1/health", APP_ORIGIN):
         if responding(url):
             sys.exit(f"{url} is already in use; stop the other server first")
