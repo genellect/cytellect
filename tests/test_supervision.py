@@ -38,6 +38,23 @@ def test_launch_failure_is_sanitized_and_request_removed(tmp_path, monkeypatch):
     assert not store.safe_path("runs", job["lease"], "request.json").exists()
 
 
+@pytest.mark.parametrize(("isolated", "flag"), [(False, "-E"), (True, "-I")])
+def test_analysis_child_keeps_the_workers_python_isolation(tmp_path, monkeypatch, isolated, flag):
+    """The Store package's Python is not a virtual environment: without -I the child reads user packages."""
+    store, settings, job = queued(tmp_path)
+    launched = []
+
+    def launch(args, **kwargs):
+        launched.append(args[:4])
+        raise OSError("not started")
+
+    monkeypatch.setattr(subprocess, "Popen", launch)
+    monkeypatch.setattr(sys, "dont_write_bytecode", True)
+    monkeypatch.setattr(sys, "flags", SimpleNamespace(isolated=isolated, ignore_environment=True))
+    assert execute(store, settings, job)
+    assert launched == [[sys.executable, "-B", flag, "-m"]]
+
+
 def sleeping_process(monkeypatch):
     original = subprocess.Popen
     launched = []

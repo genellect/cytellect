@@ -11,7 +11,9 @@ from pathlib import Path
 from . import local
 
 PRODUCT = "cytellect-local"
-STORE_ROOT_MARKER = {"product": PRODUCT, "schema": 1, "channel": "store"}
+# Exactly the installer's marker: released EXE versions accept no other content.
+ROOT_MARKER = {"product": PRODUCT, "schema": 1}
+RETENTION = {"schema": "cytellect-local-retention/1", "mode": "manual"}
 
 
 def _check_path(path: Path) -> None:
@@ -24,31 +26,35 @@ def _check_path(path: Path) -> None:
         raise ValueError("redirected_install_path")
 
 
-def data_location(parent: Path) -> tuple[Path, bool]:
-    """Preserve the installer workspace and its retention policy in place."""
+def data_location(parent: Path) -> Path:
+    """Preserve the installer workspace and its retention policy in place.
+
+    A location this package creates keeps workspaces until the researcher deletes them,
+    recorded as the installer records that choice.
+    """
     if not parent.is_absolute() or not parent.is_dir():
         raise ValueError("install_directory_not_owned")
     root = parent / "Cytellect"
     marker = root / "setup-root.json"
     data = root / "data"
-    for path in (root, marker, data, root / "settings", data / "cytellect.sqlite",
+    for path in (root, marker, data, root / "settings", root / "settings/retention.json", data / "cytellect.sqlite",
                  data / "cytellect.sqlite-wal", data / "cytellect.sqlite-shm"):
         _check_path(path)
     root.mkdir(mode=0o700, exist_ok=True)
     if not marker.exists():
-        if any(root.iterdir()):
+        # Claim only an empty folder, or what an interrupted first start of this package left.
+        if any(path.relative_to(root).as_posix() not in {"settings", "settings/retention.json"}
+               for path in root.rglob("*")):
             raise ValueError("install_directory_not_owned")
-        try:
-            with marker.open("x", encoding="ascii") as stream:
-                json.dump(STORE_ROOT_MARKER, stream)
-        except FileExistsError:
-            pass
+        (root / "settings").mkdir(mode=0o700, exist_ok=True)
+        (root / "settings/retention.json").write_text(json.dumps(RETENTION), encoding="ascii")
+        marker.write_text(json.dumps(ROOT_MARKER), encoding="ascii")
     if not marker.is_file() or marker.stat().st_size > 4096:
         raise ValueError("install_directory_not_owned")
     owner = json.loads(marker.read_text(encoding="utf-8-sig"))
     if not isinstance(owner, dict) or owner.get("product") != PRODUCT or owner.get("schema") != 1:
         raise ValueError("install_directory_not_owned")
-    return data, owner.get("channel") == "store"
+    return data
 
 
 def main() -> None:
@@ -62,7 +68,7 @@ def main() -> None:
             raise ValueError("store_python_not_isolated")
         if Path(sys.executable).parent != root / "python":
             raise ValueError("store_python_location_invalid")
-        data, retain = data_location(Path(os.environ["LOCALAPPDATA"]))
+        data = data_location(Path(os.environ["LOCALAPPDATA"]))
     except (OSError, KeyError, ValueError, TypeError):
         local._report_startup_error("Cytellectの作業フォルダーを確認できません。Cytellectのサポートにお問い合わせください。", True)
         raise SystemExit(2) from None
@@ -71,8 +77,7 @@ def main() -> None:
         if name.upper().startswith("CYTELLECT_") or name.upper() == "BROWSER":
             os.environ.pop(name, None)
     local.main(["--data-dir", str(data), "--web-dir", str(root / "apps/web/out"),
-                "--fiji", str(root / "fiji"), "--gui"], store_version=version,
-               retain_workspaces=retain)
+                "--fiji", str(root / "fiji"), "--gui"], store_version=version)
 
 
 if __name__ == "__main__":

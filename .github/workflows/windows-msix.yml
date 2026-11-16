@@ -23,11 +23,7 @@ concurrency:
 jobs:
   windows-msix:
     runs-on: windows-latest
-    timeout-minutes: 120
-    strategy:
-      fail-fast: false
-      matrix:
-        scenario: [fresh, migration]
+    timeout-minutes: 150
     env:
       NEXT_TELEMETRY_DISABLED: "1"
       PYTHONDONTWRITEBYTECODE: "1"
@@ -72,6 +68,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'MSIX build failed' }
           "CYTELLECT_MSIX=$msix" | Out-File -FilePath $env:GITHUB_ENV -Append
       - name: Sign only the development package and trust it on this runner
+        id: sign
         shell: pwsh
         run: |
           $sign = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.*\x64\signtool.exe" |
@@ -87,21 +84,24 @@ jobs:
           } finally {
             Remove-Item -LiteralPath "Cert:\CurrentUser\My\$($cert.Thumbprint)" -DeleteKey
           }
+      # Both scenarios use the one package built above, one after the other on this runner.
       - name: Activate from the shell, analyze and save a public image, reinstall and audit native loads
-        if: matrix.scenario == 'fresh'
         shell: pwsh
         run: |
           ./packaging/windows/sac-audit.ps1 -Msix -Installer $env:CYTELLECT_MSIX -Version $env:MSIX_VERSION -Checkout (Get-Location).Path -Output (Join-Path $env:RUNNER_TEMP 'msix-verification')
-      - name: Reopen a workspace made with the published EXE in the MSIX
-        if: matrix.scenario == 'migration'
+      - name: Reopen an analysis saved with the published EXE in the MSIX and analyze beside it
+        if: ${{ !cancelled() && steps.sign.outcome == 'success' }}
         shell: pwsh
         run: |
-          ./packaging/windows/msix/ci-migration.ps1 -Msix $env:CYTELLECT_MSIX -Version $env:MSIX_VERSION -Output (Join-Path $env:RUNNER_TEMP 'msix-verification/exe-migration.json')
+          # The first scenario keeps its workspace on purpose; this one starts from an empty folder.
+          $kept = Join-Path $env:LOCALAPPDATA 'Cytellect'
+          if (Test-Path -LiteralPath $kept) { Remove-Item -LiteralPath $kept -Recurse -Force }
+          ./packaging/windows/msix/ci-migration.ps1 -Msix $env:CYTELLECT_MSIX -Version $env:MSIX_VERSION -Checkout (Get-Location).Path -Output (Join-Path $env:RUNNER_TEMP 'msix-verification/exe-migration.json')
       - name: Retain the build and acceptance receipts
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: windows-msix-receipts-${{ matrix.scenario }}
+          name: windows-msix-receipts
           path: |
             ${{ runner.temp }}/msix/Cytellect-Development.json
             ${{ runner.temp }}/msix-verification/sac-audit.json

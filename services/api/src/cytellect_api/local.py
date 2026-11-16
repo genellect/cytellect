@@ -616,7 +616,7 @@ def _null_missing_streams() -> None:
             setattr(sys, name, open(os.devnull, "w", encoding="utf-8"))  # noqa: SIM115 - process lifetime
 
 
-def main(argv=None, *, store_version: str | None = None, retain_workspaces: bool = False):
+def main(argv=None, *, store_version: str | None = None):
     _null_missing_streams()
     parser = argparse.ArgumentParser(prog="cytellect local")
     parser.add_argument("--data-dir", type=Path, default=os.environ.get("CYTELLECT_DATA_DIR"))
@@ -633,8 +633,7 @@ def main(argv=None, *, store_version: str | None = None, retain_workspaces: bool
         _report_startup_error(message, args.gui)
         raise SystemExit(2)
     settings = Settings(args.data_dir.resolve(), app_origin=f"http://127.0.0.1:{args.port}",
-                        workspace_retention_mode="manual" if retain_workspaces else
-                        local_retention_mode(args.data_dir.resolve()),
+                        workspace_retention_mode=local_retention_mode(args.data_dir.resolve()),
                         secure_cookies=False, fiji_executable=args.fiji)
     os.environ.pop("CYTELLECT_CODE_REVISION", None)
     revision = installed_source_revision()
@@ -643,11 +642,13 @@ def main(argv=None, *, store_version: str | None = None, retain_workspaces: bool
     elif store_version is not None:
         _report_startup_error("Cytellectのファイルを確認できません。Microsoft Storeから入れ直してください。", args.gui)
         raise SystemExit(2)
-    from .local_storage import installed_usage_lock
+    from .local_storage import installed_usage_lock, usage_lock
 
     for attempt in range(3):
         try:
-            with installed_usage_lock():
+            # The Store package shares the installer's folder, so it holds that folder's lock:
+            # the installer's setup, update and storage collection then see it running.
+            with usage_lock(settings.data_dir.parent) if store_version is not None else installed_usage_lock():
                 run_local(settings, args.web_dir, args.port, open_browser=not args.no_browser, gui=args.gui,
                           store_version=store_version)
             return

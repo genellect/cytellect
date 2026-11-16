@@ -423,10 +423,16 @@ Start-Sleep -Seconds 5
 Step 'collect Code Integrity and script audit events'
 $rows = @(Get-AuditRows)
 if ($Msix) {
-    # Include attempted loads and do not count native OS DLLs or runner tools.
+    # The development signature is not one the audit policies trust, so the package's own files
+    # are audited. Seeing them proves that package paths are recognised in these events; without
+    # that, a count of zero outside the package would mean nothing.
+    $facts.use.executables_audited_inside_package = @($rows | Where-Object {
+        $_.file -like '<msix>\*'
+    } | Select-Object -ExpandProperty file -Unique).Count
+    # Include attempted loads and do not count native OS DLLs or runner tools. Code Integrity
+    # audits images whatever their file name, so the name is not filtered.
     $facts.use.executables_audited_outside_package = @($rows | Where-Object {
         $_.process.StartsWith('<msix>\', [StringComparison]::OrdinalIgnoreCase) -and
-        $_.file -match '\.(exe|dll|pyd|sys|ocx|cpl)$' -and
         $_.file -notlike '<msix>\*' -and $_.file -notlike '<windows>\*'
     } | Select-Object -ExpandProperty file -Unique).Count
 }
@@ -530,5 +536,6 @@ Remove-Item -LiteralPath $ProbeDir, $downloaded -Recurse -Force -ErrorAction Sil
 if (-not ($facts.policies.no_isg.active -or $facts.policies.isg.active)) { throw 'no audit policy was shown to be active: the unsigned probe was not audited' }
 if ($failure) { throw ('the installed application could not be used: ' + $failure) }
 if ($Msix -and (-not $facts.use.retained_and_reopened -or $facts.use.executables_written -ne 0 -or
+    $facts.use.executables_audited_inside_package -lt 1 -or
     $facts.use.executables_audited_outside_package -ne 0)) { throw 'MSIX retention or outside-package executable check failed' }
 Write-Host 'Smart App Control audit finished'

@@ -1,6 +1,7 @@
 import json
 
 import pytest
+from cytellect_api.local import local_retention_mode
 from cytellect_api.packaged import data_location
 
 
@@ -11,15 +12,24 @@ def test_store_reuses_installer_data_without_rewriting_its_ownership(tmp_path):
     marker = root / "setup-root.json"
     original = b'{"product":"cytellect-local","schema":1}'
     marker.write_bytes(original)
-    assert data_location(tmp_path) == (data, False)
+    assert data_location(tmp_path) == data
     assert marker.read_bytes() == original
+    assert not (root / "settings").exists()  # the installer's retention choice is left as recorded
 
 
 def test_store_owns_fresh_location_and_reopens_with_manual_retention(tmp_path):
-    assert data_location(tmp_path) == (tmp_path / "Cytellect/data", True)
-    assert data_location(tmp_path) == (tmp_path / "Cytellect/data", True)
-    owner = json.loads((tmp_path / "Cytellect/setup-root.json").read_bytes())
-    assert owner["product"] == "cytellect-local"
+    data = tmp_path / "Cytellect/data"
+    assert data_location(tmp_path) == data
+    assert data_location(tmp_path) == data
+    # Released installers and their storage collection accept exactly this marker.
+    assert json.loads((tmp_path / "Cytellect/setup-root.json").read_bytes()) == {"product": "cytellect-local", "schema": 1}
+    assert local_retention_mode(data) == "manual"
+
+
+def test_store_finishes_its_own_interrupted_first_start(tmp_path):
+    (tmp_path / "Cytellect/settings").mkdir(parents=True)
+    assert data_location(tmp_path) == tmp_path / "Cytellect/data"
+    assert (tmp_path / "Cytellect/setup-root.json").is_file()
 
 
 def test_store_rejects_unowned_data(tmp_path):
