@@ -65,7 +65,38 @@ Linux 以外では、ツールを `必要環境` の版で入れてから、`pyt
 - API は接続元の Origin を厳密に照合するため、`127.0.0.1` ではなく `localhost` を使う。
 - Fiji と作業データは checkout の外に置く。作業データの既定の場所は `~/cytellect-data`。
 - `serve` は研究室の PC と同じ設定で動き、Ctrl-C で全体が止まる。Web を変えていなければ `--skip-build` でビルドを省ける。
-- `serve` は Linux 向け。Windows では、次の開発サーバーで起動する。
+- `serve` は Linux 向け。Windows では、次の開発サーバーで起動するか、WSL Ubuntu を使う。
+
+### WSL Ubuntu
+
+Windows 11 の WSL2 上の Ubuntu 24.04（x64）で、Linux と同じ手順で開発し、画面は Windows のブラウザ（Edge など）で確かめる。Fiji の固定版は x64 だけなので、ARM 版の Windows では核の検出を動かせない。
+
+1. **WSL を用意する（Windows、一度だけ）**
+   1. PowerShell を管理者として開き、`wsl --install -d Ubuntu-24.04` を実行する。再起動のあと、Ubuntu の利用者名とパスワードを決める。
+   2. 必要なら `%UserProfile%\.wslconfig` に次を書き、PowerShell で `wsl --shutdown` を実行して反映する。`memory` は WSL が使えるメモリの上限（既定は PC の半分）。`networkingMode=mirrored` にすると、Windows と WSL が `localhost` を共有する。
+
+      ```ini
+      [wsl2]
+      memory=8GB
+      networkingMode=mirrored
+      ```
+
+   3. Docker を使う場合は、Docker Desktop の **Settings** → **Resources** → **WSL integration** で `Ubuntu-24.04` を有効にする。
+2. **チェックアウトとセットアップ（WSL の端末）**。チェックアウトと作業データは WSL 側（`~/`）に置く。`/mnt/c` は遅く、権限の扱いも違う。Windows 側で clone したものは使わない。
+
+   ```bash
+   sudo apt-get update && sudo apt-get install -y git curl gh
+   git clone https://github.com/genellect/cytellect.git ~/cytellect && cd ~/cytellect
+   bash scripts/linux_setup.sh
+   echo '. ~/.local/share/cytellect-dev/env.sh' >> ~/.bashrc && . ~/.local/share/cytellect-dev/env.sh
+   python3 scripts/dev.py doctor
+   ```
+
+3. **鍵**：GPU の接続キーと解析提案の端末トークンは、[外部サービス](#外部サービス)のとおり `~/.config/cytellect/dev.env` に書く。オーナーは、各 CLI にブラウザでログインする（`gh auth login`、`vercel login`、`hf auth login`）。wrangler は `dev.env` の `CLOUDFLARE_API_TOKEN` を使う。オーナー用の CLI は `bash .claude/owner-tools.sh` で入る。
+4. **起動**：`python3 scripts/dev.py serve` を実行し、Windows の Edge で `http://localhost:3000/workspace` を開く。開けない場合は、WSL の端末で `curl -s localhost:3000` が応答するかを確かめ、手順 1 の `networkingMode=mirrored` を試す。
+5. **Claude Code**：WSL の端末で Claude Code を入れ、チェックアウトで起動する。セッションの開始時に [.claude/hooks/session-start.sh](.claude/hooks/session-start.sh) が `env.sh` を読み込む。
+
+`doctor` は WSL のとき、チェックアウト・作業データ・Fiji が Windows 側のディスク（`/mnt/*`）にないか、メモリとディスクの空き、CPU の種類も確かめる。
 
 ### 開発サーバー
 
@@ -165,4 +196,4 @@ python3 scripts/dev.py contracts       # API を変えたとき（OpenAPI、既�
 python3 scripts/dev.py audit           # 依存パッケージを変えたとき（結果は checkout の外に保存）
 ```
 
-ブラウザ、コンテナ、Windows の統合試験は CI が担う（[CI の構成](docs/ci.md)）。コンテナの試験は、クラウド環境でも `dockerd` を起動すれば手元で行える。ブラウザの試験を手元で行うときは、`serve` を起動したまま、CI の `browser-e2e` ジョブ（[ci.yml](.github/workflows/ci.yml)）と同じ手順で公開画像を準備して `pnpm test:e2e` を実行する。`CYTELLECT_TEST_DATA_DIR` には `serve` の作業データの場所を指定する。PR の説明は、[PR テンプレート](.github/pull_request_template.md)のすべての項目を書く。
+ブラウザ、コンテナ、Windows の統合試験は CI が担う（[CI の構成](docs/ci.md)）。コンテナの試験は、クラウド環境でも `dockerd` を起動すれば手元で行える。ブラウザの試験は、`python3 scripts/dev.py e2e` で手元でも行える。CI の `browser-e2e` ジョブ（[ci.yml](.github/workflows/ci.yml)）と同じく、外部サービス（クラウド GPU、解析提案）を外して API・計算ワーカー・Web を自分で起動し、登録済みの公開画像と毎回新しい作業データで `pnpm test:e2e` を実行し、終われば止める。`serve` を起動している間は使えない。Playwright への引数は `--` のあとに書く（例：`-- --trace off`）。PR の説明は、[PR テンプレート](.github/pull_request_template.md)のすべての項目を書く。

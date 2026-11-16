@@ -253,16 +253,23 @@ def test_wsl_checks_name_the_windows_disk_low_memory_and_an_arm_cpu(tmp_path):
     assert {name: state for state, name, _ in inside}["WSL: CPU"] == "ok"
 
 
-def test_e2e_needs_a_running_serve(monkeypatch, tmp_path):
+def test_e2e_runs_without_cloud_services_and_not_beside_serve(monkeypatch, tmp_path):
+    """Like CI: no paid GPU or model call can start from the browser tests, and a running serve is left alone."""
     import argparse
 
     import dev
     import pytest
 
-    monkeypatch.setattr(dev, "responding", lambda url: False)
-    monkeypatch.setattr(dev, "run", lambda *args, **kwargs: pytest.fail("nothing runs without serve"))
-    with pytest.raises(SystemExit, match="start `python3 scripts/dev.py serve`"):
-        dev.e2e(argparse.Namespace(data_dir=tmp_path / "data", work_dir=tmp_path / "e2e", playwright=[]))
+    env = {"CYTELLECT_CELLPOSE_REMOTE_URL": "https://gpu", "CYTELLECT_CELLPOSE_REMOTE_TOKEN": "t",
+           "CYTELLECT_MODAL_PROXY_KEY": "wk", "CYTELLECT_PROPOSAL_URL": "https://p", "CYTELLECT_PROPOSAL_TOKEN": "d",
+           "CYTELLECT_PROPOSAL_TOKEN_FILE": "/f", "CYTELLECT_DATA_DIR": "/data", "PATH": "/bin"}
+    assert dev.without_cloud_services(env) == {"CYTELLECT_DATA_DIR": "/data", "PATH": "/bin"}
+
+    monkeypatch.setattr(dev, "responding", lambda url: True)
+    monkeypatch.setattr(dev, "run", lambda *args, **kwargs: pytest.fail("nothing runs beside serve"))
+    with pytest.raises(SystemExit, match="stop `serve` first"):
+        dev.e2e(argparse.Namespace(work_dir=tmp_path / "e2e", skip_build=False, playwright=[]))
+
 
 
 def test_fiji_and_the_figure_font_are_installed_on_first_use(monkeypatch, tmp_path):
