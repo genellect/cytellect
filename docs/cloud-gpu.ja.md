@@ -73,7 +73,7 @@ GitHub の Actions で「Cellpose GPU image」を `main` から実行する（�
 1. リポジトリの Settings → Secrets and variables → Actions に、`MODAL_TOKEN_ID` と `MODAL_TOKEN_SECRET`（手順 2 の 3）を登録する。
 2. GitHub の Actions で「Cellpose Modal deploy」を `main` から実行する（オーナーの指示で行う）。サーバーの URL（`https://genellect--cytellect-cellpose-cellposeserver.us-east.modal.direct`）は、ログの `Created Server CellposeServer` の行に表示される。Server 型の URL は `*.modal.run` ではなく `*.modal.direct` で、ログに出ていれば実行結果の概要にも記録する。
 
-デプロイ用のトークンは GitHub の秘密の値にだけ置き、研究室の PC や作業環境には置かない。この作業環境（Claude Code のクラウドセッション）からは、通信の制約で `modal deploy` を実行できない。
+デプロイは `main` から Actions で行い、作業ディレクトリから本番に出さない（[公開の流れ](deployment.md)）。そのため、デプロイ用のトークンは GitHub の秘密の値に置き、研究室の PC には置かない。Claude Code のクラウドセッションでは、Modal の CLI が使う gRPC が環境のプロキシを通らないため、ネットワークを制限しない環境でも `modal deploy` は接続できない（2026-11-16 に確認）。セッションからは Actions を起動して結果を確かめる。
 
 ### 4. Cytellect に設定する（旧来の方法）
 
