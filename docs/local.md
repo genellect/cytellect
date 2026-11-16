@@ -10,6 +10,8 @@ On Windows 11 (x64), use [Cytellect's installation page](https://cytellect.app/d
 
 The Store delivers automatic app updates. Uninstall Cytellect from **Settings → Apps → Installed apps**. Updates and uninstallation keep research data. To delete a saved workspace, use the workspace's delete action before uninstalling. The Store and EXE editions share the workspace folder at the EXE's default location, `%LOCALAPPDATA%\Cytellect`. Close the EXE edition before opening the Store edition, and choose to keep research data if uninstalling the EXE.
 
+See [Windows MSIX](windows-msix.md) for the build and acceptance steps documented in [Issue #215](https://github.com/genellect/cytellect/issues/215).
+
 ## Researcher flow
 
 The earlier Windows distribution uses the per-user installer `Cytellect-Setup-<version>.exe` or the setup ZIP. The [published 0.1.0-local.23 installer](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.23) remains available during the transition.

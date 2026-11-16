@@ -24,7 +24,15 @@ public class CytellectEngine {
             throw new IllegalStateException("label_write_failed");
     }
     public static void main(String[] args) {
-        try { execute(Path.of(args[0])); System.exit(0); }
+        try {
+            if (Boolean.getBoolean("cytellect.packaged")) {
+                // The Store package processes TIFF inputs. NDPI's constructor extracts a native
+                // TurboJPEG library outside the package while ImageJ enumerates available readers.
+                loci.formats.ImageReader.getDefaultReaderClasses().removeClass(loci.formats.in.NDPIReader.class);
+            }
+            execute(Path.of(args[0]));
+            System.exit(0);
+        }
         catch (Throwable failure) { failure.printStackTrace(); System.exit(2); }
     }
     static void verifyRois(JsonObject root) throws Exception {

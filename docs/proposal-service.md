@@ -59,6 +59,10 @@ that new user action receives a new UUID. Transport resends must not invent new
 UUIDs. Worker idempotency prevents duplicate charges for an already submitted UUID.
 Response model/prompt provenance must exactly match the local configuration.
 
+### Reporting generated content
+
+The workspace links to the developer's contact form from an AI analysis proposal and from a model-generated discussion shown with a saved result. Opening the form sends no prompt, generated text, images or workspace identifiers. The user decides what to submit in the form. The product owner reviews incoming reports and takes action on confirmed inappropriate output.
+
 ## Cloud access: e-mail login, approval and GPU gateway
 
 Status: implemented and tested locally; not deployed. It follows the draft plan
@@ -262,7 +266,8 @@ A development environment that runs the installation's stack
 (`python3 scripts/dev.py serve`, see [CONTRIBUTING](../CONTRIBUTING.md#外部サービス))
 is enrolled like any installation, with its own device token:
 
-1. The operator issues an invitation on their own machine (step 6 above) and redeems it
+1. The operator issues an invitation from their own machine or the owner's cloud
+   environment ([CONTRIBUTING](../CONTRIBUTING.md#オーナーの環境), step 6 above) and redeems it
    once with `POST /v1/devices`. Neither the admin token nor the device token is pasted
    into chat, commits, issues or logs.
 2. The operator stores `CYTELLECT_PROPOSAL_URL` and `CYTELLECT_PROPOSAL_TOKEN` in the

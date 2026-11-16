@@ -372,7 +372,7 @@ def sdists(uv_lock: str) -> dict[tuple[str, str], dict]:
     return found
 
 
-def runtime_obligations(runtime_lock: dict, uv: dict) -> list[dict]:
+def runtime_obligations(runtime_lock: dict, uv: dict | None) -> list[dict]:
     """The Python runtime and uv, from the licenses their pins record.
 
     Script-scope notices (the Tcl/Tk library scripts) are bundled as source text already.
@@ -380,9 +380,10 @@ def runtime_obligations(runtime_lock: dict, uv: dict) -> list[dict]:
     python = runtime_lock["python"]
     base = [notice["license"] for notice in runtime_lock.get("notices", []) if notice.get("scope") == "base"]
     items = [{"path": "python:" + python["version"], "sha256": python["sha256"], "kind": "runtime",
-              "coordinates": "CPython " + python["version"], "licenses": base},
-             {"path": "uv:" + uv["version"], "sha256": uv["sha256"], "kind": "runtime",
-              "coordinates": "uv " + uv["version"], "licenses": [uv["license"]]}]
+              "coordinates": "CPython " + python["version"], "licenses": base}]
+    if uv:
+        items.append({"path": "uv:" + uv["version"], "sha256": uv["sha256"], "kind": "runtime",
+                      "coordinates": "uv " + uv["version"], "licenses": [uv["license"]]})
     needed = []
     for item in items:
         item["obligation"] = classify(item["licenses"])

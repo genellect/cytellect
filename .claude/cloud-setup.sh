@@ -39,7 +39,8 @@ node -e "if(process.versions.node!==\"$node_version\")process.exit(1)"
 [ "$(uv --version | cut -d' ' -f2)" = "$uv_version" ]
 pnpm_version=$(node -p 'require("./package.json").packageManager.split("@")[1]')
 if ! command -v pnpm >/dev/null 2>&1 || [ "$(pnpm --version)" != "$pnpm_version" ]; then npm install --global "pnpm@$pnpm_version"; fi
-if ! fc-list :lang=ja family 2>/dev/null | grep -q .; then bash scripts/install_figure_font.sh; fi
+# The figure font itself: base images often carry other Japanese fonts that figures do not use.
+if ! fc-list ':family=Noto Sans CJK JP' family 2>/dev/null | grep -q .; then bash scripts/install_figure_font.sh; fi
 # Fiji outside the checkout; `.codex/setup.sh` provisions it and runs the real-Fiji tests.
 export CYTELLECT_SETUP_FIJI="${CYTELLECT_SETUP_FIJI:-1}"
 export CYTELLECT_FIJI_EXECUTABLE="${CYTELLECT_FIJI_EXECUTABLE:-$runtime/fiji}"
@@ -67,4 +68,5 @@ mv "$runtime/env.sh.new" "$runtime/env.sh"
 bash .codex/setup.sh
 pnpm --filter @cytellect/proposal-worker check
 pnpm --filter @cytellect/proposal-worker test
-echo 'In subsequent commands: source "$HOME/.local/share/cytellect-cloud/env.sh"; then python3 scripts/dev.py doctor'
+# Claude Code sessions load env.sh through .claude/hooks/session-start.sh.
+echo 'In other shells: source "$HOME/.local/share/cytellect-cloud/env.sh"; then python3 scripts/dev.py doctor'

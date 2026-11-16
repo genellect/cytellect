@@ -13,6 +13,16 @@ from cytellect_api.storage import read_json, write_json
 from sqlalchemy import update
 
 
+def interpreter_flags() -> list[str]:
+    """The worker's own isolation (-I or -E) and -B, for the analysis child it starts."""
+    flags = ["-B"] if sys.dont_write_bytecode else []
+    if sys.flags.isolated:
+        flags.append("-I")
+    elif sys.flags.ignore_environment:
+        flags.append("-E")
+    return flags
+
+
 def terminate_tree(pid):
     try:
         parent = psutil.Process(pid)
@@ -81,7 +91,8 @@ def execute(store, settings, job):
         configuration["data_dir"] = str(settings.data_dir)
         write_json(descriptor, {"settings": configuration, "job": job})
         process = subprocess.Popen(
-            [sys.executable, "-m", "cytellect_worker.child", str(descriptor), str(psutil.Process().pid)],
+            [sys.executable, *interpreter_flags(), "-m", "cytellect_worker.child", str(descriptor),
+             str(psutil.Process().pid)],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,

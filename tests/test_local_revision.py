@@ -3,6 +3,8 @@ import json
 import os
 import shutil
 import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 from cytellect_api import local
@@ -37,6 +39,25 @@ def test_packaged_revision_requires_unchanged_and_complete_source(tmp_path):
     assert installed_source_revision(tmp_path) is None
 
 
+def test_msix_build_can_verify_release_without_api_dependencies(tmp_path):
+    release(tmp_path)
+    api_source = Path(__file__).resolve().parents[1] / "services/api/src"
+    check = """
+import sys
+from pathlib import Path
+
+sys.path.insert(0, sys.argv[1])
+from cytellect_api.local_release import installed_source_revision
+
+assert installed_source_revision(Path(sys.argv[2])) == 'a' * 40
+"""
+    subprocess.run(
+        [sys.executable, "-I", "-S", "-B", "-c", check, str(api_source), str(tmp_path)],
+        check=True,
+        timeout=30,
+    )
+
+
 def test_unlisted_extra_source_or_missing_manifest_never_claim_commit(tmp_path):
     assert installed_source_revision(tmp_path) is None
     release(tmp_path)
@@ -55,7 +76,7 @@ def test_incomplete_and_escaping_manifest_cannot_claim_commit(tmp_path):
     assert installed_source_revision(tmp_path) is None
 
 
-def normal_wheel_fixture(root, monkeypatch):
+def normal_wheel_fixture(root, monkeypatch, runtime=".venv"):
     """Byte fixtures only: no wheel build, install or imported fixture code."""
     data = release(root)
     for relative in PACKAGES.values():
@@ -66,7 +87,7 @@ def normal_wheel_fixture(root, monkeypatch):
             data["files"].append({"path": path.relative_to(root).as_posix(), "size": path.stat().st_size,
                                   "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
     (root / "local-release.json").write_text(json.dumps(data), encoding="utf-8")
-    installed = root / ".venv/Lib/site-packages"
+    installed = root / runtime / "Lib/site-packages"
     for package, relative in PACKAGES.items():
         shutil.copytree(root / relative, installed / package)
     monkeypatch.setattr(local, "__file__", str(installed / "cytellect_api/local.py"))
@@ -79,6 +100,13 @@ def test_normal_wheel_requires_matching_source_and_all_installed_packages(tmp_pa
     assert installed_source_revision(tmp_path) == "a" * 40
     source = tmp_path / PACKAGES["cytellect_analysis"] / "nested/operation.py"
     source.write_bytes(b"# source modified independently of the installed wheel\n")
+    assert installed_source_revision() is None
+
+
+def test_msix_cannot_claim_release_of_different_installed_code(tmp_path, monkeypatch):
+    site_packages = normal_wheel_fixture(tmp_path, monkeypatch, runtime="python")
+    assert installed_source_revision() == "a" * 40
+    (site_packages / "cytellect_analysis/nested/operation.py").write_bytes(b"# different installed logic\n")
     assert installed_source_revision() is None
 
 

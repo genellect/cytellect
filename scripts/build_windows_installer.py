@@ -136,13 +136,15 @@ def extract_release(archive: Path, destination: Path) -> None:
             target.write_bytes(bundle.read(name))
 
 
-def pinned_artifacts(release: Path) -> list[Artifact]:
-    """Everything setup downloads, read from the release's own pins."""
-    setup = (release / "scripts/local_setup.ps1").read_text(encoding="utf-8-sig")
-    url, digest = UV_URL.search(setup), UV_SHA.search(setup)
-    if not url or not digest:
-        raise BuildError("uv_pin_missing")
-    artifacts = [Artifact("uv", url.group(1), digest.group(1))]
+def pinned_artifacts(release: Path, *, include_uv: bool = True) -> list[Artifact]:
+    """Runtime downloads read from the release's own pins."""
+    artifacts = []
+    if include_uv:
+        setup = (release / "scripts/local_setup.ps1").read_text(encoding="utf-8-sig")
+        url, digest = UV_URL.search(setup), UV_SHA.search(setup)
+        if not url or not digest:
+            raise BuildError("uv_pin_missing")
+        artifacts.append(Artifact("uv", url.group(1), digest.group(1)))
     runtime = json.loads((release / "engines/python/windows-runtime.lock.json").read_text(encoding="utf-8"))
     python = runtime["python"]
     if (runtime.get("schema") != "cytellect-windows-runtime/1"
@@ -369,9 +371,10 @@ def collect_corresponding_source(payload: Path, release: Path, artifacts: list[A
         uv_lock = (release / "uv.lock").read_text(encoding="utf-8")
         entries += cs.wheel_obligations([offline / wheel["path"] for wheel in wheels], uv_lock)
         runtime = json.loads((release / "engines/python/windows-runtime.lock.json").read_text(encoding="utf-8"))
-        uv = next(artifact for artifact in artifacts if artifact.role == "uv")
-        entries += cs.runtime_obligations(runtime, {"version": uv.url.split("/download/")[1].split("/")[0],
-                                                    "sha256": uv.sha256, "license": UV_LICENSE})
+        uv = next((artifact for artifact in artifacts if artifact.role == "uv"), None)
+        uv_pin = ({"version": uv.url.split("/download/")[1].split("/")[0],
+                   "sha256": uv.sha256, "license": UV_LICENSE} if uv else None)
+        entries += cs.runtime_obligations(runtime, uv_pin)
         cs.require_sources(entries, cs.load_exceptions(exceptions_path))
         decision = json.loads(exceptions_path.read_text(encoding="utf-8")).get("decision", "")
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -429,8 +432,8 @@ def wheel_notice(path: Path, destination: Path) -> dict:
 
 
 def write_notices(payload: Path, release: Path, artifacts: list[Artifact], wheels: list[dict],
-                  corresponding: dict | None = None) -> dict:
-    """licenses/: what the installer bundles, under which license, and where its source is.
+                  corresponding: dict | None = None, *, source_in_package: bool = False) -> dict:
+    """Write the licenses and source locations for the packaged components.
 
     ``corresponding`` is the release asset written by collect_corresponding_source; without
     it (CI builds that are never distributed) the notices say that no source was collected.
@@ -460,8 +463,7 @@ def write_notices(payload: Path, release: Path, artifacts: list[Artifact], wheel
                  f"requires source; {len(excepted)} more are listed below with their upstream source location only)"
                  if corresponding else "not collected in this build, which must not be distributed")
     runtime = json.loads((release / "engines/python/windows-runtime.lock.json").read_text(encoding="utf-8"))
-    uv = next(artifact for artifact in artifacts if artifact.role == "uv")
-    uv_version = uv.url.split("/download/")[1].split("/")[0]
+    uv = next((artifact for artifact in artifacts if artifact.role == "uv"), None)
     components = [
         {"component": "Fiji (archive " + fiji["fiji"]["archive_stamp"] + ", with its JDK)",
          "license": "GPL-3.0 for Fiji; every bundled component keeps its own license (Bio-Formats GPL-2.0-or-later; "
@@ -479,9 +481,11 @@ def write_notices(payload: Path, release: Path, artifacts: list[Artifact], wheel
          "source": "https://www.python.org/downloads/source/"},
         *({"component": notice["path"], "license": notice["license"], "source": notice["source_url"]}
           for notice in runtime.get("notices", []) if notice.get("scope") == "scripts"),
-        {"component": "uv " + uv_version, "license": UV_LICENSE, "sha256": uv.sha256, "url": uv.url,
-         "source": f"https://github.com/astral-sh/uv/tree/{uv_version}"},
     ]
+    if uv:
+        uv_version = uv.url.split("/download/")[1].split("/")[0]
+        components.append({"component": "uv " + uv_version, "license": UV_LICENSE, "sha256": uv.sha256,
+                           "url": uv.url, "source": f"https://github.com/astral-sh/uv/tree/{uv_version}"})
     for wheel in wheels:
         notice = wheel_notice(payload / "offline" / wheel["path"], directory / "wheels")
         notice.update(provided("wheel:" + PurePosixPath(wheel["path"]).name, notice["source"]))
@@ -493,17 +497,21 @@ def write_notices(payload: Path, release: Path, artifacts: list[Artifact], wheel
             components.append({"component": record["component"], "version": record.get("coordinates") or "",
                                "license": "; ".join(record["licenses"]) or "undetermined (treated as requiring source)",
                                "sha256": record["bundled_sha256"], **provided(record["component"], "")})
-    lines = ["Cytellect Windows installer: bundled third-party software", "",
+    package = "MSIX" if source_in_package else "Windows installer"
+    installed_notices = ("fiji/, python/Lib/site-packages/*.dist-info/" if source_in_package else
+                         "runtimes/, apps/*/.venv/Lib/site-packages/*.dist-info/")
+    lines = [f"Cytellect {package}: bundled third-party software", "",
              "Cytellect's own code is licensed under Apache-2.0 (LICENSE). That license does not apply to the",
              "components below; each keeps its own license. The installed copies keep every notice that the",
-             "upstream archives and wheels contain (runtimes/, apps/*/.venv/Lib/site-packages/*.dist-info/).", ""]
+             f"upstream archives and wheels contain ({installed_notices}).", ""]
     if corresponding:
+        location = "in this package's licenses/ directory" if source_in_package else "beside this installer"
         lines += ["Corresponding source: for every component whose license requires source with the binary",
                   "(GPL, LGPL, MPL, EPL, CDDL and similar, or whose license could not be determined), the source",
-                  "released for exactly the bundled version is attached to the same release as this installer:",
+                  f"released for exactly the bundled version is available {location}:",
                   f"  {asset}  SHA-256 {corresponding['sha256']}",
                   "Its manifest.json lists each component's bundled SHA-256 and its source's URL and SHA-256.",
-                  "The installer itself does not contain that source.", "",
+                  "",
                   f"By the owner's decision of 2026-10-30, {len(excepted)} of these components are bundled without",
                   "their source in that archive: no source published for exactly the bundled bytes was found,",
                   "its host could not be reached when the release was built, or the license could not be",
@@ -563,6 +571,24 @@ def tree_bytes(root: Path) -> int:
     return sum(path.stat().st_size for path in root.rglob("*") if path.is_file())
 
 
+def prepare_offline_payload(release_zip: Path, payload: Path, cache: Path, pip_python: Path,
+                            manifest: dict, *, include_uv: bool = True) -> tuple[list[Artifact], list[dict]]:
+    """Stage and verify the current Windows distribution inputs for EXE or MSIX."""
+    release, offline = payload / "release", payload / "offline"
+    extract_release(release_zip, release)
+    artifacts = pinned_artifacts(release, include_uv=include_uv)
+    (offline / "sha256").mkdir(parents=True)
+    unique = list({artifact.sha256: artifact for artifact in artifacts}.values())
+    for artifact in unique:
+        shutil.copyfile(fetch_artifact(artifact, cache), offline / "sha256" / artifact.sha256)
+    requirements = (release / "engines/python/windows-requirements.txt").read_text(encoding="utf-8")
+    download_wheels(requirements, offline / "wheels", payload.parent, pip_python)
+    wheels = verify_wheelhouse(requirements, offline / "wheels")
+    write_offline_manifest(offline, (release / "local-release.json").read_bytes(),
+                           manifest["version"], manifest["source_commit"], unique, wheels)
+    return unique, wheels
+
+
 def build(release_zip: Path, output_dir: Path, work_dir: Path, cache: Path, iscc: Path,
           sign_command: str | None, pip_python: Path | None = None, corresponding_source: bool = False) -> dict:
     """Build the installer; with corresponding_source, also the release asset of required sources.
@@ -577,18 +603,7 @@ def build(release_zip: Path, output_dir: Path, work_dir: Path, cache: Path, iscc
         raise BuildError("installer_exists")  # never replace a built version
     payload = work_dir / "payload"
     release, offline = payload / "release", payload / "offline"
-    extract_release(release_zip, release)
-    artifacts = pinned_artifacts(release)
-    (offline / "sha256").mkdir(parents=True)
-    for artifact in artifacts:
-        target = offline / "sha256" / artifact.sha256
-        if not target.exists():
-            shutil.copyfile(fetch_artifact(artifact, cache), target)
-    requirements = (release / "engines/python/windows-requirements.txt").read_text(encoding="utf-8")
-    download_wheels(requirements, offline / "wheels", work_dir, pip_python or Path(sys.executable))
-    wheels = verify_wheelhouse(requirements, offline / "wheels")
-    unique = list({artifact.sha256: artifact for artifact in artifacts}.values())
-    write_offline_manifest(offline, (release / "local-release.json").read_bytes(), version, commit, unique, wheels)
+    unique, wheels = prepare_offline_payload(release_zip, payload, cache, pip_python or Path(sys.executable), manifest)
     corresponding = (collect_corresponding_source(payload, release, unique, wheels, output_dir, cache, version, commit)
                      if corresponding_source else None)
     notices = write_notices(payload, release, unique, wheels, corresponding)

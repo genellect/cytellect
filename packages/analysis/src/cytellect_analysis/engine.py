@@ -159,27 +159,40 @@ def _private_java_scratch(output: Path, scratch_root: Path | None):
         raise EngineUnavailable("fiji_temporary_cleanup_pending") from None
 
 
+def compile_fiji_bridge(runtime: Path, java: Path, assets: Path, compiled: Path, env: dict) -> None:
+    compiled.mkdir(exist_ok=True)
+    javac = java.with_name("javac.exe" if os.name == "nt" else "javac")
+    policy = current_policy()
+    _run([str(javac), "-encoding", "UTF-8", "-cp", _classpath(runtime, compiled), "-d", str(compiled),
+          str(assets / "CytellectPreferences.java"), str(assets / "CytellectEngine.java")], compiled.parent,
+         policy.compile_seconds if policy is not None else 300, env)
+
+
 def _execute_bridge(output: Path, runtime: Path, java: Path, scratch_root: Path | None) -> Path:
     """One locked process path for the legacy and nuclear-only operations."""
-    compiled = output / "classes"
-    compiled.mkdir(exist_ok=True)
+    packaged = (runtime.parent / "store-package.json").is_file()
+    compiled = runtime / "cytellect-classes" if packaged else output / "classes"
     assets = _assets()
     with _private_java_scratch(output, scratch_root) as scratch:
-        classpath = _classpath(runtime, compiled)
         env = pinned_java_environment(os.environ.copy())
         env.update({"CUDA_VISIBLE_DEVICES": "-1", "TF_CPP_MIN_LOG_LEVEL": "3", "OMP_NUM_THREADS": "1"})
-        javac = java.with_name("javac.exe" if os.name == "nt" else "javac")
+        native_args = []
+        if packaged:
+            natives = runtime / "cytellect-natives"
+            if not (natives / "tensorflow_jni.dll").is_file() or not (compiled / "CytellectEngine.class").is_file():
+                raise EngineUnavailable("fiji_package_incomplete")
+            native_args = ["-Djava.library.path=" + str(natives), "-Dcytellect.packaged=true"]
+        else:
+            compile_fiji_bridge(runtime, java, assets, compiled, env)
         policy = current_policy()
-        _run([str(javac), "-encoding", "UTF-8", "-cp", classpath, "-d", str(compiled),
-              str(assets / "CytellectPreferences.java"), str(assets / "CytellectEngine.java")], output,
-             policy.compile_seconds if policy is not None else 300, env)
         command = [
             str(java), "--add-opens=java.base/java.lang=ALL-UNNAMED", "-Djava.awt.headless=true",
             "-Djava.util.prefs.PreferencesFactory=CytellectPreferences",
             "-Djava.io.tmpdir=" + str(scratch), "-Duser.home=" + str(scratch),
             "-Dimagej.tensorflow.models.dir=" + str(scratch / "models"),
             "-Dimagej.dir=" + str(runtime), "-Dscijava.log.level=error",
-            "-Xmx2g", "-cp", classpath, "CytellectEngine", str(output / "request.json"),
+            *native_args, "-Xmx2g", "-cp", _classpath(runtime, compiled), "CytellectEngine",
+            str(output / "request.json"),
         ]
         _run(command, output, policy.execution_seconds if policy is not None else 1800, env)
     return assets

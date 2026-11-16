@@ -142,6 +142,30 @@ def test_require_cloud_fails_when_a_cloud_service_is_not_configured(monkeypatch,
         assert any(line.startswith(f"{state} Analysis proposals (LLM)") for line in lines)
 
 
+def test_doctor_asks_the_figure_code_for_the_japanese_font(monkeypatch, capsys):
+    """Any Japanese font is not enough: only a face the figures select counts (base images carry others)."""
+    import argparse
+
+    import dev
+    import pytest
+
+    if not sys.platform.startswith("linux"):
+        pytest.skip("doctor checks the figure font on Linux")
+    calls = []
+
+    def version(argv):
+        calls.append(argv)
+        return "Noto Sans CJK JP" if "japanese_font" in " ".join(argv) and found else ""
+
+    monkeypatch.setattr(dev, "tool_version", version)
+    for found, line in ((True, "[ok] Japanese figure font: Noto Sans CJK JP"),
+                        (False, "[NG] Japanese figure font: install fonts-noto-cjk")):
+        with pytest.raises(SystemExit):
+            dev.doctor(argparse.Namespace(live=False, require_cloud=False))
+        assert any(output.startswith(line) for output in capsys.readouterr().out.splitlines())
+    assert not any(argv[0] == "fc-list" for argv in calls)
+
+
 def test_stop_also_ends_descendants_that_outlive_their_leader():
     import os
     import subprocess

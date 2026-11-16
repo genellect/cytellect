@@ -39,6 +39,7 @@ import styles from "./connected-workspace.module.css";
 import {DemoBadge,DemoGuide,SceneIntro,SceneIntroButton,SceneSwitcher,SideCredit,DOWNLOAD_HREF,LiveStatus,ProposalExamples,ShowcaseContext,UploadDialog,useSceneIntro,useShowcaseUi,type DemoStep,type ShowcaseUi} from "./showcase-ui";
 import showcaseStyles from "./showcase.module.css";
 import {AccountIndicator,CloudNotices,CloudPhase,GpuStatus} from "../CloudAccount";
+import {GeneratedContentReportLink} from "./GeneratedContentReportLink";
 
 type Mode="experiment"|"image"|"statistics"|"figure";
 const targets:Record<ReviewTarget,string>={nuclei:"核",nucleoli:"核小体",nucleoplasm:"核質",cell:"細胞ROI"};
@@ -484,7 +485,18 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
     </div>
 
     {(mode==="image"&&!!field||ai)&&(panel||ai)&&<aside className={styles.inspector} aria-label={ai?"AI":"画像解析"}><div className={styles.panelHeading}><h2>{ai?"AI":"画像解析"}</h2><button className={styles.icon} aria-label="パネルを閉じる" onClick={()=>dispatchPanel("close")}><Icon name="close"/></button></div><div className={styles.inspectorBody}>
-      {ai?<><button onClick={showSettings}>解析設定を表示</button><div className={styles.userMessage}>{instruction}</div>{demoReply?<p>{demoReply}</p>:r.proposal?<><p>{r.proposal.draft.rationale}</p><dl>{r.proposal.draft.channels.map(ch=><div key={ch.token}><dt>{ch.token}</dt><dd>{ch.stain||ch.role}</dd></div>)}</dl>{r.proposal.draft.missing_information.length>0&&<ul>{r.proposal.draft.missing_information.map(text=><li key={text}>{text}</li>)}</ul>}{r.canUndoProposal()&&<button disabled={busy} onClick={()=>void act(()=>r.undoProposal())}>AIによる設定変更を戻す</button>}</>:<p>下の入力欄から解析を指示します。</p>}{demo&&<ProposalExamples examples={showcase.examples} disabled={busy} onChoose={value=>{setInstruction(value);void sendInstruction(value);}}/>}</>:<>
+      {ai?<>
+        <button onClick={showSettings}>解析設定を表示</button>
+        <div className={styles.userMessage}>{instruction}</div>
+        {demoReply?<p>{demoReply}</p>:r.proposal?<>
+          <p>{r.proposal.draft.rationale}</p>
+          <dl>{r.proposal.draft.channels.map(ch=><div key={ch.token}><dt>{ch.token}</dt><dd>{ch.stain||ch.role}</dd></div>)}</dl>
+          {r.proposal.draft.missing_information.length>0&&<ul>{r.proposal.draft.missing_information.map(text=><li key={text}>{text}</li>)}</ul>}
+          {r.canUndoProposal()&&<div><button disabled={busy} onClick={()=>void act(()=>r.undoProposal())}>AIによる設定変更を戻す</button></div>}
+          {!demo&&<GeneratedContentReportLink/>}
+        </>:<p>下の入力欄から解析を指示します。</p>}
+        {demo&&<ProposalExamples examples={showcase.examples} disabled={busy} onChoose={value=>{setInstruction(value);void sendInstruction(value);}}/>}
+      </>:<>
         {colorShown==="positivity"&&<section aria-label="陽性・陰性の判定"><h3>陽性・陰性の判定</h3>
           {gateStale&&<p role="status">{gateStale}</p>}
           <ConnectedChannelGate recorded={demo} adapter={r.adapter} workspace={data?.workspaceId||""} fields={channelFields} channels={gateChannels} disabled={busy}

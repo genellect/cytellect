@@ -150,7 +150,7 @@ In Claude Code or Codex cloud environments, register the setup script below in t
 
 | Tool | Setup script |
 |---|---|
-| Claude Code | `bash .claude/cloud-setup.sh` |
+| Claude Code | `bash cytellect/.claude/cloud-setup.sh` (the script starts in the parent directory of the checkout) |
 | Codex | `bash .codex/setup.sh` |
 
 ## License

@@ -4,10 +4,8 @@ from __future__ import annotations
 import argparse
 import contextlib
 import errno
-import hashlib
 import json
 import os
-import re
 import secrets
 import socket
 import subprocess
@@ -20,83 +18,19 @@ from pathlib import Path
 
 import psutil
 from fastapi import HTTPException, Request, Response
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import update
 from starlette.staticfiles import StaticFiles
 
 from .config import Settings, configure_private_tmp
 from .db import digest, recorded_retention_mode, sessions, workspaces
+from .local_release import installed_source_revision as verify_source_revision
 from .process_owner import Identity, process_alive, redirector_owner
 from .views import LocalSetupView, SessionView
 
 
 def installed_source_revision(root: Path | None = None) -> str | None:
-    """A release label only when installed source matches its complete manifest.
-
-    The manifest is not a code signature. Exported per-file/aggregate source
-    hashes remain the identity of executed scientific code.
-    """
-    # Preserve the lexical wheel location so resolving a redirected package
-    # cannot turn wheel verification into source-only manifest inspection.
-    execution_file = Path(__file__).absolute()
-    root = root or execution_file.parents[4]
-    site_packages = root / ".venv/Lib/site-packages"
-    wheel_execution = execution_file == (site_packages / "cytellect_api/local.py").absolute()
-    manifest = root / "local-release.json"
-    if not manifest.is_file():
-        return None
-    try:
-        release = json.loads(manifest.read_text(encoding="utf-8"))
-        revision = release["source_commit"]
-        if release["schema"] != "cytellect-local-release/1" or not re.fullmatch("[a-f0-9]{40}", revision):
-            return None
-        entries = {}
-        for item in release["files"]:
-            name = item["path"]
-            if (not isinstance(name, str) or name in entries or "\\" in name or ":" in name
-                    or name.startswith("/") or any(part in {"", ".", ".."} for part in name.split("/"))):
-                return None
-            file = root / name
-            if (not file.resolve().is_relative_to(root.resolve()) or not file.is_file()
-                    or file.stat().st_size != item["size"]
-                    or hashlib.sha256(file.read_bytes()).hexdigest() != item["sha256"]):
-                return None
-            entries[name] = item
-        for relative in ("packages/analysis/src/cytellect_analysis", "services/api/src/cytellect_api",
-                         "services/worker/src/cytellect_worker"):
-            directory = root / relative
-            if not (directory / "__init__.py").is_file():
-                return None
-            for file in directory.rglob("*.py"):
-                if file.relative_to(root).as_posix() not in entries:
-                    return None
-            if wheel_execution:
-                # A normal wheel executes its site-packages copies. Identical
-                # source files elsewhere in the release are not sufficient.
-                installed = site_packages / directory.name
-                if installed.resolve() != installed.absolute():
-                    return None
-                expected = {name[len(relative) + 1:]: entry for name, entry in entries.items()
-                            if name.startswith(relative + "/") and name.endswith(".py")}
-                paths = list(installed.rglob("*"))
-                # Check directories too: rglob need not descend into a linked
-                # directory that could still supply an unrecorded Python module.
-                if any(file.resolve() != file.absolute() for file in paths):
-                    return None
-                actual = {file.relative_to(installed).as_posix(): file for file in paths
-                          if file.suffix.lower() == ".py"}
-                if actual.keys() != expected.keys():
-                    return None
-                for name, file in actual.items():
-                    if file.resolve() != file.absolute() or not file.is_file():
-                        return None
-                    content = file.read_bytes()
-                    if (len(content) != expected[name]["size"]
-                            or hashlib.sha256(content).hexdigest() != expected[name]["sha256"]):
-                        return None
-        return revision
-    except (OSError, ValueError, KeyError, TypeError):
-        return None
+    return verify_source_revision(root, execution_file=Path(__file__))
 
 
 def _local_owner(root: Path) -> str:
@@ -114,7 +48,7 @@ def _local_owner(root: Path) -> str:
     return str(uuid.UUID(path.read_text(encoding="ascii").strip()))
 
 
-def create_local_app(settings: Settings, web_dir: Path, port: int):
+def create_local_app(settings: Settings, web_dir: Path, port: int, *, store_version: str | None = None):
     origin = f"http://127.0.0.1:{port}"
     if settings.app_origin != origin or settings.secure_cookies or not 1 <= port <= 65535:
         raise ValueError("local_settings_invalid")
@@ -167,13 +101,23 @@ def create_local_app(settings: Settings, web_dir: Path, port: int):
 
     from .app_update import current_installation
 
-    installed = current_installation()
-    version = installed.version if installed else None
+    installed = current_installation() if store_version is None else None
+    version = installed.version if installed else store_version
 
     @app.get("/v1/local/setup", response_model=LocalSetupView)
     def setup():
         return {"mode": "local", "ready": True, "fiji_configured": bool(settings.fiji_executable),
                 **settings.retention_policy, "version": version}
+
+    if store_version is not None:
+        licenses = Path(__file__).absolute().parents[4] / "licenses"
+
+        @app.get("/v1/local/corresponding-source", include_in_schema=False)
+        def corresponding_source():
+            archives = sorted(licenses.glob("Cytellect-*-gpl-sources.zip"))
+            if len(archives) != 1 or not archives[0].is_file():
+                raise HTTPException(404, "corresponding_source_missing")
+            return FileResponse(archives[0], media_type="application/zip", filename=archives[0].name)
 
     @app.get("/v1/local/session", response_model=SessionView)
     def probe(request: Request):
@@ -346,8 +290,12 @@ class WorkerSupervisor:
                    CYTELLECT_RETENTION_SECONDS=str(self.settings.retention_seconds),
                    CYTELLECT_WORKSPACE_RETENTION_MODE=self.settings.workspace_retention_mode)
         parent = psutil.Process()
-        # The worker runs with the launcher's own isolation from PYTHON* variables (-E).
-        flags = [*(["-B"] if sys.dont_write_bytecode else []), *(["-E"] if sys.flags.ignore_environment else [])]
+        # Preserve the launcher's isolation from user Python settings and packages.
+        flags = ["-B"] if sys.dont_write_bytecode else []
+        if sys.flags.isolated:
+            flags.append("-I")
+        elif sys.flags.ignore_environment:
+            flags.append("-E")
         process = subprocess.Popen(
             [sys.executable, *flags, "-m", "cytellect_api.local_worker", str(parent.pid), str(parent.create_time())],
             env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
@@ -551,7 +499,8 @@ def revoke_local_sessions(app, settings: Settings) -> None:
                      .values(revoked=True))
 
 
-def run_local(settings: Settings, web_dir: Path, port: int = 8765, *, open_browser=True, gui=False):
+def run_local(settings: Settings, web_dir: Path, port: int = 8765, *, open_browser=True, gui=False,
+              store_version: str | None = None):
     import uvicorn
 
     redirector = redirector_owner()
@@ -562,7 +511,7 @@ def run_local(settings: Settings, web_dir: Path, port: int = 8765, *, open_brows
         # After an update that could not restore the previous database, finish it before
         # this (previous) version opens and migrates the database.
         restore_pending_database(settings.data_dir)
-        app = create_local_app(settings, web_dir, port)
+        app = create_local_app(settings, web_dir, port, store_version=store_version)
         server = uvicorn.Server(server_config(app, port))
         # A verified in-app update stops this launcher before its successor starts.
         app.state.request_shutdown = lambda: setattr(server, "should_exit", True)
@@ -667,7 +616,7 @@ def _null_missing_streams() -> None:
             setattr(sys, name, open(os.devnull, "w", encoding="utf-8"))  # noqa: SIM115 - process lifetime
 
 
-def main(argv=None):
+def main(argv=None, *, store_version: str | None = None):
     _null_missing_streams()
     parser = argparse.ArgumentParser(prog="cytellect local")
     parser.add_argument("--data-dir", type=Path, default=os.environ.get("CYTELLECT_DATA_DIR"))
@@ -690,12 +639,18 @@ def main(argv=None):
     revision = installed_source_revision()
     if revision:
         os.environ["CYTELLECT_CODE_REVISION"] = revision
-    from .local_storage import installed_usage_lock
+    elif store_version is not None:
+        _report_startup_error("Cytellectのファイルを確認できません。Microsoft Storeから入れ直してください。", args.gui)
+        raise SystemExit(2)
+    from .local_storage import installed_usage_lock, usage_lock
 
     for attempt in range(3):
         try:
-            with installed_usage_lock():
-                run_local(settings, args.web_dir, args.port, open_browser=not args.no_browser, gui=args.gui)
+            # The Store package shares the installer's folder, so it holds that folder's lock:
+            # the installer's setup, update and storage collection then see it running.
+            with usage_lock(settings.data_dir.parent) if store_version is not None else installed_usage_lock():
+                run_local(settings, args.web_dir, args.port, open_browser=not args.no_browser, gui=args.gui,
+                          store_version=store_version)
             return
         except Exception as exc:
             if not args.gui:
