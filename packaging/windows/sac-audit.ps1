@@ -10,6 +10,7 @@ param(
     [Parameter(Mandatory)][string]$Version,
     [Parameter(Mandatory)][string]$Checkout,
     [Parameter(Mandatory)][string]$Output,
+    [switch]$Msix,
     [string]$Scratch = (Join-Path $env:RUNNER_TEMP 'sac-audit'),
     # Microsoft's Smart App Control audit policies (https://aka.ms/sacauditpolicies), pinned.
     [string]$PolicyZipUrl = 'https://download.microsoft.com/download/b/4/5/b45e7463-6ae0-461d-95ff-89cec7ce5159/SAC%20Audit%20Policies.zip',
@@ -19,6 +20,12 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'installer-helpers.ps1')
+if ($Msix) {
+    if ($env:GITHUB_ACTIONS -cne 'true' -or $env:RUNNER_ENVIRONMENT -cne 'github-hosted') {
+        throw 'MSIX audit runs only on a disposable GitHub-hosted Windows runner'
+    }
+    . (Join-Path $PSScriptRoot 'msix\ci-activation.ps1')
+}
 
 $CiLog = 'Microsoft-Windows-CodeIntegrity/Operational'
 $ScriptLog = 'Microsoft-Windows-AppLocker/MSI and Script'
@@ -30,7 +37,8 @@ $ProbeDir = Join-Path $env:LOCALAPPDATA 'CytellectSacProbe'
 $Downloads = Join-Path $env:USERPROFILE 'Downloads'
 $CiTool = Join-Path $env:SystemRoot 'System32\CiTool.exe'
 New-Item -ItemType Directory -Path $Scratch, $Output -Force | Out-Null
-$facts = [ordered]@{ version = $Version; policies = [ordered]@{}; use = [ordered]@{}; errors = @() }
+$facts = [ordered]@{ version = $Version; policies = [ordered]@{}; use = [ordered]@{ install_exit = -1 }; errors = @() }
+if ($Msix) { $facts.test_package_sha256 = (Get-FileHash -LiteralPath $Installer -Algorithm SHA256).Hash.ToLowerInvariant() }
 
 function Add-Error([string]$Stage, [string]$Message) {
     # Messages are fixed texts or Windows error codes; strip any drive path just in case.
@@ -288,25 +296,42 @@ $facts.probe_signature = (Get-Signature $probe).status
 Start-Sleep -Seconds 5
 
 # ---------------------------------------------------------------- install and use, as a researcher would
-Step 'silent per-user installation into %LOCALAPPDATA%\Cytellect from the Downloads folder'
+Step 'install the application from the Downloads folder'
 if (Test-Path -LiteralPath $Root) { throw 'the default installation folder already exists on this runner' }
 New-Item -ItemType Directory -Path $Downloads -Force | Out-Null
 $downloaded = Join-Path $Downloads (Split-Path -Leaf $Installer)
 Copy-Item -LiteralPath $Installer -Destination $downloaded -Force
 $Installer = $downloaded
-$facts.use.install_exit = Invoke-Installer $Root -Offline
+$package = $null
+$trial = $null
 $failure = $null
 try {
-    if ($facts.use.install_exit -ne 0) { throw 'installation failed' }
-    Step 'the shortcut launcher window starts'
-    Stop-Cytellect (Start-Cytellect $Root -Gui)
-    Get-Process -Name python, pythonw -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    if ($Msix) {
+        $package = Install-CiMsix $Installer
+        $Anchors = @(@{ Tail = Get-Tail $package.InstallLocation; Label = '<msix>\' }) + $Anchors
+        $facts.use.install_exit = 0
+        $process = Start-CiMsix $package $Version
+    } else {
+        $facts.use.install_exit = Invoke-Installer $Root -Offline
+        if ($facts.use.install_exit -ne 0) { throw 'installation failed' }
+        Step 'the shortcut launcher window starts'
+        Stop-Cytellect (Start-Cytellect $Root -Gui)
+        Get-Process -Name python, pythonw -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+        $process = Start-Cytellect $Root
+    }
     $facts.use.gui = 'started'
 
     Step 'workspace, BBBC013 A01 upload, nucleus detection with Fiji in the worker, review and export'
-    $process = Start-Cytellect $Root
     try {
         $session = New-Session
+        if ($Msix) {
+            $update = Invoke-RestMethod -NoProxy -Uri "$Origin/v1/app/update" -Headers $Headers -WebSession $session
+            if ($update.state -cne 'unsupported' -or $update.available) { throw 'EXE self-update is enabled in MSIX' }
+            $facts.use.exe_updater_disabled = $true
+            $source = Invoke-WebRequest -UseBasicParsing -NoProxy -Uri "$Origin/v1/local/corresponding-source" -Headers @{ Range = 'bytes=0-1' }
+            if ($source.StatusCode -ne 206 -or $source.Content.Length -ne 2) { throw 'Corresponding-source download failed' }
+            $facts.use.corresponding_source_download = $true
+        }
         $workspace = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/workspaces" -Headers $Headers -WebSession $session -ContentType 'application/json' -Body '{"title":"Smart App Control audit"}'
         $fixtures = Join-Path $Checkout 'fixtures\public\bbbc013'
         $metadata = '{"condition":"BBBC013 A01","experimental_unit":"public-plate","sample":"A01","acquisition_date":"public-acquisition"}'
@@ -334,7 +359,9 @@ try {
         $exported = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/revisions/$($trial.revision_id)/export" -Headers $Headers -WebSession $session
         Wait-CytellectJob $exported.job_id
         $facts.use.export = 'succeeded'
-    } finally { Stop-Cytellect $process }
+    } finally {
+        if ($Msix) { Stop-CiMsix $process } else { Stop-Cytellect $process }
+    }
 } catch { $failure = $_.Exception.Message; Add-Error 'use' $failure }
 
 # ---------------------------------------------------------------- signatures and static inventory before uninstall
@@ -359,14 +386,56 @@ foreach ($leftover in @($probe, $downloaded)) {
 }
 # Inno Setup's extracted loader and helpers are gone after the run; this one stays for the record.
 
-Step 'uninstall (Inno Setup uninstaller)'
-try { if (Test-Path -LiteralPath (Join-Path $Root 'uninstall\unins000.exe')) { Invoke-Uninstaller $Root @('/DELETEDATA') } }
-catch { Add-Error 'uninstall' $_.Exception.Message }
+Step 'uninstall'
+if ($Msix) {
+    if ($package) {
+        try {
+            $outside = @($Root, (Join-Path $env:LOCALAPPDATA "Packages\$($package.PackageFamilyName)"))
+            $facts.use.executables_written = @($outside | Where-Object { Test-Path -LiteralPath $_ } | ForEach-Object {
+                Get-ChildItem -LiteralPath $_ -Recurse -File -Force |
+                    Where-Object Extension -in @('.exe', '.dll', '.pyd', '.class', '.pyc')
+            }).Count
+            Uninstall-CiMsix
+            if (-not (Test-Path -LiteralPath (Join-Path $Root 'data\cytellect.sqlite') -PathType Leaf)) {
+                throw 'The workspace database did not survive uninstallation at the shared installer path'
+            }
+            if (-not $failure) {
+                $reinstalled = Install-CiMsix $Installer
+                try {
+                    $reopened = Start-CiMsix $reinstalled $Version
+                    try {
+                        $session = New-Session
+                        $saved = Invoke-RestMethod -NoProxy -Uri "$Origin/v1/revisions/$($trial.revision_id)/measurements" -WebSession $session
+                        if (@($saved.cells).Count -ne $facts.use.nuclei) { throw 'Saved revision did not reopen after reinstall' }
+                        $facts.use.retained_and_reopened = $true
+                    } finally { Stop-CiMsix $reopened }
+                } finally { Uninstall-CiMsix }
+            }
+        } catch { $failure = $_.Exception.Message; Add-Error 'MSIX uninstall and reopen' $failure }
+    }
+} else {
+    try { if (Test-Path -LiteralPath (Join-Path $Root 'uninstall\unins000.exe')) { Invoke-Uninstaller $Root @('/DELETEDATA') } }
+    catch { Add-Error 'uninstall' $_.Exception.Message }
+}
 Start-Sleep -Seconds 5
 
 # ---------------------------------------------------------------- collect, de-duplicate, report
 Step 'collect Code Integrity and script audit events'
 $rows = @(Get-AuditRows)
+if ($Msix) {
+    # The development signature is not one the audit policies trust, so the package's own files
+    # are audited. Seeing them proves that package paths are recognised in these events; without
+    # that, a count of zero outside the package would mean nothing.
+    $facts.use.executables_audited_inside_package = @($rows | Where-Object {
+        $_.file -like '<msix>\*'
+    } | Select-Object -ExpandProperty file -Unique).Count
+    # Include attempted loads and do not count native OS DLLs or runner tools. Code Integrity
+    # audits images whatever their file name, so the name is not filtered.
+    $facts.use.executables_audited_outside_package = @($rows | Where-Object {
+        $_.process.StartsWith('<msix>\', [StringComparison]::OrdinalIgnoreCase) -and
+        $_.file -notlike '<msix>\*' -and $_.file -notlike '<windows>\*'
+    } | Select-Object -ExpandProperty file -Unique).Count
+}
 $facts.event_counts = [ordered]@{}
 foreach ($id in 3033, 3034, 3076, 3077, 3089, 8028, 8029) { $facts.event_counts["$id"] = @($rows | Where-Object event -eq $id).Count }
 $facts.event_counts['3089'] = @(Get-WinEvent -FilterHashtable @{ LogName = $CiLog; Id = 3089 } -ErrorAction SilentlyContinue).Count
@@ -466,4 +535,7 @@ Remove-Item -LiteralPath $ProbeDir, $downloaded -Recurse -Force -ErrorAction Sil
 
 if (-not ($facts.policies.no_isg.active -or $facts.policies.isg.active)) { throw 'no audit policy was shown to be active: the unsigned probe was not audited' }
 if ($failure) { throw ('the installed application could not be used: ' + $failure) }
+if ($Msix -and (-not $facts.use.retained_and_reopened -or $facts.use.executables_written -ne 0 -or
+    $facts.use.executables_audited_inside_package -lt 1 -or
+    $facts.use.executables_audited_outside_package -ne 0)) { throw 'MSIX retention or outside-package executable check failed' }
 Write-Host 'Smart App Control audit finished'

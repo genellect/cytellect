@@ -266,7 +266,8 @@ A development environment that runs the installation's stack
 (`python3 scripts/dev.py serve`, see [CONTRIBUTING](../CONTRIBUTING.md#外部サービス))
 is enrolled like any installation, with its own device token:
 
-1. The operator issues an invitation on their own machine (step 6 above) and redeems it
+1. The operator issues an invitation from their own machine or the owner's cloud
+   environment ([CONTRIBUTING](../CONTRIBUTING.md#オーナーの環境), step 6 above) and redeems it
    once with `POST /v1/devices`. Neither the admin token nor the device token is pasted
    into chat, commits, issues or logs.
 2. The operator stores `CYTELLECT_PROPOSAL_URL` and `CYTELLECT_PROPOSAL_TOKEN` in the

@@ -2,11 +2,23 @@
 
 import hashlib
 import json
+import os
 import re
 from collections import Counter
 from pathlib import Path
 
 import pytest
+
+# A development environment's own cloud services (CONTRIBUTING.md, 外部サービス) stay out of the tests:
+# CI has none, so a configured environment runs the same tests as CI. Tests that need one set it.
+DEVELOPER_SERVICES = re.compile(
+    r"CYTELLECT_(CELLPOSE_REMOTE_\w+|MODAL_PROXY_\w+|PROPOSAL_URL|PROPOSAL_TOKEN|CLOUD_ACCOUNT_FILE)")
+
+
+@pytest.fixture(autouse=True)
+def _without_developer_services(monkeypatch):
+    for name in [name for name in os.environ if DEVELOPER_SERVICES.fullmatch(name)]:
+        monkeypatch.delenv(name)
 
 
 def pytest_addoption(parser):

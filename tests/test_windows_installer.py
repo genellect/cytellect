@@ -373,7 +373,7 @@ def prepare_build(tmp_path, monkeypatch, with_lock=True, exceptions=(), bundled_
         output = Path(next(part for part in command if part.startswith("/DOutputDir="))[len("/DOutputDir="):])
         (output / "Cytellect-Setup-0.1.0-local.21.exe").write_bytes(b"installer")
 
-    monkeypatch.setattr(builder, "pinned_artifacts", lambda release: artifacts)
+    monkeypatch.setattr(builder, "pinned_artifacts", lambda release, **kwargs: artifacts)
     monkeypatch.setattr(builder, "fetch_artifact", fetch)
     monkeypatch.setattr(builder, "download_wheels", wheels)
     monkeypatch.setattr(builder, "locked_requirements",
