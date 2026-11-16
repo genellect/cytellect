@@ -241,14 +241,17 @@ statistics and Methods remain owned by the analysis package.
 
 ```text
 Browser → local FastAPI (+ worker/Fiji/Python)
-             ↓ normalized metadata; previews only when enabled
+             ↓ goal, labels, field records; previews unless turned off
           Cytellect proposal service (Cloudflare Workers + D1)
              ↓
-          OpenAI API (Structured Outputs, store: false)
+          Anthropic API (redesigned prompt versions) or OpenAI API (installed clients; store: false)
 ```
 
-- Input: goal text, normalized image metadata, optional ≤6 previews, groups /
-  samples / pairing when known, available recipes and their conditions.
+- Input ([LLM assistance redesign](drafts/llm-assistant/plan.md), 2026-11-16): goal text,
+  channel labels and recorded stains, every field's name and records, image
+  metadata, ≤6 display-scaled previews of a representative field (unless the
+  researcher turns them off), groups / samples / pairing when known, available
+  recipes and their conditions.
 - Output (strict JSON schema): recipe ID, channel-role suggestions with
   reasons, metrics, aggregation/comparison/figure suggestions, missing
   information and registered method/literature IDs.

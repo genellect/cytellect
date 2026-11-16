@@ -11,11 +11,11 @@ Cytellect は、研究者の未発表の顕微鏡画像を研究者の PC で解
 | 送り先 | 送るもの | 送り先での扱い |
 |---|---|---|
 | Modal（Cytellect Worker 経由） | クラウド GPU で細胞を検出するときの、検出対象の 1 プレーンと検出の条件。核小体の検出では、採用済みの核のラベルも送る | 中継も推論も本文を保存せず、ログに残さない |
-| OpenAI（Cytellect Worker 経由） | 利用者が AI に解析の指示を送ったときの、研究の目的とメタデータ（チャネル名、寸法、群の数など） | `store: false` で送る |
-| OpenAI（Cytellect Worker 経由） | 利用者が考察の生成を依頼したときの、保存した比較結果の集計値と入力した実験目的 | `store: false` で送る |
+| Anthropic または OpenAI（Cytellect Worker 経由） | 利用者が AI に解析の指示を送ったときの、研究の目的、チャネル名と記録された染色、視野の名前と記録（条件、実験回、組、取得日）、画像の寸法と群の数、代表的な視野のチャネルごとの縮小画像（512 px 以下。設定で止められる） | 再利用のための保存をしない設定で送る（OpenAI は `store: false`）。モデルの学習には使われない |
+| Anthropic または OpenAI（Cytellect Worker 経由） | 利用者が考察の生成を依頼したときの、保存した比較結果（指標の名前と定義、群・実験回・チャネルの名前、集計値）と入力した実験目的 | 同上 |
 | Resend | ログインのコードと、それを届けるメールアドレス | — |
 
-- ファイル名とパスは送らない。画像、他のチャネル、核ごとの測定値も、上の表にあるものを除いて送らない。考察の生成で送るのは、染色名、群の名前、利用者が入力した実験の記述と、保存した比較の集計値（群ごとの値、差と信頼区間、実験回ごとの値、件数、検定と p 値）。
+- パスは送らない。原画像、核ごとの測定値も、上の表にあるものを除いて送らない。AI に送る範囲は、クラウドへのログインと最初の考察の生成のときに示して同意を得る（2026-11-16、オーナーの判断、[LLM による解析支援の見直し](docs/drafts/llm-assistant/plan.md)）。考察の生成で送るのは、指標の名前と定義、染色名、群・実験回・チャネルの名前、利用者が入力した実験の記述と、保存した比較の集計値（群ごとの値、差と信頼区間、実験回ごとの値、件数、検定と p 値）。送り先の各社は、API のデータの扱いに従い、不正利用の監視などのために一定期間データを保持する場合がある。
 - 測定と統計は PC で行い、原画像の画素値は変えない。
 - 外部との通信はすべて TLS で暗号化する。PC 上のデータと資格情報は OS の利用者だけが読める場所に置き、保存時の暗号化は OS の機能（BitLocker など）に委ねる。
 - 作業データは、Windows 版では利用者が削除するまで保持する（24 時間で自動削除する設定も選べる）。Docker 版では最後の操作から 24 時間で失効して削除し、研究者自身の PC に限って手動での保持も選べる。
@@ -32,7 +32,7 @@ Cytellect は、研究者の未発表の顕微鏡画像を研究者の PC で解
 ### 認証とアクセス制御
 
 - 研究者：メールに届く 6 桁のコードでログインする。コードは管理者が許可したアドレスにだけ送り、5 回の誤りで無効、同じアドレスで 1 日 20 回の誤りで 24 時間ロックする。回数はアドレスごとに数えるので、IP を変えても試行は増えない。
-- 資格情報：ログインした PC が持つのは 256 bit のデバイストークン 1 つだけで、OpenAI と Modal の鍵は Cytellect Worker だけが持つ。サーバーはトークンを SHA-256、コードを鍵付きの HMAC-SHA256 でしか保存せず、IP アドレスは保存しない。管理者がアドレスを失効させると、その利用者のすべての端末が次の要求から拒否される。
+- 資格情報：ログインした PC が持つのは 256 bit のデバイストークン 1 つだけで、Anthropic、OpenAI、Modal の鍵は Cytellect Worker だけが持つ。サーバーはトークンを SHA-256、コードを鍵付きの HMAC-SHA256 でしか保存せず、IP アドレスは保存しない。管理者がアドレスを失効させると、その利用者のすべての端末が次の要求から拒否される。
 - 管理者：運用に使うクラウドのアカウントは、すべてパスキーか認証アプリによる多要素認証を必須にしている。管理画面は Cloudflare Access の Google ログインの背後に置き、Worker も JWT の署名（RS256 に固定）、発行者、対象、有効期限、管理者のアドレスを自分で検証する。管理の経路は決めたオリジンでしか応答せず、`workers.dev` のような別の入口からは、有効なトークンがあっても入れない。新しい利用者は、署名した 1 回限りのリンクで承認し、リンクを開いただけでは承認されない。
 - PC 上の画面：ローカルのサーバーは `127.0.0.1` だけで待ち受け、要求ごとに Host、Origin、Fetch Metadata、CSRF のヘッダーを照合して、他のサイトや DNS リバインディングからの操作を拒む。読み出しのたびに所有者を確かめ、他人のワークスペースは存在も返さない。
 - 解析の実行環境：Docker 版の解析ワーカーは、ネットワークのない、非 root で読み取り専用のコンテナで動く。
@@ -98,11 +98,11 @@ Images, masks, measurement tables and figures stay in a private area of the rese
 | Destination | Data | Handling |
 |---|---|---|
 | Modal (via the Cytellect Worker) | The plane to detect and the detection parameters for cloud GPU cell detection; for nucleolar detection, also the adopted nuclear labels | Neither the relay nor inference stores or logs the body |
-| OpenAI (via the Cytellect Worker) | The research goal and metadata (channel names, dimensions, group counts) when the user sends an instruction to the AI | Sent with `store: false` |
-| OpenAI (via the Cytellect Worker) | Aggregate values from a saved comparison and the experiment purpose the user enters when requesting a discussion draft | Sent with `store: false` |
+| Anthropic or OpenAI (via the Cytellect Worker) | When the user sends an instruction to the AI: the research goal, channel names and recorded stains, field names and records (condition, experimental unit, pair, acquisition date), image dimensions and group counts, and per-channel display-scaled previews (≤512 px) of one representative field, which the user can turn off in settings | Sent without storage for reuse (OpenAI `store: false`); not used for model training |
+| Anthropic or OpenAI (via the Cytellect Worker) | When requesting a discussion draft: the saved comparison (metric name and definition, group, run and channel names, aggregate values) and the experiment purpose the user enters | As above |
 | Resend | The sign-in code and the e-mail address it is sent to | — |
 
-- File names and paths are never sent. Images, other channels and per-object measurements are not sent beyond what the table lists. A discussion draft sends the stain name, the group names, the experiment description the user enters and the saved comparison's aggregate values (group values, differences and intervals, per-experiment values, counts, the test and its p-value).
+- Paths are never sent. Original images and per-object measurements are not sent beyond what the table lists. The scope sent to the AI is shown, and consent obtained, at cloud sign-in and at the first discussion draft (owner's decision, 2026-11-16, [LLM assistance redesign](docs/drafts/llm-assistant/plan.md)). A discussion draft sends the metric's name and definition, the stain name, the group, run and channel names, the experiment description the user enters and the saved comparison's aggregate values (group values, differences and intervals, per-experiment values, counts, the test and its p-value). Each provider may retain API data for a period, for example for abuse monitoring, under its API data terms.
 - Measurements and statistics run on the PC, and original pixel values are never changed.
 - All external traffic uses TLS. Data and credentials on the PC are readable only by the OS user; encryption at rest is left to the OS (BitLocker and similar).
 - The Windows release keeps work data until the user deletes it (24-hour automatic deletion is optional). The Docker release deletes it 24 hours after the last action, and manual retention is available only on the researcher's own PC.
@@ -119,7 +119,7 @@ Images, masks, measurement tables and figures stay in a private area of the rese
 #### Authentication and access control
 
 - Researchers sign in with a six-digit code sent by e-mail, only to addresses the maintainer has allowed. Five wrong guesses void a code, and 20 per address per day lock the address for 24 hours, so changing IP addresses adds no attempts.
-- A signed-in PC holds a single 256-bit device token; only the Cytellect Worker holds the OpenAI and Modal keys and attaches them when relaying. The server stores tokens as SHA-256 and codes as keyed HMAC-SHA256, and never stores IP addresses. Revoking an address rejects all of that user's devices from the next request.
+- A signed-in PC holds a single 256-bit device token; only the Cytellect Worker holds the Anthropic, OpenAI and Modal keys and attaches them when relaying. The server stores tokens as SHA-256 and codes as keyed HMAC-SHA256, and never stores IP addresses. Revoking an address rejects all of that user's devices from the next request.
 - Every cloud account used for operations requires multi-factor authentication with a passkey or an authenticator app. The admin page sits behind Cloudflare Access with Google sign-in, and the Worker itself verifies the JWT signature (RS256 only), issuer, audience, expiry and the maintainer's address. Admin routes answer only on the designated origin; other entry points such as `workers.dev` are refused even with a valid token. New users are approved through a signed single-use link, which approves nothing merely by being opened.
 - The local server listens only on `127.0.0.1` and checks the Host, Origin, Fetch Metadata and CSRF headers of every request, rejecting other sites and DNS rebinding. Every read checks ownership, and other users' workspaces are not even acknowledged.
 - The Docker analysis worker runs in a container with no network, as non-root, on a read-only root.

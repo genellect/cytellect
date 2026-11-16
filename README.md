@@ -34,7 +34,7 @@ Cytellect は、顕微鏡画像の解析から統計処理、グラフ出力ま�
     → packages/analysis   測定・統計・作図（NumPy · SciPy · statsmodels · Matplotlib）
 
 AI による解析設定
-  services/api → services/proposal-worker（Cloudflare Workers · D1）→ OpenAI Responses API
+  services/api → services/proposal-worker（Cloudflare Workers · D1）→ Anthropic Messages API（旧版のクライアントは OpenAI Responses API）
   → API で検証 → 設定に反映し、選んだ視野でプレビュー → 手動設定と同じジョブ
 ```
 
