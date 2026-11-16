@@ -23,7 +23,7 @@ Claude Code・Codex のクラウド環境で、手元への導入なしに開発
 
    | ツール | セットアップスクリプト | 内容 |
    |---|---|---|
-   | Claude Code | `bash .claude/cloud-setup.sh` | Node.js、pnpm、uv、日本語フォント、Fiji を導入し、Fiji の試験まで行う。初回は約 9 分 |
+   | Claude Code | `bash cytellect/.claude/cloud-setup.sh` | Node.js、pnpm、uv、日本語フォント、依存パッケージ、Fiji を導入し、Fiji の試験まで行う。初回は約 9 分。セットアップスクリプトは checkout の親ディレクトリで始まるため、checkout のディレクトリ名（通常はリポジトリ名）から指定する |
    | Codex | `bash .codex/setup.sh` | Fiji も使う場合は、`CYTELLECT_SETUP_FIJI=1` と checkout の外を指す `CYTELLECT_FIJI_EXECUTABLE` を設定しておく |
 
 2. 次の接続先を、パッケージマネージャーの既定の許可に加えて許可する。
