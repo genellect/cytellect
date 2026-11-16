@@ -17,7 +17,7 @@
 
 ## クラウド開発
 
-Claude Code・Codex のクラウド環境で、手元への導入なしに開発する。画面は環境内のブラウザ（Playwright）で確認する。環境はロックファイル、Fiji の固定版、デプロイ済みの GPU サーバーと Worker から作るため、機能が増えても手順は変わらない。
+Claude Code・Codex のクラウド環境で、手元への導入なしに開発する。画面は環境内のブラウザ（Playwright）で確認する。コンテナは `dockerd` を起動すれば動かせる（外への接続には `--network host` と、環境のプロキシの CA が必要）。環境はロックファイル、Fiji の固定版、デプロイ済みの GPU サーバーと Worker から作るため、機能が増えても手順は変わらない。
 
 1. 環境の設定にセットアップスクリプトを登録する。
 
@@ -26,7 +26,7 @@ Claude Code・Codex のクラウド環境で、手元への導入なしに開発
    | Claude Code | `bash cytellect/.claude/cloud-setup.sh` | Node.js、pnpm、uv、日本語フォント、依存パッケージ、Fiji を導入し、Fiji の試験まで行う。初回は約 9 分。セットアップスクリプトは checkout の親ディレクトリで始まるため、checkout のディレクトリ名（通常はリポジトリ名）から指定する |
    | Codex | `bash .codex/setup.sh` | Fiji も使う場合は、`CYTELLECT_SETUP_FIJI=1` と checkout の外を指す `CYTELLECT_FIJI_EXECUTABLE` を設定しておく |
 
-2. 次の接続先を、パッケージマネージャーの既定の許可に加えて許可する。
+2. ネットワークは制限なし（すべてのホストに届く設定）にする。オーナーの環境はこの設定で動いている。制限付きのネットワークで使う場合は、パッケージマネージャーの既定の許可に加えて、次の接続先を許可する。
 
    | 用途 | 接続先 |
    |---|---|
@@ -34,7 +34,9 @@ Claude Code・Codex のクラウド環境で、手元への導入なしに開発
    | Fiji | `downloads.imagej.net`、`sites.imagej.net`、`repo.maven.apache.org` |
    | 日本語フォント | `archive.ubuntu.com`、`azure.archive.ubuntu.com`、`mirrors.edge.kernel.org` |
    | 公開画像 | `bbbc.broadinstitute.org`、`cellpainting-gallery.s3.amazonaws.com`、`zenodo.org` |
-   | 外部サービス | `*.modal.direct`、`*.workers.dev` |
+   | Cellpose のモデル（`setup --cellpose`） | `huggingface.co` と、大きなファイルの転送先 |
+   | 外部サービス | `*.modal.direct`、`api.cytellect.app` |
+   | 運用（[オーナーの環境](#オーナーの環境)） | `api.cloudflare.com`、`api.vercel.com`、`huggingface.co`、使う AWS のエンドポイント |
 
 3. [外部サービス](#外部サービス)を使う場合は、その環境変数を環境の設定に登録する。Claude Code では、セッションのタイトルバーのクラウド環境のメニュー → Edit から設定する。環境変数は新しいセッションから読み込まれ、セットアップスクリプトからは参照できない。
 
@@ -93,11 +95,11 @@ GPU 推論（Cellpose-SAM）と解析提案（LLM）は、次の環境変数を�
 | `CYTELLECT_MODAL_PROXY_KEY` / `CYTELLECT_MODAL_PROXY_SECRET` | GPU 推論の接続キーの ID（`wk-…`）と Secret（`ws-…`）。`dev.py` と `env.sh` が 2 つを結合し、接続先も設定する（[クラウド GPU](docs/cloud-gpu.ja.md#開発環境から使う)） | オーナー |
 | `CYTELLECT_CELLPOSE_REMOTE_URL` / `CYTELLECT_CELLPOSE_REMOTE_TOKEN` | 開発サーバーで計算ワーカーを起動するときの、GPU サーバーの URL と、ID と Secret をピリオドでつないだ接続キー | オーナー |
 | `CYTELLECT_CELLPOSE_PYTHON` / `CYTELLECT_CELLPOSE_MODEL_DIR` | GPU の代わりに CPU で推論する。`dev.py setup --cellpose ~/cytellect-cellpose`（約 2.5 GB）が最後に値を表示する | 不要 |
-| `CYTELLECT_PROPOSAL_URL` / `CYTELLECT_PROPOSAL_TOKEN` | 解析提案の Worker の URL と、この開発環境の端末トークン（[解析提案](docs/proposal-service.md#development-environments)） | オーナー |
+| `CYTELLECT_PROPOSAL_URL` / `CYTELLECT_PROPOSAL_TOKEN` | 解析提案の Worker の URL（`https://api.cytellect.app`）と、この開発環境の端末トークン（[解析提案](docs/proposal-service.md#development-environments)） | URL は公開。端末トークンはオーナー |
 
 - 接続キーと端末トークンは、使う機能・開発環境・期間を伝えてオーナーから受け取る。端末トークンは開発環境ごとに発行し、ほかの環境と共有しない。
 - 値はチャット、Issue、PR、コミット、ログ、スクリーンショットに書かない。`env` や `printenv` の出力も貼らない。
-- `MODAL_TOKEN_ID`・`MODAL_TOKEN_SECRET`（GPU サーバーのデプロイ）と `OPENAI_API_KEY`・`ADMIN_TOKEN`（提案 Worker の運用）は運用者だけが持ち、開発には使わない。
+- 運用の認証情報は、[オーナーの環境](#オーナーの環境)に置く。
 - 不要になった開発環境はオーナーに伝え、サービス側で失効してもらう。環境変数を消すだけでは失効しない。
 
 `doctor` は、外部サービスが未設定なら `[--]`、不調なら `[!!]` を示し、どちらの場合も Fiji と画面の開発は続けられる。
@@ -106,6 +108,22 @@ GPU 推論（Cellpose-SAM）と解析提案（LLM）は、次の環境変数を�
 |---|---|
 | `--live` | 実際に接続して確認する。停止中の GPU が起動する。GPU の空きを待つため起動にかかる時間は一定ではなく、動いた秒数に応じて課金される（[起動待ち](docs/cloud-gpu.ja.md#起動待ちと受入確認)）。解析提案は空の依頼でトークンだけを確認し、モデルは呼ばない |
 | `--require-cloud` | 外部サービスも必須として確認する |
+
+### オーナーの環境
+
+オーナー（運用者）のクラウド環境は、ネットワークを制限せず、運用の認証情報も持つ。開発から運用までを同じセッションで行える。マージ・デプロイ・有料サービスの利用は、権限があっても、オーナーが対象を指示したときだけ行う（[AGENTS.md](AGENTS.md)）。
+
+| サービス | 認証情報の置き場所 | クラウドセッションでの使い方 |
+|---|---|---|
+| GitHub | セッションの GitHub 接続（オーナーのアカウント） | REST の API と GitHub のコネクタ。GraphQL はクラウドセッションで使えないため、`gh pr list`・`gh pr merge` などは REST で行う（[マージ](docs/team-development.md#2-開発の流れ)） |
+| Cloudflare（解析提案の Worker） | API トークンは `api.cloudflare.com` 宛てのネットワークシークレット。`CLOUDFLARE_ACCOUNT_ID` は環境変数 | `pnpm --filter @cytellect/proposal-worker cf <wrangler の引数>`。wrangler はロックファイルの固定版 |
+| Vercel | トークンは `api.vercel.com` 宛てのネットワークシークレット。claude.ai の Vercel コネクタも使える | Vercel CLI またはコネクタ |
+| Hugging Face | トークンは `huggingface.co` 宛てのネットワークシークレット。公開モデルの取得には要らない | `hf` CLI |
+| AWS | 署名方式のため、環境変数（`AWS_ACCESS_KEY_ID`・`AWS_SECRET_ACCESS_KEY`） | AWS CLI |
+| Modal（GPU サーバー） | `MODAL_TOKEN_ID`・`MODAL_TOKEN_SECRET` は GitHub の Actions の秘密の値 | Actions の「Cellpose Modal deploy」を `main` から起動する。Modal の CLI は gRPC がプロキシを通らないため、クラウドセッションから接続できない |
+| OpenAI、`ADMIN_TOKEN`（解析提案の Worker） | Worker の secret（`cf secret put`） | セッションに置く必要はない |
+
+ネットワークシークレットは、環境の設定の Network secrets に登録する。値はコンテナに入らず、環境のプロキシが通信に付ける。Vercel・Hugging Face・AWS の CLI は、セットアップスクリプトではまだ入らない（[#220](https://github.com/genellect/cytellect/issues/220)）。
 
 ## PR を出す前に
 
@@ -118,4 +136,4 @@ python3 scripts/dev.py contracts       # API を変えたとき（OpenAPI、既�
 python3 scripts/dev.py audit           # 依存パッケージを変えたとき（結果は checkout の外に保存）
 ```
 
-ブラウザ、コンテナ、Windows の統合試験は CI が担う（[CI の構成](docs/ci.md)）。ブラウザの試験を手元で行うときは、`serve` を起動したまま、CI の `browser-e2e` ジョブ（[ci.yml](.github/workflows/ci.yml)）と同じ手順で公開画像を準備して `pnpm test:e2e` を実行する。`CYTELLECT_TEST_DATA_DIR` には `serve` の作業データの場所を指定する。PR の説明は、[PR テンプレート](.github/pull_request_template.md)のすべての項目を書く。
+ブラウザ、コンテナ、Windows の統合試験は CI が担う（[CI の構成](docs/ci.md)）。コンテナの試験は、クラウド環境でも `dockerd` を起動すれば手元で行える。ブラウザの試験を手元で行うときは、`serve` を起動したまま、CI の `browser-e2e` ジョブ（[ci.yml](.github/workflows/ci.yml)）と同じ手順で公開画像を準備して `pnpm test:e2e` を実行する。`CYTELLECT_TEST_DATA_DIR` には `serve` の作業データの場所を指定する。PR の説明は、[PR テンプレート](.github/pull_request_template.md)のすべての項目を書く。
