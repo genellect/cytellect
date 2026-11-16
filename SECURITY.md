@@ -15,7 +15,7 @@ Cytellect は、研究者の未発表の顕微鏡画像を研究者の PC で解
 | OpenAI（Cytellect Worker 経由） | 利用者が考察の生成を依頼したときの、保存した比較結果の集計値と入力した実験目的 | `store: false` で送る |
 | Resend | ログインのコードと、それを届けるメールアドレス | — |
 
-- ファイル名、パス、実験条件、他のチャネル、測定値は送らない。
+- ファイル名とパスは送らない。画像、他のチャネル、核ごとの測定値も、上の表にあるものを除いて送らない。考察の生成で送るのは、染色名、群の名前、利用者が入力した実験の記述と、保存した比較の集計値（群ごとの値、差と信頼区間、実験回ごとの値、件数、検定と p 値）。
 - 測定と統計は PC で行い、原画像の画素値は変えない。
 - 外部との通信はすべて TLS で暗号化する。PC 上のデータと資格情報は OS の利用者だけが読める場所に置き、保存時の暗号化は OS の機能（BitLocker など）に委ねる。
 - 作業データは、Windows 版では利用者が削除するまで保持する（24 時間で自動削除する設定も選べる）。Docker 版では最後の操作から 24 時間で失効して削除し、研究者自身の PC に限って手動での保持も選べる。
@@ -102,7 +102,7 @@ Images, masks, measurement tables and figures stay in a private area of the rese
 | OpenAI (via the Cytellect Worker) | Aggregate values from a saved comparison and the experiment purpose the user enters when requesting a discussion draft | Sent with `store: false` |
 | Resend | The sign-in code and the e-mail address it is sent to | — |
 
-- File names, paths, conditions, other channels and measurements are never sent.
+- File names and paths are never sent. Images, other channels and per-object measurements are not sent beyond what the table lists. A discussion draft sends the stain name, the group names, the experiment description the user enters and the saved comparison's aggregate values (group values, differences and intervals, per-experiment values, counts, the test and its p-value).
 - Measurements and statistics run on the PC, and original pixel values are never changed.
 - All external traffic uses TLS. Data and credentials on the PC are readable only by the OS user; encryption at rest is left to the OS (BitLocker and similar).
 - The Windows release keeps work data until the user deletes it (24-hour automatic deletion is optional). The Docker release deletes it 24 hours after the last action, and manual retention is available only on the researcher's own PC.
