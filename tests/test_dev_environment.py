@@ -236,6 +236,10 @@ def test_doctor_rejects_a_key_file_other_users_can_read(monkeypatch, capsys, tmp
 
 def test_wsl_checks_name_the_windows_disk_low_memory_and_an_arm_cpu(tmp_path):
     import dev
+    import pytest
+
+    if not sys.platform.startswith("linux"):
+        pytest.skip("WSL checks run on Linux only (doctor calls them only inside WSL)")
 
     release = tmp_path / "osrelease"
     release.write_text("6.6.87.2-microsoft-standard-WSL2\n")
