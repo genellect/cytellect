@@ -1,13 +1,14 @@
 /**
  * Cytellect proposal service and cloud gateway (Cloudflare Workers + D1).
  *
- * Holds the operator's OpenAI and Modal keys as secrets, authenticates
+ * Holds the operator's model-provider (Anthropic, OpenAI) and Modal keys as secrets, authenticates
  * installations by user-bound device tokens from the e-mail login (or, during
  * migration, invitation-issued tokens), reserves budget before every model call
  * and returns an unvalidated draft that the local API validates. Request bodies,
  * goals and images are never logged or stored.
  */
-import { draftProposal, inputTokenCeiling, MODEL, ModelError, PROMPT_VERSION, NUCLEAR_FILTER_PREVIOUS_PROMPT_VERSION, PARENT_PREVIOUS_PROMPT_VERSION, CELLPOSE_PREVIOUS_PROMPT_VERSION, OBJECT_PREVIOUS_PROMPT_VERSION, NCL_PREVIOUS_PROMPT_VERSION, PREVIOUS_PROMPT_VERSION, PROCESSING_PROMPT_VERSION, LEGACY_PROMPT_VERSION, PREIMPORT_PROMPT_VERSION, observedCost, type Preview, type ReasoningEffort } from "./openai";
+import { draftProposal, inputTokenCeiling, MODEL, ModelError, PROMPT_VERSION, NUCLEAR_FILTER_PREVIOUS_PROMPT_VERSION, PARENT_PREVIOUS_PROMPT_VERSION, CELLPOSE_PREVIOUS_PROMPT_VERSION, OBJECT_PREVIOUS_PROMPT_VERSION, NCL_PREVIOUS_PROMPT_VERSION, PREVIOUS_PROMPT_VERSION, PROCESSING_PROMPT_VERSION, LEGACY_PROMPT_VERSION, PREIMPORT_PROMPT_VERSION, observedCost, type Preview, type Provider, type ReasoningEffort } from "./openai";
+import { ANTHROPIC_MODELS } from "./anthropic";
 import { D1Store, type D1Database, type Store } from "./store";
 import { checkDiscussionRequest, discussionTokenCeiling, draftDiscussion, DISCUSSION_PROMPT_VERSION } from "./discussion";
 import contract from "./contract.json";
@@ -21,6 +22,13 @@ export interface Env extends CloudEnv {
   DB: D1Database;
   OPENAI_API_KEY?: string;
   OPENAI_MODEL?: string;
+  /** Claude for the prompt versions in CLAUDE_PROMPT_VERSIONS; its tariffs are configured separately. */
+  ANTHROPIC_API_KEY?: string;
+  ANTHROPIC_MODEL?: string;
+  ANTHROPIC_PRICE_INPUT_USD_PER_MTOK?: string;
+  ANTHROPIC_PRICE_OUTPUT_USD_PER_MTOK?: string;
+  ANTHROPIC_PRICE_CACHED_INPUT_USD_PER_MTOK?: string;
+  ANTHROPIC_PRICE_CACHE_WRITE_USD_PER_MTOK?: string;
   ADMIN_TOKEN?: string;
   MONTHLY_BUDGET_USD?: string;
   DEVICE_MONTHLY_REQUESTS?: string;
@@ -43,9 +51,28 @@ export const LIMITS = {
   previewBase64Chars: 700_000,
 };
 
-interface Config {
+/** One configured model provider: its key, model and the tariffs used for reservations and settlement. */
+interface ProviderConfig {
+  provider: Provider;
   apiKey: string;
   model: string;
+  priceIn: number;
+  priceOut: number;
+  priceCachedIn: number;
+  priceCacheWrite: number;
+}
+
+/** Prompt versions written for the redesigned assistant (docs/drafts/llm-assistant/plan.md). They use Claude
+ * when it is configured and otherwise the OpenAI model; every other version came from an installed client that
+ * accepts only the OpenAI model, so it never moves. */
+export const CLAUDE_PROMPT_VERSIONS = new Set<string>();
+
+interface Config {
+  provider: Provider;
+  apiKey: string;
+  model: string;
+  /** Every configured provider; the flat fields above repeat the default one (OpenAI when configured). */
+  providers: { openai?: ProviderConfig; anthropic?: ProviderConfig };
   budget: number;
   deviceRequests: number;
   priceIn: number;
@@ -63,28 +90,57 @@ function positive(value: string | undefined): number | null {
   return value && Number.isFinite(number) && number > 0 ? number : null;
 }
 
-/** Billable calls are disabled unless every limit is configured (requirement L05). */
-export function readConfig(env: Env): Config | null {
-  const budget = positive(env.MONTHLY_BUDGET_USD);
-  const deviceRequests = positive(env.DEVICE_MONTHLY_REQUESTS);
+function openaiConfig(env: Env): ProviderConfig | null {
   const priceIn = positive(env.PRICE_INPUT_USD_PER_MTOK);
   const priceOut = positive(env.PRICE_OUTPUT_USD_PER_MTOK);
   const priceCachedIn = positive(env.PRICE_CACHED_INPUT_USD_PER_MTOK);
   const priceCacheWrite = positive(env.PRICE_CACHE_WRITE_USD_PER_MTOK);
-  const reasoningEffort = env.REASONING_EFFORT ?? "medium";
-  const maxOutputTokens = env.MAX_OUTPUT_TOKENS === undefined || env.MAX_OUTPUT_TOKENS === "" ? 8000 : Number(env.MAX_OUTPUT_TOKENS);
   // Pricing floors match this exact model/standard tier; changing provider or tier
   // requires a separate reviewed adapter, not just an arbitrary model environment value.
-  if (!env.OPENAI_API_KEY || env.OPENAI_MODEL !== MODEL || !budget || !deviceRequests || !Number.isInteger(deviceRequests)
+  if (!env.OPENAI_API_KEY || env.OPENAI_MODEL !== MODEL
     || !priceIn || priceIn < 2 || !priceOut || priceOut < 10 || !priceCachedIn || priceCachedIn < 0.1
-    || !priceCacheWrite || priceCacheWrite < 2.5 || priceCacheWrite < priceIn
+    || !priceCacheWrite || priceCacheWrite < 2.5 || priceCacheWrite < priceIn) return null;
+  return { provider: "openai", apiKey: env.OPENAI_API_KEY, model: env.OPENAI_MODEL, priceIn, priceOut, priceCachedIn, priceCacheWrite };
+}
+
+function anthropicConfig(env: Env): ProviderConfig | null {
+  const floor = env.ANTHROPIC_MODEL ? ANTHROPIC_MODELS[env.ANTHROPIC_MODEL] : undefined;
+  const priceIn = positive(env.ANTHROPIC_PRICE_INPUT_USD_PER_MTOK);
+  const priceOut = positive(env.ANTHROPIC_PRICE_OUTPUT_USD_PER_MTOK);
+  const priceCachedIn = positive(env.ANTHROPIC_PRICE_CACHED_INPUT_USD_PER_MTOK);
+  const priceCacheWrite = positive(env.ANTHROPIC_PRICE_CACHE_WRITE_USD_PER_MTOK);
+  // Only listed models, at no less than their standard tariffs.
+  if (!env.ANTHROPIC_API_KEY || !floor || !priceIn || priceIn < floor.input || !priceOut || priceOut < floor.output
+    || !priceCachedIn || priceCachedIn < floor.cachedInput || !priceCacheWrite || priceCacheWrite < floor.cacheWrite
+    || priceCacheWrite < priceIn) return null;
+  return { provider: "anthropic", apiKey: env.ANTHROPIC_API_KEY, model: env.ANTHROPIC_MODEL!, priceIn, priceOut, priceCachedIn, priceCacheWrite };
+}
+
+/** Billable calls are disabled unless every limit and at least one provider are configured (requirement L05). */
+export function readConfig(env: Env): Config | null {
+  const budget = positive(env.MONTHLY_BUDGET_USD);
+  const deviceRequests = positive(env.DEVICE_MONTHLY_REQUESTS);
+  const reasoningEffort = env.REASONING_EFFORT ?? "medium";
+  const maxOutputTokens = env.MAX_OUTPUT_TOKENS === undefined || env.MAX_OUTPUT_TOKENS === "" ? 8000 : Number(env.MAX_OUTPUT_TOKENS);
+  const openai = openaiConfig(env) ?? undefined;
+  const anthropic = anthropicConfig(env) ?? undefined;
+  const fallback = openai ?? anthropic;
+  if (!fallback || !budget || !deviceRequests || !Number.isInteger(deviceRequests)
     || !Number.isInteger(maxOutputTokens) || maxOutputTokens < 1024 || maxOutputTokens > 16000
     || !["low", "medium"].includes(reasoningEffort)
     || (reasoningEffort === "low" && env.LOW_EFFORT_EVALUATED !== "true")) return null;
   return {
-    apiKey: env.OPENAI_API_KEY, model: env.OPENAI_MODEL, budget, deviceRequests: Math.floor(deviceRequests),
-    priceIn, priceOut, priceCachedIn, priceCacheWrite, maxOutputTokens, reasoningEffort: reasoningEffort as ReasoningEffort,
+    ...fallback, providers: { openai, anthropic }, budget, deviceRequests: Math.floor(deviceRequests),
+    maxOutputTokens, reasoningEffort: reasoningEffort as ReasoningEffort,
   };
+}
+
+/** The provider for one request: Claude for redesigned prompt versions when configured, else OpenAI. */
+export function selectProvider(config: Config, promptVersion: string): Config | null {
+  const chosen = CLAUDE_PROMPT_VERSIONS.has(promptVersion)
+    ? config.providers.anthropic ?? config.providers.openai
+    : config.providers.openai;
+  return chosen ? { ...config, ...chosen } : null;
 }
 
 const readJson = (request: Request) => readObject(request, LIMITS.bodyBytes);
@@ -227,7 +283,9 @@ export async function handle(request: Request, env: Env, store: Store, options: 
     if (discussion ? promptVersion !== DISCUSSION_PROMPT_VERSION
       : ![PROMPT_VERSION, NUCLEAR_FILTER_PREVIOUS_PROMPT_VERSION, PARENT_PREVIOUS_PROMPT_VERSION, CELLPOSE_PREVIOUS_PROMPT_VERSION, OBJECT_PREVIOUS_PROMPT_VERSION, NCL_PREVIOUS_PROMPT_VERSION, PREVIOUS_PROMPT_VERSION, PROCESSING_PROMPT_VERSION, PREIMPORT_PROMPT_VERSION, LEGACY_PROMPT_VERSION].includes(promptVersion)) return failure(400, "prompt_version_unsupported");
     if (!discussion && checked.context.field_count === 0 && promptVersion === LEGACY_PROMPT_VERSION) return failure(400, "prompt_version_unsupported");
-    const modelConfig = {...config, promptVersion};
+    const selected = selectProvider(config, promptVersion);
+    if (!selected) return failure(503, "proposal_service_disabled");
+    const modelConfig = {...selected, promptVersion};
     const requestId = request.headers.get("idempotency-key");
     if (!requestId || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) return failure(400, "request_id_required");
     if (!(await store.claimRequest(deviceHash, requestId.toLowerCase(), now))) return failure(409, "duplicate_request");
@@ -248,22 +306,23 @@ export async function handle(request: Request, env: Env, store: Store, options: 
         : await draftProposal(settings, checked.context, checked.previews);
       // Non-cached input may include cache writes. Until the API's write breakdown is
       // confirmed, retain its higher tariff; this is a conservative ledger, not an invoice.
-      const spent = result.usageComplete ? ((result.inputTokens - result.cachedInputTokens) * config.priceCacheWrite
-        + result.cachedInputTokens * config.priceCachedIn + result.outputTokens * config.priceOut) / 1_000_000 : amount;
+      const spent = result.usageComplete ? ((result.inputTokens - result.cachedInputTokens) * modelConfig.priceCacheWrite
+        + result.cachedInputTokens * modelConfig.priceCachedIn + result.outputTokens * modelConfig.priceOut) / 1_000_000 : amount;
       await store.settle(reservation, period, spent, result.usageComplete ? {
-        model: config.model, promptVersion, inputTokens: result.inputTokens,
+        model: modelConfig.model, promptVersion, inputTokens: result.inputTokens,
         cachedInputTokens: result.cachedInputTokens, outputTokens: result.outputTokens, calls: result.calls,
       } : undefined);
-      return json(200, { draft: result.draft, model: config.model, prompt_version: promptVersion });
+      return json(200, { draft: result.draft, model: modelConfig.model, prompt_version: promptVersion });
     } catch (error) {
       // Usage of a failed call is unknown here: settle conservatively at the reserved amount.
       const usage = error instanceof ModelError ? error.observedUsage : undefined;
       await store.settle(reservation, period, usage
-        ? Math.max(amount, observedCost(usage, config.priceCacheWrite, config.priceCachedIn, config.priceOut)) : amount,
-      usage ? { ...usage, model: config.model, promptVersion } : undefined,
+        ? Math.max(amount, observedCost(usage, modelConfig.priceCacheWrite, modelConfig.priceCachedIn, modelConfig.priceOut,
+          modelConfig.provider === "openai")) : amount,
+      usage ? { ...usage, model: modelConfig.model, promptVersion } : undefined,
       error instanceof ModelError && error.code === "model_usage_exceeded");
       if (error instanceof ModelError && error.validatedDraft !== undefined) {
-        return json(200, { draft: error.validatedDraft, model: config.model, prompt_version: promptVersion });
+        return json(200, { draft: error.validatedDraft, model: modelConfig.model, prompt_version: promptVersion });
       }
       const code = error instanceof ModelError ? error.code : "model_unavailable";
       if (error instanceof ModelError && code === "model_unavailable") {
