@@ -386,7 +386,7 @@ def hugging_face_token() -> str:
 
 def owner_tool_pins() -> dict[str, str]:
     """The versions .claude/owner-tools.sh installs, so a version bump edits only that script."""
-    script = (ROOT / ".claude/owner-tools.sh").read_text()
+    script = (ROOT / ".claude/owner-tools.sh").read_text(encoding="utf-8")
     return {name: re.search(rf"^{name}_version=(\S+)", script, re.M).group(1)  # type: ignore[union-attr]
             for name in ("vercel", "huggingface_hub")}
 
