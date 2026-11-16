@@ -17,5 +17,6 @@ fi
 ln -sf "$tools/vercel/node_modules/.bin/vercel" "$HOME/.local/bin/vercel"
 uv tool install --quiet --python 3.12 "huggingface_hub==$huggingface_hub_version"
 [ "$(vercel --version 2>/dev/null | tail -1)" = "$vercel_version" ]
-[ "$(hf version)" = "version=$huggingface_hub_version" ]
+# `hf` picks its output format from the caller (agent or terminal); the quiet format is the same for both.
+[ "$(hf version --format quiet)" = "$huggingface_hub_version" ]
 echo "Owner tools: Vercel CLI $vercel_version, Hugging Face CLI $huggingface_hub_version"
