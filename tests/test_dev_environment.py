@@ -1,5 +1,6 @@
 """scripts/dev.py doctor/serve: readiness probes never spend money or leak credentials."""
 import http.server
+import subprocess
 import sys
 import threading
 import urllib.request
@@ -296,3 +297,36 @@ def test_fiji_and_the_figure_font_are_installed_on_first_use(monkeypatch, tmp_pa
         monkeypatch.setattr(dev, "figure_font", lambda: next(fonts))
         dev.ensure_figure_font()
         assert commands == [("bash", "scripts/install_figure_font.sh")]
+
+
+def test_serve_stops_its_servers_on_sigterm_even_when_sigint_was_ignored():
+    """Started in the background (SIGINT ignored) and stopped with SIGTERM, serve still runs its `finally`."""
+    import signal
+
+    import pytest
+
+    if sys.platform.startswith("win"):
+        pytest.skip("POSIX signals")
+    script = ("import signal, sys, time; sys.path.insert(0, 'scripts'); import dev; dev.stop_on_signals(); "
+              "print('ready', flush=True)\n"
+              "try:\n    time.sleep(30)\nexcept KeyboardInterrupt:\n    print('stopped', flush=True)")
+    process = subprocess.Popen([sys.executable, "-c", script], cwd=ROOT, stdout=subprocess.PIPE, text=True,
+                               preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_IGN))
+    assert process.stdout.readline().strip() == "ready"
+    process.send_signal(signal.SIGTERM)
+    assert process.communicate(timeout=10)[0].strip() == "stopped"
+
+
+def test_share_keeps_one_origin_and_public_images_only():
+    """`serve --share`: Web and API on one origin that the API alone accepts, public images only."""
+    import dev
+
+    env = dev.share_env({"NEXT_PUBLIC_API_ORIGIN": "http://localhost:8000", "CYTELLECT_APP_ORIGIN": "x"},
+                        "https://preview.example/")
+    assert env["NEXT_PUBLIC_API_ORIGIN"] == env["CYTELLECT_APP_ORIGIN"] == "https://preview.example"
+    assert env["CYTELLECT_UPLOAD_ALLOWLIST"].endswith("fixtures/public/uploads.json")
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import share_proxy
+
+    assert share_proxy.upstream("/v1/health") == share_proxy.API and share_proxy.upstream("/v1") == share_proxy.API
+    assert share_proxy.upstream("/workspace") == share_proxy.WEB and share_proxy.upstream("/v10") == share_proxy.WEB
