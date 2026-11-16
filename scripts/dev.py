@@ -282,8 +282,11 @@ def doctor(args: argparse.Namespace) -> None:
     ready = uv.split()[1:2] == [pins["uv"]]
     report("ok" if ready else "NG", "uv", (uv or "not installed") + ("" if ready else hint))
     if sys.platform.startswith("linux"):
-        fonts = tool_version(("fc-list", ":lang=ja", "family"))
-        report("ok" if fonts else "NG", "Japanese figure font", "installed" if fonts else "install fonts-noto-cjk")
+        # Ask the figure code itself: any Japanese font is not enough, figures need one of FONT_FAMILIES.
+        font = tool_version(("uv", "run", "--project", str(ROOT), "--no-sync", "python", "-c",
+                             "from cytellect_analysis.figures import japanese_font; print(japanese_font())"))
+        report("ok" if font else "NG", "Japanese figure font",
+               font or "install fonts-noto-cjk (`bash scripts/install_figure_font.sh`) after `setup`")
     chromium = os.environ.get("CYTELLECT_CHROMIUM_EXECUTABLE", "")
     if chromium:
         report("ok" if Path(chromium).exists() else "NG", "Browser for tests", chromium)
