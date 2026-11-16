@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import platform
 import re
 import shlex
 import shutil
@@ -305,6 +306,10 @@ def doctor(args: argparse.Namespace) -> None:
         inside = path == ROOT or ROOT in path.parents
         report("ok" if path.exists() and not inside else "NG", "Fiji (StarDist)",
                "outside the checkout" if path.exists() and not inside else f"missing or inside the checkout: {path}")
+    if is_wsl():
+        data = Path(os.environ.get("CYTELLECT_DATA_DIR") or Path.home() / "cytellect-data")
+        for state, name, detail in wsl_checks(fiji, data):
+            report(state, name, detail)
 
     env = cloud_env(dict(os.environ))
     url, key = env.get("CYTELLECT_CELLPOSE_REMOTE_URL", "").strip(), env.get("CYTELLECT_CELLPOSE_REMOTE_TOKEN", "")
@@ -338,6 +343,38 @@ def doctor(args: argparse.Namespace) -> None:
         sys.exit("Some required parts are not ready (see CONTRIBUTING.md).")
     print("Ready. Cloud GPU and proposal items marked [!!] or [--] do not block development; "
           "pass --require-cloud to require them.")
+
+
+def is_wsl(release: Path = Path("/proc/sys/kernel/osrelease")) -> bool:
+    """Windows Subsystem for Linux: its kernel names Microsoft."""
+    try:
+        return "microsoft" in release.read_text().lower()
+    except OSError:
+        return False
+
+
+def wsl_checks(fiji: str, data: Path, meminfo: Path = Path("/proc/meminfo"),
+               machine: str = "") -> list[tuple[str, str, str]]:
+    """WSL pitfalls: work on the Windows disk, too little memory or disk, and an ARM CPU without a pinned Fiji."""
+    results: list[tuple[str, str, str]] = []
+    places = [("Checkout", ROOT), ("Data directory", data)] + ([("Fiji", Path(fiji))] if fiji else [])
+    windows_disk = [f"{name} {path}" for name, path in places if str(path.expanduser().resolve()).startswith("/mnt/")]
+    results.append(("NG" if windows_disk else "ok", "WSL: Linux disk",
+                    "on the Windows disk, slow and with Windows permissions: move into WSL (~/): " + "; ".join(windows_disk)
+                    if windows_disk else "checkout, data and Fiji are inside WSL"))
+    try:
+        total = int(next(line.split()[1] for line in meminfo.read_text().splitlines() if line.startswith("MemTotal:")))
+        memory = total / 1024 / 1024
+    except (OSError, StopIteration, ValueError, IndexError):
+        memory = 0.0
+    free = shutil.disk_usage(Path.home()).free / 1e9
+    low = 0 < memory < 8 or free < 20
+    results.append(("!!" if low else "ok", "WSL: memory and disk", f"{memory:.0f} GiB memory, {free:.0f} GB free"
+                    + ("; raise `memory` in %UserProfile%\\.wslconfig or free disk (CONTRIBUTING.md, WSL Ubuntu)" if low else "")))
+    arm = (machine or platform.machine()) in {"aarch64", "arm64"}
+    results.append(("NG" if arm else "ok", "WSL: CPU", "ARM64: the pinned Fiji is x64 only, so nuclei detection cannot run"
+                    if arm else "x64"))
+    return results
 
 
 def serve_env(base: dict[str, str], data_dir: Path) -> dict[str, str]:
@@ -416,6 +453,8 @@ def serve(args: argparse.Namespace) -> None:
         proposals = "on" if os.environ.get("CYTELLECT_PROPOSAL_URL") else "off"
         print(f"\nOpen {APP_ORIGIN}/workspace and enter the invitation code: {invitation}")
         print(f"Fiji on, cloud GPU (Cellpose) {gpu}, analysis proposals {proposals}. Logs: {logs}")
+        if is_wsl():
+            print("WSL: open the same address in Windows (Edge); if it does not load, see CONTRIBUTING.md (WSL Ubuntu).")
         print("Use registered public images only. Press Ctrl-C to stop.", flush=True)
         while all(process.poll() is None for process in processes):
             time.sleep(1)
@@ -424,6 +463,26 @@ def serve(args: argparse.Namespace) -> None:
         print("\nStopping.")
     finally:
         stop(processes)
+
+
+def e2e(args: argparse.Namespace) -> None:
+    """The browser tests against a running `serve`, with CI's registered public inputs (browser-e2e job)."""
+    for url in (API_ORIGIN + "/v1/health", APP_ORIGIN):
+        if not responding(url):
+            sys.exit(f"{url} is not answering: start `python3 scripts/dev.py serve` in another terminal first")
+    data = outside_checkout(args.data_dir, "Data directory")
+    work = outside_checkout(args.work_dir, "Browser test directory")
+    inputs, raw = work / "inputs", work / "bbbc007"
+    if not inputs.is_dir() or not any(inputs.iterdir()):
+        run(("uv", "run", "python", "scripts/public_bbbc007.py", "--data-dir", str(raw), "--download"))
+        run(("uv", "run", "python", "scripts/prepare_workspace_bbbc007.py", "--data-dir", str(raw), "--output", str(inputs)))
+    run(("uv", "run", "python", "scripts/check_public_uploads.py", str(inputs)))
+    python = subprocess.run(["uv", "run", "python", "-c", "import sys; print(sys.executable)"], cwd=ROOT,
+                            capture_output=True, text=True, check=True).stdout.strip()
+    env = {**os.environ, "CYTELLECT_WEB_URL": APP_ORIGIN, "CYTELLECT_TEST_API_ORIGIN": API_ORIGIN,
+           "CYTELLECT_REAL_INPUTS": str(inputs), "CYTELLECT_REAL_OUTPUT": str(work / "evidence"),
+           "CYTELLECT_REQUIRE_REAL_FIJI": "1", "CYTELLECT_TEST_DATA_DIR": str(data), "CYTELLECT_TEST_PYTHON": python}
+    run(("pnpm", "test:e2e", *[arg for arg in args.playwright if arg != "--"]), env)
 
 
 def main() -> None:
@@ -449,6 +508,13 @@ def main() -> None:
     p.add_argument("--require-cloud", action="store_true",
                    help="Fail when the cloud GPU or proposals are not configured, misconfigured or unavailable")
     p.set_defaults(func=doctor)
+    p = sub.add_parser("e2e", help="Run the browser tests against a running `serve` with CI's public inputs")
+    p.add_argument("--data-dir", type=Path, default=Path.home() / "cytellect-data", metavar="DIR",
+                   help="The data directory `serve` uses (default: ~/cytellect-data)")
+    p.add_argument("--work-dir", type=Path, default=Path.home() / "cytellect-e2e", metavar="DIR",
+                   help="Public inputs and evidence, outside the checkout (default: ~/cytellect-e2e)")
+    p.add_argument("playwright", nargs=argparse.REMAINDER, help="Arguments for Playwright, after `--`")
+    p.set_defaults(func=e2e)
     p = sub.add_parser("serve", help="Run the API, worker and production web build like an installation")
     p.add_argument("--data-dir", type=Path, default=Path.home() / "cytellect-data", metavar="DIR",
                    help="Private runtime directory outside the checkout (default: ~/cytellect-data)")

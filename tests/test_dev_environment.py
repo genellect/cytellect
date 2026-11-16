@@ -232,3 +232,34 @@ def test_doctor_rejects_a_key_file_other_users_can_read(monkeypatch, capsys, tmp
         output = capsys.readouterr().out
         assert any(entry.startswith(line) for entry in output.splitlines())
         assert "CYTELLECT_PROPOSAL_TOKEN=x" not in output
+
+
+def test_wsl_checks_name_the_windows_disk_low_memory_and_an_arm_cpu(tmp_path):
+    import dev
+
+    release = tmp_path / "osrelease"
+    release.write_text("6.6.87.2-microsoft-standard-WSL2\n")
+    assert dev.is_wsl(release) and not dev.is_wsl(tmp_path / "missing")
+    meminfo = tmp_path / "meminfo"
+    meminfo.write_text("MemTotal:        4000000 kB\nMemFree:          100 kB\n")
+    states = {name: (state, detail) for state, name, detail in
+              dev.wsl_checks("/mnt/c/fiji", Path("/mnt/c/Users/me/data"), meminfo=meminfo, machine="aarch64")}
+    assert states["WSL: Linux disk"][0] == "NG" and "/mnt/c/fiji" in states["WSL: Linux disk"][1]
+    assert states["WSL: memory and disk"][0] == "!!" and ".wslconfig" in states["WSL: memory and disk"][1]
+    assert states["WSL: CPU"][0] == "NG"
+    meminfo.write_text("MemTotal:       16000000 kB\n")
+    inside = dev.wsl_checks(str(tmp_path / "fiji"), tmp_path / "data", meminfo=meminfo, machine="x86_64")
+    assert {name: state for state, name, _ in inside}["WSL: Linux disk"] == "ok"
+    assert {name: state for state, name, _ in inside}["WSL: CPU"] == "ok"
+
+
+def test_e2e_needs_a_running_serve(monkeypatch, tmp_path):
+    import argparse
+
+    import dev
+    import pytest
+
+    monkeypatch.setattr(dev, "responding", lambda url: False)
+    monkeypatch.setattr(dev, "run", lambda *args, **kwargs: pytest.fail("nothing runs without serve"))
+    with pytest.raises(SystemExit, match="start `python3 scripts/dev.py serve`"):
+        dev.e2e(argparse.Namespace(data_dir=tmp_path / "data", work_dir=tmp_path / "e2e", playwright=[]))
