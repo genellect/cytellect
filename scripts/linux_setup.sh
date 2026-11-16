@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# The Linux development stack for Claude Code cloud sessions and WSL Ubuntu (CONTRIBUTING.md): pinned
-# Node.js, pnpm and uv, the Japanese figure font, locked dependencies, Fiji (StarDist) and the test
-# browser, plus env.sh, which puts them first. Public downloads only: keys are read when env.sh is
-# sourced, from the environment or from ~/.config/cytellect/dev.env. Running it again changes nothing.
+# The base Linux development stack for Claude Code cloud sessions and WSL Ubuntu (CONTRIBUTING.md):
+# pinned Node.js, pnpm and uv, locked dependencies and the test browser, plus env.sh, which puts them
+# first. Fiji and the Japanese figure font are installed on first use by `scripts/dev.py` (serve, check,
+# e2e), so a fresh container starts quickly. Public downloads only: keys are read when env.sh is sourced,
+# from the environment or from ~/.config/cytellect/dev.env. Running it again changes nothing.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 runtime="$HOME/.local/share/cytellect-dev"
@@ -44,8 +45,6 @@ node -e "if(process.versions.node!==\"$node_version\")process.exit(1)"
 [ "$(uv --version | cut -d' ' -f2)" = "$uv_version" ]
 pnpm_version=$(node -p 'require("./package.json").packageManager.split("@")[1]')
 if ! command -v pnpm >/dev/null 2>&1 || [ "$(pnpm --version)" != "$pnpm_version" ]; then npm install --global "pnpm@$pnpm_version"; fi
-# The figure font itself: base images often carry other Japanese fonts that figures do not use.
-if ! fc-list ':family=Noto Sans CJK JP' family 2>/dev/null | grep -q .; then bash scripts/install_figure_font.sh; fi
 fiji="${CYTELLECT_FIJI_EXECUTABLE:-$runtime/fiji}"
 # Replace only this script's block (and the block earlier setups wrote), so other lines in env.sh survive.
 begin='# >>> cytellect scripts/linux_setup.sh >>>' end='# <<< cytellect scripts/linux_setup.sh <<<'
@@ -72,8 +71,8 @@ EOS
   echo "$end"
 } >> "$runtime/env.sh.new"
 mv "$runtime/env.sh.new" "$runtime/env.sh"
-# Locked Python and Web dependencies, and Fiji outside the checkout.
-python3 scripts/dev.py setup --fiji "$fiji"
+# Locked Python and Web dependencies; Fiji ($fiji) and the figure font follow on first use.
+python3 scripts/dev.py setup
 # Cloud sessions provide Chromium and forbid browser downloads; elsewhere Playwright also needs Ubuntu's libraries.
 if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ] && [ "${PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD:-}" != "1" ]; then
   pnpm --filter @cytellect/web exec playwright install --with-deps chromium

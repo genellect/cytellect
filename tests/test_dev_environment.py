@@ -159,7 +159,7 @@ def test_doctor_asks_the_figure_code_for_the_japanese_font(monkeypatch, capsys):
 
     monkeypatch.setattr(dev, "tool_version", version)
     for found, line in ((True, "[ok] Japanese figure font: Noto Sans CJK JP"),
-                        (False, "[NG] Japanese figure font: install fonts-noto-cjk")):
+                        (False, "[--] Japanese figure font: installed on first use")):
         with pytest.raises(SystemExit):
             dev.doctor(argparse.Namespace(live=False, require_cloud=False))
         assert any(output.startswith(line) for output in capsys.readouterr().out.splitlines())
@@ -263,3 +263,29 @@ def test_e2e_needs_a_running_serve(monkeypatch, tmp_path):
     monkeypatch.setattr(dev, "run", lambda *args, **kwargs: pytest.fail("nothing runs without serve"))
     with pytest.raises(SystemExit, match="start `python3 scripts/dev.py serve`"):
         dev.e2e(argparse.Namespace(data_dir=tmp_path / "data", work_dir=tmp_path / "e2e", playwright=[]))
+
+
+def test_fiji_and_the_figure_font_are_installed_on_first_use(monkeypatch, tmp_path):
+    """The base setup leaves Fiji and the font out; `serve`, `check` and `e2e` install them once, when needed."""
+    import dev
+    import pytest
+
+    commands = []
+    monkeypatch.setattr(dev, "run", lambda argv, env=None: commands.append(argv))
+    monkeypatch.delenv("CYTELLECT_FIJI_EXECUTABLE", raising=False)
+    monkeypatch.setattr(dev, "DEV_RUNTIME", tmp_path)
+    assert dev.ensure_fiji() == str(tmp_path / "fiji")
+    assert commands == [("uv", "run", "python", "scripts/fiji_setup.py", str(tmp_path / "fiji"))]
+    (tmp_path / "fiji").mkdir()
+    commands.clear()
+    dev.ensure_fiji()
+    assert commands == []  # already there: nothing is downloaded again
+    monkeypatch.setenv("CYTELLECT_FIJI_EXECUTABLE", str(dev.ROOT / "fiji"))
+    with pytest.raises(SystemExit, match="outside the checkout"):
+        dev.ensure_fiji()
+
+    if sys.platform.startswith("linux"):
+        fonts = iter(["", "Noto Sans CJK JP"])
+        monkeypatch.setattr(dev, "figure_font", lambda: next(fonts))
+        dev.ensure_figure_font()
+        assert commands == [("bash", "scripts/install_figure_font.sh")]
