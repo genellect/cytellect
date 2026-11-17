@@ -194,6 +194,25 @@ fi
    - セッションのタイトルバーのクラウド環境のメニュー → **Edit** → **Network secrets** に、接続先（`api.cloudflare.com`、`huggingface.co`）と値を加える。ヘッダーは `Authorization`、接頭辞は `Bearer`。
 4. 新しいセッションを開き、Claude に確認を頼む。CLI がトークンの指定を求める場合、Claude は形式だけ合わせた仮の値を環境変数に置き（プロキシが本物に置き換える）、`cf whoami` と `hf auth whoami` で確かめる。
 
+#### 運用の操作
+
+オーナーの環境のクラウドセッションで行う操作。読み取りは自由に行える。デプロイ・ロールバック・有料の操作は、オーナーが対象を指示したときだけ行い、前後の版を記録する（[AGENTS.md](AGENTS.md)）。`cf` は `pnpm --filter @cytellect/proposal-worker cf` の略。
+
+| 対象 | 操作 | コマンド・手段 | 区分 |
+|---|---|---|---|
+| 解析提案の Worker | デプロイの履歴と、いまの版 | `cf deployments list --name cytellect-proposal`、`cf versions list --name cytellect-proposal` | 読み取り |
+| | 版の設定（変数、D1 の結び付け、秘密の値の名前） | `cf versions view <版の ID> --name cytellect-proposal` | 読み取り |
+| | ログ | `cf tail cytellect-proposal --format pretty`。依頼ごとにメソッド・URL・結果が出る。本文は出ない | 読み取り |
+| | デプロイ | [解析提案のデプロイ](docs/proposal-deployment.md)の手順。運用者の `wrangler.toml` はリポジトリに入れないため、クラウドセッションでは、いまの版の設定（`cf versions view`）から checkout の外に作り直す | 指示があったとき |
+| | ロールバック | `cf rollback <版の ID> --name cytellect-proposal`。戻す先の版の予算の設定を、先に `cf versions view` で確かめる | 指示があったとき |
+| Vercel（Web） | 本番のデプロイの履歴と状態 | claude.ai の Vercel コネクタ（デプロイの一覧と詳細）。本番は `main` から自動で公開される | 読み取り |
+| | ロールバック | コネクタのロールバック。戻したら、本番の SHA と READY を確かめる | 指示があったとき |
+| Modal（GPU サーバー） | デプロイの履歴 | `gh api repos/genellect/cytellect/actions/workflows/cellpose-modal-deploy.yml/runs` | 読み取り |
+| | デプロイ | `gh api -X POST repos/genellect/cytellect/actions/workflows/cellpose-modal-deploy.yml/dispatches -f ref=main` で起動し、実行の結果を同じ `runs` で確かめる | 指示があったとき（有料） |
+| Hugging Face | モデルの取得 | `hf download Genellect/Cytellect <ファイル> --revision <版>`。取得したファイルの SHA-256 を、`engines/cellpose/*.lock.json` の値と照合する | 読み取り |
+| | モデルの公開 | `hf upload`。書き込みのトークンが要る（[鍵の登録](#鍵の登録)） | 指示があったとき |
+| GitHub | マージ | [チーム開発ルール](docs/team-development.md#2-開発の流れ)の手順 6（クラウドセッションでは REST） | 指示があったとき |
+
 ## PR を出す前に
 
 `check` は、PR の CI と同じ検査を手元で再現する。変更の内容に応じて、次のコマンドを実行する。
