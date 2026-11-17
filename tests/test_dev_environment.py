@@ -328,7 +328,7 @@ def test_share_keeps_one_origin_and_public_images_only():
     env = dev.share_env({"NEXT_PUBLIC_API_ORIGIN": "http://localhost:8000", "CYTELLECT_APP_ORIGIN": "x"},
                         "https://preview.example/")
     assert env["NEXT_PUBLIC_API_ORIGIN"] == env["CYTELLECT_APP_ORIGIN"] == "https://preview.example"
-    assert env["CYTELLECT_UPLOAD_ALLOWLIST"].endswith("fixtures/public/uploads.json")
+    assert Path(env["CYTELLECT_UPLOAD_ALLOWLIST"]) == ROOT / "fixtures/public/uploads.json"
     sys.path.insert(0, str(ROOT / "scripts"))
     import share_proxy
 
