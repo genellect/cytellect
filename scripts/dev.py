@@ -40,8 +40,18 @@ APP_ORIGIN = "http://localhost:3000"
 # The deployed Modal server (infra/modal_cellpose.py, Cellpose Modal deploy workflow); authentication required.
 MODAL_CELLPOSE_URL = "https://genellect--cytellect-cellpose-cellposeserver.us-east.modal.direct"
 USER_AGENT = "cytellect-dev"  # Cloudflare refuses Python's default agent (error 1010)
-# Where .claude/cloud-setup.sh provisions pinned tools and Fiji (its env.sh exports them).
-CLOUD_RUNTIME = Path.home() / ".local/share/cytellect-cloud"
+# Where scripts/linux_setup.sh provisions pinned tools and Fiji (its env.sh exports them).
+DEV_RUNTIME = Path.home() / ".local/share/cytellect-dev"
+# Keys kept on a development machine (CONTRIBUTING.md, 外部サービス); env.sh loads it.
+KEY_FILE = Path.home() / ".config/cytellect/dev.env"
+# `doctor --owner`: the owner's operations (CONTRIBUTING.md, オーナーの環境). Read-only calls only.
+OWNER = "genellect"
+REPOSITORY = "genellect/cytellect"
+CLOUDFLARE_VERIFY_URL = "https://api.cloudflare.com/client/v4/user/tokens/verify"
+HUGGING_FACE_WHOAMI_URL = "https://huggingface.co/api/whoami-v2"
+VERCEL_USER_URL = "https://api.vercel.com/v2/user"
+# In a cloud session the environment's network secret replaces this header value at the proxy.
+CREDENTIAL_PLACEHOLDER = "placeholder-replaced-by-network-secret"
 CONTRACT_OUTPUTS = ("packages/contracts", "apps/web/src/lib/generated.ts", "apps/web/src/lib/recipe-defaults.json")
 OPENAPI = ("uv", "run", "cytellect", "openapi", "--output", "packages/contracts/openapi.json",
            "--recipe-defaults", "apps/web/src/lib/recipe-defaults.json")
@@ -126,8 +136,10 @@ def check(args: argparse.Namespace) -> None:
     unknown = sorted(set(areas) - set(CHECKS))
     if unknown:
         sys.exit(f"Unknown area: {', '.join(unknown)} (choose from {', '.join(CHECKS)})")
-    if args.fiji and not os.environ.get("CYTELLECT_FIJI_EXECUTABLE"):
-        sys.exit("--fiji needs CYTELLECT_FIJI_EXECUTABLE (run `setup --fiji DIR` first)")
+    if "python" in areas:
+        ensure_figure_font()
+    if args.fiji:
+        ensure_fiji()
     with tempfile.TemporaryDirectory(prefix="cytellect-check-") as scratch:
         env = scratch_env(Path(scratch))
         for area in areas:
@@ -231,12 +243,42 @@ def cloud_env(base: dict[str, str]) -> dict[str, str]:
     return env
 
 
+def figure_font() -> str:
+    """The face the figure code selects (any Japanese font is not enough); empty when there is none."""
+    return tool_version(("uv", "run", "--project", str(ROOT), "--no-sync", "python", "-c",
+                         "from cytellect_analysis.figures import japanese_font; print(japanese_font())"))
+
+
+def ensure_figure_font() -> None:
+    """Linux: install the Japanese figure font on first use, for figures and their tests."""
+    if not sys.platform.startswith("linux") or figure_font():
+        return
+    print("Installing the Japanese figure font (first use)", flush=True)
+    run(("bash", "scripts/install_figure_font.sh"))
+    if not figure_font():
+        sys.exit("The Japanese figure font is still unavailable (see CONTRIBUTING.md)")
+
+
+def ensure_fiji() -> str:
+    """Fiji for `serve`, `check --fiji` and `e2e`: the configured one, installed on first use (pinned, hash-checked)."""
+    fiji = fiji_path() or (str(DEV_RUNTIME / "fiji") if DEV_RUNTIME.exists() else "")
+    if not fiji:
+        sys.exit("Fiji is not set up: run `bash scripts/linux_setup.sh` (Linux) or `setup --fiji DIR` "
+                 "and export CYTELLECT_FIJI_EXECUTABLE")
+    path = outside_checkout(Path(fiji).expanduser(), "Fiji runtime")
+    if not path.exists():
+        print(f"Installing the pinned Fiji in {path} (first use, about a minute)", flush=True)
+        run(("uv", "run", "python", "scripts/fiji_setup.py", str(path)))
+    os.environ["CYTELLECT_FIJI_EXECUTABLE"] = str(path)
+    return str(path)
+
+
 def fiji_path() -> str:
     """CYTELLECT_FIJI_EXECUTABLE, else the cloud setup's Fiji, so a shell without env.sh still finds it."""
     configured = os.environ.get("CYTELLECT_FIJI_EXECUTABLE", "")
     if configured:
         return configured
-    provisioned = CLOUD_RUNTIME / "fiji"
+    provisioned = DEV_RUNTIME / "fiji"
     return str(provisioned) if provisioned.exists() else ""
 
 
@@ -260,7 +302,7 @@ def tool_version(argv: tuple[str, ...]) -> str:
 
 def doctor(args: argparse.Namespace) -> None:
     failed = False
-    hint = f' (run `source "{CLOUD_RUNTIME / "env.sh"}"` first)' if (CLOUD_RUNTIME / "env.sh").exists() else ""
+    hint = f' (run `source "{DEV_RUNTIME / "env.sh"}"` first)' if (DEV_RUNTIME / "env.sh").exists() else ""
 
     def report(state: str, name: str, detail: str, cloud: bool = False) -> None:
         """Cloud services only warn unless required: development continues while a GPU is unavailable."""
@@ -283,22 +325,28 @@ def doctor(args: argparse.Namespace) -> None:
     report("ok" if ready else "NG", "uv", (uv or "not installed") + ("" if ready else hint))
     if sys.platform.startswith("linux"):
         # Ask the figure code itself: any Japanese font is not enough, figures need one of FONT_FAMILIES.
-        font = tool_version(("uv", "run", "--project", str(ROOT), "--no-sync", "python", "-c",
-                             "from cytellect_analysis.figures import japanese_font; print(japanese_font())"))
-        report("ok" if font else "NG", "Japanese figure font",
-               font or "install fonts-noto-cjk (`bash scripts/install_figure_font.sh`) after `setup`")
+        font = figure_font()
+        report("ok" if font else "--", "Japanese figure font",
+               font or "installed on first use by `check` and `serve` (`bash scripts/install_figure_font.sh`)")
+    if KEY_FILE.exists():
+        private = os.name == "nt" or KEY_FILE.stat().st_mode & 0o077 == 0
+        report("ok" if private else "NG", "Key file", "readable only by you" if private
+               else f"other users can read it: `chmod 600 {KEY_FILE}`")
     chromium = os.environ.get("CYTELLECT_CHROMIUM_EXECUTABLE", "")
     if chromium:
         report("ok" if Path(chromium).exists() else "NG", "Browser for tests", chromium)
 
-    fiji = fiji_path()
+    fiji = fiji_path() or (str(DEV_RUNTIME / "fiji") if DEV_RUNTIME.exists() else "")
     if not fiji:
-        report("NG", "Fiji (StarDist)", "set CYTELLECT_FIJI_EXECUTABLE (run `setup --fiji DIR`)")
+        report("NG", "Fiji (StarDist)", "run `bash scripts/linux_setup.sh` (Linux) or `setup --fiji DIR`")
     else:
         path = Path(fiji).expanduser().resolve()
         inside = path == ROOT or ROOT in path.parents
-        report("ok" if path.exists() and not inside else "NG", "Fiji (StarDist)",
-               "outside the checkout" if path.exists() and not inside else f"missing or inside the checkout: {path}")
+        if inside:
+            report("NG", "Fiji (StarDist)", f"inside the checkout: {path}")
+        else:
+            report("ok" if path.exists() else "--", "Fiji (StarDist)", "outside the checkout" if path.exists()
+                   else "installed on first use by `serve`, `check --fiji` and `e2e`")
 
     env = cloud_env(dict(os.environ))
     url, key = env.get("CYTELLECT_CELLPOSE_REMOTE_URL", "").strip(), env.get("CYTELLECT_CELLPOSE_REMOTE_TOKEN", "")
@@ -328,10 +376,121 @@ def doctor(args: argparse.Namespace) -> None:
                                          headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"})
         ok, detail = proposal_state(*probe(request, timeout=30))
         report("ok" if ok else "NG", "Analysis proposals (LLM)", detail, cloud=True)
+    if getattr(args, "owner", False):
+        for state, name, detail in owner_checks():
+            report(state, name, detail)
     if failed:
         sys.exit("Some required parts are not ready (see CONTRIBUTING.md).")
     print("Ready. Cloud GPU and proposal items marked [!!] or [--] do not block development; "
           "pass --require-cloud to require them.")
+
+
+def github_api(path: str) -> object:
+    """`gh api` as the signed-in account (REST only: cloud sessions have no GraphQL); None on failure."""
+    executable = shutil.which("gh")
+    if executable is None:
+        return None
+    result = subprocess.run([executable, "api", path], capture_output=True, text=True)
+    try:
+        return json.loads(result.stdout) if result.returncode == 0 else None
+    except ValueError:
+        return None
+
+
+def fetch_json(url: str, token: str, timeout: float = 20) -> tuple[int, object]:
+    """Status and JSON body of an authenticated GET; the token is never printed."""
+    request = urllib.request.Request(url, headers={"Authorization": "Bearer " + token, "User-Agent": USER_AGENT})
+    try:
+        with urllib.request.build_opener(_NoRedirect).open(request, timeout=timeout) as response:
+            status, body = response.status, response.read(65536)
+    except urllib.error.HTTPError as error:
+        status, body = error.code, error.read(65536)
+    except (urllib.error.URLError, OSError):
+        return 0, None
+    try:
+        return status, json.loads(body)
+    except ValueError:
+        return status, None
+
+
+def hugging_face_token() -> str:
+    """HF_TOKEN, else the token `hf auth login` stores, else the cloud placeholder."""
+    if os.environ.get("HF_TOKEN", "").strip():
+        return os.environ["HF_TOKEN"].strip()
+    home = Path(os.environ.get("HF_HOME", Path.home() / ".cache/huggingface"))
+    try:
+        return (home / "token").read_text(encoding="ascii").strip() or CREDENTIAL_PLACEHOLDER
+    except (OSError, UnicodeError):
+        return CREDENTIAL_PLACEHOLDER
+
+
+def owner_tool_pins() -> dict[str, str]:
+    """The versions .claude/owner-tools.sh installs, so a version bump edits only that script."""
+    script = (ROOT / ".claude/owner-tools.sh").read_text(encoding="utf-8")
+    return {name: re.search(rf"^{name}_version=(\S+)", script, re.M).group(1)  # type: ignore[union-attr]
+            for name in ("vercel", "huggingface_hub")}
+
+
+def owner_checks() -> list[tuple[str, str, str]]:
+    """The owner's accounts and tools, by read-only calls: nothing is deployed, billed or printed."""
+    results: list[tuple[str, str, str]] = []
+    user, repository = github_api("user"), github_api(f"repos/{REPOSITORY}")
+    login = user.get("login") if isinstance(user, dict) else None
+    admin = isinstance(repository, dict) and bool((repository.get("permissions") or {}).get("admin"))
+    if login == OWNER and admin:
+        results.append(("ok", "GitHub (owner)", f"{login}, admin on {REPOSITORY}"))
+    else:
+        results.append(("NG", "GitHub (owner)", f"signed in as {login or 'nobody'}; the owner needs admin on "
+                        f"{REPOSITORY} (`gh auth login`)"))
+    secrets = github_api(f"repos/{REPOSITORY}/actions/secrets")
+    if isinstance(secrets, dict):
+        names = {entry.get("name") for entry in secrets.get("secrets", [])}
+        missing = sorted({"MODAL_TOKEN_ID", "MODAL_TOKEN_SECRET"} - names)
+        results.append(("NG" if missing else "ok", "Modal deploy (GitHub Actions)",
+                        f"repository secrets missing: {', '.join(missing)}" if missing
+                        else "deploy token stored in the repository secrets"))
+    else:
+        # Cloud sessions cannot list Actions secrets; the last successful deploy is the evidence left.
+        runs = github_api(f"repos/{REPOSITORY}/actions/workflows/cellpose-modal-deploy.yml/runs?status=success&per_page=1")
+        last = runs.get("workflow_runs", [{}])[:1] if isinstance(runs, dict) else []
+        when = last[0].get("created_at", "")[:10] if last else ""
+        results.append(("--", "Modal deploy (GitHub Actions)", "repository secrets not readable here; "
+                        + (f"last successful deploy {when}" if when else "no successful deploy found")))
+    token = os.environ.get("CLOUDFLARE_API_TOKEN", "").strip()
+    if not token:
+        results.append(("NG", "Cloudflare (proposal Worker)", "set CLOUDFLARE_API_TOKEN (in a cloud session, "
+                        f"`{CREDENTIAL_PLACEHOLDER}` with the api.cloudflare.com network secret)"))
+    else:
+        status, body = fetch_json(CLOUDFLARE_VERIFY_URL, token)
+        active = isinstance(body, dict) and body.get("success") and (body.get("result") or {}).get("status") == "active"
+        results.append(("ok" if active else "NG", "Cloudflare (proposal Worker)",
+                        "API token active" if active else f"API token not accepted ({status or 'unreachable'})"))
+    for name, url, token, optional in (
+            ("Hugging Face", HUGGING_FACE_WHOAMI_URL, hugging_face_token(),
+             "public models need none, publishing models does"),
+            ("Vercel", VERCEL_USER_URL, os.environ.get("VERCEL_TOKEN", "").strip() or CREDENTIAL_PLACEHOLDER,
+             "the claude.ai Vercel connector covers deployments")):
+        status, body = fetch_json(url, token)
+        if status == 200 and isinstance(body, dict):
+            who = body.get("name") or (body.get("user") or {}).get("username") or "accepted"
+            results.append(("ok", name, f"signed in ({who})"))
+        elif token != CREDENTIAL_PLACEHOLDER:
+            # A token configured here was refused (expired or revoked): an operations credential is broken.
+            results.append(("NG", name, f"the configured token was refused ({status or 'unreachable'}); renew it"))
+        else:
+            # Only the placeholder was sent: none is configured here, or a cloud network secret refused it.
+            results.append(("--", name, f"no accepted token (none set here, or the network secret was refused); "
+                            f"{optional}"))
+    pins = owner_tool_pins()
+    os.environ.setdefault("HF_HUB_DISABLE_UPDATE_CHECK", "1")  # no once-a-day hint in the version output (#226)
+    for tool, argv, expected in (("Vercel CLI", ("vercel", "--version"), pins["vercel"]),
+                                 # `--format quiet` prints the bare version in every context (#226): without an
+                                 # AI agent, `hf` defaults to human output.
+                                 ("Hugging Face CLI", ("hf", "version", "--format", "quiet"), pins["huggingface_hub"])):
+        lines = tool_version(argv).splitlines()
+        results.append(("ok" if expected in lines else "NG", tool, expected if expected in lines
+                        else (lines[0] if lines else "not installed (`bash .claude/owner-tools.sh`)")))
+    return results
 
 
 def serve_env(base: dict[str, str], data_dir: Path) -> dict[str, str]:
@@ -377,9 +536,8 @@ def stop(processes: list[subprocess.Popen], grace: float = 20) -> None:
 
 
 def serve(args: argparse.Namespace) -> None:
-    fiji = fiji_path()
-    if not fiji or not Path(fiji).expanduser().exists():
-        sys.exit("serve needs Fiji: run `setup --fiji DIR` and export CYTELLECT_FIJI_EXECUTABLE")
+    fiji = ensure_fiji()
+    ensure_figure_font()
     for url in (API_ORIGIN + "/v1/health", APP_ORIGIN):
         if responding(url):
             sys.exit(f"{url} is already in use; stop the other server first")
@@ -442,6 +600,8 @@ def main() -> None:
                    help="Also contact the configured cloud GPU and proposal service (no model call)")
     p.add_argument("--require-cloud", action="store_true",
                    help="Fail when the cloud GPU or proposals are not configured, misconfigured or unavailable")
+    p.add_argument("--owner", action="store_true",
+                   help="Also check the owner's GitHub, Cloudflare, Hugging Face, Vercel and CLIs (read-only calls)")
     p.set_defaults(func=doctor)
     p = sub.add_parser("serve", help="Run the API, worker and production web build like an installation")
     p.add_argument("--data-dir", type=Path, default=Path.home() / "cytellect-data", metavar="DIR",

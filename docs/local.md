@@ -2,7 +2,7 @@
 
 Status: Windows development preview. Each version is advertised only after its built package passes installation and browser checks; release notes record the accepted source and evidence. Local execution is an initial deployment option; the product remains a browser workspace with a future hosted backend.
 
-The [0.1.0-local.23 EXE](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.23) is the latest release of the previous Windows installer. The [local.20 acceptance record](local-release-0.1.0-local.20.md) describes the first package with the redesigned two-group comparison, its source, checksums, the 27 installed browser cases and numerical replay. Earlier packages have their own evidence in the [local.19](local-release-0.1.0-local.19.md), [local.17](local-release-0.1.0-local.17.md) and [local.11](archive/local-release-0.1.0.md) records. Start with the [public-image guide](quickstart.ja.md).
+The [0.1.0-local.24 EXE](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.24) is the latest release of the previous Windows installer. The [local.20 acceptance record](local-release-0.1.0-local.20.md) describes the first package with the redesigned two-group comparison, its source, checksums, the 27 installed browser cases and numerical replay. Earlier packages have their own evidence in the [local.19](local-release-0.1.0-local.19.md), [local.17](local-release-0.1.0-local.17.md) and [local.11](archive/local-release-0.1.0.md) records. Start with the [public-image guide](quickstart.ja.md).
 
 ## Microsoft Store edition
 
@@ -14,7 +14,7 @@ See [Windows MSIX](windows-msix.md) for the build and acceptance steps documente
 
 ## Researcher flow
 
-The earlier Windows distribution uses the per-user installer `Cytellect-Setup-<version>.exe` or the setup ZIP. The [published 0.1.0-local.23 installer](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.23) remains available during the transition.
+The earlier Windows distribution uses the per-user installer `Cytellect-Setup-<version>.exe` or the setup ZIP. The [published 0.1.0-local.24 installer](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.24) remains available during the transition.
 
 1. Download `Cytellect-Setup-<version>.exe` and open it. It installs for the current user only (`PrivilegesRequired=lowest`) into `%LOCALAPPDATA%\Cytellect`; there is no administrator prompt, command, extraction or destination choice. Whether Windows warns before it runs depends on signing and reputation ([application control](#windows-application-control), D4 below).
 2. Before changing anything, the installer checks Windows 10 1809 or later / Windows 11 on x64, at least 8 GB of memory (7 GiB as reported after hardware reservations) and free space (4 GB plus the unpacked payload for a first installation, 1.5 GB plus the payload for an update that reuses Fiji and Python). A failed check shows the reason and the next action in Japanese and exits without changes. A destination that holds files without Cytellect's ownership marker is also refused unchanged.

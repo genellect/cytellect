@@ -13,6 +13,7 @@ import {
   GPU_POLL_MS, GPU_TIME_NOTE, PENDING_POLL_MS, type Account, type GpuState, type Notice, type UpdateInfo,
 } from "@/lib/cloud-account";
 import {CLOUD_NETWORK_HINT} from "@/lib/api";
+import {includePreviews, setIncludePreviews} from "@/lib/workspace/ai-settings";
 import styles from "./cloud-account.module.css";
 
 export const PRACTICE_IMAGES_URL = "https://github.com/genellect/cytellect/releases/download/v0.1.0-local.11/Cytellect-BBBC013-practice-v1.zip";
@@ -124,6 +125,7 @@ export function AccountIndicator() {
         {gpuQuotaReached(account) && <p role="status">{gpuQuotaText(account)}</p>}
         {usage && <p className={styles.small}>今月の利用：{usage}{resets ? `（${resets}にリセット）` : ""}</p>}
         <p className={styles.small}>{GPU_TIME_NOTE}</p>
+        <AiPreviewSetting/>
         <button className={styles.secondary} onClick={() => void logout()}>ログアウト</button>
         {logoutError !== null && <div role="alert" className={styles.error}><p>ログアウトできませんでした。{accountErrorText(logoutError)}</p><Details error={logoutError}/></div>}
       </div>
@@ -362,7 +364,7 @@ function LoginDialog() {
         <p>メールアドレスに 6 桁のコードを送ります。パスワードは不要です。初めてのメールアドレスは Cytellect のオーナーへの利用申請となり、承認後に使えます。</p>
         <label>メールアドレス<input ref={first} type="email" autoComplete="email" inputMode="email" value={email}
           onChange={event => setEmail(event.target.value)} required maxLength={254} placeholder="name@example.ac.jp"/></label>
-        <p className={styles.small}>ログイン後、核小体・細胞の検出（Cellpose）では、検出に使う 1 チャンネルの画像をクラウドの GPU に送ります。核小体の検出では核の輪郭も送ります。解析提案には画像を送りません。ほかの解析はこのPCだけで行います。</p>
+        <p className={styles.small}>ログイン後、核小体・細胞の検出（Cellpose）では、検出に使う 1 チャンネルの画像をクラウドの GPU に送ります。核小体の検出では核の輪郭も送ります。{AI_SCOPE}ほかの解析はこのPCだけで行います。</p>
         <button className={styles.primary} disabled={busy || !email.trim()}>{busy ? "送信中…" : "コードを送信"}</button>
       </form>}
       {step === "code" && <form onSubmit={event => void submitCode(event)}>
@@ -414,4 +416,19 @@ export function FirstRun({busy, error, onChoose}: {busy: boolean; error: string;
     </div>
     {error && <p role="alert" className={styles.error}>{error}</p>}
   </section>;
+}
+
+/** What AI requests send; shown before sign-in, in the settings, and once before the first proposal after the scope widened. */
+export const AI_SCOPE = "AI への相談では、書いた目的、チャンネル名、視野の名前と記録、代表的な視野の縮小画像（設定で止められます）を送ります。";
+
+/** Whether AI analysis proposals also send display-scaled previews of one representative field (default on). */
+function AiPreviewSetting() {
+  const [on, setOn] = useState(includePreviews);
+  return <>
+  <p className={styles.small}>{AI_SCOPE}</p>
+  <label className={styles.small}>
+    <input type="checkbox" checked={on} onChange={event => {setIncludePreviews(event.target.checked); setOn(event.target.checked);}}/>
+    {" "}AI への相談で、代表的な視野の縮小画像（チャンネルごと、512 px 以下）も送る
+  </label>
+  </>;
 }

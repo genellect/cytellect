@@ -52,6 +52,17 @@ def test_valid_draft_requires_adoption_and_flags_unestablished_stains():
     assert len(result.context_sha256) == 64
 
 
+def test_a_long_explanation_is_kept_as_written():
+    """The explanation's length is the model's choice (plan §8): long reasons and many open questions are kept."""
+    rationale = "代表視野では NCL が核小体に集まり、DAPI の核は互いに接していない。" * 40
+    channels = [{**channel, "reason": channel["reason"] * 60} for channel in draft()["channels"]]
+    missing = [f"確認事項 {index}：独立実験の数と撮影条件" for index in range(12)]
+    result = validate_draft(CONTEXT, draft(rationale=rationale, channels=channels, missing_information=missing),
+                            model="m", prompt_version="p")
+    assert result.draft.rationale == rationale and len(result.draft.missing_information) == 12
+    assert result.draft.channels[0].reason == channels[0]["reason"]
+
+
 @pytest.mark.parametrize(("change", "code"), [
     ({"channels": [*draft()["channels"][:2], {"token": "c3", "stain": "GFP", "role": "measure", "reason": "緑"}]},
      "proposal_stain_not_established"),
@@ -145,8 +156,11 @@ def test_only_a_goal_is_asked_and_the_context_is_derived_from_the_workspace(tmp_
     assert first.json()["channels"] == [{"token": "ch1", "channel_id": "actin", "stain": None}]
     assert first.json()["proposal"]["needs_confirmation"] == []
     sent = calls[0]["context"]
-    # Derived, not entered: counts and flags only; no labels, file names, metadata values or pixels.
-    assert sent == {"protocol": "1.1.0", "goal": "細胞ごとのアクチン輝度", "channels": [{"token": "ch1", "stain": None, "role": None}],
+    # Derived, not entered (docs/drafts/llm-assistant/plan.md): the model reads the researcher's channel label and
+    # field records, the counts and flags, and a downscaled preview of a representative field. No paths.
+    fields_sent = sent.pop("fields")
+    assert sent == {"protocol": "1.2.0", "goal": "細胞ごとのアクチン輝度",
+                    "channels": [{"token": "ch1", "stain": None, "role": None, "label": "Actin"}],
                     "field_count": 1, "condition_count": 1, "units_known": False, "pairing_known": False,
                     "supplied_regions": True, "measured_table": False, "background_available": False,
                     "units_per_condition": [0], "complete_pair_count": 0,
@@ -155,7 +169,11 @@ def test_only_a_goal_is_asked_and_the_context_is_derived_from_the_workspace(tmp_
                     "negative_control_fields_known": False, "acquired_dates_known": False,
                     "image_metadata": [{"width": 12, "height": 12, "axes": "YX", "input_mode": "native",
                                         "pixel_size_x_um": None, "pixel_size_y_um": None}]}
-    assert "Actin" not in json.dumps(calls) and "untrusted-original-name" not in json.dumps(calls)
+    assert len(fields_sent) == 1 and set(fields_sent[0]) == {"name", "condition", "experimental_unit", "pair", "acquisition_date"}
+    assert all("/" not in (value or "") and "\\" not in (value or "") for value in fields_sent[0].values())
+    [preview] = calls[0]["previews"]
+    assert preview["channel"] == "ch1" and preview["png_base64"].startswith("iVBORw0KGgo")
+    assert str(tmp_path) not in json.dumps(calls) and "workspaces" not in json.dumps(calls)
     assert client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": "x", "field_count": 9, "transmission_confirmed": True},
                        headers=HEADERS).status_code == 422
     # An empty goal is valid: the proposal is built from the images alone.
@@ -281,3 +299,52 @@ def test_preimport_context_from_real_empty_workspace(tmp_path):
     context, links = proposals.build_context(app.state.store, wid, "核面積を比較したい")
     assert context.field_count == 0 and context.channels == [] and links == []
     assert not context.units_known and not context.background_available
+
+
+def test_previews_follow_the_researchers_setting(tmp_path, monkeypatch):
+    """With previews turned off in settings, only the context is sent (docs/drafts/llm-assistant/plan.md §4.5)."""
+    body = json.dumps({"draft": ACTIN_DRAFT, "model": "claude-opus-5-5", "prompt_version": PROPOSAL_PROMPT_VERSION}).encode()
+    client, wid, calls = configured(tmp_path, monkeypatch, lambda request: FakeResponse(body))
+    response = client.post(f"/v1/workspaces/{wid}/proposal-drafts",
+                           json={"goal": "核の大きさ", "transmission_confirmed": True, "include_previews": False}, headers=HEADERS)
+    assert response.status_code == 200, response.text
+    assert "previews" not in calls[0]
+    assert response.json()["proposal"]["model"] == "claude-opus-5-5"
+
+
+def test_a_preview_failure_sends_the_request_without_previews(tmp_path, monkeypatch):
+    """Previews are optional: an unreadable array never blocks the proposal or marks it failed."""
+    body = json.dumps({"draft": ACTIN_DRAFT, "model": "gpt-6.1-sol", "prompt_version": PROPOSAL_PROMPT_VERSION}).encode()
+    client, wid, calls = configured(tmp_path, monkeypatch, lambda request: FakeResponse(body))
+
+    def broken(*args, **kwargs):
+        raise OSError("unreadable channel array")
+    monkeypatch.setattr(proposals, "representative_previews", broken)
+    response = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": "核の大きさ", "transmission_confirmed": True},
+                           headers=HEADERS)
+    assert response.status_code == 200, response.text
+    assert "previews" not in calls[0]
+
+
+def test_previews_skip_fields_the_researcher_excluded(tmp_path, monkeypatch):
+    client, wid, calls = configured(tmp_path, monkeypatch, lambda request: FakeResponse(b"{}"))
+    store = client.app.state.store
+    [field] = store.rows(proposals.fields, workspace_id=wid)
+    links = [proposals.ProposalChannelLink(token="ch1", channel_id=field["image_info"]["channels"][0]["channel_id"], stain=None)]
+    assert proposals.representative_previews(store, wid, links)
+    monkeypatch.setattr("cytellect_api.workspace_selection.selection_at",
+                        lambda conn, workspace: {"entries": [{"field_id": field["id"], "exclusion_reason": "out_of_focus"}]})
+    assert proposals.representative_previews(store, wid, links) == []
+
+
+
+def test_previews_average_blocks_so_small_structures_stay_visible():
+    """A 1-px spot survives the reduction to 512 px (review of #231): every-n-th-pixel sampling dropped it."""
+    import numpy as np
+    from cytellect_api.proposals import _block_mean
+    plane = np.zeros((2048, 2048), dtype=np.uint16)
+    plane[101, 102] = 4000
+    reduced = _block_mean(plane, 512)
+    assert reduced.shape == (512, 512) and reduced[25, 25] == 250
+    assert _block_mean(np.ones((300, 700), dtype=np.uint16), 512).shape == (150, 350)
+    assert _block_mean(np.ones((400, 500), dtype=np.uint16), 512).shape == (400, 500)

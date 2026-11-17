@@ -1,5 +1,5 @@
 # Copy to wrangler.toml, then fill in the D1 database ID created by the operator.
-# Secrets (never commit): wrangler secret put OPENAI_API_KEY / ADMIN_TOKEN /
+# Secrets (never commit): wrangler secret put OPENAI_API_KEY / ANTHROPIC_API_KEY / ADMIN_TOKEN /
 # RESEND_API_KEY / ADMIN_SIGNING_KEY / MODAL_URL / MODAL_PROXY_TOKEN
 name = "cytellect-proposal"
 main = "src/index.ts"
@@ -27,6 +27,16 @@ PRICE_CACHED_INPUT_USD_PER_MTOK = ""
 PRICE_CACHE_WRITE_USD_PER_MTOK = ""
 # Standard tariff minima as of 2026-10-05: input2, output10, cached0.10, cache-write2.50.
 # Explicit operator approval fills prices/budgets. Empty values keep the service disabled.
+# Claude for redesigned prompt versions (docs/drafts/llm-assistant/plan.md). Empty values keep
+# them on OPENAI_MODEL. Tariffs must be at least the model's standard tariff (src/anthropic.ts):
+# claude-opus-5-5 4/20/0.2/5, claude-sonnet-5-5 2/10/0.1/2.5 USD per million tokens.
+ANTHROPIC_MODEL = ""
+ANTHROPIC_PRICE_INPUT_USD_PER_MTOK = ""
+ANTHROPIC_PRICE_OUTPUT_USD_PER_MTOK = ""
+ANTHROPIC_PRICE_CACHED_INPUT_USD_PER_MTOK = ""
+ANTHROPIC_PRICE_CACHE_WRITE_USD_PER_MTOK = ""
+# Claude thinks on every call and the thinking counts toward its output; empty uses MAX_OUTPUT_TOKENS.
+ANTHROPIC_MAX_OUTPUT_TOKENS = ""
 REASONING_EFFORT = "medium"
 LOW_EFFORT_EVALUATED = "false"
 # Includes reasoning and visible JSON; validate this ceiling with public-only evaluation.

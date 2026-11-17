@@ -7486,39 +7486,36 @@
         "properties": {
           "protocol": {
             "type": "string",
-            "const": "result-discussion/1.0.0",
+            "enum": [
+              "result-discussion/1.0.0",
+              "result-discussion/1.1.0"
+            ],
             "title": "Protocol",
-            "default": "result-discussion/1.0.0"
+            "default": "result-discussion/1.1.0"
           },
           "implications": {
             "items": {
               "type": "string",
-              "maxLength": 200,
               "minLength": 1
             },
             "type": "array",
-            "maxItems": 3,
             "minItems": 1,
             "title": "Implications"
           },
           "alternatives": {
             "items": {
               "type": "string",
-              "maxLength": 200,
               "minLength": 1
             },
             "type": "array",
-            "maxItems": 2,
             "title": "Alternatives"
           },
           "next_steps": {
             "items": {
               "type": "string",
-              "maxLength": 200,
               "minLength": 1
             },
             "type": "array",
-            "maxItems": 3,
             "title": "Next Steps"
           }
         },
@@ -7528,7 +7525,7 @@
           "implications"
         ],
         "title": "DiscussionDraft",
-        "description": "The three headings of the discussion (AC-04), one sentence per item."
+        "description": "The three headings of the discussion (AC-04). How many points and how long is the model's choice; a draft\nwith no interpretation at all is not a discussion."
       },
       "DiscussionRequest": {
         "properties": {
@@ -7537,6 +7534,16 @@
             "default": {
               "stains": []
             }
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ShownSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "transmission_confirmed": {
             "type": "boolean",
@@ -7552,7 +7559,7 @@
         "additionalProperties": false,
         "type": "object",
         "title": "DiscussionRequest",
-        "description": "`transmission_confirmed` records that the researcher chose to send this result to the AI (L03)."
+        "description": "`transmission_confirmed` records that the researcher chose to send this result to the AI (L03).\n`summary` is what the screen shows above the result, so that the discussion reads it the same way."
       },
       "DiscussionView": {
         "properties": {
@@ -7644,7 +7651,6 @@
           },
           "reason": {
             "type": "string",
-            "maxLength": 200,
             "minLength": 1,
             "title": "Reason"
           }
@@ -8338,7 +8344,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "maxLength": 500,
+                "maxLength": 2000,
                 "minLength": 1
               },
               {
@@ -8374,7 +8380,7 @@
         "additionalProperties": false,
         "type": "object",
         "title": "ExperimentNote",
-        "description": "What the researcher wrote about the experiment; optional, short, and never a file or path."
+        "description": "What the researcher wrote about the experiment (by default, the goal of the analysis proposal)."
       },
       "ExperimentRun": {
         "properties": {
@@ -12516,11 +12522,9 @@
           "missing_information": {
             "items": {
               "type": "string",
-              "maxLength": 200,
               "minLength": 1
             },
             "type": "array",
-            "maxItems": 6,
             "title": "Missing Information"
           },
           "reference_ids": {
@@ -12541,7 +12545,6 @@
           },
           "rationale": {
             "type": "string",
-            "maxLength": 600,
             "title": "Rationale"
           },
           "processing": {
@@ -12601,6 +12604,11 @@
             "type": "boolean",
             "title": "Transmission Confirmed",
             "default": false
+          },
+          "include_previews": {
+            "type": "boolean",
+            "title": "Include Previews",
+            "default": true
           },
           "retry_failed": {
             "type": "boolean",
@@ -17653,6 +17661,33 @@
         ],
         "title": "SessionView"
       },
+      "ShownSummary": {
+        "properties": {
+          "heading": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Heading"
+          },
+          "points": {
+            "items": {
+              "type": "string",
+              "maxLength": 500,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Points"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "heading"
+        ],
+        "title": "ShownSummary",
+        "description": "The summary the workspace shows above this result (its heading and points, RS-02, RS-03)."
+      },
       "SignalDetectorSpec": {
         "properties": {
           "engine": {
@@ -18511,9 +18546,12 @@
         "properties": {
           "protocol": {
             "type": "string",
-            "const": "result-discussion/1.0.0",
+            "enum": [
+              "result-discussion/1.0.0",
+              "result-discussion/1.1.0"
+            ],
             "title": "Protocol",
-            "default": "result-discussion/1.0.0"
+            "default": "result-discussion/1.1.0"
           },
           "origin": {
             "type": "string",
@@ -18532,7 +18570,7 @@
           "prompt_version": {
             "type": "string",
             "title": "Prompt Version",
-            "default": "2026-11-12.2"
+            "default": "2026-11-16.1"
           },
           "model": {
             "type": "string",

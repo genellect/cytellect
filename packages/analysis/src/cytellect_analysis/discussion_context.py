@@ -1,9 +1,10 @@
-"""What a result discussion sends, derived from one saved two-group comparison (requirements AC-03).
+"""What a result discussion sends, derived from one saved two-group comparison (requirements AC-03,
+docs/drafts/llm-assistant/plan.md).
 
-Only the saved result's numbers and fixed identifiers leave the PC: the metric key, the region set
-when it is one of the registered compartments, the recorded stain, the group names, the values,
-intervals, n and the test. Run labels, channel IDs, file names, field IDs and paths stay local; runs
-are sent as `run 1`, `run 2`… in their saved order.
+The model reads the result as the researcher sees it: the summary's heading and points as the workspace
+shows them, the metric with its name and recorded definition, the region set and its name, the recorded
+stain and the channel's label, the researcher's group and run names, the values, intervals, n with its
+breakdown, and the recorded method. Numbers come only from the saved result and its summary.
 """
 from __future__ import annotations
 
@@ -12,15 +13,85 @@ from typing import Any
 
 from .discussion_contracts import DiscussionContext, ExperimentNote
 
-# Region sets the analysis itself defines; any other name may be the researcher's own and stays local.
+_COUNT_KEYS = ("observations", "input_fields", "selected_fields", "samples", "experimental_units",
+               "explicitly_excluded_units", "complete_pairs")
+
+# Region sets the analysis itself defines; the researcher's name for any region set is sent as `region_label`.
 _REGIONS = frozenset({"nucleus", "nuclei", "nucleoli", "nucleoplasm", "cell", "cytoplasm"})
 _WARNING = r"^[a-z0-9_]{1,120}$"
 # A positivity threshold set without a negative control (the summary's "探索的なしきい値").
 _EXPLORATORY = frozenset({"channel_gate_exploratory_threshold_without_negative_control", "gfp_gate_exploratory"})
 
 
+# The workspace's names for per-region metrics; compartment and field-summary metrics use their figure labels.
+_REGION_METRICS = {
+    "area_px": "面積（px²）", "area_um2": "面積", "mean": "平均輝度", "median": "輝度の中央値",
+    "integrated": "積算輝度", "mean_corrected": "平均輝度（背景補正）", "median_corrected": "輝度の中央値（背景補正）",
+    "integrated_corrected": "積算輝度（背景補正）",
+}
+
+
+def _metric_text(metric: str) -> tuple[str | None, str | None]:
+    """The metric's Japanese name and, when the analysis records one, its definition."""
+    from .common_statistics_figures import COMPARTMENT_LABELS, FIELD_SUMMARY_LABELS
+    from .field_summary_source import DEFINITIONS
+    label = _REGION_METRICS.get(metric) or (COMPARTMENT_LABELS.get(metric) or FIELD_SUMMARY_LABELS.get(metric) or (None, None))[1]
+    definition = DEFINITIONS.get(metric)
+    return label, definition[:500] if definition else None
+
+
+def _clip(value: Any, limit: int) -> str | None:
+    """A recorded text without surrounding space, cut to `limit` characters; None when it is not text or is blank."""
+    return value.strip()[:limit] if isinstance(value, str) and value.strip() else None
+
+
+def _short(value: Any) -> str | None:
+    return _clip(value, 80)
+
+
+def _record(value: Any) -> dict[str, Any]:
+    """A saved record that should be an object; anything else reads as empty instead of failing."""
+    return value if isinstance(value, dict) else {}
+
+
 class DiscussionUnsupported(ValueError):
     """The saved result is not one comparison of two groups with saved estimates."""
+
+
+def _setting(value: Any) -> str | None:
+    return _clip(value, 300)
+
+
+def _counts(result: dict[str, Any], groups: set[str]) -> list[dict[str, Any]]:
+    """The n breakdown of the two compared groups (observations, fields, samples, units, pairs)."""
+    counts = result.get("counts")
+    rows: list[Any] = counts if isinstance(counts, list) else []
+    return [{"condition": row["condition"], **{key: row[key] for key in _COUNT_KEYS
+                                                if type(row.get(key)) is int and row[key] >= 0}}
+            for row in rows if isinstance(row, dict) and row.get("condition") in groups][:2]
+
+
+def _method(result: dict[str, Any], comparison: dict[str, Any]) -> dict[str, Any]:
+    """The recorded aggregation and test settings, and the design the researcher declared."""
+    spec = _record(result.get("spec"))
+    design = _record(spec.get("design"))
+    settings = {**_record(result.get("method_settings")), **_record(comparison.get("method_settings"))}
+    review = _record(_record(result.get("acquisition")).get("review")) or _record(spec.get("acquisition_review"))
+    level = comparison.get("confidence_level")
+    method = {
+        "comparison": _setting(comparison.get("method")),
+        "aggregation": _setting(settings.get("aggregation") or spec.get("aggregation")),
+        "correction": _setting(settings.get("correction")),
+        "alternative": _setting(settings.get("alternative") or comparison.get("alternative")),
+        "confidence_level": level if isinstance(level, (int, float)) and 0 < level < 1 else None,
+        "inferential_unit": _setting(settings.get("inferential_unit")),
+        "p_value_method": _setting(settings.get("p_value_method")),
+        "test_selection": _setting(settings.get("selection")),
+        "unit_definition": _setting(design.get("unit_definition")),
+        "pairing_basis": _setting(design.get("pairing_basis")),
+        "acquisition_basis": _setting(review.get("basis")),
+    }
+    return {key: value for key, value in method.items() if value is not None}
 
 
 def _interval(value: dict[str, Any] | None) -> dict[str, float] | None:
@@ -29,8 +100,13 @@ def _interval(value: dict[str, Any] | None) -> dict[str, float] | None:
     return {"estimate": value["estimate"], "ci_low": value["ci_low"], "ci_high": value["ci_high"]}
 
 
-def discussion_context(result: dict[str, Any], experiment: ExperimentNote | None = None) -> DiscussionContext:
-    """Build the context from a saved `region-comparison` 2.0.0 result (`result.json` as stored)."""
+def discussion_context(result: dict[str, Any], experiment: ExperimentNote | None = None, *,
+                       heading: str | None = None, points: list[str] | None = None) -> DiscussionContext:
+    """Build the context from a saved `region-comparison` 2.0.0 result (`result.json` as stored).
+
+    `heading` and `points`: the summary the workspace shows above this result (its conclusion in one line and
+    the lines of values), so that the discussion starts from the same reading as the researcher.
+    """
     estimates = result.get("estimates")
     if result.get("analysis_kind") != "region-comparison" or not estimates:
         raise DiscussionUnsupported("discussion_requires_saved_estimates")
@@ -38,22 +114,31 @@ def discussion_context(result: dict[str, Any], experiment: ExperimentNote | None
     # A descriptive comparison saves no test (no p value); a tested one saves exactly one contrast.
     if len(comparisons) != (0 if estimates.get("test") == "none" else 1):
         raise DiscussionUnsupported("discussion_requires_one_comparison")
-    comparison = comparisons[0] if comparisons else {}
-    selection = (result.get("spec") or {}).get("selection") or {}
+    comparison = _record(comparisons[0]) if comparisons else {}
+    selection = _record(_record(result.get("spec")).get("selection"))
     region = selection.get("region_set_id")
-    channel = result.get("channel") or {}
+    channel = _record(result.get("channel"))
     stain = channel.get("stain") if isinstance(channel.get("stain"), str) and channel.get("stain") else None
     warnings = [code for code in result.get("warnings") or [] if isinstance(code, str) and re.match(_WARNING, code)]
-    runs = [{"run": f"run {index + 1}", "control": run["control"], "treatment": run["treatment"],
+    # The researcher's run names (the pairing key); `run N` only when a run has none.
+    runs = [{"run": _short(run.get("pair")) or f"run {index + 1}", "control": run["control"], "treatment": run["treatment"],
              "difference": run["difference"], "ratio": run.get("ratio")}
             for index, run in enumerate(estimates.get("runs") or [])]
     p_value = comparison.get("p_value")
     effect = comparison.get("effect")
+    metric_label, metric_definition = _metric_text(estimates["metric"])
+    recorded_region = result.get("region")
+    region_record: dict[str, Any] = recorded_region if isinstance(recorded_region, dict) else {}
+    method = _method(result, comparison)
     return DiscussionContext.model_validate({
         "experiment": (experiment or ExperimentNote()).model_dump(),
         "result": {
             "metric": estimates["metric"],
+            "metric_label": metric_label,
+            "metric_definition": metric_definition,
+            "channel_label": _short(channel.get("label")),
             "region": region if region in _REGIONS else None,
+            "region_label": _short(region_record.get("label")),
             "stain": stain,
             "unit": result.get("unit") or "",
             "scale": estimates["scale"],
@@ -73,5 +158,9 @@ def discussion_context(result: dict[str, Any], experiment: ExperimentNote | None
             "ratio": _interval(estimates.get("ratio")),
             "runs": runs,
             "warnings": warnings,
+            "heading": heading.strip()[:500] if heading and heading.strip() else None,
+            "summary_points": [point.strip()[:500] for point in points or [] if point.strip()][:8],
+            "counts": _counts(result, {estimates["control"], estimates["treatment"]}),
+            "method": method or None,
         },
     })

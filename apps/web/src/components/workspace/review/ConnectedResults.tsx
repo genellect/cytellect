@@ -448,7 +448,8 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
             saved.result.compartment_missing?{rows:saved.result.compartment_missing.rows,perNucleus:saved.result.spec?.selection?.source==="compartment-summary"}:null)}
           missing={saved.result.compartment_missing??null}/>}
             {/* The discussion is a separate, AI-made (or demo example) frame under the computed result (AC-01). */}
-            {/* The discussion belongs to the shown result, also a saved one (AC-06, AC-08). */}{mode==="statistics"&&saved.result.estimates&&<DiscussionPanel key={saved.job} adapter={adapter} job={saved.job} demo={demo}/>}
+            {/* The discussion belongs to the shown result, also a saved one (AC-06, AC-08). */}{mode==="statistics"&&saved.result.estimates&&<DiscussionPanel key={saved.job} adapter={adapter} job={saved.job} demo={demo} workspace={workspace}
+              summary={shownSummary(saved.result.estimates,(saved.result.comparisons?.[0]??{}) as SavedComparison,resultMetricLabel(saved.result,saved.result.estimates.metric),unitLabel(saved.result.unit),saved.result.warnings||[],saved.result.compartment_missing??null)}/>}
             {mode==="statistics"&&saved.operation==="distribution"&&experiment&&<RunMedians onEditExperiment={onEditExperiment} design={experiment} summary={saved.result.field_summary??[]} metricLabel={resultMetricLabel(saved.result,saved.result.metric||"")} unit={unitLabel(saved.result.unit)} reported={showcaseDataset?.reported??null} missing={saved.result.compartment_missing??null}/>}
             {/* Without a summary card the denominators still stand beside the result (Q-05). */}
             {mode==="statistics"&&saved.result.compartment_missing&&!saved.result.estimates&&!(saved.operation==="distribution"&&experiment)&&<><MissingLead summary={saved.result.compartment_missing}/><MissingNucleoli summary={saved.result.compartment_missing}/></>}
@@ -554,10 +555,15 @@ const EXPLORATORY_WARNING="channel_gate_exploratory_threshold_without_negative_c
 
 /** The comparison as a heading, up to four points and one basis line (RS-01–RS-07); the premises are stated once,
  * in the basis line (NT-01, NT-02). Every number is the saved result's. */
-function ResultSummaryCard({estimates,comparison,metricLabel,unit,warnings,counts,reported,missing,onEditExperiment}:{estimates:ComparisonEstimates;comparison:SavedComparison;metricLabel:string;unit:string;warnings:string[];counts:ReturnType<typeof breakdown>;reported:ShowcaseDataset["reported"];missing:MissingSummary|null;onEditExperiment?:()=>void}){
+/** The summary of a saved comparison as the card shows it; the discussion is sent the same heading and points. */
+export function shownSummary(estimates:ComparisonEstimates,comparison:SavedComparison,metricLabel:string,unit:string,warnings:string[],missing:MissingSummary|null){
   const unresolved=missing?missing.rows.reduce((sum,row)=>sum+row.missing,0):0,nuclei=missing?missing.rows.reduce((sum,row)=>sum+row.nuclei,0):0;
-  const summary=summarize(estimates,comparison,metricLabel,unit,{exploratory:warnings.includes(EXPLORATORY_WARNING),
+  return summarize(estimates,comparison,metricLabel,unit,{exploratory:warnings.includes(EXPLORATORY_WARNING),
     missing:missing&&unresolved?`核小体を確定できない核 ${unresolved} / ${nuclei} は欠測`:null});
+}
+
+function ResultSummaryCard({estimates,comparison,metricLabel,unit,warnings,counts,reported,missing,onEditExperiment}:{estimates:ComparisonEstimates;comparison:SavedComparison;metricLabel:string;unit:string;warnings:string[];counts:ReturnType<typeof breakdown>;reported:ShowcaseDataset["reported"];missing:MissingSummary|null;onEditExperiment?:()=>void}){
+  const summary=shownSummary(estimates,comparison,metricLabel,unit,warnings,missing);
   const cautions=[...summary.cautions,...warnings.filter(code=>READ_WARNINGS.has(code)).map(code=>comparisonWarnings[code]||commonWarnings[code]).filter((value):value is string=>!!value)];
   // The demo says what the measured value means, for visitors who are not biologists (DM-11).
   const hint=useShowcaseUi().enabled?METRIC_HINTS[estimates.metric]:undefined;

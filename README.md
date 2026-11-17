@@ -6,7 +6,7 @@
 
 [プロダクト LP](https://cytellect.app/) · [公開デモ](https://cytellect.app/demo) · [Windows 11 版（Microsoft Store）](https://apps.microsoft.com/detail/9PGKTQGV7X5C) · [Docker](docs/docker-desktop.md) · [統計解析手法](docs/implementation-overview.ja.md#統計解析) · [ドキュメント](docs/README.md)
 
-[Windows の導入・更新・削除](docs/install-windows.ja.md#microsoft-store-版) · [従来の Windows インストーラー](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.23)
+[Windows の導入・更新・削除](docs/install-windows.ja.md#microsoft-store-版) · [従来の Windows インストーラー](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.24)
 
 Cytellect は、顕微鏡画像の解析から統計処理、グラフ出力までを一貫して引き受ける生命科学研究者のための解析基盤である。インスタンスセグメンテーションには深層学習モデルの StarDist と Cellpose-SAM（SAM ViT-L）、定量と統計的推論には NumPy・SciPy・statsmodels による共通実装を用いる。
 
@@ -36,7 +36,7 @@ Cytellect は、顕微鏡画像の解析から統計処理、グラフ出力ま�
     → packages/analysis   測定・統計・作図（NumPy · SciPy · statsmodels · Matplotlib）
 
 AI による解析設定
-  services/api → services/proposal-worker（Cloudflare Workers · D1）→ OpenAI Responses API
+  services/api → services/proposal-worker（Cloudflare Workers · D1）→ Anthropic Messages API（旧版のクライアントは OpenAI Responses API）
   → API で検証 → 設定に反映し、選んだ視野でプレビュー → 手動設定と同じジョブ
 ```
 
@@ -128,10 +128,10 @@ StarDist で検出した核を親領域として、核小体・細胞質を Cell
 
 ## AI による解析設定
 
-研究目的の一文を、LLM（GPT-6.1 Sol）が検出・測定・選別・統計・図の構造化設定に変換する。LLM の責務は設定の生成に限定し、数値計算は決定的な共通実装（`packages/analysis`）が行う。
+研究目的の一文を、LLM（Claude Sonnet 5.5。配布済みの古い版は GPT-6.1 Sol）が検出・測定・選別・統計・図の構造化設定に変換する。LLM の責務は設定の生成に限定し、数値計算は決定的な共通実装（`packages/analysis`）が行う。
 
-- データ最小化。送信するのは指示文・染色とチャンネルの対応・実験デザイン（視野・群・実験回の数）・画像の寸法と画素サイズ・現在の設定のみ。原画像・測定値・ファイル名は送信しない
-- スキーマ検証。応答は Structured Outputs で受け、API 側で型・値域・チャンネルの整合性を再検証する。検証を通った設定は、選んだ視野でのプレビューを経て、手動設定と同じジョブで実行する
+- 研究データを示す。研究者が同意した範囲で、目的、チャンネル名、視野の名前と記録、代表的な視野の縮小画像（設定で止められる）を送る。パスと測定値は送らない（[LLM による解析支援の見直し](docs/drafts/llm-assistant/plan.md)）
+- スキーマ検証。応答の形式は Claude にプロンプトで示し（強制しない）、Worker が形を確かめて崩れていれば 1 回だけ直させる。API 側で型・値域・チャンネルの整合性を再検証する。検証を通った設定は、選んだ視野でのプレビューを経て、手動設定と同じジョブで実行する
 - コスト制御。利用額は Workers と D1 で管理し、呼び出し前に最大の費用を原子的に予約、完了後に精算する。未精算の予約も上限に算入し、障害時にも上限を超えない
 
 ## 統計と論文の図
@@ -167,7 +167,7 @@ Cytellect は、未発表の研究データという秘匿性の高い情報を�
 | 環境 | 特徴 | セットアップ |
 |---|---|---|
 | [クラウド開発](CONTRIBUTING.md#クラウド開発) | 固定版の開発ツールと Fiji を備えたクラウド環境。手元への導入は不要 | Claude Code は `bash cytellect/.claude/cloud-setup.sh`、Codex は `bash .codex/setup.sh` |
-| [ローカル開発](CONTRIBUTING.md#ローカル開発) | 手元の PC とブラウザで操作。開発サーバーで Web の変更を即時に反映 | `python3 scripts/dev.py setup --fiji ~/cytellect-fiji` |
+| [ローカル開発](CONTRIBUTING.md#ローカル開発) | 手元の PC とブラウザで操作。開発サーバーで Web の変更を即時に反映 | Linux（WSL を含む）は `bash scripts/linux_setup.sh`、ほかは `python3 scripts/dev.py setup --fiji ~/cytellect-fiji` |
 
 どちらの環境も `python3 scripts/dev.py serve` で起動し、PR の前に `python3 scripts/dev.py check` で、CI の Python と Web の検査（型・API 契約、数値計算）を手元で行う。CI はこれに加えて、実 Fiji とブラウザの連携、コンテナでの実行、Windows 版の導入、依存パッケージの監査を検証する。統計の実装は、閉形式解と全列挙による独立実装で検証している。
 

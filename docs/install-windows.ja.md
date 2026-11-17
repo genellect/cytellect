@@ -33,7 +33,7 @@ Windows PC に Cytellect の配布版を導入し、起動・更新・アンイ�
 
 ## 2. ダウンロードと確認
 
-1. [従来版のリリース](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.23)からインストーラー `Cytellect-Setup-<版>.exe` を保存する。
+1. [従来版のリリース](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.24)からインストーラー `Cytellect-Setup-<版>.exe` を保存する。
 2. 保存したインストーラーを開き、「インストール」を押す（[3.1](#31-インストーラー)）。
 
 - インストーラーがない版（0.1.0-local.20 まで）では、`Cytellect-<版>-windows-x64.zip` を保存し、[3.2](#32-zip-版のセットアップ) に進む。

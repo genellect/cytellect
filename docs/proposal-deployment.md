@@ -259,8 +259,12 @@ call with a token starts a GPU container and counts as GPU time.
 ## Production budget and reconciliation
 
 The owner approved a separate **USD 5 per UTC calendar month** production budget
-on 2026-10-06. This does not replace or reset the USD 5 cumulative evaluation
-ledger. Before each request, the Worker atomically admits its two-call maximum
+on 2026-10-06. On 2026-11-17 the owner decided to raise it to **USD 50 per month**
+(`MONTHLY_BUDGET_USD`), keep **USD 5 per user** (`USER_PROPOSAL_USD_MONTH`) and use
+**Claude Sonnet 5.5** (`ANTHROPIC_MODEL=claude-sonnet-5-5`, tariffs 2 / 10 / 0.1 / 2.5 USD
+per million tokens) for the redesigned prompt versions. These values are live since the
+2026-11-17 deployment (record below). Neither budget replaces or resets the USD 5
+cumulative evaluation ledger. Before each request, the Worker atomically admits its two-call maximum
 only if settled costs plus all outstanding reservations fit the monthly budget.
 Unknown or interrupted billing retains its conservative reservation amount.
 
@@ -296,3 +300,37 @@ budget, then confirm that settled plus outstanding costs still permit admission.
 References: [local Wrangler installation](https://developers.cloudflare.com/workers/wrangler/install-and-update/),
 [Worker commands](https://developers.cloudflare.com/workers/wrangler/commands/workers/),
 [D1 commands and migrations](https://developers.cloudflare.com/d1/wrangler-commands/).
+
+## Order of Worker and client releases
+
+A client that sends a newer context or prompt version needs a Worker that already accepts it. Clients from #231 on send
+proposal context 1.2.0 (channel labels and field records) with prompt `2026-11-16.1`, and discussion context with the
+screen's summary, n breakdown and method; a Worker deployed before #231 rejects them with HTTP 400 `request_invalid`, so
+every proposal and discussion from the updated client would fail. Deploy the Worker first, check it, and only then
+distribute the client. The newer Worker keeps answering installed clients (up to 0.1.0-local.23) with their own prompt
+versions and OpenAI model.
+
+## Production deployment record
+
+Record each production deployment here: the date, source commit, version ID,
+applied migrations and sanitized probe results. Never record tokens, e-mail
+addresses, research content or individual usage rows.
+
+The production operator configuration is the git-ignored `wrangler.enabled.json`.
+Generate it from the live Worker settings instead of editing an old copy: plain-text
+variables, the D1 binding, compatibility date and flags, the `api.cytellect.app`
+custom domain, workers.dev and preview URLs, and disabled observability. A deploy
+then changes only the code. Secrets are not in the file and stay on the Worker.
+After deploying, compare the live variables with the file.
+
+Probe with `curl` or the application's user agent (`Cytellect/0.1`). Cloudflare
+answers HTTP 403 to Python's default `Python-urllib` user agent before the request
+reaches the Worker, so such a probe proves nothing and creates no usage. A probe
+in the first seconds after a deploy can still reach the previous version.
+
+| Date (UTC) | Source | Version | Change and checks |
+|---|---|---|---|
+| 2026-11-16 | `main` 735d088a | `45412097-7078-4dfc-a4bc-4fe3b8a12036`; previous `86df4702-45ab-4afe-bdfa-d94681e75fa2` (2026-11-01) | Adds the result discussion route `/v1/discussions` (#199, requirement AC-09) with the owner's permission. No new migration (`0001`–`0004` applied). Variables and secrets unchanged: `gpt-6.1-sol`, effort `medium`, USD 5 per month. Before: `pnpm check`, `pnpm test` (136 passed, 1 skipped), `node --test scripts/deployment.test.mjs` (4 passed). After: unauthenticated POST to both routes returns 401 with `no-store` on `api.cytellect.app` and workers.dev; an authenticated `{}` to `/v1/discussions` returns 400 `request_invalid` before admission. One paid call, permitted by the owner, on the public demo's nuclear-area comparison (Untreated vs Oxaliplatin 10 µM): HTTP 200 in 15.5 s, 851 input and 682 output tokens, USD 0.00895 settled; the draft passed `validate_discussion`; no outstanding reservation or budget incident afterwards. |
+| 2026-11-17 | `main` 2e38c68b (#231) | `39be89ea-5291-4623-b8d5-2067d96d3722`; then `47f1eb8f` when the owner added the `ANTHROPIC_API_KEY` secret in the dashboard; previous `45412097-7078-4dfc-a4bc-4fe3b8a12036` | Claude route, proposal context 1.2.0, discussions shown as written (#231), with the owner's permission. Variables added: `ANTHROPIC_MODEL=claude-sonnet-5-5`, tariffs 2 / 10 / 0.1 / 2.5; `MONTHLY_BUDGET_USD` 5 → 50; `USER_PROPOSAL_USD_MONTH` 5. Live variables equal the operator file before and after the secret was added. No new migration. Before: `pnpm check`, `pnpm test` (155 passed, 1 skipped), `test:deployment` (4). After, on `api.cytellect.app` and workers.dev: unauthenticated POST 401 and authenticated `{}` 400 `request_invalid` on both routes. Paid checks on public/synthetic inputs: discussion `2026-11-16.1` → 200 from `claude-sonnet-5-5` (2,011 input / 1,861 output tokens, USD 0.0236 in the ledger); discussion `2026-11-12.2` → 200 from `gpt-6.1-sol` (861 / 652, USD 0.0087); proposal `2026-11-16.1` → 503 `model_unavailable` twice, Anthropic HTTP 400 `invalid_request_error`: the proposal schema's 47 union-typed fields exceed Claude's structured-output limit (16). The two failures stay in the ledger at their reserved USD 0.35167 each, as designed; no reservation or budget incident remained. The fix (format described in the prompt, not forced) follows in the next deployment. |
+| 2026-11-17 | `main` 1a775ab2 (#236) | `177d9093-24c7-4c83-a8ea-e326e0225453`; previous `47f1eb8f` | Claude answers with the format described in the prompt, not forced (#236), with the owner's permission. Variables and secrets unchanged (live variables equal the operator file). Before: `pnpm check`, `pnpm test` (156 passed, 1 skipped), `test:deployment` (4). After: unauthenticated 401 and authenticated `{}` 400 on both hosts and routes. Paid checks with the owner's permission (public method scenarios and synthetic numbers only, no images): discussion `2026-11-16.1` → `claude-sonnet-5-5`; proposal `2026-11-16.1` → `claude-sonnet-5-5`; discussion `2026-11-12.2` → `gpt-6.1-sol`. Public-case evaluation of the 12 proposal scenarios: 12/12 answered by `claude-sonnet-5-5` in 6–9 s, 12/12 schema-valid with no repair call, 12/12 expected behaviour (`expectedBehavior`), 11/12 accepted by the local validation; `unsupported-frap` (recipe `none`, correctly declined) left `channels` empty and was rejected as `proposal_channels_mismatch`, so the prompt now asks for every channel also when the recipe is none (next deployment). Claude requests: 14 settlements, 14 calls, USD 0.5525 in the ledger (mean 12,641 input / 786 output tokens). No reservation or budget incident remained; 2026-11 ledger total USD 1.3072. |
+| 2026-11-17 | `main` 1932f7af (#237) | `c7236078-3fa6-4238-bfca-7acc4cb9adfa`; previous `177d9093-24c7-4c83-a8ea-e326e0225453` | The proposal prompt asks for every channel also when the recipe is `none` (#237), with the owner's permission. Variables and secrets unchanged. Before: `main` tree equal to the PR head, `pnpm test` (156 passed, 1 skipped). After, on `api.cytellect.app`: unauthenticated POST 401 and authenticated `{}` 400 `request_invalid` on both routes. One paid re-run of the public `unsupported-frap` scenario: HTTP 200 from `claude-sonnet-5-5` in 7.8 s, recipe `none` with `ch1` as `unused`, accepted by the local validation, so all 12 public scenarios now pass it. Windows 0.1.0-local.24 (source 1a775ab2, published by the owner on 2026-11-17) is the first client on the Claude prompt versions. |

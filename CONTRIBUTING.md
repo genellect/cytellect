@@ -13,7 +13,7 @@
 | Fiji | `dev.py setup` が OS ごとの固定版を導入する |
 | 日本語フォント（Linux） | `fonts-noto-cjk` |
 
-`python3 scripts/dev.py doctor` がこれらを照合する。クラウド開発では、セットアップスクリプトがすべて導入する。
+`python3 scripts/dev.py doctor` がこれらを照合する。Linux（クラウド開発と WSL Ubuntu）では、段階的に入れる。[scripts/linux_setup.sh](scripts/linux_setup.sh) が固定版のツールと依存パッケージを入れ、Fiji と日本語フォントは、`dev.py` の `serve`・`check`・`e2e` が初めて必要になったときに入れる。
 
 ## クラウド開発
 
@@ -23,7 +23,7 @@ Claude Code・Codex のクラウド環境で、手元への導入なしに開発
 
    | ツール | セットアップスクリプト | 内容 |
    |---|---|---|
-   | Claude Code | `bash cytellect/.claude/cloud-setup.sh` | Node.js、pnpm、uv、日本語フォント、依存パッケージ、Fiji を導入し、Fiji の試験まで行う。初回は約 9 分。セットアップスクリプトは checkout の親ディレクトリで始まるため、checkout のディレクトリ名（通常はリポジトリ名）から指定する |
+   | Claude Code | `bash cytellect/.claude/cloud-setup.sh` | `scripts/linux_setup.sh` で Node.js、pnpm、uv、依存パッケージを導入する。Fiji と日本語フォントは初めて使うときに入り、試験は PR の CI と `dev.py check` が担う。セットアップスクリプトは checkout の親ディレクトリで始まるため、checkout のディレクトリ名（通常はリポジトリ名）から指定する |
    | Codex | `bash .codex/setup.sh` | Fiji も使う場合は、`CYTELLECT_SETUP_FIJI=1` と checkout の外を指す `CYTELLECT_FIJI_EXECUTABLE` を設定しておく |
 
 2. ネットワークは制限なし（すべてのホストに届く設定）にする。オーナーの環境はこの設定で動いている。制限付きのネットワークで使う場合は、パッケージマネージャーの既定の許可に加えて、次の接続先を許可する。
@@ -40,7 +40,7 @@ Claude Code・Codex のクラウド環境で、手元への導入なしに開発
 
 3. [外部サービス](#外部サービス)を使う場合は、その環境変数を環境の設定に登録する。Claude Code では、セッションのタイトルバーのクラウド環境のメニュー → Edit から設定する。環境変数は新しいセッションから読み込まれ、セットアップスクリプトからは参照できない。
 
-4. セッションで起動する。`env.sh` は、固定版のツール、Fiji、試験用の Chromium の場所と、クラウド GPU の接続キーを設定する。Claude Code では、セッションの開始時にフック（[.claude/hooks/session-start.sh](.claude/hooks/session-start.sh)）が `env.sh` を読み込む設定をするため、各コマンドで固定版のツールが先に見つかる。ほかのシェルでは `source "$HOME/.local/share/cytellect-cloud/env.sh"` を実行する。
+4. セッションで起動する。`env.sh` は、固定版のツール、Fiji、試験用の Chromium の場所と、クラウド GPU の接続キーを設定する。Claude Code では、セッションの開始時にフック（[.claude/hooks/session-start.sh](.claude/hooks/session-start.sh)）が `env.sh` を読み込む設定をするため、各コマンドで固定版のツールが先に見つかる。ほかのシェルでは `source "$HOME/.local/share/cytellect-dev/env.sh"` を実行する。2026-11 より前のセットアップが使った `~/.local/share/cytellect-cloud` は、次のセットアップで `cytellect-dev` に移り、古い名前はリンクとして残る。
 
    ```bash
    python3 scripts/dev.py doctor   # ツール、フォント、Fiji、外部サービスの準備を確認
@@ -49,12 +49,16 @@ Claude Code・Codex のクラウド環境で、手元への導入なしに開発
 
 ## ローカル開発
 
+Linux（WSL Ubuntu を含む）では、クラウドと同じスクリプトで、固定版のツール、依存パッケージ、試験用のブラウザ（Ubuntu の依存ライブラリを含む）を入れる。Fiji（約 1 分）と図のフォントは、`serve`・`check`・`e2e` を初めて使うときに入る。何度実行しても結果は変わらない。
+
 ```bash
-python3 scripts/dev.py setup --fiji ~/cytellect-fiji
-export CYTELLECT_FIJI_EXECUTABLE=~/cytellect-fiji
+bash scripts/linux_setup.sh
+source ~/.local/share/cytellect-dev/env.sh   # 以後の端末では ~/.bashrc から読み込むとよい
 python3 scripts/dev.py doctor   # ツール、フォント、Fiji、外部サービスの準備を確認
 python3 scripts/dev.py serve    # Web をビルドして API・計算ワーカーと起動し、招待コードを表示
 ```
+
+Linux 以外では、ツールを `必要環境` の版で入れてから、`python3 scripts/dev.py setup --fiji ~/cytellect-fiji` を実行し、`CYTELLECT_FIJI_EXECUTABLE=~/cytellect-fiji` を設定する。
 
 `http://localhost:3000/workspace` を開き、招待コードを入力する。
 
@@ -87,7 +91,7 @@ pnpm dev                             # 端末 3：Web
 
 ### 外部サービス
 
-GPU 推論（Cellpose-SAM）と解析提案（LLM）は、次の環境変数を設定すると使える。クラウド開発では環境の設定に登録し、ローカル開発では API と計算ワーカーを起動するシェルに設定する。
+GPU 推論（Cellpose-SAM）と解析提案（LLM）は、次の環境変数を設定すると使える。クラウド開発では環境の設定に登録する。ローカル開発では、`~/.config/cytellect/dev.env` に `名前=値` の行で書き、`chmod 600` で自分だけが読めるようにする。`env.sh` がこのファイルを読み込み、`doctor` は権限を確かめる。
 
 | 変数 | 用途 | 入手先 |
 |---|---|---|
@@ -101,12 +105,13 @@ GPU 推論（Cellpose-SAM）と解析提案（LLM）は、次の環境変数を�
 - 運用の認証情報は、[オーナーの環境](#オーナーの環境)に置く。
 - 不要になった開発環境はオーナーに伝え、サービス側で失効してもらう。環境変数を消すだけでは失効しない。
 
-`doctor` は、外部サービスが未設定なら `[--]`、不調なら `[!!]` を示し、どちらの場合も Fiji と画面の開発は続けられる。
+`doctor` は、外部サービスが未設定なら `[--]`、不調なら `[!!]` を示し、どちらの場合も Fiji と画面の開発は続けられる。まだ入っていない Fiji と図のフォントも、初めて使うときに入るため `[--]` と示す。
 
 | オプション | 動作 |
 |---|---|
 | `--live` | 実際に接続して確認する。停止中の GPU が起動する。GPU の空きを待つため起動にかかる時間は一定ではなく、動いた秒数に応じて課金される（[起動待ち](docs/cloud-gpu.ja.md#起動待ちと受入確認)）。解析提案は空の依頼でトークンだけを確認し、モデルは呼ばない |
 | `--require-cloud` | 外部サービスも必須として確認する |
+| `--owner` | [オーナーの環境](#オーナーの環境)の、各サービスの認証と CLI を確認する。読み取りの呼び出しだけで、デプロイも課金も起こさない |
 
 ### オーナーの環境
 
@@ -132,7 +137,18 @@ fi
 | Modal（GPU サーバー） | `MODAL_TOKEN_ID`・`MODAL_TOKEN_SECRET` は GitHub の Actions の秘密の値 | Actions の「Cellpose Modal deploy」を `main` から起動する。Modal の CLI は gRPC がプロキシを通らないため、クラウドセッションから接続できない |
 | OpenAI、`ADMIN_TOKEN`（解析提案の Worker） | Worker の secret（`cf secret put`） | セッションに置く必要はない |
 
-ネットワークシークレットの値はコンテナに入らず、環境のプロキシが通信に付ける。AWS は現在使っていない。公開画像の一部は AWS Open Data にあるが、匿名の HTTPS で取得するため、アカウントも CLI も要らない。
+ネットワークシークレットの値はコンテナに入らず、環境のプロキシが通信に付ける。wrangler のように、鍵の値がないと動かない CLI のために、環境変数 `CLOUDFLARE_API_TOKEN` には仮の値 `placeholder-replaced-by-network-secret` を置く。プロキシがこれを本物に置き換える。AWS は現在使っていない。
+
+`python3 scripts/dev.py doctor --owner` は、次を確かめる。
+
+| 項目 | 確かめ方 | `[--]` の意味 |
+|---|---|---|
+| GitHub | `gh api` で、オーナーのアカウントと管理者の権限 | ― |
+| Modal のデプロイ | Actions の秘密の値の名前。クラウドセッションからは読めないため、最後に成功したデプロイの日を示す | 秘密の値を、ここからは読めない |
+| Cloudflare | API トークンの検証 | ― |
+| Hugging Face | アカウントの照会 | 鍵がない（モデルを公開するときだけ要る） |
+| Vercel | アカウントの照会 | 鍵がない（コネクタを使う） |
+| Vercel CLI、Hugging Face CLI | `owner-tools.sh` の固定版と一致するか | ― |公開画像の一部は AWS Open Data にあるが、匿名の HTTPS で取得するため、アカウントも CLI も要らない。
 
 #### 鍵の登録
 
@@ -148,7 +164,26 @@ fi
 3. claude.ai で、オーナーの環境（`cytellect`）に登録する。次のどちらかで行う。
    - セッションで Claude に登録を頼む。Claude が出す入力欄に貼る。接続先は入力済みになる。
    - セッションのタイトルバーのクラウド環境のメニュー → **Edit** → **Network secrets** に、接続先（`api.cloudflare.com`、`huggingface.co`）と値を加える。ヘッダーは `Authorization`、接頭辞は `Bearer`。
-4. 新しいセッションを開き、Claude に確認を頼む。CLI がトークンの指定を求める場合、Claude は形式だけ合わせた仮の値を環境変数に置き（プロキシが本物に置き換える）、`cf whoami` と `hf auth whoami` で確かめる。
+4. 新しいセッションを開き、Claude に `doctor --owner` での確認を頼む。
+
+#### 運用の操作
+
+オーナーの環境のクラウドセッションで行う操作。読み取りは自由に行える。デプロイ・ロールバック・有料の操作は、オーナーが対象を指示したときだけ行い、前後の版を記録する（[AGENTS.md](AGENTS.md)）。`cf` は `pnpm --filter @cytellect/proposal-worker cf` の略。
+
+| 対象 | 操作 | コマンド・手段 | 区分 |
+|---|---|---|---|
+| 解析提案の Worker | デプロイの履歴と、いまの版 | `cf deployments list --name cytellect-proposal`、`cf versions list --name cytellect-proposal` | 読み取り |
+| | 版の設定（変数、D1 の結び付け、秘密の値の名前） | `cf versions view <版の ID> --name cytellect-proposal` | 読み取り |
+| | ログ | `cf tail cytellect-proposal --format pretty`。依頼ごとにメソッド・URL・結果が出る。本文は出ない | 読み取り |
+| | デプロイ | [解析提案のデプロイ](docs/proposal-deployment.md)の手順。運用者の `wrangler.toml` はリポジトリに入れないため、クラウドセッションでは、いまの版の設定（`cf versions view`）から checkout の外に作り直す | 指示があったとき |
+| | ロールバック | `cf rollback <版の ID> --name cytellect-proposal`。戻す先の版の予算の設定を、先に `cf versions view` で確かめる | 指示があったとき |
+| Vercel（Web） | 本番のデプロイの履歴と状態 | claude.ai の Vercel コネクタ（デプロイの一覧と詳細）。本番は `main` から自動で公開される | 読み取り |
+| | ロールバック | コネクタのロールバック。戻したら、本番の SHA と READY を確かめる | 指示があったとき |
+| Modal（GPU サーバー） | デプロイの履歴 | `gh api repos/genellect/cytellect/actions/workflows/cellpose-modal-deploy.yml/runs` | 読み取り |
+| | デプロイ | `gh api -X POST repos/genellect/cytellect/actions/workflows/cellpose-modal-deploy.yml/dispatches -f ref=main` で起動し、実行の結果を同じ `runs` で確かめる | 指示があったとき（有料） |
+| Hugging Face | モデルの取得 | `hf download Genellect/Cytellect <ファイル> --revision <版>`。取得したファイルの SHA-256 を、`engines/cellpose/*.lock.json` の値と照合する | 読み取り |
+| | モデルの公開 | `hf upload`。書き込みのトークンが要る（[鍵の登録](#鍵の登録)） | 指示があったとき |
+| GitHub | マージ | [チーム開発ルール](docs/team-development.md#2-開発の流れ)の手順 6（クラウドセッションでは REST） | 指示があったとき |
 
 ## PR を出す前に
 

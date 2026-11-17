@@ -1,5 +1,6 @@
 import {describe, expect, it, vi} from "vitest";
 import {assertWorkspaceConnection, automaticBackground, channelSpecification, createApiAdapter, displayNameOf, figureIdentity, nuclearRecipe, type SavedResult, type Transport} from "./api-adapter";
+import {setIncludePreviews} from "./ai-settings";
 import type {ChannelDefinition} from "./grouping";
 
 const channel: ChannelDefinition = {token: "channel2", stain: null, role: "nuclear", evidence: "user"};
@@ -153,11 +154,16 @@ describe("real workspace transport boundaries", () => {
     await adapter.figure("w1", {...result, regionSet: "gfp_positive"}, {channel: "channel2", metric: "mean", width: 178, height: 76, label: "Intensity"});
     expect(post).toHaveBeenCalledWith("/v1/revisions/r1/descriptive-preview", expect.objectContaining({selection: expect.objectContaining({region_set_id: "gfp_positive"})}));
   });
-  it("sends only a goal and explicit scope consent for optional proposals", async () => {
+  it("sends the goal, scope consent and the preview setting for optional proposals", async () => {
     const {adapter, post} = fake(async () => ({}), async () => ({proposal:{draft:{channels:[]},needs_confirmation:[]},channels:[]}));
     await adapter.draft("w1", "核面積を確認");
     expect(post).toHaveBeenCalledWith("/v1/workspaces/w1/proposal-drafts", {goal: "核面積を確認", transmission_confirmed: true});
-    await adapter.draft("w1", "核面積を確認", true);
-    expect(post).toHaveBeenLastCalledWith("/v1/workspaces/w1/proposal-drafts", {goal: "核面積を確認", transmission_confirmed: true, retry_failed: true});
+    const stored = new Map<string, string>();
+    vi.stubGlobal("localStorage", {getItem: (key: string) => stored.get(key) ?? null, setItem: (key: string, value: string) => void stored.set(key, value)});
+    try {
+      setIncludePreviews(false);
+      await adapter.draft("w1", "核面積を確認", true);
+      expect(post).toHaveBeenLastCalledWith("/v1/workspaces/w1/proposal-drafts", {goal: "核面積を確認", transmission_confirmed: true, include_previews: false, retry_failed: true});
+    } finally {setIncludePreviews(true); vi.unstubAllGlobals();}
   });
 });

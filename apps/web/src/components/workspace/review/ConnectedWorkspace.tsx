@@ -38,7 +38,8 @@ import {compositeLayers} from "./composite-layers";
 import styles from "./connected-workspace.module.css";
 import {DemoBadge,DemoGuide,SceneIntro,SceneIntroButton,SceneSwitcher,SideCredit,DOWNLOAD_HREF,LiveStatus,ProposalExamples,ShowcaseContext,UploadDialog,useSceneIntro,useShowcaseUi,type DemoStep,type ShowcaseUi} from "./showcase-ui";
 import showcaseStyles from "./showcase.module.css";
-import {AccountIndicator,CloudNotices,CloudPhase,GpuStatus} from "../CloudAccount";
+import {AccountIndicator,AI_SCOPE,CloudNotices,CloudPhase,GpuStatus} from "../CloudAccount";
+import {markProposalScopeSeen,proposalScopeSeen,setIncludePreviews} from "@/lib/workspace/ai-settings";
 import {GeneratedContentReportLink} from "./GeneratedContentReportLink";
 
 type Mode="experiment"|"image"|"statistics"|"figure";
@@ -317,8 +318,12 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
   async function send(){await sendInstruction(instruction);}
   // The demo answers any wording: it maps the request onto the closest recorded analysis, or explains what this dataset supports.
   const [demoReply,setDemoReply]=useState("");
-  async function sendInstruction(value:string){
+  // A proposal sends the scope in AI_SCOPE; it is confirmed once before the first request after it widened (L03).
+  const [scopePending,setScopePending]=useState<string|null>(null);
+  async function sendInstruction(value:string,confirmed=false){
     dispatchPanel("open-ai");setDemoReply("");
+    if(!demo&&!confirmed&&!proposalScopeSeen()){setScopePending(value);return;}
+    setScopePending(null);
     if(demo&&!showcase.examples.some(example=>example.instruction===value.trim())){
       const example=closestExample(value,showcase.examples);
       if(!example){setDemoReply(`${showcase.scene?.assistantScope??"このデモは、記録済みの公開画像の解析にのみ応答します。"}指示の例は下にあります。`);return;}
@@ -488,6 +493,10 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
       {ai?<>
         <button onClick={showSettings}>解析設定を表示</button>
         <div className={styles.userMessage}>{instruction}</div>
+        {scopePending!==null&&<section role="group" aria-label="AIに送る内容の確認"><p>{AI_SCOPE}</p>
+          <div><button disabled={busy} onClick={()=>{markProposalScopeSeen();void sendInstruction(scopePending,true);}}>確認して送信</button>
+            <button disabled={busy} onClick={()=>{setIncludePreviews(false);markProposalScopeSeen();void sendInstruction(scopePending,true);}}>縮小画像なしで送信</button>
+            <button disabled={busy} onClick={()=>setScopePending(null)}>キャンセル</button></div></section>}
         {demoReply?<p>{demoReply}</p>:r.proposal?<>
           <p>{r.proposal.draft.rationale}</p>
           <dl>{r.proposal.draft.channels.map(ch=><div key={ch.token}><dt>{ch.token}</dt><dd>{ch.stain||ch.role}</dd></div>)}</dl>

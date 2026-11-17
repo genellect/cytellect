@@ -6,7 +6,7 @@
 
 [日本語](README.md) · [Product site](https://cytellect.app/) · [Live demo](https://cytellect.app/demo) · [Windows 11 (Microsoft Store)](https://apps.microsoft.com/detail/9PGKTQGV7X5C) · [Docker](docs/docker-desktop.md) · [Methods](docs/methods.md) · [Documentation](docs/README.md)
 
-[Windows installation, updates and removal](docs/local.md#microsoft-store-edition) · [Previous Windows installer](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.23)
+[Windows installation, updates and removal](docs/local.md#microsoft-store-edition) · [Previous Windows installer](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.24)
 
 Cytellect is an analysis platform for life-science researchers that handles everything from microscopy image analysis to statistical processing and graph output. Image processing uses the pretrained deep-learning models StarDist and Cellpose-SAM, and numerical computation uses Python.
 
@@ -24,7 +24,7 @@ Other documents are collected in the [documentation index](docs/README.md).
 
 The frontend is built mainly with Next.js and the server side mainly with FastAPI. When the browser requests an analysis, the API stores the settings and job in a database, and a worker runs inference, measurement, statistics and figure generation. The browser retrieves progress and results from the API and handles image and figure editing.
 
-The LLM (currently GPT-6.1 Sol) is called through an AI service on Cloudflare Workers. The API validates the generated analysis settings and passes them to the same job pipeline as manual settings. The Windows and Docker editions use the same API and calculation code.
+The LLM (Claude Sonnet 5.5; installed older clients use GPT-6.1 Sol) is called through an AI service on Cloudflare Workers. The API validates the generated analysis settings and passes them to the same job pipeline as manual settings. The Windows and Docker editions use the same API and calculation code.
 
 ```mermaid
 flowchart TB
@@ -36,7 +36,7 @@ flowchart TB
     Models["Image recognition<br/>Fiji / StarDist · Cellpose-SAM"]
     Python["Measurement, statistics, figures<br/>NumPy · SciPy · Matplotlib"]
     Relay["AI service<br/>Cloudflare Workers · D1"]
-    LLM["OpenAI Responses API<br/>Structured Outputs"]
+    LLM["Anthropic Messages API<br/>(installed clients: OpenAI Responses API)"]
 
     Web <-->|settings, edits, results| API
     API <--> State
@@ -126,12 +126,13 @@ The Windows edition builds a dedicated Python/Fiji environment, and its in-app u
 
 ### Local development
 
-Use Python 3.12, Node.js 24, pnpm 11.19.0 and uv. To start on Linux:
+Use Python 3.12, Node.js 24, pnpm 11.19.0 and uv. On Linux, including WSL Ubuntu, one script installs the pinned tools, the figure font, dependencies, Fiji and the test browser:
 
 ```bash
-python3 scripts/dev.py setup --fiji ~/cytellect-fiji
+bash scripts/linux_setup.sh
+source ~/.local/share/cytellect-dev/env.sh
 
-export CYTELLECT_DATA_DIR=~/cytellect-data CYTELLECT_FIJI_EXECUTABLE=~/cytellect-fiji CYTELLECT_SECURE_COOKIES=false
+export CYTELLECT_DATA_DIR=~/cytellect-data CYTELLECT_SECURE_COOKIES=false
 uv run cytellect invite --hours 24
 uv run cytellect serve      # terminal 1
 uv run cytellect-worker     # terminal 2 (same environment variables)
