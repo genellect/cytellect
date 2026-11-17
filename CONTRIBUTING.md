@@ -142,6 +142,7 @@ GPU 推論（Cellpose-SAM）と解析提案（LLM）は、次の環境変数を�
 |---|---|
 | `--live` | 実際に接続して確認する。停止中の GPU が起動する。GPU の空きを待つため起動にかかる時間は一定ではなく、動いた秒数に応じて課金される（[起動待ち](docs/cloud-gpu.ja.md#起動待ちと受入確認)）。解析提案は空の依頼でトークンだけを確認し、モデルは呼ばない |
 | `--require-cloud` | 外部サービスも必須として確認する |
+| `--owner` | [オーナーの環境](#オーナーの環境)の、各サービスの認証と CLI を確認する。読み取りの呼び出しだけで、デプロイも課金も起こさない |
 
 ### オーナーの環境
 
@@ -167,7 +168,18 @@ fi
 | Modal（GPU サーバー） | `MODAL_TOKEN_ID`・`MODAL_TOKEN_SECRET` は GitHub の Actions の秘密の値 | Actions の「Cellpose Modal deploy」を `main` から起動する。Modal の CLI は gRPC がプロキシを通らないため、クラウドセッションから接続できない |
 | OpenAI、`ADMIN_TOKEN`（解析提案の Worker） | Worker の secret（`cf secret put`） | セッションに置く必要はない |
 
-ネットワークシークレットの値はコンテナに入らず、環境のプロキシが通信に付ける。AWS は現在使っていない。公開画像の一部は AWS Open Data にあるが、匿名の HTTPS で取得するため、アカウントも CLI も要らない。
+ネットワークシークレットの値はコンテナに入らず、環境のプロキシが通信に付ける。wrangler のように、鍵の値がないと動かない CLI のために、環境変数 `CLOUDFLARE_API_TOKEN` には仮の値 `placeholder-replaced-by-network-secret` を置く。プロキシがこれを本物に置き換える。AWS は現在使っていない。
+
+`python3 scripts/dev.py doctor --owner` は、次を確かめる。
+
+| 項目 | 確かめ方 | `[--]` の意味 |
+|---|---|---|
+| GitHub | `gh api` で、オーナーのアカウントと管理者の権限 | ― |
+| Modal のデプロイ | Actions の秘密の値の名前。クラウドセッションからは読めないため、最後に成功したデプロイの日を示す | 秘密の値を、ここからは読めない |
+| Cloudflare | API トークンの検証 | ― |
+| Hugging Face | アカウントの照会 | 鍵がない（モデルを公開するときだけ要る） |
+| Vercel | アカウントの照会 | 鍵がない（コネクタを使う） |
+| Vercel CLI、Hugging Face CLI | `owner-tools.sh` の固定版と一致するか | ― |公開画像の一部は AWS Open Data にあるが、匿名の HTTPS で取得するため、アカウントも CLI も要らない。
 
 #### 鍵の登録
 
@@ -183,7 +195,7 @@ fi
 3. claude.ai で、オーナーの環境（`cytellect`）に登録する。次のどちらかで行う。
    - セッションで Claude に登録を頼む。Claude が出す入力欄に貼る。接続先は入力済みになる。
    - セッションのタイトルバーのクラウド環境のメニュー → **Edit** → **Network secrets** に、接続先（`api.cloudflare.com`、`huggingface.co`）と値を加える。ヘッダーは `Authorization`、接頭辞は `Bearer`。
-4. 新しいセッションを開き、Claude に確認を頼む。CLI がトークンの指定を求める場合、Claude は形式だけ合わせた仮の値を環境変数に置き（プロキシが本物に置き換える）、`cf whoami` と `hf auth whoami` で確かめる。
+4. 新しいセッションを開き、Claude に `doctor --owner` での確認を頼む。
 
 #### 運用の操作
 

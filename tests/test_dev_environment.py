@@ -1,5 +1,6 @@
 """scripts/dev.py doctor/serve: readiness probes never spend money or leak credentials."""
 import http.server
+import json
 import sys
 import threading
 import urllib.request
@@ -211,6 +212,67 @@ def test_cloud_setup_installs_the_versions_the_repository_pins():
     assert re.search(r"^node_version=(\d+)\.", setup, re.M).group(1) == pins["node"]
     assert re.search(r"^uv_version=(\S+)", setup, re.M).group(1) == pins["uv"]
     assert "packageManager" in setup  # pnpm comes from package.json, not a second copy
+
+
+def test_owner_checks_report_each_account_without_printing_credentials(monkeypatch, tmp_path):
+    """`doctor --owner` only reads: the owner's accounts, the Modal deploy evidence and the pinned CLIs."""
+    import dev
+
+    class Services(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):  # noqa: N802
+            accepted = self.headers.get("Authorization") == "Bearer cf-secret-value"
+            status, body = {"/cf": (200 if accepted else 403, {"success": accepted, "result": {"status": "active"}}),
+                            "/hf": (401, {"error": "Invalid credentials"}),
+                            "/vercel": (403, {"error": {"code": "forbidden"}})}[self.path]
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(body).encode())
+
+        def log_message(self, *args):
+            pass
+
+    server, base = serve_once(Services)
+    try:
+        monkeypatch.setattr(dev, "CLOUDFLARE_VERIFY_URL", base + "/cf")
+        monkeypatch.setattr(dev, "HUGGING_FACE_WHOAMI_URL", base + "/hf")
+        monkeypatch.setattr(dev, "VERCEL_USER_URL", base + "/vercel")
+        monkeypatch.setenv("HF_HOME", str(tmp_path))
+        monkeypatch.delenv("HF_TOKEN", raising=False)
+        monkeypatch.delenv("VERCEL_TOKEN", raising=False)
+        pins = dev.owner_tool_pins()
+        monkeypatch.setattr(dev, "tool_version", lambda argv: {
+            "vercel": pins["vercel"],
+            "hf": pins["huggingface_hub"] if argv[2:] == ("--format", "quiet") else "✓ hf version"}.get(argv[0], ""))
+
+        def github(login):
+            return lambda path: {"user": {"login": login}, f"repos/{dev.REPOSITORY}": {"permissions": {"admin": True}},
+                                 }.get(path, {"workflow_runs": [{"created_at": "2026-10-29T03:52:17Z"}]}
+                                       if "workflows" in path else None)
+
+        monkeypatch.setattr(dev, "github_api", github(dev.OWNER))
+        monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "cf-secret-value")
+        states = {name: state for state, name, _ in dev.owner_checks()}
+        assert states == {"GitHub (owner)": "ok", "Modal deploy (GitHub Actions)": "--",
+                          "Cloudflare (proposal Worker)": "ok", "Hugging Face": "--", "Vercel": "--",
+                          "Vercel CLI": "ok", "Hugging Face CLI": "ok"}
+
+        monkeypatch.setattr(dev, "github_api", github("someone-else"))
+        monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "wrong-value")
+        results = dev.owner_checks()
+        states = {name: state for state, name, _ in results}
+        assert states["GitHub (owner)"] == "NG" and states["Cloudflare (proposal Worker)"] == "NG"
+        assert "wrong-value" not in repr(results) and "cf-secret-value" not in repr(results)
+
+        # A token configured here and refused (expired or revoked) is broken, not absent (Codex review on #224).
+        monkeypatch.setenv("HF_TOKEN", "hf_expired")
+        monkeypatch.setenv("VERCEL_TOKEN", "revoked")
+        results = dev.owner_checks()
+        states = {name: state for state, name, _ in results}
+        assert states["Hugging Face"] == "NG" and states["Vercel"] == "NG"
+        assert "hf_expired" not in repr(results) and "revoked" not in repr(results)
+    finally:
+        server.shutdown()
 
 
 def test_doctor_rejects_a_key_file_other_users_can_read(monkeypatch, capsys, tmp_path):
