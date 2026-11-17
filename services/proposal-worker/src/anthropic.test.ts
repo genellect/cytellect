@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { normalizedUsage, toMessages, ANTHROPIC_URL } from "./anthropic";
+import { answerFormat, answerJson, messagesText, normalizedUsage, toMessages, ANTHROPIC_URL } from "./anthropic";
 import { ASSISTANT_INSTRUCTION, ASSISTANT_PROMPT_VERSION, draftProposal, hasDraftShape, ModelError, PROMPT_VERSION, requestPayload } from "./openai";
 import { CLAUDE_PROMPT_VERSIONS, readConfig, selectProvider, type Env } from "./index";
 
@@ -19,17 +19,19 @@ const message = (text: string, stop = "end_turn", usage: Record<string, number> 
   reply({ type: "message", stop_reason: stop, usage, content: [{ type: "thinking", thinking: "" }, { type: "text", text }] });
 
 describe("Anthropic request conversion", () => {
-  it("keeps the system prompt, images, effort and the strict schema", () => {
+  it("keeps the system prompt, images and effort, and describes the answer's format instead of forcing it", () => {
     const payload = requestPayload({ ...SETTINGS, reasoningEffort: "low", promptVersion: PROMPT_VERSION }, { goal: "g" },
       [{ channel: "dapi", png_base64: "iVBORw0KGgoAAAA" }]);
     const body = toMessages(payload as never);
     expect(body.model).toBe("claude-opus-5-5");
     expect(body.max_tokens).toBe(8000);
-    expect(body.system).toBe(payload.input[0].content[0].text);
+    expect(body.system).toBe(payload.input[0].content[0].text + "\n\n" + answerFormat(payload.text.format.schema));
+    expect(body.system).toContain(JSON.stringify(payload.text.format.schema));
     expect(body.messages).toHaveLength(1);
     expect(body.messages[0].content[0]).toEqual({ type: "text", text: JSON.stringify({ context: { goal: "g" } }) });
     expect(body.messages[0].content[2]).toEqual({ type: "image", source: { type: "base64", media_type: "image/png", data: "iVBORw0KGgoAAAA" } });
-    expect(body.output_config).toEqual({ effort: "low", format: { type: "json_schema", schema: payload.text.format.schema } });
+    // No grammar-constrained output (2026-11-17): the proposal schema exceeds its limits and the format is described.
+    expect(body.output_config).toEqual({ effort: "low" });
     expect(body).not.toHaveProperty("thinking");
     expect(body).not.toHaveProperty("temperature");
   });
@@ -37,6 +39,16 @@ describe("Anthropic request conversion", () => {
   it("rejects an image that is not an inline PNG or JPEG", () => {
     expect(() => toMessages({ model: "m", max_output_tokens: 1, text: { format: { schema: {} } },
       input: [{ role: "user", content: [{ type: "input_image", image_url: "https://example.invalid/x.png" }] }] })).toThrow();
+  });
+});
+
+describe("Anthropic answers", () => {
+  it("reads the JSON object around a fence or a sentence, and joins text blocks", () => {
+    expect(answerJson('{"a":1}')).toBe('{"a":1}');
+    expect(answerJson('```json\n{"a":1}\n```')).toBe('{"a":1}');
+    expect(answerJson('Here is the result:\n{"a":{"b":2}}\nDone.')).toBe('{"a":{"b":2}}');
+    expect(messagesText({ content: [{ type: "thinking" }, { type: "text", text: '{"a"' }, { type: "text", text: ":1}" }] })).toBe('{"a":1}');
+    expect(() => messagesText({ content: [{ type: "thinking" }] })).toThrow();
   });
 });
 

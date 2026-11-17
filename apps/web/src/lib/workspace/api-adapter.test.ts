@@ -164,6 +164,6 @@ describe("real workspace transport boundaries", () => {
       setIncludePreviews(false);
       await adapter.draft("w1", "核面積を確認", true);
       expect(post).toHaveBeenLastCalledWith("/v1/workspaces/w1/proposal-drafts", {goal: "核面積を確認", transmission_confirmed: true, include_previews: false, retry_failed: true});
-    } finally {vi.unstubAllGlobals();}
+    } finally {setIncludePreviews(true); vi.unstubAllGlobals();}
   });
 });

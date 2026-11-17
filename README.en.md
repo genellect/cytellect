@@ -22,7 +22,7 @@ Other documents are collected in the [documentation index](docs/README.md).
 
 The frontend is built mainly with Next.js and the server side mainly with FastAPI. When the browser requests an analysis, the API stores the settings and job in a database, and a worker runs inference, measurement, statistics and figure generation. The browser retrieves progress and results from the API and handles image and figure editing.
 
-The LLM (currently GPT-6.1 Sol) is called through an AI service on Cloudflare Workers. The API validates the generated analysis settings and passes them to the same job pipeline as manual settings. The Windows and Docker editions use the same API and calculation code.
+The LLM (Claude Sonnet 5.5; installed older clients use GPT-6.1 Sol) is called through an AI service on Cloudflare Workers. The API validates the generated analysis settings and passes them to the same job pipeline as manual settings. The Windows and Docker editions use the same API and calculation code.
 
 ```mermaid
 flowchart TB
