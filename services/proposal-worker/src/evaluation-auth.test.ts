@@ -11,6 +11,7 @@ describe("evaluation authentication", () => {
       .toEqual({ apiKey: "fixture", provider: "anthropic" });
     expect(() => evaluationAuth({ CYTELLECT_EVAL_PROVIDER: "anthropic", OPENAI_API_KEY: "fixture" })).toThrow("private_key_required");
     expect(() => evaluationAuth({ CYTELLECT_EVAL_PROVIDER: "other", OPENAI_API_KEY: "fixture" })).toThrow("provider_unknown");
+    expect(() => evaluationAuth({ CYTELLECT_EVAL_PROVIDER: "constructor", OPENAI_API_KEY: "fixture" })).toThrow("provider_unknown");
     expect(() => evaluationAuth({})).toThrow("private_key_required");
   });
   it.each([

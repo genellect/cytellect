@@ -364,7 +364,7 @@ function LoginDialog() {
         <p>メールアドレスに 6 桁のコードを送ります。パスワードは不要です。初めてのメールアドレスは Cytellect のオーナーへの利用申請となり、承認後に使えます。</p>
         <label>メールアドレス<input ref={first} type="email" autoComplete="email" inputMode="email" value={email}
           onChange={event => setEmail(event.target.value)} required maxLength={254} placeholder="name@example.ac.jp"/></label>
-        <p className={styles.small}>ログイン後、核小体・細胞の検出（Cellpose）では、検出に使う 1 チャンネルの画像をクラウドの GPU に送ります。核小体の検出では核の輪郭も送ります。AI への相談では、書いた目的、チャンネル名、視野の名前と記録、代表的な視野の縮小画像（設定で止められます）を送ります。ほかの解析はこのPCだけで行います。</p>
+        <p className={styles.small}>ログイン後、核小体・細胞の検出（Cellpose）では、検出に使う 1 チャンネルの画像をクラウドの GPU に送ります。核小体の検出では核の輪郭も送ります。{AI_SCOPE}ほかの解析はこのPCだけで行います。</p>
         <button className={styles.primary} disabled={busy || !email.trim()}>{busy ? "送信中…" : "コードを送信"}</button>
       </form>}
       {step === "code" && <form onSubmit={event => void submitCode(event)}>
@@ -418,11 +418,17 @@ export function FirstRun({busy, error, onChoose}: {busy: boolean; error: string;
   </section>;
 }
 
+/** What AI requests send; shown before sign-in and, for installations signed in before the scope widened, here. */
+const AI_SCOPE = "AI への相談では、書いた目的、チャンネル名、視野の名前と記録、代表的な視野の縮小画像（設定で止められます）を送ります。";
+
 /** Whether AI analysis proposals also send display-scaled previews of one representative field (default on). */
 function AiPreviewSetting() {
   const [on, setOn] = useState(includePreviews);
-  return <label className={styles.small}>
+  return <>
+  <p className={styles.small}>{AI_SCOPE}</p>
+  <label className={styles.small}>
     <input type="checkbox" checked={on} onChange={event => {setIncludePreviews(event.target.checked); setOn(event.target.checked);}}/>
     {" "}AI への相談で、代表的な視野の縮小画像（チャンネルごと、512 px 以下）も送る
-  </label>;
+  </label>
+  </>;
 }

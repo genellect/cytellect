@@ -1,6 +1,6 @@
 /** Paid evaluation is never run by ordinary CI: both explicit flags and a cap are required. */
 import { describe, expect, it } from "vitest";
-import { draftProposal, inputTokenCeiling, MODEL, ModelError, observedCost, type Preview } from "./openai";
+import { ASSISTANT_PROMPT_VERSION, draftProposal, inputTokenCeiling, MODEL, ModelError, observedCost, type Preview } from "./openai";
 import { ANTHROPIC_MODELS } from "./anthropic";
 import { expectedBehavior, PUBLIC_CASES } from "./public-cases";
 import contract from "./contract.json";
@@ -54,7 +54,9 @@ describe("public proposal evaluation", () => {
       input: JSON.stringify({ context: PUBLIC_CASES[0].context, draft: {} }) });
     expect(probe.status, "local semantic validator must be installed first").toBe(0);
     expect(JSON.parse(probe.stdout).codes).toContain("proposal_shape_invalid");
-    const settings = { ...authentication, model, maxOutputTokens: 8000, reasoningEffort: effort as "low" | "medium" };
+    // The prompt version installed clients from this release send (CYTELLECT_PUBLIC_EVAL_PROMPT_VERSION to compare another).
+    const promptVersion = env.CYTELLECT_PUBLIC_EVAL_PROMPT_VERSION ?? ASSISTANT_PROMPT_VERSION;
+    const settings = { ...authentication, model, promptVersion, maxOutputTokens: 8000, reasoningEffort: effort as "low" | "medium" };
     const cases = PUBLIC_CASES.map(item => ({ ...item, previews: [] as Preview[] }));
     if (env.CYTELLECT_PUBLIC_EVAL_PREVIEWS_FILE) {
       const fsModule = "node:fs", cryptoModule = "node:crypto";
@@ -68,7 +70,7 @@ describe("public proposal evaluation", () => {
       for (const p of fixture.previews) expect(p.png_base64.startsWith("iVBORw0KGgo") && p.png_base64.length < 180_000).toBe(true);
       for (const known of [true, false]) cases.push({
         id: known ? "bbbc013-gfp-preview" : "bbbc013-unknown-preview", recipes: ["nuclear-intensity"], metric: "mean_raw", kind: "descriptive",
-        context: { ...PUBLIC_CASES[2].context, field_count: 1,
+        context: { ...PUBLIC_CASES[2].context, field_count: 1, fields: (PUBLIC_CASES[2].context.fields as unknown[]).slice(0, 1),
           goal: "核内のch2の補正前平均輝度を示す。染色の同定や独立反復の推測はしない。",
           channels: [{ token: "ch1", stain: "DRAQ", role: "nuclear" }, { token: "ch2", stain: known ? "GFP" : null, role: "measure" }] },
         previews: fixture.previews,

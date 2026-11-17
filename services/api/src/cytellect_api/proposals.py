@@ -399,10 +399,13 @@ PREVIEW_SIDE = 512
 def representative_previews(store, wid: str, links: list[ProposalChannelLink], field_id: str | None = None) -> list[dict]:
     """Display-scaled PNG previews (at most 512 px a side, one per channel) of one representative field.
 
-    The selected field when given, otherwise the first registered native field. Previews are for the model to see
-    the images; they are display renderings and never measurements.
+    The selected field when given, otherwise the first registered native field the researcher has not excluded.
+    Previews are for the model to see the images; they are display renderings and never measurements.
     """
-    rows = [row for row in store.rows(fields, workspace_id=wid) if is_region(row)]
+    from .workspace_selection import selection_at
+    with store.engine.connect() as conn:
+        excluded = {entry["field_id"] for entry in selection_at(conn, wid)["entries"] if entry.get("exclusion_reason")}
+    rows = [row for row in store.rows(fields, workspace_id=wid) if is_region(row) and row["id"] not in excluded]
     row = next((row for row in rows if row["id"] == field_id), None) if field_id else (rows[0] if rows else None)
     if row is None or row["image_info"].get("input_mode", "native") != "native":
         return []
@@ -411,7 +414,10 @@ def representative_previews(store, wid: str, links: list[ProposalChannelLink], f
         path = store.safe_path("workspaces", wid, "fields", row["id"], f"channel-{link.channel_id}.npy")
         if not path.is_file():
             continue
-        pixels = np.load(path, allow_pickle=False)
+        pixels = np.load(path, allow_pickle=False, mmap_mode="r")
+        # Subsample to about the preview size before rendering instead of rendering the full field.
+        step = max(1, -(-max(pixels.shape[:2]) // PREVIEW_SIDE))
+        pixels = np.ascontiguousarray(pixels[::step, ::step])
         png, _display = render_preview_with_display({link.channel_id: pixels}, link.channel_id, 0, 100, 1,
                                                     field_id=row["id"], composite=False)
         image: Image.Image = Image.open(io.BytesIO(png))
@@ -514,7 +520,11 @@ def register_proposal_routes(api, store, settings, owner, workspace, credentials
                     lease_until=now + settings.proposal_timeout_seconds + 30))
         proposal = None
         try:
-            previews = representative_previews(store, wid, links, body.field_id) if body.include_previews else []
+            try:
+                previews = representative_previews(store, wid, links, body.field_id) if body.include_previews else []
+            except Exception:
+                # Previews are optional: an unreadable array or image sends the request without them.
+                previews = []
             payload = request_draft(service, context, request_id, previews)
             if payload["model"] not in {settings.proposal_model, *settings.proposal_models} or payload["prompt_version"] != settings.proposal_prompt_version:
                 raise ProposalServiceError(502, "proposal_service_version_mismatch")

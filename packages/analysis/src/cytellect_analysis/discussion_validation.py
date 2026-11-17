@@ -44,8 +44,10 @@ _SIGNIFICANCE = re.compile(r"(有意|証明|実証|立証|確立|示された|�
 _NO_CHANGE = re.compile(r"(変化がない|変化はない|変化しない|変わらない|影響しない|影響はない|影響がない|差がない|差はない|同等である)")
 
 
-# Counting words (2 つの対照, 3 種類) are not values of the result.
-_COUNTED = re.compile(r"(?<![\d.,])\d+\s*(つ|群|種類|種|点|段階|番目|通り)")
+# Counting words (2 つの対照, 3 種類) and ordinals (17 番染色体, 第 2 相) are not values of the result.
+_COUNTED = re.compile(r"(?<![\d.,])\d+\s*(つ|群|種類|種|点|段階|番目|番|通り)|第\s*\d+")
+# Gene and protein names with a slash-joined number (CDK4/6, PI3K/AKT): the number is part of the name.
+_NAMED = re.compile(r"[A-Za-z][A-Za-z0-9-]*\d(?:/\d+[A-Za-z]*)+")
 # A count of runs (3 回中 2 回): never more than the runs or units the result holds.
 _RUNS = re.compile(r"(?<![\d.,])(\d+)\s*回(?!目)")
 
@@ -56,7 +58,7 @@ def _text_numbers(text: str, runs: int = 0) -> list[float]:
     if runs:
         text = _RUNS.sub(lambda match: "" if int(match.group(1)) <= runs else match.group(0), text)
     values = []
-    for match in _NUMBER.finditer(_COUNTED.sub("", text)):
+    for match in _NUMBER.finditer(_COUNTED.sub("", _NAMED.sub(" ", text))):
         token = match.group(1).replace("−", "-").replace(",", "")
         try:
             values.append(float(token))
@@ -94,12 +96,6 @@ def allowed_numbers(context: DiscussionContext) -> list[float]:
             values += [run.ratio, (run.ratio - 1) * 100]
     if result.heading:
         values += _text_numbers(result.heading)
-    # Numbers in the researcher's own names (a dose in a group name, a date in a run name) and in the metric's
-    # name, definition and unit may be repeated.
-    names = [result.control, result.treatment, *(run.run for run in result.runs), *(group.condition for group in result.groups),
-             result.metric_label or "", result.metric_definition or "", result.channel_label or "", result.stain or "", result.unit]
-    for text in names:
-        values += _text_numbers(text)
     # What the researcher wrote (a dose, a time) may be repeated.
     for text in (context.experiment.purpose or "", context.experiment.cells or "", *context.experiment.stains):
         values += _text_numbers(text)
@@ -129,6 +125,18 @@ def _known(value: float, allowed: list[float]) -> bool:
     return False
 
 
+def _without_names(text: str, context: DiscussionContext) -> str:
+    """The sentence without the researcher's own names (a dose in a group name, a date in a run name) and the
+    metric's name and unit: numbers inside a name are part of it, and they are not values the draft may state
+    elsewhere."""
+    result = context.result
+    names = {result.control, result.treatment, *(run.run for run in result.runs), *(group.condition for group in result.groups),
+             result.metric_label or "", result.channel_label or "", result.stain or "", result.unit}
+    for name in sorted((name for name in names if name), key=len, reverse=True):
+        text = text.replace(name, " ")
+    return text
+
+
 def _unclear(context: DiscussionContext) -> bool:
     """Whether the result cannot carry "no change": nothing was tested, an interval includes no difference
     (0 for a difference, 1 for a ratio), or the test gave p of at least 0.05 (or none)."""
@@ -155,7 +163,7 @@ def validate_discussion(raw: object, context: DiscussionContext, *, model: str,
     allowed = allowed_numbers(context)
     result = context.result
     runs = max(len(result.runs), result.n_runs or 0, result.n_control, result.n_treatment)
-    if any(not _known(value, allowed) for text in items for value in _text_numbers(text, runs)):
+    if any(not _known(value, allowed) for text in items for value in _text_numbers(_without_names(text, context), runs)):
         codes.append("discussion_number_not_in_result")
     if any(_LINKS.search(text) for text in items):
         codes.append("discussion_reference_or_link")

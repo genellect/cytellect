@@ -29,6 +29,8 @@ export interface Env extends CloudEnv {
   ANTHROPIC_PRICE_OUTPUT_USD_PER_MTOK?: string;
   ANTHROPIC_PRICE_CACHED_INPUT_USD_PER_MTOK?: string;
   ANTHROPIC_PRICE_CACHE_WRITE_USD_PER_MTOK?: string;
+  /** Claude's thinking cannot be turned off and counts toward this ceiling; empty uses MAX_OUTPUT_TOKENS. */
+  ANTHROPIC_MAX_OUTPUT_TOKENS?: string;
   ADMIN_TOKEN?: string;
   MONTHLY_BUDGET_USD?: string;
   DEVICE_MONTHLY_REQUESTS?: string;
@@ -60,6 +62,8 @@ interface ProviderConfig {
   priceOut: number;
   priceCachedIn: number;
   priceCacheWrite: number;
+  /** A provider-specific output ceiling; otherwise the shared MAX_OUTPUT_TOKENS applies. */
+  maxOutputTokens?: number;
 }
 
 /** Prompt versions written for the redesigned assistant (docs/drafts/llm-assistant/plan.md). They use Claude
@@ -113,7 +117,10 @@ function anthropicConfig(env: Env): ProviderConfig | null {
   if (!env.ANTHROPIC_API_KEY || !floor || !priceIn || priceIn < floor.input || !priceOut || priceOut < floor.output
     || !priceCachedIn || priceCachedIn < floor.cachedInput || !priceCacheWrite || priceCacheWrite < floor.cacheWrite
     || priceCacheWrite < priceIn) return null;
-  return { provider: "anthropic", apiKey: env.ANTHROPIC_API_KEY, model: env.ANTHROPIC_MODEL!, priceIn, priceOut, priceCachedIn, priceCacheWrite };
+  const ceiling = env.ANTHROPIC_MAX_OUTPUT_TOKENS === undefined || env.ANTHROPIC_MAX_OUTPUT_TOKENS === "" ? undefined : Number(env.ANTHROPIC_MAX_OUTPUT_TOKENS);
+  if (ceiling !== undefined && (!Number.isInteger(ceiling) || ceiling < 1024 || ceiling > 16000)) return null;
+  return { provider: "anthropic", apiKey: env.ANTHROPIC_API_KEY, model: env.ANTHROPIC_MODEL!, priceIn, priceOut, priceCachedIn, priceCacheWrite,
+    ...(ceiling === undefined ? {} : { maxOutputTokens: ceiling }) };
 }
 
 /** Billable calls are disabled unless every limit and at least one provider are configured (requirement L05). */

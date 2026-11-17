@@ -299,3 +299,29 @@ def test_previews_follow_the_researchers_setting(tmp_path, monkeypatch):
     assert response.status_code == 200, response.text
     assert "previews" not in calls[0]
     assert response.json()["proposal"]["model"] == "claude-opus-5-5"
+
+
+def test_a_preview_failure_sends_the_request_without_previews(tmp_path, monkeypatch):
+    """Previews are optional: an unreadable array never blocks the proposal or marks it failed."""
+    body = json.dumps({"draft": ACTIN_DRAFT, "model": "gpt-6.1-sol", "prompt_version": PROPOSAL_PROMPT_VERSION}).encode()
+    client, wid, calls = configured(tmp_path, monkeypatch, lambda request: FakeResponse(body))
+
+    def broken(*args, **kwargs):
+        raise OSError("unreadable channel array")
+    monkeypatch.setattr(proposals, "representative_previews", broken)
+    response = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": "核の大きさ", "transmission_confirmed": True},
+                           headers=HEADERS)
+    assert response.status_code == 200, response.text
+    assert "previews" not in calls[0]
+
+
+def test_previews_skip_fields_the_researcher_excluded(tmp_path, monkeypatch):
+    client, wid, calls = configured(tmp_path, monkeypatch, lambda request: FakeResponse(b"{}"))
+    store = client.app.state.store
+    [field] = store.rows(proposals.fields, workspace_id=wid)
+    links = [proposals.ProposalChannelLink(token="ch1", channel_id=field["image_info"]["channels"][0]["channel_id"], stain=None)]
+    assert proposals.representative_previews(store, wid, links)
+    monkeypatch.setattr("cytellect_api.workspace_selection.selection_at",
+                        lambda conn, workspace: {"entries": [{"field_id": field["id"], "exclusion_reason": "out_of_focus"}]})
+    assert proposals.representative_previews(store, wid, links) == []
+

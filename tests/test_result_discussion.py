@@ -186,3 +186,18 @@ def test_protocol_1_0_contexts_and_drafts_remain_readable():
     assert legacy.protocol == "result-discussion/1.0.0" and legacy.result.metric_label is None
     stored = DiscussionDraft.model_validate({"protocol": "result-discussion/1.0.0", **draft("a")})
     assert stored.protocol == "result-discussion/1.0.0"
+
+
+def test_names_and_ordinals_are_not_stated_values_but_do_not_admit_numbers_elsewhere():
+    """A dose inside a group name stays part of the name; it does not allow that number as an effect elsewhere."""
+    result = DESCRIPTIVE.result.model_dump()
+    treatment = "Oxaliplatin 10 µM"
+    result["groups"] = [{**group, "condition": treatment} if group["condition"] == DESCRIPTIVE.result.treatment else group
+                        for group in result["groups"]]
+    result["treatment"] = treatment
+    context = DiscussionContext(experiment=DESCRIPTIVE.experiment, result=result)
+    validate_discussion(draft("Oxaliplatin 10 µM による CDK4/6 経路または 17 番染色体の変化の可能性がある。"), context, model="m")
+    with pytest.raises(DiscussionRejected) as rejected:
+        validate_discussion(draft("Oxaliplatin 10 µM の処理で、陽性率が約 10% 低下した可能性がある。"), context, model="m")
+    assert "discussion_number_not_in_result" in rejected.value.codes
+

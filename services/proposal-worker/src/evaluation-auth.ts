@@ -10,7 +10,7 @@ const DESTINATIONS: Record<Provider, { url: string; keyVariable: string; header:
 /** `CYTELLECT_EVAL_PROVIDER` selects the provider ("openai" by default, or "anthropic"). */
 export function evaluationAuth(env: Record<string, string | undefined>, transport: typeof fetch = fetch) {
   const provider = (env.CYTELLECT_EVAL_PROVIDER ?? "openai") as Provider;
-  if (!(provider in DESTINATIONS)) throw new Error("evaluation_provider_unknown");
+  if (!Object.hasOwn(DESTINATIONS, provider)) throw new Error("evaluation_provider_unknown");
   const destination = DESTINATIONS[provider];
   const key = env[destination.keyVariable];
   if (env.CYTELLECT_EVAL_PROXY_AUTH !== "true") {

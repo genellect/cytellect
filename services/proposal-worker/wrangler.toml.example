@@ -35,6 +35,8 @@ ANTHROPIC_PRICE_INPUT_USD_PER_MTOK = ""
 ANTHROPIC_PRICE_OUTPUT_USD_PER_MTOK = ""
 ANTHROPIC_PRICE_CACHED_INPUT_USD_PER_MTOK = ""
 ANTHROPIC_PRICE_CACHE_WRITE_USD_PER_MTOK = ""
+# Claude thinks on every call and the thinking counts toward its output; empty uses MAX_OUTPUT_TOKENS.
+ANTHROPIC_MAX_OUTPUT_TOKENS = ""
 REASONING_EFFORT = "medium"
 LOW_EFFORT_EVALUATED = "false"
 # Includes reasoning and visible JSON; validate this ceiling with public-only evaluation.

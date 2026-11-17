@@ -147,3 +147,14 @@ describe("assistant prompt version", () => {
     expect(selectProvider(readConfig({ ...BASE, ...CLAUDE })!, ASSISTANT_PROMPT_VERSION)?.model).toBe("claude-opus-5-5");
   });
 });
+
+describe("Claude output ceiling", () => {
+  it("uses ANTHROPIC_MAX_OUTPUT_TOKENS for Claude and the shared ceiling otherwise", () => {
+    const config = readConfig({ ...BASE, ...CLAUDE, MAX_OUTPUT_TOKENS: "8000", ANTHROPIC_MAX_OUTPUT_TOKENS: "16000" })!;
+    expect(selectProvider(config, ASSISTANT_PROMPT_VERSION)?.maxOutputTokens).toBe(16000);
+    expect(selectProvider(config, "2026-10-09.1")?.maxOutputTokens).toBe(8000);
+    expect(selectProvider(readConfig({ ...BASE, ...CLAUDE })!, ASSISTANT_PROMPT_VERSION)?.maxOutputTokens).toBe(8000);
+    expect(readConfig({ ...BASE, ...CLAUDE, ANTHROPIC_MAX_OUTPUT_TOKENS: "64000" })?.providers.anthropic).toBeUndefined();
+  });
+});
+

@@ -88,7 +88,8 @@ export async function postMessages(fetcher: typeof fetch, apiKey: string, payloa
     method: "POST",
     // Manual redirects are returned as non-OK responses without forwarding the key to Location.
     redirect: "manual",
-    signal: AbortSignal.timeout(180_000),
+    // Two calls (initial and repair) must finish within the local API's 300 s request timeout.
+    signal: AbortSignal.timeout(120_000),
     headers: { "x-api-key": apiKey, "anthropic-version": ANTHROPIC_VERSION, "content-type": "application/json" },
     body: JSON.stringify(toMessages(payload)),
   });
