@@ -425,16 +425,22 @@ def owner_checks() -> list[tuple[str, str, str]]:
         active = isinstance(body, dict) and body.get("success") and (body.get("result") or {}).get("status") == "active"
         results.append(("ok" if active else "NG", "Cloudflare (proposal Worker)",
                         "API token active" if active else f"API token not accepted ({status or 'unreachable'})"))
-    status, body = fetch_json(HUGGING_FACE_WHOAMI_URL, hugging_face_token())
-    if status == 200 and isinstance(body, dict):
-        results.append(("ok", "Hugging Face", f"signed in as {body.get('name', 'unknown')}"))
-    else:
-        results.append(("--", "Hugging Face", "no token; public models need none, publishing models does"))
-    status, body = fetch_json(VERCEL_USER_URL, os.environ.get("VERCEL_TOKEN", "").strip() or CREDENTIAL_PLACEHOLDER)
-    if status == 200 and isinstance(body, dict):
-        results.append(("ok", "Vercel", "API token accepted"))
-    else:
-        results.append(("--", "Vercel", "no token; the claude.ai Vercel connector covers deployments"))
+    for name, url, token, optional in (
+            ("Hugging Face", HUGGING_FACE_WHOAMI_URL, hugging_face_token(),
+             "public models need none, publishing models does"),
+            ("Vercel", VERCEL_USER_URL, os.environ.get("VERCEL_TOKEN", "").strip() or CREDENTIAL_PLACEHOLDER,
+             "the claude.ai Vercel connector covers deployments")):
+        status, body = fetch_json(url, token)
+        if status == 200 and isinstance(body, dict):
+            who = body.get("name") or (body.get("user") or {}).get("username") or "accepted"
+            results.append(("ok", name, f"signed in ({who})"))
+        elif token != CREDENTIAL_PLACEHOLDER:
+            # A token configured here was refused (expired or revoked): an operations credential is broken.
+            results.append(("NG", name, f"the configured token was refused ({status or 'unreachable'}); renew it"))
+        else:
+            # Only the placeholder was sent: none is configured here, or a cloud network secret refused it.
+            results.append(("--", name, f"no accepted token (none set here, or the network secret was refused); "
+                            f"{optional}"))
     pins = owner_tool_pins()
     os.environ.setdefault("HF_HUB_DISABLE_UPDATE_CHECK", "1")  # no once-a-day hint in the version output (#226)
     for tool, argv, expected in (("Vercel CLI", ("vercel", "--version"), pins["vercel"]),

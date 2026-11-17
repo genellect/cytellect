@@ -263,5 +263,13 @@ def test_owner_checks_report_each_account_without_printing_credentials(monkeypat
         states = {name: state for state, name, _ in results}
         assert states["GitHub (owner)"] == "NG" and states["Cloudflare (proposal Worker)"] == "NG"
         assert "wrong-value" not in repr(results) and "cf-secret-value" not in repr(results)
+
+        # A token configured here and refused (expired or revoked) is broken, not absent (Codex review on #224).
+        monkeypatch.setenv("HF_TOKEN", "hf_expired")
+        monkeypatch.setenv("VERCEL_TOKEN", "revoked")
+        results = dev.owner_checks()
+        states = {name: state for state, name, _ in results}
+        assert states["Hugging Face"] == "NG" and states["Vercel"] == "NG"
+        assert "hf_expired" not in repr(results) and "revoked" not in repr(results)
     finally:
         server.shutdown()
