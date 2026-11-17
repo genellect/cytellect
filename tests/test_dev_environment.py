@@ -243,7 +243,7 @@ def test_owner_checks_report_each_account_without_printing_credentials(monkeypat
         pins = dev.owner_tool_pins()
         monkeypatch.setattr(dev, "tool_version", lambda argv: {
             "vercel": pins["vercel"],
-            "hf": f"version={pins['huggingface_hub']}\nHint: a freshly installed CLI may add lines"}.get(argv[0], ""))
+            "hf": pins["huggingface_hub"] if argv[2:] == ("--format", "quiet") else "✓ hf version"}.get(argv[0], ""))
 
         def github(login):
             return lambda path: {"user": {"login": login}, f"repos/{dev.REPOSITORY}": {"permissions": {"admin": True}},

@@ -436,9 +436,11 @@ def owner_checks() -> list[tuple[str, str, str]]:
     else:
         results.append(("--", "Vercel", "no token; the claude.ai Vercel connector covers deployments"))
     pins = owner_tool_pins()
+    os.environ.setdefault("HF_HUB_DISABLE_UPDATE_CHECK", "1")  # no once-a-day hint in the version output (#226)
     for tool, argv, expected in (("Vercel CLI", ("vercel", "--version"), pins["vercel"]),
-                                 ("Hugging Face CLI", ("hf", "version"), f"version={pins['huggingface_hub']}")):
-        # Match the version line only: a freshly installed CLI may add hints to its output.
+                                 # `--format quiet` prints the bare version in every context (#226): without an
+                                 # AI agent, `hf` defaults to human output.
+                                 ("Hugging Face CLI", ("hf", "version", "--format", "quiet"), pins["huggingface_hub"])):
         lines = tool_version(argv).splitlines()
         results.append(("ok" if expected in lines else "NG", tool, expected if expected in lines
                         else (lines[0] if lines else "not installed (`bash .claude/owner-tools.sh`)")))
