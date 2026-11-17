@@ -462,6 +462,17 @@ def without_cloud_services(env: dict[str, str]) -> dict[str, str]:
     return {name: value for name, value in env.items() if not CLOUD_SERVICES.fullmatch(name)}
 
 
+def stop_on_signals() -> None:
+    """Ctrl-C and SIGTERM both reach the `finally` that stops the servers, also when started in the background
+    (where shells start programs with SIGINT ignored); otherwise the servers would outlive `dev.py`."""
+    def interrupt(*_: object) -> None:
+        raise KeyboardInterrupt
+
+    if os.name != "nt":
+        signal.signal(signal.SIGINT, interrupt)
+        signal.signal(signal.SIGTERM, interrupt)
+
+
 def start_stack(env: dict[str, str], processes: list[subprocess.Popen]) -> Path:
     """Start the API, worker and production web on loopback and wait for them; returns the log directory."""
     uv = shutil.which("uv") or sys.exit("uv is not installed; see CONTRIBUTING.md")
@@ -481,6 +492,15 @@ def start_stack(env: dict[str, str], processes: list[subprocess.Popen]) -> Path:
     return logs
 
 
+def share_env(env: dict[str, str], origin: str) -> dict[str, str]:
+    """`serve --share`: Web calls the API on its own origin through scripts/share_proxy.py, the API accepts only
+    that origin, and only registered public images are accepted (docs/security.md, shared environments).
+    The origin is built into Web (an empty API origin means the public demo build), so it must be the browser's."""
+    origin = origin.rstrip("/")
+    return {**env, "NEXT_PUBLIC_API_ORIGIN": origin, "CYTELLECT_APP_ORIGIN": origin,
+            "CYTELLECT_UPLOAD_ALLOWLIST": str(ROOT / "fixtures/public/uploads.json")}
+
+
 def serve(args: argparse.Namespace) -> None:
     fiji = ensure_fiji()
     ensure_figure_font()
@@ -490,22 +510,46 @@ def serve(args: argparse.Namespace) -> None:
     data = outside_checkout(args.data_dir, "Data directory")
     data.mkdir(parents=True, exist_ok=True, mode=0o700)
     env = serve_env(cloud_env({**os.environ, "CYTELLECT_FIJI_EXECUTABLE": fiji}), data)
+    share = f"http://localhost:{args.share}" if args.share else ""
+    if share:
+        if responding(share):
+            sys.exit(f"{share} is already in use; stop the other server first")
+        env = share_env(env, args.share_origin or share)
     if not args.skip_build:
         run(("pnpm", "build"), env)  # NEXT_PUBLIC_API_ORIGIN is fixed at build time
     uv = shutil.which("uv") or sys.exit("uv is not installed; see CONTRIBUTING.md")
     processes: list[subprocess.Popen] = []
+    stop_on_signals()
     try:
         logs = start_stack(env, processes)
-        invitation = subprocess.run([uv, "run", "cytellect", "invite", "--hours", "24"], cwd=ROOT, env=env,
+        if share:
+            processes.append(subprocess.Popen(
+                [uv, "run", "uvicorn", "--app-dir", "scripts", "share_proxy:app", "--host", "127.0.0.1",
+                 "--port", str(args.share), "--no-access-log"], cwd=ROOT, env=env, start_new_session=os.name != "nt"))
+            deadline = time.monotonic() + 30
+            while not responding(share + "/v1/health"):
+                if time.monotonic() > deadline or processes[-1].poll() is not None:
+                    sys.exit("The share proxy did not start (scripts/share_proxy.py)")
+                time.sleep(0.5)
+        hours = str(args.share_hours) if share else "24"
+        invitation = subprocess.run([uv, "run", "cytellect", "invite", "--hours", hours], cwd=ROOT, env=env,
                                     capture_output=True, text=True, check=True).stdout.strip()
         gpu = "on" if env.get("CYTELLECT_CELLPOSE_REMOTE_URL") else "off"
         proposals = "on" if os.environ.get("CYTELLECT_PROPOSAL_URL") else "off"
-        print(f"\nOpen {APP_ORIGIN}/workspace and enter the invitation code: {invitation}")
+        print(f"\nOpen {share or APP_ORIGIN}/workspace and enter the invitation code: {invitation}")
+        if share:
+            print(f"Shared on one origin ({env['CYTELLECT_APP_ORIGIN']}): registered public images only, stops after "
+                  f"{args.share_hours} h. In a cloud session, open port {args.share} in the app's preview pane; "
+                  "the proxy prints each browser Origin it sees (CONTRIBUTING.md, 画面の共有).")
         print(f"Fiji on, cloud GPU (Cellpose) {gpu}, analysis proposals {proposals}. Logs: {logs}")
         if is_wsl():
             print("WSL: open the same address in Windows (Edge); if it does not load, see CONTRIBUTING.md (WSL Ubuntu).")
         print("Use registered public images only. Press Ctrl-C to stop.", flush=True)
+        stop_at = time.monotonic() + args.share_hours * 3600 if share else None
         while all(process.poll() is None for process in processes):
+            if stop_at is not None and time.monotonic() > stop_at:
+                print(f"\nThe share ended after {args.share_hours} h; stopping.")
+                return
             time.sleep(1)
         sys.exit(f"A server stopped; see the logs in {logs}")
     except KeyboardInterrupt:
@@ -538,10 +582,13 @@ def e2e(args: argparse.Namespace) -> None:
              "CYTELLECT_REAL_INPUTS": str(inputs), "CYTELLECT_REAL_OUTPUT": str(work / "evidence"),
              "CYTELLECT_REQUIRE_REAL_FIJI": "1", "CYTELLECT_TEST_DATA_DIR": str(data), "CYTELLECT_TEST_PYTHON": python}
     processes: list[subprocess.Popen] = []
+    stop_on_signals()
     try:
         logs = start_stack(env, processes)
         print(f"Servers up without cloud services. Logs: {logs}", flush=True)
         run(("pnpm", "test:e2e", *[arg for arg in args.playwright if arg != "--"]), tests)
+    except KeyboardInterrupt:
+        sys.exit("Stopped; the servers were shut down.")
     finally:
         stop(processes)
 
@@ -579,6 +626,11 @@ def main() -> None:
     p.add_argument("--data-dir", type=Path, default=Path.home() / "cytellect-data", metavar="DIR",
                    help="Private runtime directory outside the checkout (default: ~/cytellect-data)")
     p.add_argument("--skip-build", action="store_true", help="Reuse the last `serve` web build")
+    p.add_argument("--share", type=int, metavar="PORT", nargs="?", const=8080,
+                   help="Also serve Web and API on one origin at PORT (default 8080), public images only")
+    p.add_argument("--share-origin", metavar="URL", help="The browser origin to accept when sharing "
+                   "(default http://localhost:PORT; a preview pane may use another)")
+    p.add_argument("--share-hours", type=int, default=2, metavar="H", help="Stop sharing after H hours (default 2)")
     p.set_defaults(func=serve)
     args = parser.parse_args()
     args.func(args)

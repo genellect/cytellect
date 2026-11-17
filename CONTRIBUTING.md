@@ -47,6 +47,15 @@ Claude Code・Codex のクラウド環境で、手元への導入なしに開発
    python3 scripts/dev.py serve    # Web をビルドして API・計算ワーカーと起動し、招待コードを表示
    ```
 
+### 画面の共有
+
+`python3 scripts/dev.py serve --share` は、Web と API を 1 つのオリジン（既定は `http://localhost:8080`）にまとめて起動する。間に入るのは、ロックファイルの uvicorn と httpx で作った中継（[scripts/share_proxy.py](scripts/share_proxy.py)）で、`/v1/*` を API へ、それ以外を Web へ流す。本番と同じ Cookie（`SameSite=Strict`）と Origin の照合を保ったまま、別の場所のブラウザから画面を使える。
+
+- 受け付けるのは、登録済みの公開画像だけ（`CYTELLECT_UPLOAD_ALLOWLIST`、[データ保護](docs/security.md#shared-development-environments)）。
+- 招待コードの期限と共有は、既定で 2 時間で終わる（`--share-hours`）。
+- Web は、ブラウザから見えるオリジンを埋め込んでビルドする。空のオリジンは公開版（デモ）と見なされるため。ブラウザが別のアドレスで開く場合は、`--share-origin <URL>` で指定して起動し直す。中継は、届いたアドレスを 1 回ずつ表示する。
+- Web は本番と同じく、ほかのページの枠の中で表示されない（`frame-ancestors 'none'`、`X-Frame-Options: DENY`）。枠を使う表示では見えない。
+
 ## ローカル開発
 
 Linux（WSL Ubuntu を含む）では、クラウドと同じスクリプトで、固定版のツール、依存パッケージ、試験用のブラウザ（Ubuntu の依存ライブラリを含む）を入れる。Fiji（約 1 分）と図のフォントは、`serve`・`check`・`e2e` を初めて使うときに入る。何度実行しても結果は変わらない。
