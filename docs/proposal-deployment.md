@@ -259,8 +259,13 @@ call with a token starts a GPU container and counts as GPU time.
 ## Production budget and reconciliation
 
 The owner approved a separate **USD 5 per UTC calendar month** production budget
-on 2026-10-06. This does not replace or reset the USD 5 cumulative evaluation
-ledger. Before each request, the Worker atomically admits its two-call maximum
+on 2026-10-06. On 2026-11-17 the owner decided to raise it to **USD 50 per month**
+(`MONTHLY_BUDGET_USD`), keep **USD 5 per user** (`USER_PROPOSAL_USD_MONTH`) and use
+**Claude Sonnet 5.5** (`ANTHROPIC_MODEL=claude-sonnet-5-5`, tariffs 2 / 10 / 0.1 / 2.5 USD
+per million tokens) for the redesigned prompt versions. These values take effect with
+the next production deployment, which needs the owner's permission; until then the
+live Worker keeps USD 5 and OpenAI only. Neither budget replaces or resets the USD 5
+cumulative evaluation ledger. Before each request, the Worker atomically admits its two-call maximum
 only if settled costs plus all outstanding reservations fit the monthly budget.
 Unknown or interrupted billing retains its conservative reservation amount.
 
