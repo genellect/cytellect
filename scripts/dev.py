@@ -44,6 +44,14 @@ USER_AGENT = "cytellect-dev"  # Cloudflare refuses Python's default agent (error
 DEV_RUNTIME = Path.home() / ".local/share/cytellect-dev"
 # Keys kept on a development machine (CONTRIBUTING.md, 外部サービス); env.sh loads it.
 KEY_FILE = Path.home() / ".config/cytellect/dev.env"
+# `doctor --owner`: the owner's operations (CONTRIBUTING.md, オーナーの環境). Read-only calls only.
+OWNER = "genellect"
+REPOSITORY = "genellect/cytellect"
+CLOUDFLARE_VERIFY_URL = "https://api.cloudflare.com/client/v4/user/tokens/verify"
+HUGGING_FACE_WHOAMI_URL = "https://huggingface.co/api/whoami-v2"
+VERCEL_USER_URL = "https://api.vercel.com/v2/user"
+# In a cloud session the environment's network secret replaces this header value at the proxy.
+CREDENTIAL_PLACEHOLDER = "placeholder-replaced-by-network-secret"
 CONTRACT_OUTPUTS = ("packages/contracts", "apps/web/src/lib/generated.ts", "apps/web/src/lib/recipe-defaults.json")
 OPENAPI = ("uv", "run", "cytellect", "openapi", "--output", "packages/contracts/openapi.json",
            "--recipe-defaults", "apps/web/src/lib/recipe-defaults.json")
@@ -368,10 +376,121 @@ def doctor(args: argparse.Namespace) -> None:
                                          headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"})
         ok, detail = proposal_state(*probe(request, timeout=30))
         report("ok" if ok else "NG", "Analysis proposals (LLM)", detail, cloud=True)
+    if getattr(args, "owner", False):
+        for state, name, detail in owner_checks():
+            report(state, name, detail)
     if failed:
         sys.exit("Some required parts are not ready (see CONTRIBUTING.md).")
     print("Ready. Cloud GPU and proposal items marked [!!] or [--] do not block development; "
           "pass --require-cloud to require them.")
+
+
+def github_api(path: str) -> object:
+    """`gh api` as the signed-in account (REST only: cloud sessions have no GraphQL); None on failure."""
+    executable = shutil.which("gh")
+    if executable is None:
+        return None
+    result = subprocess.run([executable, "api", path], capture_output=True, text=True)
+    try:
+        return json.loads(result.stdout) if result.returncode == 0 else None
+    except ValueError:
+        return None
+
+
+def fetch_json(url: str, token: str, timeout: float = 20) -> tuple[int, object]:
+    """Status and JSON body of an authenticated GET; the token is never printed."""
+    request = urllib.request.Request(url, headers={"Authorization": "Bearer " + token, "User-Agent": USER_AGENT})
+    try:
+        with urllib.request.build_opener(_NoRedirect).open(request, timeout=timeout) as response:
+            status, body = response.status, response.read(65536)
+    except urllib.error.HTTPError as error:
+        status, body = error.code, error.read(65536)
+    except (urllib.error.URLError, OSError):
+        return 0, None
+    try:
+        return status, json.loads(body)
+    except ValueError:
+        return status, None
+
+
+def hugging_face_token() -> str:
+    """HF_TOKEN, else the token `hf auth login` stores, else the cloud placeholder."""
+    if os.environ.get("HF_TOKEN", "").strip():
+        return os.environ["HF_TOKEN"].strip()
+    home = Path(os.environ.get("HF_HOME", Path.home() / ".cache/huggingface"))
+    try:
+        return (home / "token").read_text(encoding="ascii").strip() or CREDENTIAL_PLACEHOLDER
+    except (OSError, UnicodeError):
+        return CREDENTIAL_PLACEHOLDER
+
+
+def owner_tool_pins() -> dict[str, str]:
+    """The versions .claude/owner-tools.sh installs, so a version bump edits only that script."""
+    script = (ROOT / ".claude/owner-tools.sh").read_text(encoding="utf-8")
+    return {name: re.search(rf"^{name}_version=(\S+)", script, re.M).group(1)  # type: ignore[union-attr]
+            for name in ("vercel", "huggingface_hub")}
+
+
+def owner_checks() -> list[tuple[str, str, str]]:
+    """The owner's accounts and tools, by read-only calls: nothing is deployed, billed or printed."""
+    results: list[tuple[str, str, str]] = []
+    user, repository = github_api("user"), github_api(f"repos/{REPOSITORY}")
+    login = user.get("login") if isinstance(user, dict) else None
+    admin = isinstance(repository, dict) and bool((repository.get("permissions") or {}).get("admin"))
+    if login == OWNER and admin:
+        results.append(("ok", "GitHub (owner)", f"{login}, admin on {REPOSITORY}"))
+    else:
+        results.append(("NG", "GitHub (owner)", f"signed in as {login or 'nobody'}; the owner needs admin on "
+                        f"{REPOSITORY} (`gh auth login`)"))
+    secrets = github_api(f"repos/{REPOSITORY}/actions/secrets")
+    if isinstance(secrets, dict):
+        names = {entry.get("name") for entry in secrets.get("secrets", [])}
+        missing = sorted({"MODAL_TOKEN_ID", "MODAL_TOKEN_SECRET"} - names)
+        results.append(("NG" if missing else "ok", "Modal deploy (GitHub Actions)",
+                        f"repository secrets missing: {', '.join(missing)}" if missing
+                        else "deploy token stored in the repository secrets"))
+    else:
+        # Cloud sessions cannot list Actions secrets; the last successful deploy is the evidence left.
+        runs = github_api(f"repos/{REPOSITORY}/actions/workflows/cellpose-modal-deploy.yml/runs?status=success&per_page=1")
+        last = runs.get("workflow_runs", [{}])[:1] if isinstance(runs, dict) else []
+        when = last[0].get("created_at", "")[:10] if last else ""
+        results.append(("--", "Modal deploy (GitHub Actions)", "repository secrets not readable here; "
+                        + (f"last successful deploy {when}" if when else "no successful deploy found")))
+    token = os.environ.get("CLOUDFLARE_API_TOKEN", "").strip()
+    if not token:
+        results.append(("NG", "Cloudflare (proposal Worker)", "set CLOUDFLARE_API_TOKEN (in a cloud session, "
+                        f"`{CREDENTIAL_PLACEHOLDER}` with the api.cloudflare.com network secret)"))
+    else:
+        status, body = fetch_json(CLOUDFLARE_VERIFY_URL, token)
+        active = isinstance(body, dict) and body.get("success") and (body.get("result") or {}).get("status") == "active"
+        results.append(("ok" if active else "NG", "Cloudflare (proposal Worker)",
+                        "API token active" if active else f"API token not accepted ({status or 'unreachable'})"))
+    for name, url, token, optional in (
+            ("Hugging Face", HUGGING_FACE_WHOAMI_URL, hugging_face_token(),
+             "public models need none, publishing models does"),
+            ("Vercel", VERCEL_USER_URL, os.environ.get("VERCEL_TOKEN", "").strip() or CREDENTIAL_PLACEHOLDER,
+             "the claude.ai Vercel connector covers deployments")):
+        status, body = fetch_json(url, token)
+        if status == 200 and isinstance(body, dict):
+            who = body.get("name") or (body.get("user") or {}).get("username") or "accepted"
+            results.append(("ok", name, f"signed in ({who})"))
+        elif token != CREDENTIAL_PLACEHOLDER:
+            # A token configured here was refused (expired or revoked): an operations credential is broken.
+            results.append(("NG", name, f"the configured token was refused ({status or 'unreachable'}); renew it"))
+        else:
+            # Only the placeholder was sent: none is configured here, or a cloud network secret refused it.
+            results.append(("--", name, f"no accepted token (none set here, or the network secret was refused); "
+                            f"{optional}"))
+    pins = owner_tool_pins()
+    os.environ.setdefault("HF_HUB_DISABLE_UPDATE_CHECK", "1")  # no once-a-day hint in the version output (#226)
+    for tool, argv, expected in (("Vercel CLI", ("vercel", "--version"), pins["vercel"]),
+                                 # `--format quiet` prints the bare version in every context (#226): without an
+                                 # AI agent, `hf` defaults to human output.
+                                 ("Hugging Face CLI", ("hf", "version", "--format", "quiet"), pins["huggingface_hub"])):
+        lines = tool_version(argv).splitlines()
+        results.append(("ok" if expected in lines else "NG", tool, expected if expected in lines
+                        else (lines[0] if lines else "not installed (`bash .claude/owner-tools.sh`)")))
+    return results
 
 
 def serve_env(base: dict[str, str], data_dir: Path) -> dict[str, str]:
@@ -481,6 +600,8 @@ def main() -> None:
                    help="Also contact the configured cloud GPU and proposal service (no model call)")
     p.add_argument("--require-cloud", action="store_true",
                    help="Fail when the cloud GPU or proposals are not configured, misconfigured or unavailable")
+    p.add_argument("--owner", action="store_true",
+                   help="Also check the owner's GitHub, Cloudflare, Hugging Face, Vercel and CLIs (read-only calls)")
     p.set_defaults(func=doctor)
     p = sub.add_parser("serve", help="Run the API, worker and production web build like an installation")
     p.add_argument("--data-dir", type=Path, default=Path.home() / "cytellect-data", metavar="DIR",
