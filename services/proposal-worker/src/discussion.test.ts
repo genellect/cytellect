@@ -132,8 +132,9 @@ describe("result discussion route", () => {
     const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe("https://api.anthropic.com/v1/messages");
     const sent = JSON.parse(init.body as string);
-    expect(sent.system).toBe(DISCUSSION_SYSTEM_PROMPT);
+    expect(sent.system.startsWith(DISCUSSION_SYSTEM_PROMPT)).toBe(true);
+    expect(sent.system).toContain("Answer format: reply with exactly one JSON object");
     expect(JSON.parse(sent.messages[0].content[0].text)).toEqual({ context });
-    expect(sent.output_config.format.type).toBe("json_schema");
+    expect(sent.output_config).toEqual({ effort: "medium" });
   });
 });

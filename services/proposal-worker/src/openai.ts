@@ -2,7 +2,7 @@
  * routed to Claude, the Anthropic Messages API (anthropic.ts). Prompts are built once, in Responses form. */
 import contract from "./contract.json";
 import { boundedJson, matchesSchema } from "./schema";
-import { messagesText, normalizedUsage, postMessages, readMessages, type ResponsesPayload } from "./anthropic";
+import { answerJson, messagesText, normalizedUsage, postMessages, readMessages, type ResponsesPayload } from "./anthropic";
 
 export const PROMPT_VERSION = "2026-10-09.1";
 /** The redesigned assistant (docs/drafts/llm-assistant/plan.md): PROMPT_VERSION's rules and schema, plus the
@@ -409,6 +409,6 @@ async function anthropicReply(fetcher: typeof fetch, apiKey: string, payload: Re
   const status = body.stop_reason === "end_turn" ? "completed" : body.stop_reason === "max_tokens" ? "incomplete"
     : body.stop_reason === "refusal" ? "refused" : "other";
   return { status, usage: normalizedUsage(body.usage), text: () => {
-    try { return messagesText(body); } catch { throw new ModelError("model_output_invalid"); }
+    try { return answerJson(messagesText(body)); } catch { throw new ModelError("model_output_invalid"); }
   } };
 }

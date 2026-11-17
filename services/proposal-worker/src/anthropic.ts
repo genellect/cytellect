@@ -1,4 +1,9 @@
-/** Anthropic Messages API call with JSON-schema structured output (docs/drafts/llm-assistant/plan.md).
+/** Anthropic Messages API call (docs/drafts/llm-assistant/plan.md).
+ *
+ * The answer's format is described to Claude, not forced on it (2026-11-17, the owner's decision): the system prompt
+ * carries the JSON Schema, and the relay checks the answer against it and asks once for a correction, as for any
+ * answer. Grammar-constrained output is not used: it limits what the model may write, and the analysis proposal's
+ * schema (47 union-typed fields) exceeds its compilation limits (16).
  *
  * The prompts stay in one place: every route builds the Responses-API payload as before, and this module
  * converts it to a Messages request just before the call. Usage is normalized to the relay's ledger
@@ -23,10 +28,16 @@ export interface ResponsesPayload {
   text: { format: { schema: unknown } };
 }
 
-/** The same request as a Messages body: system prompt, one user turn, effort and the strict schema. */
+/** How the answer is described to Claude: one JSON object conforming to the request's schema. */
+export function answerFormat(schema: unknown): string {
+  return "Answer format: reply with exactly one JSON object and no other text. It must conform to this JSON Schema "
+    + "(every listed property present, no other properties):\n" + JSON.stringify(schema);
+}
+
+/** The same request as a Messages body: system prompt with the answer's format, one user turn and effort. */
 export function toMessages(payload: ResponsesPayload) {
-  const system = payload.input.filter((item) => item.role === "system")
-    .flatMap((item) => item.content.map((part) => part.text ?? "")).join("\n");
+  const system = [...payload.input.filter((item) => item.role === "system")
+    .flatMap((item) => item.content.map((part) => part.text ?? "")), answerFormat(payload.text.format.schema)].join("\n\n");
   const content = payload.input.filter((item) => item.role === "user").flatMap((item) => item.content.map((part) => {
     if (part.type === "input_image" && typeof part.image_url === "string") {
       const match = /^data:(image\/(?:png|jpeg));base64,(.+)$/.exec(part.image_url);
@@ -40,10 +51,7 @@ export function toMessages(payload: ResponsesPayload) {
     max_tokens: payload.max_output_tokens,
     system,
     messages: [{ role: "user", content }],
-    output_config: {
-      ...(payload.reasoning?.effort ? { effort: payload.reasoning.effort } : {}),
-      format: { type: "json_schema", schema: payload.text.format.schema },
-    },
+    ...(payload.reasoning?.effort ? { output_config: { effort: payload.reasoning.effort } } : {}),
   };
 }
 
@@ -75,12 +83,21 @@ export type MessagesBody = {
   usage?: MessagesUsage;
 };
 
-/** The final answer's text: thinking blocks are skipped; exactly one text answer is expected. */
+/** The final answer's text: thinking blocks are skipped and the text blocks joined. */
 export function messagesText(body: MessagesBody): string {
   const texts = (body.content ?? []).filter((block) => block.type === "text" && typeof block.text === "string")
     .map((block) => block.text as string);
-  if (texts.length !== 1) throw new Error("output_text_count");
-  return texts[0];
+  if (!texts.length) throw new Error("output_text_count");
+  return texts.join("");
+}
+
+/** The JSON object in an answer whose format was described, not forced: a Markdown fence or a sentence around the
+ * object is set aside; what remains is parsed and checked against the schema by the caller. */
+export function answerJson(text: string): string {
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(text);
+  const body = (fenced ? fenced[1] : text).trim();
+  const start = body.indexOf("{"), end = body.lastIndexOf("}");
+  return start >= 0 && end > start ? body.slice(start, end + 1) : body;
 }
 
 export async function postMessages(fetcher: typeof fetch, apiKey: string, payload: ResponsesPayload): Promise<Response> {
