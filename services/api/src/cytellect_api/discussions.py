@@ -1,11 +1,12 @@
-"""A model-drafted discussion of one saved comparison (requirements AC-01–AC-09).
+"""A model-written discussion of one saved comparison (requirements AC-01–AC-09).
 
 Off unless the proposal service is configured, like analysis proposals (L01–L06): the same service,
 credential, per-user and monthly limits, and failure codes. The researcher asks for it on one saved
-result; computing a result never calls the model (AC-02). Only the result's numbers and fixed
-identifiers and the researcher's own short description leave the PC (AC-03). The draft is checked
-against the result before it is stored or shown (AC-05), and stored with the result job, model and
-prompt version it came from (AC-06). A failure never changes or hides the computed result (AC-07).
+result; computing a result never calls the model (AC-02). What leaves the PC is the saved result as the
+workspace shows it, with the summary's heading and points, n with its breakdown, the recorded method,
+the researcher's names and description (AC-03). The draft is shown as written once it has the three
+headings (AC-05), and stored with the result job, model and prompt version it came from (AC-06). A
+failure never changes or hides the computed result (AC-07).
 """
 import hashlib
 import json
@@ -17,17 +18,26 @@ from cytellect_analysis.discussion_context import DiscussionUnsupported, discuss
 from cytellect_analysis.discussion_contracts import DISCUSSION_PROTOCOL, ExperimentNote, ValidatedDiscussion
 from cytellect_analysis.discussion_validation import DiscussionRejected, context_sha256, validate_discussion
 from fastapi import Depends, HTTPException
-from pydantic import BaseModel, ConfigDict, StrictBool, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, ValidationError
 from sqlalchemy import select, update
 
 from .db import result_discussions, workspaces
 from .proposals import ProposalServiceError, effective_settings, post_to_service, service_url
 
 
+class ShownSummary(BaseModel):
+    """The summary the workspace shows above this result (its heading and points, RS-02, RS-03)."""
+    model_config = ConfigDict(extra="forbid")
+    heading: Annotated[str, Field(min_length=1, max_length=500)]
+    points: list[Annotated[str, Field(min_length=1, max_length=500)]] = Field(default_factory=list, max_length=8)
+
+
 class DiscussionRequest(BaseModel):
-    """`transmission_confirmed` records that the researcher chose to send this result to the AI (L03)."""
+    """`transmission_confirmed` records that the researcher chose to send this result to the AI (L03).
+    `summary` is what the screen shows above the result, so that the discussion reads it the same way."""
     model_config = ConfigDict(extra="forbid")
     experiment: ExperimentNote = ExperimentNote()
+    summary: ShownSummary | None = None
     transmission_confirmed: StrictBool = False
     retry_failed: StrictBool = False
 
@@ -47,9 +57,10 @@ def _saved_result(store, job) -> dict:
     return json.loads(store.safe_path(job["result_dir"], "result.json").read_text(encoding="utf-8"))
 
 
-def _context(store, job, experiment: ExperimentNote):
+def _context(store, job, experiment: ExperimentNote, summary: ShownSummary | None = None):
     try:
-        return discussion_context(_saved_result(store, job), experiment)
+        return discussion_context(_saved_result(store, job), experiment,
+                                  heading=summary.heading if summary else None, points=summary.points if summary else None)
     except (DiscussionUnsupported, ValidationError, KeyError, TypeError):
         raise HTTPException(409, "discussion_result_unsupported") from None
 
@@ -83,7 +94,7 @@ def register_discussion_routes(api, store, settings, owner, job_record, credenti
         wid = job["workspace_id"]
         if body.transmission_confirmed is not True:
             raise HTTPException(428, "proposal_transmission_not_confirmed")
-        context = _context(store, job, body.experiment)
+        context = _context(store, job, body.experiment, body.summary)
         service = effective_settings(settings, credentials)
         try:
             if service_url(service) is None:
@@ -129,7 +140,7 @@ def register_discussion_routes(api, store, settings, owner, job_record, credenti
         except ProposalServiceError as error:
             raise HTTPException(error.status, error.code) from None
         except DiscussionRejected as error:
-            # Codes only: the draft text itself is never echoed into logs.
+            # Only an answer without the three headings; codes only, the text is never echoed into logs.
             raise HTTPException(502, {"code": "discussion_rejected", "reasons": error.codes}) from None
         except ValueError:
             raise HTTPException(503, "proposal_service_misconfigured") from None

@@ -59,7 +59,10 @@ describe("result discussion route", () => {
     const sent = JSON.parse((fetcher.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
     expect(sent.store).toBe(false);
     expect(sent.text.format).toMatchObject({ type: "json_schema", strict: true, name: "cytellect_result_discussion" });
-    expect(sent.input[0].content[0].text).toContain("Do not compute");
+    // The current prompt asks for a scientific discussion and lists no rules checked afterwards (plan §8).
+    expect(sent.input[0].content[0].text).toBe(DISCUSSION_SYSTEM_PROMPT);
+    expect(DISCUSSION_SYSTEM_PROMPT).toContain("heading and summary_points");
+    expect(DISCUSSION_SYSTEM_PROMPT).not.toMatch(/checked after|Do not write citations|never say/);
     expect(JSON.parse(sent.input[1].content[0].text)).toEqual({ context: CONTEXT });
   });
 

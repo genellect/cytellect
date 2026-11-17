@@ -2669,7 +2669,8 @@ export interface components {
         };
         /**
          * DiscussionDraft
-         * @description The three headings of the discussion (AC-04), one sentence per item.
+         * @description The three headings of the discussion (AC-04). How many points and how long is the model's choice; a draft
+         *     with no interpretation at all is not a discussion.
          */
         DiscussionDraft: {
             /**
@@ -2688,6 +2689,7 @@ export interface components {
         /**
          * DiscussionRequest
          * @description `transmission_confirmed` records that the researcher chose to send this result to the AI (L03).
+         *     `summary` is what the screen shows above the result, so that the discussion reads it the same way.
          */
         DiscussionRequest: {
             /**
@@ -2696,6 +2698,7 @@ export interface components {
              *     }
              */
             experiment: components["schemas"]["ExperimentNote"];
+            summary?: components["schemas"]["ShownSummary"] | null;
             /**
              * Transmission Confirmed
              * @default false
@@ -2937,7 +2940,7 @@ export interface components {
         };
         /**
          * ExperimentNote
-         * @description What the researcher wrote about the experiment; optional, short, and never a file or path.
+         * @description What the researcher wrote about the experiment (by default, the goal of the analysis proposal).
          */
         ExperimentNote: {
             /** Purpose */
@@ -6302,6 +6305,16 @@ export interface components {
             demo: boolean;
             /** Mode */
             mode?: "local" | null;
+        };
+        /**
+         * ShownSummary
+         * @description The summary the workspace shows above this result (its heading and points, RS-02, RS-03).
+         */
+        ShownSummary: {
+            /** Heading */
+            heading: string;
+            /** Points */
+            points?: string[];
         };
         /** SignalDetectorSpec */
         SignalDetectorSpec: {

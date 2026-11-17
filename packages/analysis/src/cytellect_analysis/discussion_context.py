@@ -1,9 +1,10 @@
 """What a result discussion sends, derived from one saved two-group comparison (requirements AC-03,
 docs/drafts/llm-assistant/plan.md).
 
-The model reads the result as the researcher sees it: the metric with its name and recorded definition,
-the region set, the recorded stain and the channel's label, the researcher's group and run names, the
-values, intervals, n and the test. Numbers come only from the saved result.
+The model reads the result as the researcher sees it: the summary's heading and points as the workspace
+shows them, the metric with its name and recorded definition, the region set and its name, the recorded
+stain and the channel's label, the researcher's group and run names, the values, intervals, n with its
+breakdown, and the recorded method. Numbers come only from the saved result and its summary.
 """
 from __future__ import annotations
 
@@ -12,7 +13,10 @@ from typing import Any
 
 from .discussion_contracts import DiscussionContext, ExperimentNote
 
-# Region sets the analysis itself defines; any other name may be the researcher's own and stays local.
+_COUNT_KEYS = ("observations", "input_fields", "selected_fields", "samples", "experimental_units",
+               "explicitly_excluded_units", "complete_pairs")
+
+# Region sets the analysis itself defines; the researcher's name for any region set is sent as `region_label`.
 _REGIONS = frozenset({"nucleus", "nuclei", "nucleoli", "nucleoplasm", "cell", "cytoplasm"})
 _WARNING = r"^[a-z0-9_]{1,120}$"
 # A positivity threshold set without a negative control (the summary's "探索的なしきい値").
@@ -44,14 +48,55 @@ class DiscussionUnsupported(ValueError):
     """The saved result is not one comparison of two groups with saved estimates."""
 
 
+def _setting(value: Any) -> str | None:
+    return value.strip()[:300] if isinstance(value, str) and value.strip() else None
+
+
+def _counts(result: dict[str, Any], groups: set[str]) -> list[dict[str, Any]]:
+    """The n breakdown of the two compared groups (observations, fields, samples, units, pairs)."""
+    counts = result.get("counts")
+    rows: list[Any] = counts if isinstance(counts, list) else []
+    return [{"condition": row["condition"], **{key: row[key] for key in _COUNT_KEYS
+                                                if type(row.get(key)) is int and row[key] >= 0}}
+            for row in rows if isinstance(row, dict) and row.get("condition") in groups][:2]
+
+
+def _method(result: dict[str, Any], comparison: dict[str, Any]) -> dict[str, Any]:
+    """The recorded aggregation and test settings, and the design the researcher declared."""
+    spec = result.get("spec") or {}
+    design = spec.get("design") or {}
+    settings = {**(result.get("method_settings") or {}), **(comparison.get("method_settings") or {})}
+    review = (result.get("acquisition") or {}).get("review") or spec.get("acquisition_review") or {}
+    level = comparison.get("confidence_level")
+    method = {
+        "comparison": _setting(comparison.get("method")),
+        "aggregation": _setting(settings.get("aggregation") or spec.get("aggregation")),
+        "correction": _setting(settings.get("correction")),
+        "alternative": _setting(settings.get("alternative") or comparison.get("alternative")),
+        "confidence_level": level if isinstance(level, (int, float)) and 0 < level < 1 else None,
+        "inferential_unit": _setting(settings.get("inferential_unit")),
+        "p_value_method": _setting(settings.get("p_value_method")),
+        "test_selection": _setting(settings.get("selection")),
+        "unit_definition": _setting(design.get("unit_definition")),
+        "pairing_basis": _setting(design.get("pairing_basis")),
+        "acquisition_basis": _setting(review.get("basis")),
+    }
+    return {key: value for key, value in method.items() if value is not None}
+
+
 def _interval(value: dict[str, Any] | None) -> dict[str, float] | None:
     if not value or value.get("estimate") is None:
         return None
     return {"estimate": value["estimate"], "ci_low": value["ci_low"], "ci_high": value["ci_high"]}
 
 
-def discussion_context(result: dict[str, Any], experiment: ExperimentNote | None = None) -> DiscussionContext:
-    """Build the context from a saved `region-comparison` 2.0.0 result (`result.json` as stored)."""
+def discussion_context(result: dict[str, Any], experiment: ExperimentNote | None = None, *,
+                       heading: str | None = None, points: list[str] | None = None) -> DiscussionContext:
+    """Build the context from a saved `region-comparison` 2.0.0 result (`result.json` as stored).
+
+    `heading` and `points`: the summary the workspace shows above this result (its conclusion in one line and
+    the lines of values), so that the discussion starts from the same reading as the researcher.
+    """
     estimates = result.get("estimates")
     if result.get("analysis_kind") != "region-comparison" or not estimates:
         raise DiscussionUnsupported("discussion_requires_saved_estimates")
@@ -72,6 +117,9 @@ def discussion_context(result: dict[str, Any], experiment: ExperimentNote | None
     p_value = comparison.get("p_value")
     effect = comparison.get("effect")
     metric_label, metric_definition = _metric_text(estimates["metric"])
+    recorded_region = result.get("region")
+    region_record: dict[str, Any] = recorded_region if isinstance(recorded_region, dict) else {}
+    method = _method(result, comparison)
     return DiscussionContext.model_validate({
         "experiment": (experiment or ExperimentNote()).model_dump(),
         "result": {
@@ -80,6 +128,7 @@ def discussion_context(result: dict[str, Any], experiment: ExperimentNote | None
             "metric_definition": metric_definition,
             "channel_label": _short(channel.get("label")),
             "region": region if region in _REGIONS else None,
+            "region_label": _short(region_record.get("label")),
             "stain": stain,
             "unit": result.get("unit") or "",
             "scale": estimates["scale"],
@@ -99,5 +148,9 @@ def discussion_context(result: dict[str, Any], experiment: ExperimentNote | None
             "ratio": _interval(estimates.get("ratio")),
             "runs": runs,
             "warnings": warnings,
+            "heading": heading.strip()[:500] if heading and heading.strip() else None,
+            "summary_points": [point.strip()[:500] for point in points or [] if point.strip()][:8],
+            "counts": _counts(result, {estimates["control"], estimates["treatment"]}),
+            "method": method or None,
         },
     })

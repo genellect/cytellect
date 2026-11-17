@@ -31,7 +31,8 @@ PROPOSAL_MODELS = ("gpt-6.1-sol", "claude-opus-5-5", "claude-sonnet-5-5")
 
 Token = Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9_.-]{0,31}$")]
 Stain = Annotated[str, Field(min_length=1, max_length=40)]
-ShortText = Annotated[str, Field(min_length=1, max_length=200)]
+# The model's explanation to the researcher; its length is the model's choice (docs/drafts/llm-assistant/plan.md §8).
+Prose = Annotated[str, Field(min_length=1)]
 
 RecipeId = Literal["nuclear-intensity", "nuclear-ncl", "supplied-regions", "measured-table", "none"]
 Role = Literal["nuclear", "measure", "unused"]
@@ -149,7 +150,7 @@ class DraftChannel(ProposalModel):
     token: Token
     stain: Stain | None
     role: Role
-    reason: ShortText
+    reason: Prose
 
 
 class DraftMetric(ProposalModel):
@@ -212,9 +213,9 @@ class ProposalDraft(ProposalModel):
     statistics: DraftStatistics
     additional_analyses: Annotated[list[DraftStatistics], Field(max_length=3)] = Field(default_factory=list)
     figures: Annotated[list[DraftFigure], Field(max_length=6)]
-    missing_information: Annotated[list[ShortText], Field(max_length=6)]
+    missing_information: list[Prose]
     reference_ids: Annotated[list[ReferenceId], Field(max_length=6)]
-    rationale: Annotated[str, Field(max_length=600)]
+    rationale: str
     # Old saved drafts and old clients retain their historical meaning.
     processing: DraftProcessing | None = None
     background: DraftBackground | None = None

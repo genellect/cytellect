@@ -52,6 +52,17 @@ def test_valid_draft_requires_adoption_and_flags_unestablished_stains():
     assert len(result.context_sha256) == 64
 
 
+def test_a_long_explanation_is_kept_as_written():
+    """The explanation's length is the model's choice (plan §8): long reasons and many open questions are kept."""
+    rationale = "代表視野では NCL が核小体に集まり、DAPI の核は互いに接していない。" * 40
+    channels = [{**channel, "reason": channel["reason"] * 60} for channel in draft()["channels"]]
+    missing = [f"確認事項 {index}：独立実験の数と撮影条件" for index in range(12)]
+    result = validate_draft(CONTEXT, draft(rationale=rationale, channels=channels, missing_information=missing),
+                            model="m", prompt_version="p")
+    assert result.draft.rationale == rationale and len(result.draft.missing_information) == 12
+    assert result.draft.channels[0].reason == channels[0]["reason"]
+
+
 @pytest.mark.parametrize(("change", "code"), [
     ({"channels": [*draft()["channels"][:2], {"token": "c3", "stain": "GFP", "role": "measure", "reason": "緑"}]},
      "proposal_stain_not_established"),

@@ -388,9 +388,10 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
     async discussion(job: string): Promise<DiscussionView | null> {
       return client.request<DiscussionView | null>(`/v1/jobs/${job}/discussion`);
     },
-    /** Sends the saved result (never images, file names or paths) after the researcher confirmed it (AC-02, AC-03). */
-    async draftDiscussion(job: string, experiment: ExperimentNote, retryFailed = false): Promise<DiscussionView> {
-      return client.post<DiscussionView>(`/v1/jobs/${job}/discussion`, {transmission_confirmed: true, experiment, ...(retryFailed ? {retry_failed: true} : {})});
+    /** Sends the saved result with the summary the screen shows above it (never images, file names or paths), after
+     * the researcher confirmed it (AC-02, AC-03). */
+    async draftDiscussion(job: string, experiment: ExperimentNote, retryFailed = false, summary?: ShownSummary): Promise<DiscussionView> {
+      return client.post<DiscussionView>(`/v1/jobs/${job}/discussion`, {transmission_confirmed: true, experiment, ...(summary ? {summary} : {}), ...(retryFailed ? {retry_failed: true} : {})});
     },
     async draft(workspace: string, goal: string, retryFailed = false, continuation?: {current_processing: ProposalProcessing | null; previous_goal: string; previous_proposal: ProposalDraft | null;field_id?:string}) {
       // Called only after the one-time scope notice has been accepted in this workspace. Previews are on by
@@ -403,3 +404,4 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
 export type ApiAdapter = ReturnType<typeof createApiAdapter>;
 export type DiscussionView = components["schemas"]["DiscussionView"];
 export type ExperimentNote = components["schemas"]["ExperimentNote"];
+export type ShownSummary = components["schemas"]["ShownSummary"];
