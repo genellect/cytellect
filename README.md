@@ -165,7 +165,7 @@ Cytellect は、未発表の研究データという秘匿性の高い情報を�
 | 環境 | 特徴 | セットアップ |
 |---|---|---|
 | [クラウド開発](CONTRIBUTING.md#クラウド開発) | 固定版の開発ツールと Fiji を備えたクラウド環境。手元への導入は不要 | Claude Code は `bash cytellect/.claude/cloud-setup.sh`、Codex は `bash .codex/setup.sh` |
-| [ローカル開発](CONTRIBUTING.md#ローカル開発) | 手元の PC とブラウザで操作。開発サーバーで Web の変更を即時に反映 | `python3 scripts/dev.py setup --fiji ~/cytellect-fiji` |
+| [ローカル開発](CONTRIBUTING.md#ローカル開発) | 手元の PC とブラウザで操作。開発サーバーで Web の変更を即時に反映 | Linux（WSL を含む）は `bash scripts/linux_setup.sh`、ほかは `python3 scripts/dev.py setup --fiji ~/cytellect-fiji` |
 
 どちらの環境も `python3 scripts/dev.py serve` で起動し、PR の前に `python3 scripts/dev.py check` で、CI の Python と Web の検査（型・API 契約、数値計算）を手元で行う。CI はこれに加えて、実 Fiji とブラウザの連携、コンテナでの実行、Windows 版の導入、依存パッケージの監査を検証する。統計の実装は、閉形式解と全列挙による独立実装で検証している。
 
