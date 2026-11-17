@@ -296,3 +296,25 @@ budget, then confirm that settled plus outstanding costs still permit admission.
 References: [local Wrangler installation](https://developers.cloudflare.com/workers/wrangler/install-and-update/),
 [Worker commands](https://developers.cloudflare.com/workers/wrangler/commands/workers/),
 [D1 commands and migrations](https://developers.cloudflare.com/d1/wrangler-commands/).
+
+## Production deployment record
+
+Record each production deployment here: the date, source commit, version ID,
+applied migrations and sanitized probe results. Never record tokens, e-mail
+addresses, research content or individual usage rows.
+
+The production operator configuration is the git-ignored `wrangler.enabled.json`.
+Generate it from the live Worker settings instead of editing an old copy: plain-text
+variables, the D1 binding, compatibility date and flags, the `api.cytellect.app`
+custom domain, workers.dev and preview URLs, and disabled observability. A deploy
+then changes only the code. Secrets are not in the file and stay on the Worker.
+After deploying, compare the live variables with the file.
+
+Probe with `curl` or the application's user agent (`Cytellect/0.1`). Cloudflare
+answers HTTP 403 to Python's default `Python-urllib` user agent before the request
+reaches the Worker, so such a probe proves nothing and creates no usage. A probe
+in the first seconds after a deploy can still reach the previous version.
+
+| Date (UTC) | Source | Version | Change and checks |
+|---|---|---|---|
+| 2026-11-16 | `main` 735d088a | `45412097-7078-4dfc-a4bc-4fe3b8a12036`; previous `86df4702-45ab-4afe-bdfa-d94681e75fa2` (2026-11-01) | Adds the result discussion route `/v1/discussions` (#199, requirement AC-09) with the owner's permission. No new migration (`0001`–`0004` applied). Variables and secrets unchanged: `gpt-6.1-sol`, effort `medium`, USD 5 per month. Before: `pnpm check`, `pnpm test` (136 passed, 1 skipped), `node --test scripts/deployment.test.mjs` (4 passed). After: unauthenticated POST to both routes returns 401 with `no-store` on `api.cytellect.app` and workers.dev; an authenticated `{}` to `/v1/discussions` returns 400 `request_invalid` before admission. One paid call, permitted by the owner, on the public demo's nuclear-area comparison (Untreated vs Oxaliplatin 10 µM): HTTP 200 in 15.5 s, 851 input and 682 output tokens, USD 0.00895 settled; the draft passed `validate_discussion`; no outstanding reservation or budget incident afterwards. |
