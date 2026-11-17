@@ -13,7 +13,7 @@
 | Fiji | `dev.py setup` が OS ごとの固定版を導入する |
 | 日本語フォント（Linux） | `fonts-noto-cjk` |
 
-`python3 scripts/dev.py doctor` がこれらを照合する。クラウド開発では、セットアップスクリプトがすべて導入する。
+`python3 scripts/dev.py doctor` がこれらを照合する。Linux（クラウド開発と WSL Ubuntu）では、段階的に入れる。[scripts/linux_setup.sh](scripts/linux_setup.sh) が固定版のツールと依存パッケージを入れ、Fiji と日本語フォントは、`dev.py` の `serve`・`check`・`e2e` が初めて必要になったときに入れる。
 
 ## クラウド開発
 
@@ -23,7 +23,7 @@ Claude Code・Codex のクラウド環境で、手元への導入なしに開発
 
    | ツール | セットアップスクリプト | 内容 |
    |---|---|---|
-   | Claude Code | `bash cytellect/.claude/cloud-setup.sh` | Node.js、pnpm、uv、日本語フォント、依存パッケージ、Fiji を導入し、Fiji の試験まで行う。初回は約 9 分。セットアップスクリプトは checkout の親ディレクトリで始まるため、checkout のディレクトリ名（通常はリポジトリ名）から指定する |
+   | Claude Code | `bash cytellect/.claude/cloud-setup.sh` | `scripts/linux_setup.sh` で Node.js、pnpm、uv、依存パッケージを導入する。Fiji と日本語フォントは初めて使うときに入り、試験は PR の CI と `dev.py check` が担う。セットアップスクリプトは checkout の親ディレクトリで始まるため、checkout のディレクトリ名（通常はリポジトリ名）から指定する |
    | Codex | `bash .codex/setup.sh` | Fiji も使う場合は、`CYTELLECT_SETUP_FIJI=1` と checkout の外を指す `CYTELLECT_FIJI_EXECUTABLE` を設定しておく |
 
 2. ネットワークは制限なし（すべてのホストに届く設定）にする。オーナーの環境はこの設定で動いている。制限付きのネットワークで使う場合は、パッケージマネージャーの既定の許可に加えて、次の接続先を許可する。
@@ -40,7 +40,7 @@ Claude Code・Codex のクラウド環境で、手元への導入なしに開発
 
 3. [外部サービス](#外部サービス)を使う場合は、その環境変数を環境の設定に登録する。Claude Code では、セッションのタイトルバーのクラウド環境のメニュー → Edit から設定する。環境変数は新しいセッションから読み込まれ、セットアップスクリプトからは参照できない。
 
-4. セッションで起動する。`env.sh` は、固定版のツール、Fiji、試験用の Chromium の場所と、クラウド GPU の接続キーを設定する。Claude Code では、セッションの開始時にフック（[.claude/hooks/session-start.sh](.claude/hooks/session-start.sh)）が `env.sh` を読み込む設定をするため、各コマンドで固定版のツールが先に見つかる。ほかのシェルでは `source "$HOME/.local/share/cytellect-cloud/env.sh"` を実行する。
+4. セッションで起動する。`env.sh` は、固定版のツール、Fiji、試験用の Chromium の場所と、クラウド GPU の接続キーを設定する。Claude Code では、セッションの開始時にフック（[.claude/hooks/session-start.sh](.claude/hooks/session-start.sh)）が `env.sh` を読み込む設定をするため、各コマンドで固定版のツールが先に見つかる。ほかのシェルでは `source "$HOME/.local/share/cytellect-dev/env.sh"` を実行する。2026-11 より前のセットアップが使った `~/.local/share/cytellect-cloud` は、次のセットアップで `cytellect-dev` に移り、古い名前はリンクとして残る。
 
    ```bash
    python3 scripts/dev.py doctor   # ツール、フォント、Fiji、外部サービスの準備を確認
@@ -49,12 +49,16 @@ Claude Code・Codex のクラウド環境で、手元への導入なしに開発
 
 ## ローカル開発
 
+Linux（WSL Ubuntu を含む）では、クラウドと同じスクリプトで、固定版のツール、依存パッケージ、試験用のブラウザ（Ubuntu の依存ライブラリを含む）を入れる。Fiji（約 1 分）と図のフォントは、`serve`・`check`・`e2e` を初めて使うときに入る。何度実行しても結果は変わらない。
+
 ```bash
-python3 scripts/dev.py setup --fiji ~/cytellect-fiji
-export CYTELLECT_FIJI_EXECUTABLE=~/cytellect-fiji
+bash scripts/linux_setup.sh
+source ~/.local/share/cytellect-dev/env.sh   # 以後の端末では ~/.bashrc から読み込むとよい
 python3 scripts/dev.py doctor   # ツール、フォント、Fiji、外部サービスの準備を確認
 python3 scripts/dev.py serve    # Web をビルドして API・計算ワーカーと起動し、招待コードを表示
 ```
+
+Linux 以外では、ツールを `必要環境` の版で入れてから、`python3 scripts/dev.py setup --fiji ~/cytellect-fiji` を実行し、`CYTELLECT_FIJI_EXECUTABLE=~/cytellect-fiji` を設定する。
 
 `http://localhost:3000/workspace` を開き、招待コードを入力する。
 
@@ -87,7 +91,7 @@ pnpm dev                             # 端末 3：Web
 
 ### 外部サービス
 
-GPU 推論（Cellpose-SAM）と解析提案（LLM）は、次の環境変数を設定すると使える。クラウド開発では環境の設定に登録し、ローカル開発では API と計算ワーカーを起動するシェルに設定する。
+GPU 推論（Cellpose-SAM）と解析提案（LLM）は、次の環境変数を設定すると使える。クラウド開発では環境の設定に登録する。ローカル開発では、`~/.config/cytellect/dev.env` に `名前=値` の行で書き、`chmod 600` で自分だけが読めるようにする。`env.sh` がこのファイルを読み込み、`doctor` は権限を確かめる。
 
 | 変数 | 用途 | 入手先 |
 |---|---|---|
@@ -101,7 +105,7 @@ GPU 推論（Cellpose-SAM）と解析提案（LLM）は、次の環境変数を�
 - 運用の認証情報は、[オーナーの環境](#オーナーの環境)に置く。
 - 不要になった開発環境はオーナーに伝え、サービス側で失効してもらう。環境変数を消すだけでは失効しない。
 
-`doctor` は、外部サービスが未設定なら `[--]`、不調なら `[!!]` を示し、どちらの場合も Fiji と画面の開発は続けられる。
+`doctor` は、外部サービスが未設定なら `[--]`、不調なら `[!!]` を示し、どちらの場合も Fiji と画面の開発は続けられる。まだ入っていない Fiji と図のフォントも、初めて使うときに入るため `[--]` と示す。
 
 | オプション | 動作 |
 |---|---|
