@@ -1,4 +1,4 @@
-/** The researcher's AI settings on this PC (docs/drafts/llm-assistant/plan.md, 4.5 and §8): whether proposals
+/** The researcher's AI settings on this PC (docs/drafts/llm-assistant/plan.md, 4.5 and 8): whether proposals
  * also send display-scaled previews, whether the discussion's transmission scope has been acknowledged once,
  * and the goal last written to the AI per workspace, which a discussion starts from as its purpose.
  * Stored per browser profile; a blocked storage falls back to the defaults (previews on, scope not yet seen,
