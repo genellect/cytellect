@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import platform
 import re
 import shlex
 import shutil
@@ -347,6 +348,10 @@ def doctor(args: argparse.Namespace) -> None:
         else:
             report("ok" if path.exists() else "--", "Fiji (StarDist)", "outside the checkout" if path.exists()
                    else "installed on first use by `serve`, `check --fiji` and `e2e`")
+    if is_wsl():
+        data = Path(os.environ.get("CYTELLECT_DATA_DIR") or Path.home() / "cytellect-data")
+        for state, name, detail in wsl_checks(fiji, data):
+            report(state, name, detail)
 
     env = cloud_env(dict(os.environ))
     url, key = env.get("CYTELLECT_CELLPOSE_REMOTE_URL", "").strip(), env.get("CYTELLECT_CELLPOSE_REMOTE_TOKEN", "")
@@ -383,6 +388,38 @@ def doctor(args: argparse.Namespace) -> None:
         sys.exit("Some required parts are not ready (see CONTRIBUTING.md).")
     print("Ready. Cloud GPU and proposal items marked [!!] or [--] do not block development; "
           "pass --require-cloud to require them.")
+
+
+def is_wsl(release: Path = Path("/proc/sys/kernel/osrelease")) -> bool:
+    """Windows Subsystem for Linux: its kernel names Microsoft."""
+    try:
+        return "microsoft" in release.read_text().lower()
+    except OSError:
+        return False
+
+
+def wsl_checks(fiji: str, data: Path, meminfo: Path = Path("/proc/meminfo"),
+               machine: str = "") -> list[tuple[str, str, str]]:
+    """WSL pitfalls: work on the Windows disk, too little memory or disk, and an ARM CPU without a pinned Fiji."""
+    results: list[tuple[str, str, str]] = []
+    places = [("Checkout", ROOT), ("Data directory", data)] + ([("Fiji", Path(fiji))] if fiji else [])
+    windows_disk = [f"{name} {path}" for name, path in places if str(path.expanduser().resolve()).startswith("/mnt/")]
+    results.append(("NG" if windows_disk else "ok", "WSL: Linux disk",
+                    "on the Windows disk, slow and with Windows permissions: move into WSL (~/): " + "; ".join(windows_disk)
+                    if windows_disk else "checkout, data and Fiji are inside WSL"))
+    try:
+        total = int(next(line.split()[1] for line in meminfo.read_text().splitlines() if line.startswith("MemTotal:")))
+        memory = total / 1024 / 1024
+    except (OSError, StopIteration, ValueError, IndexError):
+        memory = 0.0
+    free = shutil.disk_usage(Path.home()).free / 1e9
+    low = 0 < memory < 8 or free < 20
+    results.append(("!!" if low else "ok", "WSL: memory and disk", f"{memory:.0f} GiB memory, {free:.0f} GB free"
+                    + ("; raise `memory` in %UserProfile%\\.wslconfig or free disk (CONTRIBUTING.md, WSL Ubuntu)" if low else "")))
+    arm = (machine or platform.machine()) in {"aarch64", "arm64"}
+    results.append(("NG" if arm else "ok", "WSL: CPU", "ARM64: the pinned Fiji is x64 only, so nuclei detection cannot run"
+                    if arm else "x64"))
+    return results
 
 
 def github_api(path: str) -> object:
@@ -535,6 +572,34 @@ def stop(processes: list[subprocess.Popen], grace: float = 20) -> None:
         process.wait()
 
 
+# A development environment's own cloud services; `e2e` runs without them, like CI (tests/conftest.py too).
+CLOUD_SERVICES = re.compile(
+    r"CYTELLECT_(CELLPOSE_REMOTE_\w+|MODAL_PROXY_\w+|PROPOSAL_URL|PROPOSAL_TOKEN|PROPOSAL_TOKEN_FILE|CLOUD_ACCOUNT_FILE)")
+
+
+def without_cloud_services(env: dict[str, str]) -> dict[str, str]:
+    return {name: value for name, value in env.items() if not CLOUD_SERVICES.fullmatch(name)}
+
+
+def start_stack(env: dict[str, str], processes: list[subprocess.Popen]) -> Path:
+    """Start the API, worker and production web on loopback and wait for them; returns the log directory."""
+    uv = shutil.which("uv") or sys.exit("uv is not installed; see CONTRIBUTING.md")
+    pnpm = shutil.which("pnpm") or sys.exit("pnpm is not installed; see CONTRIBUTING.md")
+    logs = Path(tempfile.mkdtemp(prefix="cytellect-serve-logs-"))
+    commands = {"api": [uv, "run", "cytellect", "serve"], "worker": [uv, "run", "cytellect-worker"],
+                "web": [pnpm, "--filter", "@cytellect/web", "start"]}
+    for name, argv in commands.items():
+        log = (logs / f"{name}.log").open("wb")
+        processes.append(subprocess.Popen(argv, cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT,
+                                          start_new_session=os.name != "nt"))
+    deadline = time.monotonic() + 120
+    while not (responding(API_ORIGIN + "/v1/health") and responding(APP_ORIGIN)):
+        if time.monotonic() > deadline or any(process.poll() is not None for process in processes):
+            sys.exit(f"Startup failed; see the logs in {logs}")
+        time.sleep(1)
+    return logs
+
+
 def serve(args: argparse.Namespace) -> None:
     fiji = ensure_fiji()
     ensure_figure_font()
@@ -547,33 +612,55 @@ def serve(args: argparse.Namespace) -> None:
     if not args.skip_build:
         run(("pnpm", "build"), env)  # NEXT_PUBLIC_API_ORIGIN is fixed at build time
     uv = shutil.which("uv") or sys.exit("uv is not installed; see CONTRIBUTING.md")
-    pnpm = shutil.which("pnpm") or sys.exit("pnpm is not installed; see CONTRIBUTING.md")
-    logs = Path(tempfile.mkdtemp(prefix="cytellect-serve-logs-"))
-    commands = {"api": [uv, "run", "cytellect", "serve"], "worker": [uv, "run", "cytellect-worker"],
-                "web": [pnpm, "--filter", "@cytellect/web", "start"]}
     processes: list[subprocess.Popen] = []
     try:
-        for name, argv in commands.items():
-            log = (logs / f"{name}.log").open("wb")
-            processes.append(subprocess.Popen(argv, cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT,
-                                              start_new_session=os.name != "nt"))
-        deadline = time.monotonic() + 120
-        while not (responding(API_ORIGIN + "/v1/health") and responding(APP_ORIGIN)):
-            if time.monotonic() > deadline or any(process.poll() is not None for process in processes):
-                sys.exit(f"Startup failed; see the logs in {logs}")
-            time.sleep(1)
+        logs = start_stack(env, processes)
         invitation = subprocess.run([uv, "run", "cytellect", "invite", "--hours", "24"], cwd=ROOT, env=env,
                                     capture_output=True, text=True, check=True).stdout.strip()
         gpu = "on" if env.get("CYTELLECT_CELLPOSE_REMOTE_URL") else "off"
         proposals = "on" if os.environ.get("CYTELLECT_PROPOSAL_URL") else "off"
         print(f"\nOpen {APP_ORIGIN}/workspace and enter the invitation code: {invitation}")
         print(f"Fiji on, cloud GPU (Cellpose) {gpu}, analysis proposals {proposals}. Logs: {logs}")
+        if is_wsl():
+            print("WSL: open the same address in Windows (Edge); if it does not load, see CONTRIBUTING.md (WSL Ubuntu).")
         print("Use registered public images only. Press Ctrl-C to stop.", flush=True)
         while all(process.poll() is None for process in processes):
             time.sleep(1)
         sys.exit(f"A server stopped; see the logs in {logs}")
     except KeyboardInterrupt:
         print("\nStopping.")
+    finally:
+        stop(processes)
+
+
+def e2e(args: argparse.Namespace) -> None:
+    """CI's browser-e2e job on this machine: its own servers without cloud services, public inputs, fresh data."""
+    for url in (API_ORIGIN + "/v1/health", APP_ORIGIN):
+        if responding(url):
+            sys.exit(f"{url} is in use: stop `serve` first (e2e starts its own servers, without cloud services)")
+    fiji = ensure_fiji()
+    ensure_figure_font()
+    work = outside_checkout(args.work_dir, "Browser test directory")
+    inputs, raw, data = work / "inputs", work / "bbbc007", work / "data"
+    if not inputs.is_dir() or not any(inputs.iterdir()):
+        run(("uv", "run", "python", "scripts/public_bbbc007.py", "--data-dir", str(raw), "--download"))
+        run(("uv", "run", "python", "scripts/prepare_workspace_bbbc007.py", "--data-dir", str(raw), "--output", str(inputs)))
+    run(("uv", "run", "python", "scripts/check_public_uploads.py", str(inputs)))
+    shutil.rmtree(data, ignore_errors=True)
+    data.mkdir(parents=True, mode=0o700)
+    env = without_cloud_services(serve_env({**os.environ, "CYTELLECT_FIJI_EXECUTABLE": fiji}, data))
+    if not args.skip_build:
+        run(("pnpm", "build"), env)
+    python = subprocess.run(["uv", "run", "python", "-c", "import sys; print(sys.executable)"], cwd=ROOT,
+                            capture_output=True, text=True, check=True).stdout.strip()
+    tests = {**env, "CYTELLECT_WEB_URL": APP_ORIGIN, "CYTELLECT_TEST_API_ORIGIN": API_ORIGIN,
+             "CYTELLECT_REAL_INPUTS": str(inputs), "CYTELLECT_REAL_OUTPUT": str(work / "evidence"),
+             "CYTELLECT_REQUIRE_REAL_FIJI": "1", "CYTELLECT_TEST_DATA_DIR": str(data), "CYTELLECT_TEST_PYTHON": python}
+    processes: list[subprocess.Popen] = []
+    try:
+        logs = start_stack(env, processes)
+        print(f"Servers up without cloud services. Logs: {logs}", flush=True)
+        run(("pnpm", "test:e2e", *[arg for arg in args.playwright if arg != "--"]), tests)
     finally:
         stop(processes)
 
@@ -603,6 +690,12 @@ def main() -> None:
     p.add_argument("--owner", action="store_true",
                    help="Also check the owner's GitHub, Cloudflare, Hugging Face, Vercel and CLIs (read-only calls)")
     p.set_defaults(func=doctor)
+    p = sub.add_parser("e2e", help="Run CI's browser tests here: own servers without cloud services, public inputs")
+    p.add_argument("--work-dir", type=Path, default=Path.home() / "cytellect-e2e", metavar="DIR",
+                   help="Public inputs, fresh data and evidence, outside the checkout (default: ~/cytellect-e2e)")
+    p.add_argument("--skip-build", action="store_true", help="Reuse the last web build")
+    p.add_argument("playwright", nargs=argparse.REMAINDER, help="Arguments for Playwright, after `--`")
+    p.set_defaults(func=e2e)
     p = sub.add_parser("serve", help="Run the API, worker and production web build like an installation")
     p.add_argument("--data-dir", type=Path, default=Path.home() / "cytellect-data", metavar="DIR",
                    help="Private runtime directory outside the checkout (default: ~/cytellect-data)")

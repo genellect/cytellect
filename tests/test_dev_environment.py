@@ -296,6 +296,48 @@ def test_doctor_rejects_a_key_file_other_users_can_read(monkeypatch, capsys, tmp
         assert "CYTELLECT_PROPOSAL_TOKEN=x" not in output
 
 
+def test_wsl_checks_name_the_windows_disk_low_memory_and_an_arm_cpu(tmp_path):
+    import dev
+    import pytest
+
+    if not sys.platform.startswith("linux"):
+        pytest.skip("WSL checks run on Linux only (doctor calls them only inside WSL)")
+
+    release = tmp_path / "osrelease"
+    release.write_text("6.6.87.2-microsoft-standard-WSL2\n")
+    assert dev.is_wsl(release) and not dev.is_wsl(tmp_path / "missing")
+    meminfo = tmp_path / "meminfo"
+    meminfo.write_text("MemTotal:        4000000 kB\nMemFree:          100 kB\n")
+    states = {name: (state, detail) for state, name, detail in
+              dev.wsl_checks("/mnt/c/fiji", Path("/mnt/c/Users/me/data"), meminfo=meminfo, machine="aarch64")}
+    assert states["WSL: Linux disk"][0] == "NG" and "/mnt/c/fiji" in states["WSL: Linux disk"][1]
+    assert states["WSL: memory and disk"][0] == "!!" and ".wslconfig" in states["WSL: memory and disk"][1]
+    assert states["WSL: CPU"][0] == "NG"
+    meminfo.write_text("MemTotal:       16000000 kB\n")
+    inside = dev.wsl_checks(str(tmp_path / "fiji"), tmp_path / "data", meminfo=meminfo, machine="x86_64")
+    assert {name: state for state, name, _ in inside}["WSL: Linux disk"] == "ok"
+    assert {name: state for state, name, _ in inside}["WSL: CPU"] == "ok"
+
+
+def test_e2e_runs_without_cloud_services_and_not_beside_serve(monkeypatch, tmp_path):
+    """Like CI: no paid GPU or model call can start from the browser tests, and a running serve is left alone."""
+    import argparse
+
+    import dev
+    import pytest
+
+    env = {"CYTELLECT_CELLPOSE_REMOTE_URL": "https://gpu", "CYTELLECT_CELLPOSE_REMOTE_TOKEN": "t",
+           "CYTELLECT_MODAL_PROXY_KEY": "wk", "CYTELLECT_PROPOSAL_URL": "https://p", "CYTELLECT_PROPOSAL_TOKEN": "d",
+           "CYTELLECT_PROPOSAL_TOKEN_FILE": "/f", "CYTELLECT_DATA_DIR": "/data", "PATH": "/bin"}
+    assert dev.without_cloud_services(env) == {"CYTELLECT_DATA_DIR": "/data", "PATH": "/bin"}
+
+    monkeypatch.setattr(dev, "responding", lambda url: True)
+    monkeypatch.setattr(dev, "run", lambda *args, **kwargs: pytest.fail("nothing runs beside serve"))
+    with pytest.raises(SystemExit, match="stop `serve` first"):
+        dev.e2e(argparse.Namespace(work_dir=tmp_path / "e2e", skip_build=False, playwright=[]))
+
+
+
 def test_fiji_and_the_figure_font_are_installed_on_first_use(monkeypatch, tmp_path):
     """The base setup leaves Fiji and the font out; `serve`, `check` and `e2e` install them once, when needed."""
     import dev
