@@ -11,17 +11,22 @@ const GOAL_SETTING = "cytellect.ai.goal.";
 // scope at sign-in confirm it once more before their next proposal (requirement L03).
 const PROPOSAL_SCOPE_SETTING = "cytellect.ai.proposal-scope-seen.v2";
 
-// What the researcher chose on this page. It wins over storage, so a choice that could not be stored (storage blocked
-// or full) still holds until the page closes: an opt-out of previews is never lost to a failed write.
-const chosen = new Map<string, string>();
+// A choice this page could not store (storage blocked or full). It holds until the page closes, so an opt-out of
+// previews is never lost to a failed write; a choice that was stored is read back from storage, so a change made in
+// another tab of the same browser takes effect here too.
+const unsaved = new Map<string, string>();
 
 function read(key: string): string | null {
-  if (chosen.has(key)) return chosen.get(key)!;
+  if (unsaved.has(key)) return unsaved.get(key)!;
   try {return globalThis.localStorage?.getItem(key) ?? null;} catch {return null;}
 }
 function write(key: string, value: string) {
-  chosen.set(key, value);
-  try {globalThis.localStorage?.setItem(key, value);} catch {/* The choice holds for this page (above). */}
+  try {
+    const storage = globalThis.localStorage;
+    if (!storage) throw new Error("storage_unavailable");
+    storage.setItem(key, value);
+    unsaved.delete(key);
+  } catch {unsaved.set(key, value);}
 }
 
 export function includePreviews(): boolean {return read(PREVIEWS_SETTING) !== "0";}

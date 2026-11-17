@@ -13,6 +13,15 @@ describe("AI settings on this PC", () => {
     expect(proposalScopeSeen()).toBe(true);
   });
 
+  it("reads a choice stored by another tab once this page's own choice was stored (review of #236)", () => {
+    const stored = new Map<string, string>();
+    vi.stubGlobal("localStorage", {getItem: (key: string) => stored.get(key) ?? null, setItem: (key: string, value: string) => void stored.set(key, value)});
+    setIncludePreviews(true);
+    expect(includePreviews()).toBe(true);
+    stored.set("cytellect.ai.include-previews", "0");
+    expect(includePreviews()).toBe(false);
+  });
+
   it("keeps the choice made on this page over an older stored value", () => {
     const stored = new Map<string, string>([["cytellect.ai.include-previews", "1"]]);
     vi.stubGlobal("localStorage", {getItem: (key: string) => stored.get(key) ?? null, setItem: () => {throw new Error("blocked");}});
