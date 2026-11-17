@@ -124,12 +124,13 @@ The Windows edition builds a dedicated Python/Fiji environment, and its in-app u
 
 ### Local development
 
-Use Python 3.12, Node.js 24, pnpm 11.19.0 and uv. To start on Linux:
+Use Python 3.12, Node.js 24, pnpm 11.19.0 and uv. On Linux, including WSL Ubuntu, one script installs the pinned tools, the figure font, dependencies, Fiji and the test browser:
 
 ```bash
-python3 scripts/dev.py setup --fiji ~/cytellect-fiji
+bash scripts/linux_setup.sh
+source ~/.local/share/cytellect-dev/env.sh
 
-export CYTELLECT_DATA_DIR=~/cytellect-data CYTELLECT_FIJI_EXECUTABLE=~/cytellect-fiji CYTELLECT_SECURE_COOKIES=false
+export CYTELLECT_DATA_DIR=~/cytellect-data CYTELLECT_SECURE_COOKIES=false
 uv run cytellect invite --hours 24
 uv run cytellect serve      # terminal 1
 uv run cytellect-worker     # terminal 2 (same environment variables)
