@@ -393,8 +393,9 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       return client.post<DiscussionView>(`/v1/jobs/${job}/discussion`, {transmission_confirmed: true, experiment, ...(retryFailed ? {retry_failed: true} : {})});
     },
     async draft(workspace: string, goal: string, retryFailed = false, continuation?: {current_processing: ProposalProcessing | null; previous_goal: string; previous_proposal: ProposalDraft | null;field_id?:string}) {
-      // Called only after the one-time scope notice has been accepted in this workspace.
-      const response = await client.post<{proposal: ValidatedProposal; channels: ProposalChannelLink[]}>(`/v1/workspaces/${workspace}/proposal-drafts`, {goal, transmission_confirmed: true, include_previews: includePreviews(), ...(retryFailed ? {retry_failed: true} : {}), ...continuation});
+      // Called only after the one-time scope notice has been accepted in this workspace. Previews are on by
+      // default in the API; only turning them off is sent, so the default request body is unchanged.
+      const response = await client.post<{proposal: ValidatedProposal; channels: ProposalChannelLink[]}>(`/v1/workspaces/${workspace}/proposal-drafts`, {goal, transmission_confirmed: true, ...(includePreviews() ? {} : {include_previews: false}), ...(retryFailed ? {retry_failed: true} : {}), ...continuation});
       return {proposal: localProposal(response.proposal,response.channels)};
     },
   };

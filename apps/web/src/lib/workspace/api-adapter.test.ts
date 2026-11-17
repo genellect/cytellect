@@ -157,7 +157,7 @@ describe("real workspace transport boundaries", () => {
   it("sends the goal, scope consent and the preview setting for optional proposals", async () => {
     const {adapter, post} = fake(async () => ({}), async () => ({proposal:{draft:{channels:[]},needs_confirmation:[]},channels:[]}));
     await adapter.draft("w1", "核面積を確認");
-    expect(post).toHaveBeenCalledWith("/v1/workspaces/w1/proposal-drafts", {goal: "核面積を確認", transmission_confirmed: true, include_previews: true});
+    expect(post).toHaveBeenCalledWith("/v1/workspaces/w1/proposal-drafts", {goal: "核面積を確認", transmission_confirmed: true});
     const stored = new Map<string, string>();
     vi.stubGlobal("localStorage", {getItem: (key: string) => stored.get(key) ?? null, setItem: (key: string, value: string) => void stored.set(key, value)});
     try {
