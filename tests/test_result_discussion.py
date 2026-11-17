@@ -113,3 +113,20 @@ def test_protocol_1_0_contexts_and_drafts_remain_readable():
     assert legacy.protocol == "result-discussion/1.0.0" and legacy.result.metric_label is None
     stored = DiscussionDraft.model_validate({"protocol": "result-discussion/1.0.0", **draft("a")})
     assert stored.protocol == "result-discussion/1.0.0"
+
+
+def test_a_saved_result_with_unexpected_records_still_builds_a_context():
+    """A design, acquisition or method record that is not an object reads as absent instead of failing (review of #231)."""
+    import sys
+    sys.path.insert(0, "tests")
+    from cytellect_analysis.common_statistics import analyze_region_comparison
+    from cytellect_analysis.discussion_context import discussion_context
+    from test_comparison_estimates_connection import PROTOCOL, request
+    from test_region_comparison import comparison_fixture
+    result = analyze_region_comparison(*comparison_fixture((("A", [3, 8, 2]), ("B", [4, 10, 5]))),
+                                       request(paired=True, test="paired-t", estimates=PROTOCOL))
+    result["spec"]["design"] = "paired"
+    result["acquisition"] = ["same-settings"]
+    result["method_settings"] = None
+    method = discussion_context(result).result.method
+    assert method is not None and method.unit_definition is None and method.comparison == "paired t-test"

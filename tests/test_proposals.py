@@ -336,3 +336,15 @@ def test_previews_skip_fields_the_researcher_excluded(tmp_path, monkeypatch):
                         lambda conn, workspace: {"entries": [{"field_id": field["id"], "exclusion_reason": "out_of_focus"}]})
     assert proposals.representative_previews(store, wid, links) == []
 
+
+
+def test_previews_average_blocks_so_small_structures_stay_visible():
+    """A 1-px spot survives the reduction to 512 px (review of #231): every-n-th-pixel sampling dropped it."""
+    import numpy as np
+    from cytellect_api.proposals import _block_mean
+    plane = np.zeros((2048, 2048), dtype=np.uint16)
+    plane[101, 102] = 4000
+    reduced = _block_mean(plane, 512)
+    assert reduced.shape == (512, 512) and reduced[25, 25] == 250
+    assert _block_mean(np.ones((300, 700), dtype=np.uint16), 512).shape == (150, 350)
+    assert _block_mean(np.ones((400, 500), dtype=np.uint16), 512).shape == (400, 500)

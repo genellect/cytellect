@@ -100,6 +100,10 @@ describe("result discussion route", () => {
   it("checks the shape only; numbers and claims are checked by the local API", () => {
     expect(hasDiscussionShape(DRAFT)).toBe(true);
     expect(hasDiscussionShape({ ...DRAFT, references: ["doi"] })).toBe(false);
+    // The local API rejects a draft with no interpretation or an empty point; the relay repairs it instead of returning it.
+    expect(hasDiscussionShape({ ...DRAFT, implications: [] })).toBe(false);
+    expect(hasDiscussionShape({ ...DRAFT, next_steps: [" "] })).toBe(false);
+    expect(hasDiscussionShape({ implications: ["a"], alternatives: [], next_steps: [] })).toBe(true);
     expect(discussionPayload({ apiKey: "k", model: "m", maxOutputTokens: 2000 }, CONTEXT).text.format.schema)
       .toMatchObject({ additionalProperties: false, required: ["implications", "alternatives", "next_steps"] });
   });

@@ -48,8 +48,13 @@ Rules, all checked after your answer:
 
 const SCHEMA = contract.discussion_draft_schema;
 
+/** The schema plus what strict mode cannot state: at least one interpretation and no empty point. The local API reads a
+ * draft the same way, so an empty answer is repaired here once instead of being billed and then rejected there. */
 export function hasDiscussionShape(value: unknown): boolean {
-  return matchesSchema(value, SCHEMA);
+  if (!matchesSchema(value, SCHEMA)) return false;
+  const draft = value as Record<"implications" | "alternatives" | "next_steps", string[]>;
+  return draft.implications.length > 0
+    && [...draft.implications, ...draft.alternatives, ...draft.next_steps].every((item) => item.trim().length > 0);
 }
 
 export function checkDiscussionRequest(body: Record<string, unknown>): Record<string, unknown> | null {

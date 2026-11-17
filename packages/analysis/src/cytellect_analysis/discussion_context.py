@@ -40,8 +40,18 @@ def _metric_text(metric: str) -> tuple[str | None, str | None]:
     return label, definition[:500] if definition else None
 
 
+def _clip(value: Any, limit: int) -> str | None:
+    """A recorded text without surrounding space, cut to `limit` characters; None when it is not text or is blank."""
+    return value.strip()[:limit] if isinstance(value, str) and value.strip() else None
+
+
 def _short(value: Any) -> str | None:
-    return value.strip()[:80] if isinstance(value, str) and value.strip() else None
+    return _clip(value, 80)
+
+
+def _record(value: Any) -> dict[str, Any]:
+    """A saved record that should be an object; anything else reads as empty instead of failing."""
+    return value if isinstance(value, dict) else {}
 
 
 class DiscussionUnsupported(ValueError):
@@ -49,7 +59,7 @@ class DiscussionUnsupported(ValueError):
 
 
 def _setting(value: Any) -> str | None:
-    return value.strip()[:300] if isinstance(value, str) and value.strip() else None
+    return _clip(value, 300)
 
 
 def _counts(result: dict[str, Any], groups: set[str]) -> list[dict[str, Any]]:
@@ -63,10 +73,10 @@ def _counts(result: dict[str, Any], groups: set[str]) -> list[dict[str, Any]]:
 
 def _method(result: dict[str, Any], comparison: dict[str, Any]) -> dict[str, Any]:
     """The recorded aggregation and test settings, and the design the researcher declared."""
-    spec = result.get("spec") or {}
-    design = spec.get("design") or {}
-    settings = {**(result.get("method_settings") or {}), **(comparison.get("method_settings") or {})}
-    review = (result.get("acquisition") or {}).get("review") or spec.get("acquisition_review") or {}
+    spec = _record(result.get("spec"))
+    design = _record(spec.get("design"))
+    settings = {**_record(result.get("method_settings")), **_record(comparison.get("method_settings"))}
+    review = _record(_record(result.get("acquisition")).get("review")) or _record(spec.get("acquisition_review"))
     level = comparison.get("confidence_level")
     method = {
         "comparison": _setting(comparison.get("method")),
@@ -104,10 +114,10 @@ def discussion_context(result: dict[str, Any], experiment: ExperimentNote | None
     # A descriptive comparison saves no test (no p value); a tested one saves exactly one contrast.
     if len(comparisons) != (0 if estimates.get("test") == "none" else 1):
         raise DiscussionUnsupported("discussion_requires_one_comparison")
-    comparison = comparisons[0] if comparisons else {}
-    selection = (result.get("spec") or {}).get("selection") or {}
+    comparison = _record(comparisons[0]) if comparisons else {}
+    selection = _record(_record(result.get("spec")).get("selection"))
     region = selection.get("region_set_id")
-    channel = result.get("channel") or {}
+    channel = _record(result.get("channel"))
     stain = channel.get("stain") if isinstance(channel.get("stain"), str) and channel.get("stain") else None
     warnings = [code for code in result.get("warnings") or [] if isinstance(code, str) and re.match(_WARNING, code)]
     # The researcher's run names (the pairing key); `run N` only when a run has none.

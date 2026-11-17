@@ -191,10 +191,12 @@ Methods and input/mask identities.
   proposals therefore never include that model; it stays an explicit
   specialist recipe until its clustering is corrected under a new statistics
   version.
-- **Proposals send no images.** Recipe choice follows from stain names, channel
-  layout and the stated goal. Requests send the goal and normalized metadata
-  only; requirement L03 caps any future image transmission at six downscaled
-  previews after the researcher enables it.
+- **Proposals show the model what the researcher recorded.** Since the
+  2026-11-16 redesign ([LLM assistance redesign](drafts/llm-assistant/plan.md)),
+  requests send the goal, channel labels, every field's name and records, and up
+  to six display-scaled previews of one representative field unless the
+  researcher turns previews off (requirement L03). Paths and measured values are
+  not sent.
 - **Segmentation validity is a separate gate.** Execution success on public
   images and same-mask ImageJ agreement are not detection accuracy. D04
   annotated evaluation remains required before claiming nuclear, nucleolar or

@@ -302,6 +302,15 @@ References: [local Wrangler installation](https://developers.cloudflare.com/work
 [Worker commands](https://developers.cloudflare.com/workers/wrangler/commands/workers/),
 [D1 commands and migrations](https://developers.cloudflare.com/d1/wrangler-commands/).
 
+## Order of Worker and client releases
+
+A client that sends a newer context or prompt version needs a Worker that already accepts it. Clients from #231 on send
+proposal context 1.2.0 (channel labels and field records) with prompt `2026-11-16.1`, and discussion context with the
+screen's summary, n breakdown and method; a Worker deployed before #231 rejects them with HTTP 400 `request_invalid`, so
+every proposal and discussion from the updated client would fail. Deploy the Worker first, check it, and only then
+distribute the client. The newer Worker keeps answering installed clients (up to 0.1.0-local.23) with their own prompt
+versions and OpenAI model.
+
 ## Production deployment record
 
 Record each production deployment here: the date, source commit, version ID,

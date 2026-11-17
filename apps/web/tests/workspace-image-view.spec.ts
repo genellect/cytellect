@@ -193,6 +193,26 @@ test("the AI composer opens the AI panel when focused, without the demo's exampl
   expect(fixture.unexpected).toEqual([]);
 });
 
+test("before the first proposal after the scope widened, the AI panel asks once what is sent; cancelling sends nothing",async({page,context})=>{
+  const fixture=await imageWorkspace(context,page);
+  const proposals:string[]=[];
+  page.on("request",request=>{if(request.method()==="POST"&&new URL(request.url()).pathname.endsWith("/proposal-drafts"))proposals.push(request.postData()??"");});
+  await page.goto("/workspace?id=w");
+  await expect(page.locator("[class*=fieldCard]")).toHaveCount(2);
+  await page.getByLabel("AIへの指示",{exact:true}).fill("核小体の面積を比べたい");
+  await page.getByRole("button",{name:"AIへ送信"}).click();
+  const scope=page.getByRole("group",{name:"AIに送る内容の確認"});
+  await expect(scope).toContainText("代表的な視野の縮小画像");
+  await scope.getByRole("button",{name:"キャンセル"}).click();
+  await expect(scope).toHaveCount(0);
+  expect(proposals).toEqual([]);
+  // Sending without previews turns the setting off and records the confirmation, so the next request asks no more.
+  await page.getByRole("button",{name:"AIへ送信"}).click();
+  await page.getByRole("group",{name:"AIに送る内容の確認"}).getByRole("button",{name:"縮小画像なしで送信"}).click();
+  expect(await page.evaluate(()=>[localStorage.getItem("cytellect.ai.include-previews"),localStorage.getItem("cytellect.ai.proposal-scope-seen.v2")])).toEqual(["0","1"]);
+  expect(fixture.unexpected.filter(route=>!route.includes("proposal")&&!route.includes("analysis-spec"))).toEqual([]);
+});
+
 test("statistics open on the latest saved comparison, the saved comparisons switch, and ?step= opens a tab",async({page,context})=>{
   const fixture=await imageWorkspace(context,page,{saved:true});
   await page.goto("/workspace?id=w&step=statistics");

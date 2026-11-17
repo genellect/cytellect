@@ -219,6 +219,14 @@ def _complete(rows, key):
     return bool(rows) and all(row["metadata"].get(key) not in (None, "") for row in rows)
 
 
+def _adopted_selection(store, wid: str) -> tuple[dict, set[str]]:
+    """The adopted selection and the fields the researcher excluded in it; neither proposals nor previews use those."""
+    from .workspace_selection import selection_at
+    with store.engine.connect() as conn:
+        selection = selection_at(conn, wid)
+    return selection, {entry["field_id"] for entry in selection["entries"] if entry.get("exclusion_reason")}
+
+
 def build_context(store, wid: str, goal: str, field_id: str | None = None) -> tuple[ProposalContext, list[ProposalChannelLink]]:
     """Derive every proposal input from the workspace; nothing else is asked of the researcher.
 
@@ -227,10 +235,7 @@ def build_context(store, wid: str, goal: str, field_id: str | None = None) -> tu
     Paths and measured values stay local; downscaled previews are built separately (`representative_previews`).
     """
     rows = store.rows(fields, workspace_id=wid)
-    from .workspace_selection import selection_at
-    with store.engine.connect() as conn:
-        adopted_selection = selection_at(conn, wid)
-    excluded = {entry["field_id"] for entry in adopted_selection["entries"] if entry.get("exclusion_reason")}
+    adopted_selection, excluded = _adopted_selection(store, wid)
     if field_id is not None and not any(row["id"] == field_id for row in rows):
         raise HTTPException(404, "field_not_found")
     if field_id in excluded:
@@ -394,6 +399,25 @@ def _field_record(row, display_name: str | None) -> dict:
 
 
 PREVIEW_SIDE = 512
+# Auto-contrast for the model's previews: a few saturated or hot pixels must not turn the whole field dark.
+PREVIEW_PERCENTILES = (0.1, 99.9)
+
+
+def _block_mean(pixels: np.ndarray, side: int) -> np.ndarray:
+    """Reduce a 2D plane to at most about `side` pixels a side by averaging square blocks, one band of rows at a time.
+
+    Averaging keeps small structures (puncta, nucleoli of 1-3 px) visible where taking every n-th pixel would drop them,
+    and reading one band at a time keeps a memory-mapped field from being loaded whole.
+    """
+    step = max(1, -(-max(pixels.shape[:2]) // side))
+    if step == 1:
+        return np.asarray(pixels, dtype=np.float32)
+    height, width = (pixels.shape[0] // step) * step, (pixels.shape[1] // step) * step
+    if not height or not width:
+        return np.asarray(pixels, dtype=np.float32)
+    bands = [np.asarray(pixels[top:top + step, :width], dtype=np.float32).reshape(step, width // step, step).mean(axis=(0, 2))
+             for top in range(0, height, step)]
+    return np.stack(bands)
 
 
 def representative_previews(store, wid: str, links: list[ProposalChannelLink], field_id: str | None = None) -> list[dict]:
@@ -402,9 +426,7 @@ def representative_previews(store, wid: str, links: list[ProposalChannelLink], f
     The selected field when given, otherwise the first registered native field the researcher has not excluded.
     Previews are for the model to see the images; they are display renderings and never measurements.
     """
-    from .workspace_selection import selection_at
-    with store.engine.connect() as conn:
-        excluded = {entry["field_id"] for entry in selection_at(conn, wid)["entries"] if entry.get("exclusion_reason")}
+    _, excluded = _adopted_selection(store, wid)
     rows = [row for row in store.rows(fields, workspace_id=wid) if is_region(row) and row["id"] not in excluded]
     row = next((row for row in rows if row["id"] == field_id), None) if field_id else (rows[0] if rows else None)
     if row is None or row["image_info"].get("input_mode", "native") != "native":
@@ -414,11 +436,8 @@ def representative_previews(store, wid: str, links: list[ProposalChannelLink], f
         path = store.safe_path("workspaces", wid, "fields", row["id"], f"channel-{link.channel_id}.npy")
         if not path.is_file():
             continue
-        pixels = np.load(path, allow_pickle=False, mmap_mode="r")
-        # Subsample to about the preview size before rendering instead of rendering the full field.
-        step = max(1, -(-max(pixels.shape[:2]) // PREVIEW_SIDE))
-        pixels = np.ascontiguousarray(pixels[::step, ::step])
-        png, _display = render_preview_with_display({link.channel_id: pixels}, link.channel_id, 0, 100, 1,
+        pixels = _block_mean(np.load(path, allow_pickle=False, mmap_mode="r"), PREVIEW_SIDE)
+        png, _display = render_preview_with_display({link.channel_id: pixels}, link.channel_id, *PREVIEW_PERCENTILES, 1,
                                                     field_id=row["id"], composite=False)
         image: Image.Image = Image.open(io.BytesIO(png))
         image.thumbnail((PREVIEW_SIDE, PREVIEW_SIDE))

@@ -418,8 +418,8 @@ export function FirstRun({busy, error, onChoose}: {busy: boolean; error: string;
   </section>;
 }
 
-/** What AI requests send; shown before sign-in and, for installations signed in before the scope widened, here. */
-const AI_SCOPE = "AI への相談では、書いた目的、チャンネル名、視野の名前と記録、代表的な視野の縮小画像（設定で止められます）を送ります。";
+/** What AI requests send; shown before sign-in, in the settings, and once before the first proposal after the scope widened. */
+export const AI_SCOPE = "AI への相談では、書いた目的、チャンネル名、視野の名前と記録、代表的な視野の縮小画像（設定で止められます）を送ります。";
 
 /** Whether AI analysis proposals also send display-scaled previews of one representative field (default on). */
 function AiPreviewSetting() {
