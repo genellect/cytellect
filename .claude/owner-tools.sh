@@ -17,5 +17,10 @@ fi
 ln -sf "$tools/vercel/node_modules/.bin/vercel" "$HOME/.local/bin/vercel"
 uv tool install --quiet --python 3.12 "huggingface_hub==$huggingface_hub_version"
 [ "$(vercel --version 2>/dev/null | tail -1)" = "$vercel_version" ]
-[ "$(hf version)" = "version=$huggingface_hub_version" ]
+# Without an AI agent in the environment (as in the setup script), `hf` defaults to human output
+# ("✓ hf version" / "  version: X"); --format quiet prints the bare version in every context.
+# HF_HUB_DISABLE_UPDATE_CHECK skips the once-a-day hint about the hf-cli skill. Capturing the
+# output first keeps a missing `hf` fatal under set -e.
+hf_version=$(HF_HUB_DISABLE_UPDATE_CHECK=1 hf version --format quiet)
+[ "$hf_version" = "$huggingface_hub_version" ]
 echo "Owner tools: Vercel CLI $vercel_version, Hugging Face CLI $huggingface_hub_version"
