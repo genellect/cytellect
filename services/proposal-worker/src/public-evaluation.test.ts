@@ -1,6 +1,7 @@
 /** Paid evaluation is never run by ordinary CI: both explicit flags and a cap are required. */
 import { describe, expect, it } from "vitest";
-import { draftProposal, inputTokenCeiling, MODEL, ModelError, observedCost, type Preview } from "./openai";
+import { ASSISTANT_PROMPT_VERSION, draftProposal, inputTokenCeiling, MODEL, ModelError, observedCost, type Preview } from "./openai";
+import { ANTHROPIC_MODELS } from "./anthropic";
 import { expectedBehavior, PUBLIC_CASES } from "./public-cases";
 import contract from "./contract.json";
 import { matchesSchema } from "./schema";
@@ -33,6 +34,11 @@ describe("public proposal evaluation", () => {
     expect(Number.isInteger(repeats) && repeats >= 1 && repeats <= 3).toBe(true);
     expect(["low", "medium"]).toContain(effort);
     const authentication = evaluationAuth(env);
+    // Claude evaluations name the model; the ledger uses that model's standard tariff.
+    const model = authentication.provider === "anthropic" ? env.CYTELLECT_EVAL_MODEL ?? "claude-opus-5-5" : MODEL;
+    const tariff = authentication.provider === "anthropic" ? ANTHROPIC_MODELS[model]
+      : { input: 2, output: 10, cachedInput: 0.1, cacheWrite: 2.5 };
+    expect(tariff, "the evaluated Claude model must be listed with its tariff").toBeDefined();
     const { spawnSync } = await import(childModule);
     const { resolve } = await import(pathModule);
     const { fileURLToPath } = await import(urlModule);
@@ -48,7 +54,9 @@ describe("public proposal evaluation", () => {
       input: JSON.stringify({ context: PUBLIC_CASES[0].context, draft: {} }) });
     expect(probe.status, "local semantic validator must be installed first").toBe(0);
     expect(JSON.parse(probe.stdout).codes).toContain("proposal_shape_invalid");
-    const settings = { ...authentication, model: MODEL, maxOutputTokens: 8000, reasoningEffort: effort as "low" | "medium" };
+    // The prompt version installed clients from this release send (CYTELLECT_PUBLIC_EVAL_PROMPT_VERSION to compare another).
+    const promptVersion = env.CYTELLECT_PUBLIC_EVAL_PROMPT_VERSION ?? ASSISTANT_PROMPT_VERSION;
+    const settings = { ...authentication, model, promptVersion, maxOutputTokens: 8000, reasoningEffort: effort as "low" | "medium" };
     const cases = PUBLIC_CASES.map(item => ({ ...item, previews: [] as Preview[] }));
     if (env.CYTELLECT_PUBLIC_EVAL_PREVIEWS_FILE) {
       const fsModule = "node:fs", cryptoModule = "node:crypto";
@@ -62,7 +70,7 @@ describe("public proposal evaluation", () => {
       for (const p of fixture.previews) expect(p.png_base64.startsWith("iVBORw0KGgo") && p.png_base64.length < 180_000).toBe(true);
       for (const known of [true, false]) cases.push({
         id: known ? "bbbc013-gfp-preview" : "bbbc013-unknown-preview", recipes: ["nuclear-intensity"], metric: "mean_raw", kind: "descriptive",
-        context: { ...PUBLIC_CASES[2].context, field_count: 1,
+        context: { ...PUBLIC_CASES[2].context, field_count: 1, fields: (PUBLIC_CASES[2].context.fields as unknown[]).slice(0, 1),
           goal: "核内のch2の補正前平均輝度を示す。染色の同定や独立反復の推測はしない。",
           channels: [{ token: "ch1", stain: "DRAQ", role: "nuclear" }, { token: "ch2", stain: known ? "GFP" : null, role: "measure" }] },
         previews: fixture.previews,
@@ -73,20 +81,21 @@ describe("public proposal evaluation", () => {
     try {
       for (let repetition = 0; repetition < repeats; repetition += 1) {
         for (const item of cases) {
-        const reserved = 2 * (inputTokenCeiling(settings, item.context, item.previews) * 2.5 + settings.maxOutputTokens * 10) / 1e6;
+        const reserved = 2 * (inputTokenCeiling(settings, item.context, item.previews) * tariff.cacheWrite + settings.maxOutputTokens * tariff.output) / 1e6;
         // The committed file-backed hold precedes the first provider call. A crash
         // leaves it in place; another process or later run cannot reset the cap.
         const reservation = ledger.reserve(item.id, reserved);
         if (!reservation) {
           report.push({ id: item.id, repetition, outcome: "budget_stop" });
-          console.info(JSON.stringify({ model: MODEL, effort, cumulative_accounted_upper_usd: ledger.accountedUsd(), report }));
+          console.info(JSON.stringify({ model, effort, cumulative_accounted_upper_usd: ledger.accountedUsd(), report }));
           throw new Error("public_evaluation_budget_exhausted");
         }
         const started = Date.now();
         try {
           const result = await draftProposal(settings, item.context, item.previews);
           const cost = result.usageComplete
-            ? ((result.inputTokens - result.cachedInputTokens) * 2.5 + result.cachedInputTokens * 0.1 + result.outputTokens * 10) / 1e6 : reserved;
+            ? ((result.inputTokens - result.cachedInputTokens) * tariff.cacheWrite + result.cachedInputTokens * tariff.cachedInput
+              + result.outputTokens * tariff.output) / 1e6 : reserved;
           if (result.usageComplete) ledger.settle(reservation, cost, {
             inputTokens: result.inputTokens, cachedInputTokens: result.cachedInputTokens, outputTokens: result.outputTokens, calls: result.calls,
           });
@@ -98,12 +107,13 @@ describe("public proposal evaluation", () => {
             accounted_upper_usd: cost });
         } catch (error) {
           if (error instanceof ModelError && error.observedUsage) {
-            ledger.settle(reservation, Math.max(reserved, observedCost(error.observedUsage, 2.5, 0.1, 10)), error.observedUsage);
+            ledger.settle(reservation, Math.max(reserved, observedCost(error.observedUsage, tariff.cacheWrite, tariff.cachedInput,
+              tariff.output, authentication.provider === "openai")), error.observedUsage);
             throw new Error("public_evaluation_usage_reconciliation_required");
           }
           if (error instanceof Error && error.message === "semantic_oracle_failed") {
             report.push({ id: item.id, repetition, outcome: "semantic_oracle_failed" });
-            console.info(JSON.stringify({ model: MODEL, effort, cumulative_accounted_upper_usd: ledger.accountedUsd(), report }));
+            console.info(JSON.stringify({ model, effort, cumulative_accounted_upper_usd: ledger.accountedUsd(), report }));
             throw error;
           }
           // Do not settle or expire unknown billing; its durable hold still counts.
@@ -111,13 +121,13 @@ describe("public proposal evaluation", () => {
             ...(error instanceof ModelError ? { error_code: error.code, provider_http_status: error.providerHttpStatus,
               provider_error_code: error.providerErrorCode } : {}) });
           if (error instanceof ModelError && error.code === "model_unavailable") {
-            console.info(JSON.stringify({ model: MODEL, effort, cumulative_accounted_upper_usd: ledger.accountedUsd(), report }));
+            console.info(JSON.stringify({ model, effort, cumulative_accounted_upper_usd: ledger.accountedUsd(), report }));
             throw new Error("public_evaluation_provider_unavailable");
           }
         }
         }
       }
-      console.info(JSON.stringify({ model: MODEL, effort, cumulative_accounted_upper_usd: ledger.accountedUsd(), report }));
+      console.info(JSON.stringify({ model, effort, cumulative_accounted_upper_usd: ledger.accountedUsd(), report }));
       expect(report.filter((entry) => entry.valid !== true || entry.useful !== true), "inspect fixed case IDs; do not weaken expectations to hide failures").toEqual([]);
     } finally { ledger.close(); }
   }, 12 * 3 * 250_000);

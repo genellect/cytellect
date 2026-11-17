@@ -945,8 +945,8 @@ def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
 def example_discussion(api: Api, workspace: str, example: dict | None, comparison: dict | None) -> dict | None:
     """The demo's discussion of its opening comparison (requirements AC-08): written for the scene, never by a model.
 
-    It passes the production checks against the saved result (no number outside the result, no significance,
-    "no change" or reference) and is stored as `origin: "example"`, which the page shows as the demo's example.
+    It is read with the production structure check and stored as `origin: "example"`, which the page shows as
+    the demo's example.
     """
     if not example:
         return None
@@ -1483,7 +1483,7 @@ def record_proposals(manifest: dict, seed_data: Path, work: Path, origin_port: i
     entries: dict[str, dict] = {}
     original = route.request_draft
 
-    def authored(settings, context, request_id=None):
+    def authored(settings, context, request_id=None, previews=None):
         draft = drafts.get(context.goal)
         if draft is None:
             raise route.ProposalServiceError(409, "showcase_proposal_not_recorded")

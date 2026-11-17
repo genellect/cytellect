@@ -3,6 +3,7 @@ import { API, ApiError, errorCodeMessage, fetchBlob, post, request } from "../ap
 import { descriptiveFigureView, type DescriptiveResult } from "../descriptive-view";
 import type { components } from "../generated";
 import type { Job, Point, Workspace } from "../types";
+import { includePreviews } from "./ai-settings";
 import type { ChannelDefinition, GroupedField, Grouping } from "./grouping";
 import type {NclObjectProcessingDetector} from "./nucleolar-definition";
 import type {AnyCellposeProcessingDetector} from "./cellpose-settings";
@@ -387,13 +388,15 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
     async discussion(job: string): Promise<DiscussionView | null> {
       return client.request<DiscussionView | null>(`/v1/jobs/${job}/discussion`);
     },
-    /** Sends the saved result (never images, file names or paths) after the researcher confirmed it (AC-02, AC-03). */
-    async draftDiscussion(job: string, experiment: ExperimentNote, retryFailed = false): Promise<DiscussionView> {
-      return client.post<DiscussionView>(`/v1/jobs/${job}/discussion`, {transmission_confirmed: true, experiment, ...(retryFailed ? {retry_failed: true} : {})});
+    /** Sends the saved result with the summary the screen shows above it (never images, file names or paths), after
+     * the researcher confirmed it (AC-02, AC-03). */
+    async draftDiscussion(job: string, experiment: ExperimentNote, retryFailed = false, summary?: ShownSummary): Promise<DiscussionView> {
+      return client.post<DiscussionView>(`/v1/jobs/${job}/discussion`, {transmission_confirmed: true, experiment, ...(summary ? {summary} : {}), ...(retryFailed ? {retry_failed: true} : {})});
     },
     async draft(workspace: string, goal: string, retryFailed = false, continuation?: {current_processing: ProposalProcessing | null; previous_goal: string; previous_proposal: ProposalDraft | null;field_id?:string}) {
-      // Called only after the one-time scope notice has been accepted in this workspace.
-      const response = await client.post<{proposal: ValidatedProposal; channels: ProposalChannelLink[]}>(`/v1/workspaces/${workspace}/proposal-drafts`, {goal, transmission_confirmed: true, ...(retryFailed ? {retry_failed: true} : {}), ...continuation});
+      // Called only after the one-time scope notice has been accepted in this workspace. Previews are on by
+      // default in the API; only turning them off is sent, so the default request body is unchanged.
+      const response = await client.post<{proposal: ValidatedProposal; channels: ProposalChannelLink[]}>(`/v1/workspaces/${workspace}/proposal-drafts`, {goal, transmission_confirmed: true, ...(includePreviews() ? {} : {include_previews: false}), ...(retryFailed ? {retry_failed: true} : {}), ...continuation});
       return {proposal: localProposal(response.proposal,response.channels)};
     },
   };
@@ -401,3 +404,4 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
 export type ApiAdapter = ReturnType<typeof createApiAdapter>;
 export type DiscussionView = components["schemas"]["DiscussionView"];
 export type ExperimentNote = components["schemas"]["ExperimentNote"];
+export type ShownSummary = components["schemas"]["ShownSummary"];

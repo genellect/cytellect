@@ -20,12 +20,19 @@ from .region_contracts import NuclearDetectorSpec
 from .signal_engine import SignalDetectorSpec
 
 PROPOSAL_PROTOCOL = "1.1.0"
-PROPOSAL_PROMPT_VERSION = "2026-10-09.1"
+PROPOSAL_PROMPT_VERSION = "2026-11-16.1"
+# Context 1.2.0 (docs/drafts/llm-assistant/plan.md) adds the researcher's channel labels, field names and
+# metadata; installed clients up to 0.1.0-local.23 send 1.1.0.
+PROPOSAL_CONTEXT_PROTOCOL = "1.2.0"
 PROPOSAL_MODEL = "gpt-6.1-sol"
+# Models the service may answer with (docs/drafts/llm-assistant/plan.md): the response names the one it used, and
+# the workspace stores that name with the draft. A model outside this list is refused as a version mismatch.
+PROPOSAL_MODELS = ("gpt-6.1-sol", "claude-opus-5-5", "claude-sonnet-5-5")
 
 Token = Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9_.-]{0,31}$")]
 Stain = Annotated[str, Field(min_length=1, max_length=40)]
-ShortText = Annotated[str, Field(min_length=1, max_length=200)]
+# The model's explanation to the researcher; its length is the model's choice (docs/drafts/llm-assistant/plan.md §8).
+Prose = Annotated[str, Field(min_length=1)]
 
 RecipeId = Literal["nuclear-intensity", "nuclear-ncl", "supplied-regions", "measured-table", "none"]
 Role = Literal["nuclear", "measure", "unused"]
@@ -49,6 +56,20 @@ class ContextChannel(ProposalModel):
     token: Token
     stain: Stain | None = None
     role: Literal["nuclear", "measure", "unused"] | None = None
+    # The researcher's name for the channel. It suggests a stain only; a stain is established by `stain`.
+    label: Annotated[str, Field(min_length=1, max_length=80)] | None = None
+
+
+FieldText = Annotated[str, Field(min_length=1, max_length=120)]
+
+
+class ContextField(ProposalModel):
+    """One image field as the researcher recorded it: its name and metadata, never a path."""
+    name: FieldText | None = None
+    condition: FieldText | None = None
+    experimental_unit: FieldText | None = None
+    pair: FieldText | None = None
+    acquisition_date: FieldText | None = None
 
 
 class DraftBackground(ProposalModel):
@@ -83,8 +104,10 @@ class ContextImage(ProposalModel):
 
 
 class ProposalContext(ProposalModel):
-    """Normalized metadata sent to the proposal service; no paths, names or values."""
-    protocol: Literal["1.1.0"] = "1.1.0"
+    """What the proposal service's model reads: the goal, channels with their labels, the fields with their names
+    and recorded metadata, counts and current settings. Paths and measured values are not part of it; downscaled
+    previews travel next to it."""
+    protocol: Literal["1.1.0", "1.2.0"] = "1.2.0"
     goal: Annotated[str, Field(max_length=2000)] = ""
     channels: Annotated[list[ContextChannel], Field(min_length=0, max_length=6)]
     field_count: Annotated[int, Field(ge=0, le=10000)]
@@ -102,6 +125,7 @@ class ProposalContext(ProposalModel):
     negative_control_fields_known: StrictBool = False
     acquired_dates_known: StrictBool = False
     image_metadata: list[ContextImage] = Field(default_factory=list, max_length=8)
+    fields: list[ContextField] = Field(default_factory=list, max_length=200)
     previous_goal: Annotated[str, Field(max_length=2000)] = ""
     previous_proposal: ProposalDraft | None = None
 
@@ -110,7 +134,8 @@ class ProposalContext(ProposalModel):
         if self.field_count == 0:
             if (self.channels or self.condition_count or self.units_known or self.pairing_known
                     or self.units_per_condition or self.complete_pair_count or self.supplied_regions
-                    or self.measured_table or self.background_available or self.image_metadata or not self.goal.strip()):
+                    or self.measured_table or self.background_available or self.image_metadata or self.fields
+                    or not self.goal.strip()):
                 raise ValueError("proposal_empty_workspace_facts_invalid")
         elif not self.channels:
             raise ValueError("proposal_acquired_channels_required")
@@ -125,7 +150,7 @@ class DraftChannel(ProposalModel):
     token: Token
     stain: Stain | None
     role: Role
-    reason: ShortText
+    reason: Prose
 
 
 class DraftMetric(ProposalModel):
@@ -188,9 +213,9 @@ class ProposalDraft(ProposalModel):
     statistics: DraftStatistics
     additional_analyses: Annotated[list[DraftStatistics], Field(max_length=3)] = Field(default_factory=list)
     figures: Annotated[list[DraftFigure], Field(max_length=6)]
-    missing_information: Annotated[list[ShortText], Field(max_length=6)]
+    missing_information: list[Prose]
     reference_ids: Annotated[list[ReferenceId], Field(max_length=6)]
-    rationale: Annotated[str, Field(max_length=600)]
+    rationale: str
     # Old saved drafts and old clients retain their historical meaning.
     processing: DraftProcessing | None = None
     background: DraftBackground | None = None

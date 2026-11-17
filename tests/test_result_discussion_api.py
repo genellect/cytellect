@@ -1,4 +1,4 @@
-"""The discussion route sends only the saved result, checks the draft and stores it with its source.
+"""The discussion route sends the saved result as the workspace shows it and stores the draft with its source.
 
 The proposal service is replaced by a stand-in; no model is called. The saved result comes from the
 minimal pixel fixture of test_region_comparison (synthetic numbers for wiring only).
@@ -68,7 +68,7 @@ def post(client, job, **body):
     return client.post(f"/v1/jobs/{job}/discussion", headers=HEADERS, json={"transmission_confirmed": True, **body})
 
 
-def test_sends_only_the_saved_result_and_stores_the_checked_draft(tmp_path, service):
+def test_sends_the_saved_result_and_stores_the_draft(tmp_path, service):
     client, app = client_for(tmp_path)
     job, store = saved_job(client, app)
     response = post(client, job, experiment={"purpose": "処理で信号が変わるかを見る", "cells": "U2OS", "stains": ["phalloidin"]})
@@ -79,12 +79,24 @@ def test_sends_only_the_saved_result_and_stores_the_checked_draft(tmp_path, serv
     [call] = service
     assert call["path"] == "/v1/discussions"
     sent = json.dumps(call["content"], ensure_ascii=False)
-    # Channel IDs, labels, field IDs, file names, paths and run labels stay local (AC-03).
-    for private in ("actin", "Actin", "field", "revision", ".tif", "workspaces", str(tmp_path)):
-        assert private not in sent
+    # The model reads the result as the researcher sees it: the channel's label, the researcher's run names and
+    # the metric's name (docs/drafts/llm-assistant/plan.md). Field and revision IDs, file names and paths are not
+    # part of a discussion and are not sent (AC-03).
+    saved_result = json.loads(next(store.root.rglob("result.json")).read_text(encoding="utf-8"))
+    fields = [value if isinstance(value, str) else value.get("field_id") for value in saved_result["source_fields"]]
+    for unrelated in (*fields, saved_result["revision_id"], ".tif", "workspaces", str(tmp_path)):
+        assert unrelated and f'"{unrelated}"' not in sent and str(tmp_path) not in sent
     result = call["content"]["context"]["result"]
-    assert [run["run"] for run in result["runs"]] == ["run 1", "run 2", "run 3"]
-    assert result["stain"] == "phalloidin" and result["heading"] is None
+    assert call["content"]["context"]["protocol"] == "result-discussion/1.1.0"
+    assert [run["run"] for run in result["runs"]] == [run["pair"] for run in saved_result["estimates"]["runs"]]
+    assert result["channel_label"] == "Actin" and result["metric_label"]
+    assert result["stain"] == "phalloidin" and result["heading"] is None and result["region_label"] == "Cell interiors"
+    # n with its breakdown and the recorded method go with the numbers (plan §8).
+    assert [row["condition"] for row in result["counts"]] == ["A", "B"]
+    assert result["counts"][0]["experimental_units"] == 3 and result["counts"][0]["complete_pairs"] == 3
+    assert result["method"]["comparison"] == "paired t-test" and result["method"]["correction"] == "Holm"
+    assert result["method"]["unit_definition"] == "Independently treated culture preparations"
+    assert result["method"]["confidence_level"] == 0.95
     assert client.get(f"/v1/jobs/{job}/discussion").json()["discussion"] == saved
     # The same result and setting reuse the stored discussion instead of paying again.
     assert post(client, job, experiment={"purpose": "処理で信号が変わるかを見る", "cells": "U2OS",
@@ -106,12 +118,35 @@ def test_nothing_is_sent_without_confirmation_or_a_configured_service(tmp_path, 
     assert service == []
 
 
-def test_a_draft_with_a_new_number_is_not_stored_and_needs_an_explicit_retry(tmp_path, monkeypatch):
+def test_the_summary_the_screen_shows_is_sent_with_the_result(tmp_path, service):
+    """The heading and points of the card above the result reach the model as they are shown (plan §8)."""
+    client, app = client_for(tmp_path)
+    job, _ = saved_job(client, app)
+    summary = {"heading": "B で、Actin の平均輝度（背景補正）が約 2 a.u. 高い", "points": ["A 4.3 a.u. → B 6.3 a.u."]}
+    assert post(client, job, summary=summary).status_code == 200
+    result = service[0]["content"]["context"]["result"]
+    assert result["heading"] == summary["heading"] and result["summary_points"] == summary["points"]
+    assert post(client, job, summary={**summary, "extra": 1}).status_code == 422
+
+
+def test_a_draft_with_numbers_and_references_is_shown_as_written(tmp_path, monkeypatch):
+    """The draft's text is not checked: a number outside the result or a reference is stored as written."""
+    client, app = client_for(tmp_path)
+    job, _ = saved_job(client, app)
+    written = {**DRAFT, "implications": ["平均は 37% 低く、既報（Lens et al.）と整合する可能性がある。"]}
+    monkeypatch.setattr(discussions, "post_to_service",
+                        lambda *args, **kwargs: {"model": MODEL, "prompt_version": DISCUSSION_PROMPT_VERSION, "draft": written})
+    response = post(client, job)
+    assert response.status_code == 200, response.text
+    assert response.json()["discussion"]["draft"]["implications"] == written["implications"]
+
+
+def test_an_answer_without_the_headings_is_not_stored_and_needs_an_explicit_retry(tmp_path, monkeypatch):
     client, app = client_for(tmp_path)
     job, store = saved_job(client, app)
     saved_result = next(store.root.rglob("result.json"))
     before = saved_result.read_bytes()
-    drafts = [{**DRAFT, "implications": ["平均は 37% 低い。"]}, DRAFT]
+    drafts = [{"implications": [], "alternatives": [], "next_steps": []}, DRAFT]
 
     def answer(settings, path, content, request_id=None):
         return {"model": MODEL, "prompt_version": DISCUSSION_PROMPT_VERSION, "draft": drafts.pop(0)}
@@ -119,13 +154,13 @@ def test_a_draft_with_a_new_number_is_not_stored_and_needs_an_explicit_retry(tmp
     monkeypatch.setattr(discussions, "post_to_service", answer)
     response = post(client, job)
     assert response.status_code == 502
-    assert response.json()["detail"] == {"code": "discussion_rejected", "reasons": ["discussion_number_not_in_result"]}
+    assert response.json()["detail"] == {"code": "discussion_rejected", "reasons": ["discussion_schema_invalid"]}
     none = client.get(f"/v1/jobs/{job}/discussion")
     assert none.status_code == 200 and none.json() is None
     # A failed call may already have cost money; it is repeated only on an explicit retry (L05).
     assert post(client, job).json()["detail"] == "proposal_explicit_retry_required"
     assert post(client, job, retry_failed=True).status_code == 200
-    # The computed result is untouched by either draft (AC-07).
+    # The computed result is untouched by either answer (AC-07).
     assert saved_result.read_bytes() == before
 
 

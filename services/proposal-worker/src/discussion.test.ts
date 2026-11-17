@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { handle, type Env } from "./index";
-import { DISCUSSION_PROMPT_VERSION, discussionPayload, hasDiscussionShape } from "./discussion";
+import { DISCUSSION_LEGACY_PROMPT_VERSION, DISCUSSION_LEGACY_SYSTEM_PROMPT, DISCUSSION_PROMPT_VERSION, DISCUSSION_SYSTEM_PROMPT,
+  discussionPayload, hasDiscussionShape } from "./discussion";
 import { MemoryStore } from "./store";
 
 // A stand-in model: no request leaves the test.
@@ -21,6 +22,10 @@ const CONTEXT = {
     runs: [{ run: "run 1", control: 566.5, treatment: 469.8, difference: -96.7, ratio: 0.83 }],
     warnings: ["descriptive_comparison_no_test_or_interval"], heading: null,
   },
+};
+const CLAUDE: Partial<Env> = {
+  ANTHROPIC_API_KEY: "test-only", ANTHROPIC_MODEL: "claude-opus-5-5", ANTHROPIC_PRICE_INPUT_USD_PER_MTOK: "4",
+  ANTHROPIC_PRICE_OUTPUT_USD_PER_MTOK: "20", ANTHROPIC_PRICE_CACHED_INPUT_USD_PER_MTOK: "0.2", ANTHROPIC_PRICE_CACHE_WRITE_USD_PER_MTOK: "5",
 };
 const DRAFT = { implications: ["核小体が小さくなる可能性がある。"], alternatives: [], next_steps: ["視野を増やして確かめる。"] };
 
@@ -54,7 +59,10 @@ describe("result discussion route", () => {
     const sent = JSON.parse((fetcher.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
     expect(sent.store).toBe(false);
     expect(sent.text.format).toMatchObject({ type: "json_schema", strict: true, name: "cytellect_result_discussion" });
-    expect(sent.input[0].content[0].text).toContain("Do not compute");
+    // The current prompt asks for a scientific discussion and lists no rules checked afterwards (plan §8).
+    expect(sent.input[0].content[0].text).toBe(DISCUSSION_SYSTEM_PROMPT);
+    expect(DISCUSSION_SYSTEM_PROMPT).toContain("heading and summary_points");
+    expect(DISCUSSION_SYSTEM_PROMPT).not.toMatch(/checked after|Do not write citations|never say/);
     expect(JSON.parse(sent.input[1].content[0].text)).toEqual({ context: CONTEXT });
   });
 
@@ -92,7 +100,40 @@ describe("result discussion route", () => {
   it("checks the shape only; numbers and claims are checked by the local API", () => {
     expect(hasDiscussionShape(DRAFT)).toBe(true);
     expect(hasDiscussionShape({ ...DRAFT, references: ["doi"] })).toBe(false);
+    // The local API rejects a draft with no interpretation or an empty point; the relay repairs it instead of returning it.
+    expect(hasDiscussionShape({ ...DRAFT, implications: [] })).toBe(false);
+    expect(hasDiscussionShape({ ...DRAFT, next_steps: [" "] })).toBe(false);
+    expect(hasDiscussionShape({ implications: ["a"], alternatives: [], next_steps: [] })).toBe(true);
     expect(discussionPayload({ apiKey: "k", model: "m", maxOutputTokens: 2000 }, CONTEXT).text.format.schema)
       .toMatchObject({ additionalProperties: false, required: ["implications", "alternatives", "next_steps"] });
+  });
+
+  it("keeps installed clients on the legacy prompt and the OpenAI model", async () => {
+    const store = new MemoryStore(), token = await device(store);
+    const fetcher = vi.fn(async () => modelReply(JSON.stringify(DRAFT)));
+    const env = { ...ENV, ...CLAUDE };
+    const response = await handle(post("/v1/discussions", { context: CONTEXT, prompt_version: DISCUSSION_LEGACY_PROMPT_VERSION }, token), env, store, { fetcher });
+    expect(await response.json()).toEqual({ draft: DRAFT, model: "gpt-6.1-sol", prompt_version: DISCUSSION_LEGACY_PROMPT_VERSION });
+    const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("https://api.openai.com/v1/responses");
+    expect(JSON.parse(init.body as string).input[0].content[0].text).toBe(DISCUSSION_LEGACY_SYSTEM_PROMPT);
+  });
+
+  it("sends the redesigned context to Claude with the new prompt", async () => {
+    const store = new MemoryStore(), token = await device(store);
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({ type: "message", stop_reason: "end_turn",
+      usage: { input_tokens: 1000, output_tokens: 200 }, content: [{ type: "text", text: JSON.stringify(DRAFT) }] }), { status: 200 }));
+    const context = { ...CONTEXT, protocol: "result-discussion/1.1.0", result: { ...CONTEXT.result,
+      metric: "positive_fraction", metric_label: "判定可能な核の陽性率", unit: "fraction of evaluable nuclei", scale: "fraction",
+      metric_definition: "positive / all evaluable positive and negative nuclei before subset selection",
+      channel_label: "GFP (488)", runs: [{ ...CONTEXT.result.runs[0], run: "Rep1 2021-12-01" }] } };
+    const response = await handle(post("/v1/discussions", { context, prompt_version: DISCUSSION_PROMPT_VERSION }, token), { ...ENV, ...CLAUDE }, store, { fetcher });
+    expect(await response.json()).toEqual({ draft: DRAFT, model: "claude-opus-5-5", prompt_version: DISCUSSION_PROMPT_VERSION });
+    const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("https://api.anthropic.com/v1/messages");
+    const sent = JSON.parse(init.body as string);
+    expect(sent.system).toBe(DISCUSSION_SYSTEM_PROMPT);
+    expect(JSON.parse(sent.messages[0].content[0].text)).toEqual({ context });
+    expect(sent.output_config.format.type).toBe("json_schema");
   });
 });

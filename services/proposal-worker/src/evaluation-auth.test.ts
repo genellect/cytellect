@@ -6,7 +6,12 @@ const proxyEnv = { CLAUDE_CODE_REMOTE: "true", CYTELLECT_EVAL_PROXY_AUTH: "true"
 
 describe("evaluation authentication", () => {
   it("keeps direct private-key mode and rejects missing credentials", () => {
-    expect(evaluationAuth({ OPENAI_API_KEY: "fixture" })).toEqual({ apiKey: "fixture" });
+    expect(evaluationAuth({ OPENAI_API_KEY: "fixture" })).toEqual({ apiKey: "fixture", provider: "openai" });
+    expect(evaluationAuth({ CYTELLECT_EVAL_PROVIDER: "anthropic", ANTHROPIC_API_KEY: "fixture" }))
+      .toEqual({ apiKey: "fixture", provider: "anthropic" });
+    expect(() => evaluationAuth({ CYTELLECT_EVAL_PROVIDER: "anthropic", OPENAI_API_KEY: "fixture" })).toThrow("private_key_required");
+    expect(() => evaluationAuth({ CYTELLECT_EVAL_PROVIDER: "other", OPENAI_API_KEY: "fixture" })).toThrow("provider_unknown");
+    expect(() => evaluationAuth({ CYTELLECT_EVAL_PROVIDER: "constructor", OPENAI_API_KEY: "fixture" })).toThrow("provider_unknown");
     expect(() => evaluationAuth({})).toThrow("private_key_required");
   });
   it.each([
@@ -28,6 +33,18 @@ describe("evaluation authentication", () => {
     expect(init.redirect).toBe("error");
     expect(JSON.parse(init.body as string).store).toBe(false);
     expect(transport).toHaveBeenCalledTimes(1);
+  });
+  it("proxies Claude without sending the key header from the VM", async () => {
+    const transport = vi.fn(async () => Response.json({ type: "error", error: { type: "authentication_error" } }, { status: 401 }));
+    const auth = evaluationAuth({ ...proxyEnv, CYTELLECT_EVAL_PROVIDER: "anthropic" }, transport as typeof fetch);
+    await expect(draftProposal({ ...auth, model: "claude-opus-5-5", maxOutputTokens: 8000 }, {}, [])).rejects.toThrow("model_unavailable");
+    const [url, init] = transport.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("https://api.anthropic.com/v1/messages");
+    expect(new Headers(init.headers).has("x-api-key")).toBe(false);
+    expect(new Headers(init.headers).get("anthropic-version")).toBe("2026-10-21");
+    expect(init.redirect).toBe("error");
+    expect(await auth.fetcher!("https://api.openai.com/v1/responses", { method: "POST", redirect: "manual" }).catch((e: Error) => e.message))
+      .toBe("evaluation_proxy_destination_rejected");
   });
   it.each([
     ["https://other.example/v1/responses", { method: "POST", redirect: "error" }],

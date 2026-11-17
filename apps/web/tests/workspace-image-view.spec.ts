@@ -7,7 +7,7 @@ import {expect,test,type BrowserContext,type Page} from "@playwright/test";
  * (`saved`) and image intake. Transport and display only; the fixed records and display pixels are not
  * microscopy acceptance. */
 async function imageWorkspace(context:BrowserContext,page:Page,options:{pair?:boolean;saved?:boolean}={}){
-  const unexpected:string[]=[],uploads:string[][]=[];
+  const unexpected:string[]=[],uploads:string[][]=[],discussions:Record<string,unknown>[]=[];
   const fieldIds=["f1","f2"];
   const channels=[{channel_id:"c1",label:"DAPI",stain:"DAPI"},{channel_id:"c2",label:"NPM1",stain:"NPM1"}];
   const fields=fieldIds.map((id,index)=>({id,workspace_id:"w",metadata:{display_name:`視野 ${index+1}`},image_info:{shape:[32,32],channels}}));
@@ -57,6 +57,10 @@ async function imageWorkspace(context:BrowserContext,page:Page,options:{pair?:bo
     const result=saved.find(value=>path===`/v1/jobs/${value.job}/result`);if(result)return json(result.result);
     // No discussion has been made for a saved comparison (the API answers null; AC-06).
     if(method==="GET"&&saved.some(value=>path===`/v1/jobs/${value.job}/discussion`))return json(null);
+    // A discussion request is recorded and answered with a stand-in draft; no model is called.
+    if(method==="POST"&&saved.some(value=>path===`/v1/jobs/${value.job}/discussion`)){discussions.push(req.postDataJSON());
+      return json({job_id:path.split("/")[3],created:1,discussion:{protocol:"result-discussion/1.1.0",origin:"model",context_sha256:"a".repeat(64),prompt_version:"2026-11-16.1",model:"stand-in-model",
+        draft:{protocol:"result-discussion/1.1.0",implications:["検定は行っていないため、有意差の有無はこの結果からは言えない。"],alternatives:[],next_steps:[]}}});}
     const figure=saved.find(value=>path===`/v1/jobs/${value.job}/files/figure.svg`);
     if(figure)return route.fulfill({headers,contentType:"image/svg+xml",body:`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200"><text x="20" y="40">Saved figure ${figure.job}</text></svg>`});
     if(path.endsWith("/region-measurements")){const rid=path.split("/")[3],fid=rid.endsWith("2")?"f2":"f1";
@@ -69,7 +73,7 @@ async function imageWorkspace(context:BrowserContext,page:Page,options:{pair?:bo
     const record=revisions.find(value=>path.endsWith(`/revisions/${value.id}`));if(record)return json(record);
     unexpected.push(`${method} ${path}${url.search}`);return json({detail:"unexpected_transport_route"},404);
   });
-  return {unexpected,uploads};
+  return {unexpected,uploads,discussions};
 }
 
 test("the table beside one image names what it lists, its stain and the field of its rows, also when a comparison shows another plane",async({page,context})=>{
@@ -189,6 +193,26 @@ test("the AI composer opens the AI panel when focused, without the demo's exampl
   expect(fixture.unexpected).toEqual([]);
 });
 
+test("before the first proposal after the scope widened, the AI panel asks once what is sent; cancelling sends nothing",async({page,context})=>{
+  const fixture=await imageWorkspace(context,page);
+  const proposals:string[]=[];
+  page.on("request",request=>{if(request.method()==="POST"&&new URL(request.url()).pathname.endsWith("/proposal-drafts"))proposals.push(request.postData()??"");});
+  await page.goto("/workspace?id=w");
+  await expect(page.locator("[class*=fieldCard]")).toHaveCount(2);
+  await page.getByLabel("AIへの指示",{exact:true}).fill("核小体の面積を比べたい");
+  await page.getByRole("button",{name:"AIへ送信"}).click();
+  const scope=page.getByRole("group",{name:"AIに送る内容の確認"});
+  await expect(scope).toContainText("代表的な視野の縮小画像");
+  await scope.getByRole("button",{name:"キャンセル"}).click();
+  await expect(scope).toHaveCount(0);
+  expect(proposals).toEqual([]);
+  // Sending without previews turns the setting off and records the confirmation, so the next request asks no more.
+  await page.getByRole("button",{name:"AIへ送信"}).click();
+  await page.getByRole("group",{name:"AIに送る内容の確認"}).getByRole("button",{name:"縮小画像なしで送信"}).click();
+  expect(await page.evaluate(()=>[localStorage.getItem("cytellect.ai.include-previews"),localStorage.getItem("cytellect.ai.proposal-scope-seen.v2")])).toEqual(["0","1"]);
+  expect(fixture.unexpected.filter(route=>!route.includes("proposal")&&!route.includes("analysis-spec"))).toEqual([]);
+});
+
 test("statistics open on the latest saved comparison, the saved comparisons switch, and ?step= opens a tab",async({page,context})=>{
   const fixture=await imageWorkspace(context,page,{saved:true});
   await page.goto("/workspace?id=w&step=statistics");
@@ -209,5 +233,25 @@ test("statistics open on the latest saved comparison, the saved comparisons swit
   await expect(navigation.getByRole("button",{name:"グラフ",exact:true})).toHaveAttribute("aria-current","page");
   await expect(page.getByRole("combobox",{name:"保存した図"})).toHaveValue("saved-mean");
   await expect(page.getByText("Saved figure saved-mean",{exact:true})).toBeVisible();
+  expect(fixture.unexpected).toEqual([]);
+});
+
+test("a discussion is sent the summary the screen shows and starts from the goal written to the AI",async({page,context})=>{
+  const fixture=await imageWorkspace(context,page,{saved:true});
+  await page.addInitScript(()=>localStorage.setItem("cytellect.ai.goal.w","NPM1 の核小体への局在が処理で変わるかを確かめる"));
+  await page.goto("/workspace?id=w&step=statistics");
+  const results=page.getByRole("region",{name:"測定結果の統計解析"});
+  const heading=await results.getByRole("region",{name:"結果のまとめ"}).getByRole("heading",{level:3}).innerText();
+  const panel=results.getByRole("region",{name:"考察"});
+  await panel.getByRole("button",{name:"考察を生成"}).click();
+  await expect(panel.getByRole("textbox",{name:"実験の目的（任意）"})).toHaveValue("NPM1 の核小体への局在が処理で変わるかを確かめる");
+  await panel.getByRole("button",{name:"送信して生成"}).click();
+  // The draft is shown as written, with no note added to it (plan §8).
+  await expect(panel).toContainText("検定は行っていないため、有意差の有無はこの結果からは言えない。");
+  expect(fixture.discussions).toHaveLength(1);
+  const [sent]=fixture.discussions as [{summary:{heading:string;points:string[]};experiment:{purpose:string}}];
+  expect(sent.summary.heading).toBe(heading);
+  expect(sent.summary.points.length).toBeGreaterThan(0);
+  expect(sent.experiment.purpose).toBe("NPM1 の核小体への局在が処理で変わるかを確かめる");
   expect(fixture.unexpected).toEqual([]);
 });

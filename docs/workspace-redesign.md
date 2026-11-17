@@ -191,10 +191,12 @@ Methods and input/mask identities.
   proposals therefore never include that model; it stays an explicit
   specialist recipe until its clustering is corrected under a new statistics
   version.
-- **Proposals send no images.** Recipe choice follows from stain names, channel
-  layout and the stated goal. Requests send the goal and normalized metadata
-  only; requirement L03 caps any future image transmission at six downscaled
-  previews after the researcher enables it.
+- **Proposals show the model what the researcher recorded.** Since the
+  2026-11-16 redesign ([LLM assistance redesign](drafts/llm-assistant/plan.md)),
+  requests send the goal, channel labels, every field's name and records, and up
+  to six display-scaled previews of one representative field unless the
+  researcher turns previews off (requirement L03). Paths and measured values are
+  not sent.
 - **Segmentation validity is a separate gate.** Execution success on public
   images and same-mask ImageJ agreement are not detection accuracy. D04
   annotated evaluation remains required before claiming nuclear, nucleolar or
@@ -241,14 +243,17 @@ statistics and Methods remain owned by the analysis package.
 
 ```text
 Browser → local FastAPI (+ worker/Fiji/Python)
-             ↓ normalized metadata; previews only when enabled
+             ↓ goal, labels, field records; previews unless turned off
           Cytellect proposal service (Cloudflare Workers + D1)
              ↓
-          OpenAI API (Structured Outputs, store: false)
+          Anthropic API (redesigned prompt versions) or OpenAI API (installed clients; store: false)
 ```
 
-- Input: goal text, normalized image metadata, optional ≤6 previews, groups /
-  samples / pairing when known, available recipes and their conditions.
+- Input ([LLM assistance redesign](drafts/llm-assistant/plan.md), 2026-11-16): goal text,
+  channel labels and recorded stains, every field's name and records, image
+  metadata, ≤6 display-scaled previews of a representative field (unless the
+  researcher turns them off), groups / samples / pairing when known, available
+  recipes and their conditions.
 - Output (strict JSON schema): recipe ID, channel-role suggestions with
   reasons, metrics, aggregation/comparison/figure suggestions, missing
   information and registered method/literature IDs.

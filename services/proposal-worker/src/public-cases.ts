@@ -2,11 +2,13 @@
  * Sources are the registered Senft/Waters/Kodiha/Lazic/Lord method notes in openai.ts.
  * No uploads, arbitrary prompts, filenames or remote image URLs are accepted by the harness.
  */
-const channel = (token: string, stain: string | null, role: string | null) => ({ token, stain, role });
+// Context 1.2.0 as the redesigned client sends it: a channel's label is its stain (or its token), and every
+// field carries a neutral name; no recorded condition or run is implied.
+const channel = (token: string, stain: string | null, role: string | null) => ({ token, stain, role, label: stain ?? token });
 const nuclear = channel("ch1", "DAPI", "nuclear");
 const gfp = channel("ch2", "GFP", "measure");
 const ncl = channel("ch2", "NCL", "measure");
-const base = { protocol: "1.1.0", goal: "", channels: [nuclear], field_count: 4, condition_count: 0,
+const base = { protocol: "1.2.0", goal: "", channels: [nuclear], field_count: 4, condition_count: 0,
   units_known: false, pairing_known: false, supplied_regions: false, measured_table: false, background_available: false };
 
 export interface PublicCase {
@@ -18,7 +20,10 @@ export interface PublicCase {
   forbiddenMetrics?: string[];
 }
 const make = (id: string, patch: Record<string, unknown>, recipes: string[], metric: string | null, kind = "descriptive", forbiddenMetrics?: string[]): PublicCase =>
-  ({ id, context: { ...base, ...patch }, recipes, metric, kind, forbiddenMetrics });
+  ({ id, context: withFields({ ...base, ...patch }), recipes, metric, kind, forbiddenMetrics });
+const withFields = (context: Record<string, unknown>) => ({ ...context,
+  fields: Array.from({ length: Math.min(Number(context.field_count) || 0, 200) }, (_, index) => ({
+    name: `field ${index + 1}`, condition: null, experimental_unit: null, pair: null, acquisition_date: null })) });
 
 export const PUBLIC_CASES: PublicCase[] = [
   make("nuclear-area", { goal: "DAPIで検出した核の面積分布を示す。群間検定は不要。" }, ["nuclear-intensity"], "area"),

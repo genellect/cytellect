@@ -11,11 +11,16 @@ instruction). When the exact context was not recorded (the visitor changed a
 setting first), such a draft is still returned for the same instruction if it
 passes ``validate_draft`` for the current context. Model outputs are only ever
 replayed for the exact context they were recorded for.
+
+Recordings made before context 1.2.0 are keyed by the 1.1.0 form of the same
+context. Context 1.2.0 only adds the researcher's channel labels and field
+records, so a 1.2.0 context also finds the recording of its 1.1.0 form.
 """
 
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -52,12 +57,13 @@ class Recordings:
             entries[key] = payload
         return cls(entries)
 
-    def request_draft(self, settings, context, request_id=None) -> dict:
-        """Drop-in for ``cytellect_api.proposals.request_draft``."""
+    def request_draft(self, settings, context, request_id=None, previews=None) -> dict:
+        """Drop-in for ``cytellect_api.proposals.request_draft``; previews are not part of a replayed answer."""
         from cytellect_analysis.proposal_validation import context_sha256
         from cytellect_api.proposals import ProposalServiceError
 
-        payload = self.entries.get(context_sha256(context)) or self._authored(context)
+        payload = (self.entries.get(context_sha256(context)) or self.entries.get(_legacy_sha256(context))
+                   or self._authored(context))
         if payload is None:
             raise ProposalServiceError(409, NOT_RECORDED)
         return copy.deepcopy(payload)
@@ -80,3 +86,14 @@ class Recordings:
                 continue
             return payload
         return None
+
+
+def _legacy_sha256(context) -> str:
+    """``context_sha256`` of the context's 1.1.0 form: without channel labels and field records."""
+    data = context.model_dump(mode="json")
+    data["protocol"] = "1.1.0"
+    data.pop("fields", None)
+    for channel in data.get("channels", []):
+        channel.pop("label", None)
+    canonical = json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()

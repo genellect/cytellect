@@ -6,9 +6,11 @@ input is derived from the workspace. Only normalized metadata leaves the PC;
 the service calls the language model and returns a draft validated here.
 Registered-recipe analysis never depends on this route.
 """
+import base64
 import dataclasses
 import functools
 import hashlib
+import io
 import json
 import time
 import urllib.error
@@ -17,6 +19,8 @@ import uuid
 from typing import Annotated
 from urllib.parse import urlsplit
 
+import numpy as np
+from cytellect_analysis.images import render_preview_with_display
 from cytellect_analysis.proposal_contracts import (
     PROPOSAL_PROTOCOL,
     DraftProcessing,
@@ -33,6 +37,7 @@ from cytellect_analysis.region_contracts import (
     validate_nuclear_role_evidence,
 )
 from fastapi import Depends, HTTPException
+from PIL import Image
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 from sqlalchemy import select, update
 
@@ -110,11 +115,13 @@ def effective_settings(settings, credentials=None):
     return dataclasses.replace(settings, proposal_url=account[0], proposal_token=account[1])
 
 
-def request_draft(settings, context: ProposalContext, request_id: str | None = None) -> dict:
-    """POST the context to the service; never logs or retries the request body."""
-    return post_to_service(settings, "/v1/proposals",
-                           {"context": context.model_dump(mode="json"), "prompt_version": settings.proposal_prompt_version},
-                           request_id)
+def request_draft(settings, context: ProposalContext, request_id: str | None = None,
+                  previews: list[dict] | None = None) -> dict:
+    """POST the context (and previews) to the service; never logs or retries the request body."""
+    content = {"context": context.model_dump(mode="json"), "prompt_version": settings.proposal_prompt_version}
+    if previews:
+        content["previews"] = previews
+    return post_to_service(settings, "/v1/proposals", content, request_id)
 
 
 def post_to_service(settings, path: str, content: dict, request_id: str | None = None) -> dict:
@@ -185,6 +192,8 @@ class ProposalDraftRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     goal: Annotated[str, Field(max_length=2000)] = ""
     transmission_confirmed: StrictBool = False
+    # The researcher's setting: also send display-scaled previews of one representative field (default on).
+    include_previews: StrictBool = True
     retry_failed: StrictBool = False
     field_id: Annotated[str, Field(min_length=1, max_length=128)] | None = None
     current_processing: Annotated[dict, Field(max_length=4)] | None = None
@@ -210,17 +219,23 @@ def _complete(rows, key):
     return bool(rows) and all(row["metadata"].get(key) not in (None, "") for row in rows)
 
 
+def _adopted_selection(store, wid: str) -> tuple[dict, set[str]]:
+    """The adopted selection and the fields the researcher excluded in it; neither proposals nor previews use those."""
+    from .workspace_selection import selection_at
+    with store.engine.connect() as conn:
+        selection = selection_at(conn, wid)
+    return selection, {entry["field_id"] for entry in selection["entries"] if entry.get("exclusion_reason")}
+
+
 def build_context(store, wid: str, goal: str, field_id: str | None = None) -> tuple[ProposalContext, list[ProposalChannelLink]]:
     """Derive every proposal input from the workspace; nothing else is asked of the researcher.
 
-    Only channel tokens, recorded stains and counts/flags leave the PC. Channel
-    labels, file names, metadata values, images and measurements stay local.
+    The model reads the workspace as the researcher recorded it (docs/drafts/llm-assistant/plan.md): channel
+    tokens with their labels and recorded stains, every field's name and metadata, counts and current settings.
+    Paths and measured values stay local; downscaled previews are built separately (`representative_previews`).
     """
     rows = store.rows(fields, workspace_id=wid)
-    from .workspace_selection import selection_at
-    with store.engine.connect() as conn:
-        adopted_selection = selection_at(conn, wid)
-    excluded = {entry["field_id"] for entry in adopted_selection["entries"] if entry.get("exclusion_reason")}
+    adopted_selection, excluded = _adopted_selection(store, wid)
     if field_id is not None and not any(row["id"] == field_id for row in rows):
         raise HTTPException(404, "field_not_found")
     if field_id in excluded:
@@ -232,6 +247,8 @@ def build_context(store, wid: str, goal: str, field_id: str | None = None) -> tu
     active = store.one(revisions, id=workspace_row["active_revision"], workspace_id=wid) if workspace_row["active_revision"] else None
     config = active["config"] if active else {}
     snapshots = config.get("field_snapshot", {})
+    # The researcher-visible name is recorded at registration, not in snapshots.
+    display_names = {row["id"]: row.get("display_name") for row in rows}
     # Saved metadata edits take precedence over immutable registration metadata.
     rows = [snapshots.get(row["id"], row) for row in rows]
     links: list[ProposalChannelLink] = []
@@ -278,7 +295,9 @@ def build_context(store, wid: str, goal: str, field_id: str | None = None) -> tu
                     and (recipe.get("nuclear_stain_confirmed") is True or adopted_role) else None)
             if "assignment_role" in spec:
                 role = spec["assignment_role"]
-            channels.append({"token": token, "stain": spec.get("stain"), "role": role})
+            label = spec.get("label")
+            channels.append({"token": token, "stain": spec.get("stain"), "role": role,
+                             "label": label[:80] if isinstance(label, str) and label.strip() else None})
     else:
         roles = dict.fromkeys(role for row in rows for role in row["image_info"].get("channel_roles", []))
         if any(set(row["image_info"].get("channel_roles", [])) != set(roles) for row in rows):
@@ -287,7 +306,7 @@ def build_context(store, wid: str, goal: str, field_id: str | None = None) -> tu
             stain, kind = LEGACY_STAINS.get(role, (None, None))
             token = f"ch{index + 1}"
             links.append(ProposalChannelLink(token=token, channel_id=role, stain=stain))
-            channels.append({"token": token, "stain": stain, "role": kind})
+            channels.append({"token": token, "stain": stain, "role": kind, "label": role[:80] or None})
     if rows and not channels:
         raise HTTPException(409, "proposal_requires_images")
     if len(channels) > 6:
@@ -360,8 +379,76 @@ def build_context(store, wid: str, goal: str, field_id: str | None = None) -> tu
         current_gfp=current_gfp, negative_control_fields_known=registered_controls,
         acquired_dates_known=_complete(rows, "acquisition_date"),
         image_metadata=image_metadata,
+        fields=[_field_record(row, display_names.get(row["id"])) for row in rows[:200]],
     ))
     return context, links
+
+
+def _text(value) -> str | None:
+    return value.strip()[:120] if isinstance(value, str) and value.strip() else None
+
+
+def _field_record(row, display_name: str | None) -> dict:
+    """A field's researcher-visible name and recorded metadata; never a path."""
+    metadata = row.get("metadata") or {}
+    name = display_name or metadata.get("filename") or metadata.get("display_name")
+    if isinstance(name, str):
+        name = name.replace("\\", "/").rsplit("/", 1)[-1]
+    return {"name": _text(name), **{key: _text(metadata.get(key))
+                                   for key in ("condition", "experimental_unit", "pair", "acquisition_date")}}
+
+
+PREVIEW_SIDE = 512
+# Auto-contrast for the model's previews: a few saturated or hot pixels must not turn the whole field dark.
+PREVIEW_PERCENTILES = (0.1, 99.9)
+
+
+def _block_mean(pixels: np.ndarray, side: int) -> np.ndarray:
+    """Reduce a 2D plane to at most about `side` pixels a side by averaging square blocks, one band of rows at a time.
+
+    Averaging keeps small structures (puncta, nucleoli of 1-3 px) visible where taking every n-th pixel would drop them,
+    and reading one band at a time keeps a memory-mapped field from being loaded whole.
+    """
+    step = max(1, -(-max(pixels.shape[:2]) // side))
+    if step == 1:
+        return np.asarray(pixels, dtype=np.float32)
+    height, width = (pixels.shape[0] // step) * step, (pixels.shape[1] // step) * step
+    if not height or not width:
+        return np.asarray(pixels, dtype=np.float32)
+    bands = [np.asarray(pixels[top:top + step, :width], dtype=np.float32).reshape(step, width // step, step).mean(axis=(0, 2))
+             for top in range(0, height, step)]
+    return np.stack(bands)
+
+
+def representative_previews(store, wid: str, links: list[ProposalChannelLink], field_id: str | None = None) -> list[dict]:
+    """Display-scaled PNG previews (at most 512 px a side, one per channel) of one representative field.
+
+    The selected field when given, otherwise the first registered native field the researcher has not excluded.
+    Previews are for the model to see the images; they are display renderings and never measurements.
+    """
+    _, excluded = _adopted_selection(store, wid)
+    rows = [row for row in store.rows(fields, workspace_id=wid) if is_region(row) and row["id"] not in excluded]
+    row = next((row for row in rows if row["id"] == field_id), None) if field_id else (rows[0] if rows else None)
+    if row is None or row["image_info"].get("input_mode", "native") != "native":
+        return []
+    previews = []
+    for link in links[:6]:
+        path = store.safe_path("workspaces", wid, "fields", row["id"], f"channel-{link.channel_id}.npy")
+        if not path.is_file():
+            continue
+        pixels = _block_mean(np.load(path, allow_pickle=False, mmap_mode="r"), PREVIEW_SIDE)
+        png, _display = render_preview_with_display({link.channel_id: pixels}, link.channel_id, *PREVIEW_PERCENTILES, 1,
+                                                    field_id=row["id"], composite=False)
+        image: Image.Image = Image.open(io.BytesIO(png))
+        image.thumbnail((PREVIEW_SIDE, PREVIEW_SIDE))
+        if image.mode not in ("L", "RGB"):
+            image = image.convert("RGB")
+        output = io.BytesIO()
+        image.save(output, format="PNG", optimize=True)
+        encoded = base64.b64encode(output.getvalue()).decode("ascii")
+        if len(encoded) <= 700_000:
+            previews.append({"channel": link.token, "png_base64": encoded})
+    return previews
 
 
 def _source_stamp(store, wid: str) -> str:
@@ -425,7 +512,8 @@ def register_proposal_routes(api, store, settings, owner, workspace, credentials
         service = effective_settings(settings, credentials)
         identity = {"context": context_sha256(context), "protocol": PROPOSAL_PROTOCOL,
                     "model": settings.proposal_model, "prompt": settings.proposal_prompt_version,
-                    "service": service.proposal_url, "channels": [link.model_dump() for link in links], "source": source_stamp}
+                    "service": service.proposal_url, "channels": [link.model_dump() for link in links], "source": source_stamp,
+                    "previews": body.include_previews}
         key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
         request_id = str(uuid.uuid4())
         now = time.time()
@@ -451,8 +539,13 @@ def register_proposal_routes(api, store, settings, owner, workspace, credentials
                     lease_until=now + settings.proposal_timeout_seconds + 30))
         proposal = None
         try:
-            payload = request_draft(service, context, request_id)
-            if payload["model"] != settings.proposal_model or payload["prompt_version"] != settings.proposal_prompt_version:
+            try:
+                previews = representative_previews(store, wid, links, body.field_id) if body.include_previews else []
+            except Exception:
+                # Previews are optional: an unreadable array or image sends the request without them.
+                previews = []
+            payload = request_draft(service, context, request_id, previews)
+            if payload["model"] not in {settings.proposal_model, *settings.proposal_models} or payload["prompt_version"] != settings.proposal_prompt_version:
                 raise ProposalServiceError(502, "proposal_service_version_mismatch")
             proposal = validate_draft(context, payload.get("draft"), model=payload["model"],
                                       prompt_version=payload["prompt_version"])

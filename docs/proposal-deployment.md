@@ -259,8 +259,13 @@ call with a token starts a GPU container and counts as GPU time.
 ## Production budget and reconciliation
 
 The owner approved a separate **USD 5 per UTC calendar month** production budget
-on 2026-10-06. This does not replace or reset the USD 5 cumulative evaluation
-ledger. Before each request, the Worker atomically admits its two-call maximum
+on 2026-10-06. On 2026-11-17 the owner decided to raise it to **USD 50 per month**
+(`MONTHLY_BUDGET_USD`), keep **USD 5 per user** (`USER_PROPOSAL_USD_MONTH`) and use
+**Claude Sonnet 5.5** (`ANTHROPIC_MODEL=claude-sonnet-5-5`, tariffs 2 / 10 / 0.1 / 2.5 USD
+per million tokens) for the redesigned prompt versions. These values take effect with
+the next production deployment, which needs the owner's permission; until then the
+live Worker keeps USD 5 and OpenAI only. Neither budget replaces or resets the USD 5
+cumulative evaluation ledger. Before each request, the Worker atomically admits its two-call maximum
 only if settled costs plus all outstanding reservations fit the monthly budget.
 Unknown or interrupted billing retains its conservative reservation amount.
 
@@ -296,6 +301,15 @@ budget, then confirm that settled plus outstanding costs still permit admission.
 References: [local Wrangler installation](https://developers.cloudflare.com/workers/wrangler/install-and-update/),
 [Worker commands](https://developers.cloudflare.com/workers/wrangler/commands/workers/),
 [D1 commands and migrations](https://developers.cloudflare.com/d1/wrangler-commands/).
+
+## Order of Worker and client releases
+
+A client that sends a newer context or prompt version needs a Worker that already accepts it. Clients from #231 on send
+proposal context 1.2.0 (channel labels and field records) with prompt `2026-11-16.1`, and discussion context with the
+screen's summary, n breakdown and method; a Worker deployed before #231 rejects them with HTTP 400 `request_invalid`, so
+every proposal and discussion from the updated client would fail. Deploy the Worker first, check it, and only then
+distribute the client. The newer Worker keeps answering installed clients (up to 0.1.0-local.23) with their own prompt
+versions and OpenAI model.
 
 ## Production deployment record
 

@@ -34,7 +34,7 @@ flowchart TB
     Models["Image recognition<br/>Fiji / StarDist · Cellpose-SAM"]
     Python["Measurement, statistics, figures<br/>NumPy · SciPy · Matplotlib"]
     Relay["AI service<br/>Cloudflare Workers · D1"]
-    LLM["OpenAI Responses API<br/>Structured Outputs"]
+    LLM["Anthropic Messages API<br/>(installed clients: OpenAI Responses API)"]
 
     Web <-->|settings, edits, results| API
     API <--> State
