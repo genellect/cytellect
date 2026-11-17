@@ -25,7 +25,7 @@ describe("saved discussion (AC-01, AC-06, AC-08)", () => {
     expect(page).not.toContain("AI 生成");
   });
   it("opens the developer's contact form for generated content without passing workspace data", () => {
-    expect(markup(view("model"))).toContain('href="https://compass-official.pages.dev/contact/" target="_blank" rel="noopener noreferrer">AI の出力を報告');
+    expect(markup(view("model"))).toContain('href="https://yuto-matsui.com/contact/" target="_blank" rel="noopener noreferrer">AI の出力を報告');
     expect(markup(view("example"))).not.toContain("AI の出力を報告");
   });
 });

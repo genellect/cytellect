@@ -113,7 +113,7 @@ test("the lab cloud, questions and the install guide send fixed events; the guid
     });
     await expect.poll(async () => JSON.stringify(await commands(page))).toContain(`"${id}_click"`);
   }
-  expect(JSON.stringify(await commands(page))).not.toContain("compass-official");
+  expect(JSON.stringify(await commands(page))).not.toContain("yuto-matsui.com/contact");
   await page.locator('#download a[data-lp-event="install_guide"]').first().click();
   await expect(page).toHaveURL(`${origin}/download`);
   await expect.poll(async () => JSON.stringify(await commands(page))).toContain('"page_view"');
