@@ -31,6 +31,8 @@ WRITABLE_FIELDS = {
     "allowMicrosftDecideAppAvailabilityToFutureDeviceFamilies", "allowTargetFutureDeviceFamilies",
     "trailers",
 }
+# Package names this workflow attaches; a draft holding one of them was prepared by an earlier run.
+CANDIDATE_NAME = re.compile(r"Cytellect-Store-\d{1,5}(?:\.\d{1,5}){3}-[0-9a-f]{40}\.msix")
 IN_REVIEW = {
     "CommitStarted", "PreProcessing", "Certification", "Release",
     "PendingPublication", "Publishing", "Published",
@@ -50,7 +52,9 @@ def request_json(url: str, method: str, operation: str, headers: dict, data=None
     request = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
         with urllib.request.build_opener(NoRedirect()).open(request, timeout=90) as response:
-            result = json.load(response)
+            content = response.read()
+            # Deleting a submission answers 204 without a body.
+            result = json.loads(content) if content or method != "DELETE" else {}
     except urllib.error.HTTPError as error:
         raise StoreError(f"{operation} failed (HTTP {error.code}).") from None
     except (OSError, ValueError):
@@ -171,6 +175,55 @@ def has_candidate(submission: dict, name: str) -> bool:
     )
 
 
+def unfinished_candidate(draft: dict, published: dict) -> str | None:
+    """The package name of a draft an earlier run prepared and left uncommitted, else None.
+
+    Only a draft that still carries the published release settings unchanged and holds exactly one
+    package named by this workflow is treated as unfinished; anything else may be someone's work.
+    """
+    names = [item.get("fileName") for item in draft.get("applicationPackages", [])
+             if item.get("fileStatus") != "PendingDelete"]
+    if (len(names) != 1 or not isinstance(names[0], str) or not CANDIDATE_NAME.fullmatch(names[0])
+            or not has_candidate(draft, names[0])
+            or any(draft.get(key) != published.get(key) for key in WRITABLE_FIELDS)):
+        return None
+    return names[0]
+
+
+def discard(store: Store, path: str, identifier: str) -> None:
+    try:
+        store.call("DELETE", path)
+    except StoreError:
+        print(f"Could not delete Store submission {identifier}. Delete it in Partner Center before the next run.")
+    else:
+        print(f"Deleted the unfinished Store submission {identifier}.")
+
+
+def create_draft(store: Store, name: str, version: str) -> tuple[dict, str]:
+    draft = store.call("POST", "/submissions")
+    path = submission_path(draft)
+    print(f"Created Store submission {draft['id']} for {version}.")
+    try:
+        if not is_public(draft) or draft.get("status") != "PendingCommit":
+            raise StoreError("The new submission did not inherit the published public release settings.")
+        metadata = {key: value for key, value in draft.items() if key in WRITABLE_FIELDS}
+        packages = [
+            {"fileName": item["fileName"], "fileStatus": "PendingDelete"}
+            for item in draft.get("applicationPackages", [])
+        ]
+        prepared = store.call("PUT", path, body={
+            **metadata, "applicationPackages": [*packages, {"fileName": name, "fileStatus": "PendingUpload"}],
+        })
+        if any(prepared.get(key) != value for key, value in metadata.items()):
+            raise StoreError("The Store changed release settings while attaching the package.")
+        if not has_candidate(prepared, name):
+            raise StoreError("The Store did not attach the intended package.")
+    except (StoreError, KeyError):
+        discard(store, path, draft["id"])
+        raise
+    return prepared, path
+
+
 def submit(store: Store, package: Path, version: str, commit: str) -> bool:
     app = store.call("GET")
     if app.get("packageIdentityName") != PACKAGE_IDENTITY:
@@ -193,37 +246,37 @@ def submit(store: Store, package: Path, version: str, commit: str) -> bool:
         raise StoreError("The published package layout no longer matches the single x64 MSIX release.")
     if version_parts(published_packages[0]["version"]) >= version_parts(version):
         raise StoreError("The candidate version must be newer than every published package.")
+    draft: dict | None = None
     pending_ref = app.get("pendingApplicationSubmission")
-    replacement = {"fileName": name, "fileStatus": "PendingUpload"}
     if pending_ref:
         path = submission_path(pending_ref)
-        draft = store.call("GET", path)
-        packages = draft.get("applicationPackages", [])
-        if draft.get("status") in IN_REVIEW:
+        pending = store.call("GET", path)
+        packages = pending.get("applicationPackages", [])
+        if pending.get("status") in IN_REVIEW:
             print(f"Waiting for Store submission {pending_ref['id']} to finish.")
             return any(item["fileName"].endswith(suffix) for item in packages)
-        if not has_candidate(draft, name):
+        unfinished = unfinished_candidate(pending, published)
+        if unfinished == name:
+            # An earlier run for this package stopped before committing; finish it.
+            draft = pending
+        elif unfinished:
+            # An earlier run stopped before committing; its package is superseded by this one.
+            discard(store, path, pending_ref["id"])
+            if store.call("GET").get("pendingApplicationSubmission"):
+                raise StoreError(f"Store submission {pending_ref['id']} could not be replaced.")
+        else:
             raise StoreError(f"Store submission {pending_ref['id']} needs attention before continuing.")
-    else:
-        draft = store.call("POST", "/submissions")
-        path = submission_path(draft)
-        print(f"Created Store submission {draft['id']} for {version}.")
-        if not is_public(draft) or draft.get("status") != "PendingCommit":
-            raise StoreError("The new submission did not inherit the published public release settings.")
-        metadata = {key: value for key, value in draft.items() if key in WRITABLE_FIELDS}
-        packages = [
-            {"fileName": item["fileName"], "fileStatus": "PendingDelete"}
-            for item in draft.get("applicationPackages", [])
-        ]
-        draft = store.call("PUT", path, body={
-            **metadata, "applicationPackages": [*packages, replacement],
-        })
-        if any(draft.get(key) != value for key, value in metadata.items()):
-            raise StoreError("The Store changed release settings while attaching the package.")
-        if not has_candidate(draft, name):
-            raise StoreError("The Store did not attach the intended package.")
-    upload_package(draft["fileUploadUrl"], package, name)
+    created = draft is None
+    if draft is None:
+        draft, path = create_draft(store, name, version)
+    try:
+        upload_package(draft["fileUploadUrl"], package, name)
+    except (StoreError, KeyError):
+        if created:
+            discard(store, path, draft["id"])
+        raise
     current = store.call("GET", path)
+    # A submission someone changed during the upload is left for them, not deleted.
     if not has_candidate(current, name) or any(
         current.get(key) != draft.get(key) for key in WRITABLE_FIELDS
     ):

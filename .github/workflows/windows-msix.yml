@@ -53,43 +53,12 @@ jobs:
       - name: Build the current Windows ZIP and the unsigned development MSIX
         shell: pwsh
         run: |
-          $inputs = Join-Path $env:RUNNER_TEMP 'msix-inputs'
-          $output = Join-Path $env:RUNNER_TEMP 'msix'
-          New-Item -ItemType Directory -Path $inputs, $output | Out-Null
-          $python = (Resolve-Path '.venv/Scripts/python.exe').Path
-          $data = Join-Path $inputs 'windows-tcltk-9.0.4-data.zip'
-          $archive = Join-Path $inputs 'Cytellect-0.1.0-ci.1-windows-x64.zip'
-          $msix = Join-Path $output 'Cytellect-Development.msix'
-          & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/prepare_windows_runtime_data.ps1 -Python $python -CacheRoot (Join-Path $inputs 'cache') -ScratchRoot (Join-Path $inputs 'extraction') -Output $data
-          if ($LASTEXITCODE -ne 0) { throw 'Pinned runtime data preparation failed' }
-          & $python -B -m hatchling build -t wheel -d (Join-Path $inputs 'wheels')
-          if ($LASTEXITCODE -ne 0) { throw 'Locked wheel build failed' }
-          $requirements = Join-Path $inputs 'requirements.txt'
-          uv export --locked --no-dev --no-emit-project --no-header --output-file $requirements | Out-Null
-          if ($LASTEXITCODE -ne 0) { throw 'Hashed production dependency export failed' }
-          $wheels = @(Get-ChildItem -LiteralPath (Join-Path $inputs 'wheels') -Filter '*.whl')
-          if ($wheels.Count -ne 1) { throw 'Expected one project wheel' }
-          & $python -B scripts/build_local_bundle.py --version 0.1.0-ci.1 --output $archive --runtime-data $data --wheel $wheels[0].FullName --requirements $requirements
-          if ($LASTEXITCODE -ne 0) { throw 'Windows ZIP build failed' }
-          & $python -B scripts/build_windows_msix.py --release-zip $archive --commit $env:GITHUB_SHA --version $env:MSIX_VERSION --output $msix --cache (Join-Path $env:RUNNER_TEMP 'installer-cache') --pip-python (Get-Command python).Source
-          if ($LASTEXITCODE -ne 0) { throw 'MSIX build failed' }
+          $msix = Join-Path $env:RUNNER_TEMP 'msix/Cytellect-Development.msix'
+          ./packaging/windows/msix/ci-build.ps1 -Commit $env:GITHUB_SHA -Version $env:MSIX_VERSION -ReleaseVersion 0.1.0-ci.1 -Output $msix -Scratch (Join-Path $env:RUNNER_TEMP 'msix-inputs')
           "CYTELLECT_MSIX=$msix" | Out-File -FilePath $env:GITHUB_ENV -Append
       - name: Sign only the development package and trust it on this runner
         shell: pwsh
-        run: |
-          $sign = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.*\x64\signtool.exe" |
-            Sort-Object { [version]$_.Directory.Parent.Name } -Descending | Select-Object -First 1
-          if (-not $sign) { throw 'Windows SDK SignTool missing' }
-          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject 'CN=Cytellect Development' -CertStoreLocation 'Cert:\CurrentUser\My' -NotAfter (Get-Date).AddDays(2)
-          try {
-            & $sign.FullName sign /sha1 $cert.Thumbprint /fd SHA256 $env:CYTELLECT_MSIX
-            if ($LASTEXITCODE -ne 0) { throw 'Development MSIX signing failed' }
-            $public = Join-Path $env:RUNNER_TEMP 'cytellect-development.cer'
-            Export-Certificate -Cert $cert -FilePath $public | Out-Null
-            Import-Certificate -FilePath $public -CertStoreLocation 'Cert:\LocalMachine\TrustedPeople' | Out-Null
-          } finally {
-            Remove-Item -LiteralPath "Cert:\CurrentUser\My\$($cert.Thumbprint)" -DeleteKey
-          }
+        run: ./packaging/windows/msix/ci-sign.ps1 -Msix $env:CYTELLECT_MSIX -Publisher 'CN=Cytellect Development'
       - name: Activate from the shell, analyze and save a public image, reinstall and audit native loads
         if: matrix.scenario == 'fresh'
         shell: pwsh

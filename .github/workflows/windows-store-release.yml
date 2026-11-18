@@ -1,17 +1,23 @@
 name: Windows Store release
+# Enabled only after the owner allows the general Store release (docs/windows-msix.md#main-から提出する).
+# Each main commit is built once, the same package is installed and accepted on fresh runners, and
+# only an accepted package reaches the approval-gated submission job.
 on:
   push:
     branches: [main]
   workflow_dispatch:
-  schedule:
-    - cron: '23 */6 * * *'
+    inputs:
+      rebuild:
+        description: Build and accept a new package instead of reusing the accepted package of the main head
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
   package:
     if: >-
-      github.ref == 'refs/heads/main' && github.event_name != 'schedule' &&
-      vars.STORE_MSIX_PUBLISHER != ''
+      github.ref == 'refs/heads/main' && vars.STORE_SUBMISSIONS_ENABLED == 'true' &&
+      vars.STORE_MSIX_PUBLISHER != '' && (github.event_name == 'push' || inputs.rebuild)
     runs-on: windows-latest
     timeout-minutes: 120
     concurrency:
@@ -42,37 +48,17 @@ jobs:
           STORE_PUBLISHER: ${{ vars.STORE_MSIX_PUBLISHER }}
           STORE_PUBLISHER_DISPLAY_NAME: ${{ secrets.STORE_MSIX_PUBLISHER_DISPLAY_NAME }}
         run: |
-          if ((git rev-parse HEAD).Trim() -ne $env:GITHUB_SHA) { throw 'Unexpected source commit' }
           if (!$env:STORE_PUBLISHER_DISPLAY_NAME) { throw 'The Store publisher display name is required' }
           $buildNumber = [int]$env:GITHUB_RUN_NUMBER + 3
           if ($buildNumber -gt 65535) { throw 'MSIX build number exhausted' }
-          $version = "1.0.$buildNumber.0"
-          $releaseVersion = "0.1.0-store.$buildNumber"
           $inputs = Join-Path $env:RUNNER_TEMP 'store-inputs'
-          $output = Join-Path $env:RUNNER_TEMP 'store-msix'
-          $data = Join-Path $inputs 'windows-tcltk-9.0.4-data.zip'
-          $archive = Join-Path $inputs "Cytellect-$releaseVersion-windows-x64.zip"
-          $identity = Join-Path $inputs 'identity.json'
-          New-Item -ItemType Directory -Path $inputs, $output | Out-Null
+          $identity = Join-Path $env:RUNNER_TEMP 'store-identity.json'
           @{
             name = '24D2FD66.Cytellect'
             publisher = $env:STORE_PUBLISHER
             publisher_display_name = $env:STORE_PUBLISHER_DISPLAY_NAME
           } | ConvertTo-Json | Set-Content -LiteralPath $identity -Encoding utf8NoBOM
-          $python = (Resolve-Path '.venv/Scripts/python.exe').Path
-          & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/prepare_windows_runtime_data.ps1 -Python $python -CacheRoot (Join-Path $inputs 'cache') -ScratchRoot (Join-Path $inputs 'extraction') -Output $data
-          if ($LASTEXITCODE -ne 0) { throw 'Pinned runtime data preparation failed' }
-          & $python -B -m hatchling build -t wheel -d (Join-Path $inputs 'wheels')
-          if ($LASTEXITCODE -ne 0) { throw 'Project wheel build failed' }
-          $requirements = Join-Path $inputs 'requirements.txt'
-          uv export --locked --no-dev --no-emit-project --no-header --output-file $requirements | Out-Null
-          if ($LASTEXITCODE -ne 0) { throw 'Dependency export failed' }
-          $wheels = @(Get-ChildItem -LiteralPath (Join-Path $inputs 'wheels') -Filter '*.whl')
-          if ($wheels.Count -ne 1) { throw 'Expected one project wheel' }
-          & $python -B scripts/build_local_bundle.py --version $releaseVersion --output $archive --runtime-data $data --wheel $wheels[0].FullName --requirements $requirements
-          if ($LASTEXITCODE -ne 0) { throw 'Windows bundle build failed' }
-          & $python -B scripts/build_windows_msix.py --release-zip $archive --commit $env:GITHUB_SHA --version $version --output (Join-Path $output 'Cytellect-Store.msix') --cache (Join-Path $env:RUNNER_TEMP 'installer-cache') --pip-python (Get-Command python).Source --identity $identity
-          if ($LASTEXITCODE -ne 0) { throw 'Store MSIX build failed' }
+          ./packaging/windows/msix/ci-build.ps1 -Commit $env:GITHUB_SHA -Version "1.0.$buildNumber.0" -ReleaseVersion "0.1.0-store.$buildNumber" -Output (Join-Path $env:RUNNER_TEMP 'store-msix/Cytellect-Store.msix') -Scratch $inputs -Identity $identity
       - uses: actions/upload-artifact@v6
         with:
           name: store-msix-${{ github.sha }}
@@ -81,12 +67,67 @@ jobs:
           retention-days: 14
           compression-level: 0
           overwrite: true
-  select:
+  accept:
     needs: package
+    runs-on: windows-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      # One scenario per runner, as in windows-msix.yml. Both install the same built package.
+      matrix:
+        scenario: [fresh, migration]
+    concurrency:
+      group: store-msix-accept-${{ github.ref }}-${{ matrix.scenario }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v7
+        with:
+          name: store-msix-${{ github.sha }}
+          path: ${{ runner.temp }}/store-package
+      - name: Sign a copy of the Store package for this runner only
+        shell: pwsh
+        env:
+          STORE_PUBLISHER: ${{ vars.STORE_MSIX_PUBLISHER }}
+        run: |
+          $package = Join-Path $env:RUNNER_TEMP 'store-package'
+          $receipt = Get-Content -Raw -LiteralPath (Join-Path $package 'Cytellect-Store.json') | ConvertFrom-Json
+          $unsigned = Join-Path $package 'Cytellect-Store.msix'
+          if ((Get-FileHash -LiteralPath $unsigned -Algorithm SHA256).Hash.ToLowerInvariant() -cne $receipt.msix_sha256 -or
+              $receipt.source_commit -cne $env:GITHUB_SHA) { throw 'The downloaded package does not match its receipt' }
+          # The Store signs the submitted package; the unsigned original is left unchanged.
+          $signed = Join-Path $env:RUNNER_TEMP 'Cytellect-Store-test.msix'
+          ./packaging/windows/msix/ci-sign.ps1 -Msix $unsigned -Publisher $env:STORE_PUBLISHER -Output $signed
+          "CYTELLECT_MSIX=$signed" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "CYTELLECT_MSIX_VERSION=$($receipt.version)" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Activate from the shell, analyze and save a public image, reinstall and audit native loads
+        if: matrix.scenario == 'fresh'
+        shell: pwsh
+        run: |
+          ./packaging/windows/sac-audit.ps1 -Msix -Installer $env:CYTELLECT_MSIX -Version $env:CYTELLECT_MSIX_VERSION -Checkout (Get-Location).Path -Output (Join-Path $env:RUNNER_TEMP 'store-acceptance')
+      - name: Reopen an analysis saved with the published EXE in the Store package and analyze beside it
+        if: matrix.scenario == 'migration'
+        shell: pwsh
+        run: |
+          ./packaging/windows/msix/ci-migration.ps1 -Msix $env:CYTELLECT_MSIX -Version $env:CYTELLECT_MSIX_VERSION -Checkout (Get-Location).Path -Output (Join-Path $env:RUNNER_TEMP 'store-acceptance/exe-migration.json')
+      - uses: actions/upload-artifact@v6
+        with:
+          name: store-msix-accepted-${{ github.sha }}-${{ matrix.scenario }}
+          path: |
+            ${{ runner.temp }}/store-package/Cytellect-Store.json
+            ${{ runner.temp }}/store-acceptance/sac-audit.json
+            ${{ runner.temp }}/store-acceptance/exe-migration.json
+          if-no-files-found: error
+          retention-days: 14
+          overwrite: true
+  select:
+    needs: accept
     if: >-
       always() && !cancelled() && github.ref == 'refs/heads/main' &&
       vars.STORE_SUBMISSIONS_ENABLED == 'true' &&
-      (needs.package.result == 'success' || github.event_name == 'schedule')
+      (needs.accept.result == 'success' || (github.event_name == 'workflow_dispatch' && !inputs.rebuild))
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -97,18 +138,29 @@ jobs:
         uses: actions/github-script@v8
         with:
           script: |
-            async function artifact(name) {
+            async function artifacts(name) {
               const {data} = await github.rest.actions.listArtifactsForRepo({
                 ...context.repo, name, per_page: 100,
               });
-              return data.artifacts.find(item => !item.expired &&
+              return data.artifacts.filter(item => !item.expired &&
                 item.workflow_run?.head_branch === 'main' &&
                 item.workflow_run?.head_sha === context.sha &&
                 item.workflow_run?.head_repository_id === context.payload.repository.id);
             }
-            if (await artifact(`store-submitted-${context.sha}`)) return;
-            const candidate = await artifact(`store-msix-${context.sha}`);
-            if (candidate) core.setOutput('run-id', String(candidate.workflow_run.id));
+            if ((await artifacts(`store-submitted-${context.sha}`)).length) {
+              core.info('This main commit was already accepted by the Store.');
+              return;
+            }
+            const runs = async scenario => new Set((await artifacts(
+              `store-msix-accepted-${context.sha}-${scenario}`)).map(item => item.workflow_run.id));
+            const [fresh, migration] = await Promise.all([runs('fresh'), runs('migration')]);
+            const candidate = (await artifacts(`store-msix-${context.sha}`)).find(item =>
+              fresh.has(item.workflow_run.id) && migration.has(item.workflow_run.id));
+            if (candidate) {
+              core.setOutput('run-id', String(candidate.workflow_run.id));
+            } else {
+              core.notice('No accepted Store package exists for this main commit. Run the workflow with rebuild.');
+            }
   submit:
     needs: select
     if: needs.select.outputs.run-id != ''

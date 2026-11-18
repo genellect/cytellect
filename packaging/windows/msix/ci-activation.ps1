@@ -6,28 +6,50 @@ function Invoke-CiAppx([string]$Command) {
     return $result
 }
 
+function Get-CiMsixName([string]$Path) {
+    # The development and the Store packages differ only in their identity, read from the package.
+    Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
+    $archive = [IO.Compression.ZipFile]::OpenRead($Path)
+    try {
+        $entry = $archive.GetEntry('AppxManifest.xml')
+        if (-not $entry) { throw 'The package has no manifest' }
+        $reader = [IO.StreamReader]::new($entry.Open())
+        try { [xml]$manifest = $reader.ReadToEnd() } finally { $reader.Dispose() }
+    } finally { $archive.Dispose() }
+    $name = [string]$manifest.Package.Identity.Name
+    if ($name -cnotmatch '^[A-Za-z0-9.-]{3,50}$') { throw 'The package identity name is invalid' }
+    return $name
+}
+
 function Install-CiMsix([string]$Path) {
+    $script:CiMsixName = Get-CiMsixName $Path
     $env:CYTELLECT_CI_MSIX = $Path
+    $env:CYTELLECT_CI_MSIX_NAME = $script:CiMsixName
     try {
         $json = Invoke-CiAppx @'
 $ErrorActionPreference = 'Stop'
 Add-AppxPackage -Path $env:CYTELLECT_CI_MSIX
-$package = Get-AppxPackage -Name Cytellect.Development
-if (-not $package) { throw 'Development identity is missing' }
+$package = Get-AppxPackage -Name $env:CYTELLECT_CI_MSIX_NAME
+if (-not $package) { throw 'Package identity is missing' }
 $package | Select-Object PackageFullName,PackageFamilyName,InstallLocation | ConvertTo-Json -Compress
 '@
         return $json | ConvertFrom-Json
     } finally {
-        Remove-Item Env:CYTELLECT_CI_MSIX
+        Remove-Item Env:CYTELLECT_CI_MSIX, Env:CYTELLECT_CI_MSIX_NAME
     }
 }
 
 function Uninstall-CiMsix {
-    Invoke-CiAppx @'
+    $env:CYTELLECT_CI_MSIX_NAME = $script:CiMsixName
+    try {
+        Invoke-CiAppx @'
 $ErrorActionPreference = 'Stop'
-Get-AppxPackage -Name Cytellect.Development | Remove-AppxPackage
-if (Get-AppxPackage -Name Cytellect.Development) { throw 'Development package remains installed' }
+Get-AppxPackage -Name $env:CYTELLECT_CI_MSIX_NAME | Remove-AppxPackage
+if (Get-AppxPackage -Name $env:CYTELLECT_CI_MSIX_NAME) { throw 'The package remains installed' }
 '@
+    } finally {
+        Remove-Item Env:CYTELLECT_CI_MSIX_NAME
+    }
 }
 
 function Start-CiMsix($Package, [string]$ExpectedVersion) {
