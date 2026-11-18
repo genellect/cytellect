@@ -1,9 +1,13 @@
+import importlib.util
 from pathlib import Path
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
-from scripts import submit_windows_msix as release
-
+source = Path(__file__).resolve().parents[1] / "scripts" / "submit_windows_msix.py"
+spec = importlib.util.spec_from_file_location("submit_windows_msix", source)
+assert spec is not None and spec.loader is not None
+release = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(release)
 
 COMMIT = "b" * 40
 VERSION = "1.0.4.0"
