@@ -1,0 +1,153 @@
+name: Windows Store release
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '23 */6 * * *'
+permissions:
+  contents: read
+jobs:
+  package:
+    if: >-
+      github.ref == 'refs/heads/main' && github.event_name != 'schedule' &&
+      vars.STORE_MSIX_PUBLISHER != '' && vars.STORE_MSIX_PUBLISHER_DISPLAY_NAME != ''
+    runs-on: windows-latest
+    timeout-minutes: 120
+    concurrency:
+      group: store-msix-build-${{ github.ref }}
+      cancel-in-progress: true
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with: {node-version: '24'}
+      - uses: actions/setup-python@v6
+        with: {python-version: '3.12'}
+      - run: python -m pip install uv==0.12.2
+      - run: uv sync --locked --group build
+      - run: npm install --global pnpm@11.19.0
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/cache@v5
+        with:
+          path: ${{ runner.temp }}/installer-cache
+          key: windows-msix-${{ hashFiles('engines/fiji/runtime.lock.json', 'engines/fiji/corresponding-source.lock.json', 'engines/fiji/source-exceptions.json', 'engines/python/windows-runtime.lock.json', 'uv.lock', 'scripts/build_windows_installer.py', 'scripts/corresponding_source.py') }}
+      - name: Build an unsigned MSIX with the Store product identity
+        shell: pwsh
+        env:
+          STORE_PUBLISHER: ${{ vars.STORE_MSIX_PUBLISHER }}
+          STORE_PUBLISHER_DISPLAY_NAME: ${{ vars.STORE_MSIX_PUBLISHER_DISPLAY_NAME }}
+        run: |
+          if ((git rev-parse HEAD).Trim() -ne $env:GITHUB_SHA) { throw 'Unexpected source commit' }
+          $buildNumber = [int]$env:GITHUB_RUN_NUMBER + 3
+          if ($buildNumber -gt 65535) { throw 'MSIX build number exhausted' }
+          $version = "1.0.$buildNumber.0"
+          $releaseVersion = "0.1.0-store.$buildNumber"
+          $inputs = Join-Path $env:RUNNER_TEMP 'store-inputs'
+          $output = Join-Path $env:RUNNER_TEMP 'store-msix'
+          $data = Join-Path $inputs 'windows-tcltk-9.0.4-data.zip'
+          $archive = Join-Path $inputs "Cytellect-$releaseVersion-windows-x64.zip"
+          $identity = Join-Path $inputs 'identity.json'
+          New-Item -ItemType Directory -Path $inputs, $output | Out-Null
+          @{
+            name = '24D2FD66.Cytellect'
+            publisher = $env:STORE_PUBLISHER
+            publisher_display_name = $env:STORE_PUBLISHER_DISPLAY_NAME
+          } | ConvertTo-Json | Set-Content -LiteralPath $identity -Encoding utf8NoBOM
+          $python = (Resolve-Path '.venv/Scripts/python.exe').Path
+          & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/prepare_windows_runtime_data.ps1 -Python $python -CacheRoot (Join-Path $inputs 'cache') -ScratchRoot (Join-Path $inputs 'extraction') -Output $data
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned runtime data preparation failed' }
+          & $python -B -m hatchling build -t wheel -d (Join-Path $inputs 'wheels')
+          if ($LASTEXITCODE -ne 0) { throw 'Project wheel build failed' }
+          $requirements = Join-Path $inputs 'requirements.txt'
+          uv export --locked --no-dev --no-emit-project --no-header --output-file $requirements | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'Dependency export failed' }
+          $wheels = @(Get-ChildItem -LiteralPath (Join-Path $inputs 'wheels') -Filter '*.whl')
+          if ($wheels.Count -ne 1) { throw 'Expected one project wheel' }
+          & $python -B scripts/build_local_bundle.py --version $releaseVersion --output $archive --runtime-data $data --wheel $wheels[0].FullName --requirements $requirements
+          if ($LASTEXITCODE -ne 0) { throw 'Windows bundle build failed' }
+          & $python -B scripts/build_windows_msix.py --release-zip $archive --commit $env:GITHUB_SHA --version $version --output (Join-Path $output 'Cytellect-Store.msix') --cache (Join-Path $env:RUNNER_TEMP 'installer-cache') --pip-python (Get-Command python).Source --identity $identity
+          if ($LASTEXITCODE -ne 0) { throw 'Store MSIX build failed' }
+      - uses: actions/upload-artifact@v6
+        with:
+          name: store-msix-${{ github.sha }}
+          path: ${{ runner.temp }}/store-msix/*
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+          overwrite: true
+  select:
+    needs: package
+    if: >-
+      always() && !cancelled() && github.ref == 'refs/heads/main' &&
+      vars.STORE_SUBMISSIONS_ENABLED == 'true' &&
+      (needs.package.result == 'success' || github.event_name == 'schedule')
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    outputs:
+      run-id: ${{ steps.candidate.outputs.run-id }}
+    steps:
+      - id: candidate
+        uses: actions/github-script@v8
+        with:
+          script: |
+            async function artifact(name) {
+              const {data} = await github.rest.actions.listArtifactsForRepo({
+                ...context.repo, name, per_page: 100,
+              });
+              return data.artifacts.find(item => !item.expired &&
+                item.workflow_run?.head_branch === 'main' &&
+                item.workflow_run?.head_sha === context.sha &&
+                item.workflow_run?.head_repository_id === context.payload.repository.id);
+            }
+            if (await artifact(`store-submitted-${context.sha}`)) return;
+            const candidate = await artifact(`store-msix-${context.sha}`);
+            if (candidate) core.setOutput('run-id', String(candidate.workflow_run.id));
+  submit:
+    needs: select
+    if: needs.select.outputs.run-id != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: store-release
+    permissions:
+      actions: read
+      contents: read
+    concurrency:
+      group: windows-store-submission
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with: {python-version: '3.12'}
+      - uses: actions/download-artifact@v7
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ needs.select.outputs.run-id }}
+          name: store-msix-${{ github.sha }}
+          path: store-package
+      - name: Submit the current main package for certification
+        id: submission
+        env:
+          STORE_TENANT_ID: ${{ secrets.STORE_TENANT_ID }}
+          STORE_CLIENT_ID: ${{ secrets.STORE_CLIENT_ID }}
+          STORE_CLIENT_SECRET: ${{ secrets.STORE_CLIENT_SECRET }}
+        run: |
+          head=$(git ls-remote origin refs/heads/main | cut -f1)
+          if [ "$head" != "$GITHUB_SHA" ]; then
+            printf '%s\n' 'A newer main commit is available. Skipping this package.'
+            exit 0
+          fi
+          python -B scripts/submit_windows_msix.py --commit "$GITHUB_SHA" --package store-package/Cytellect-Store.msix --receipt store-package/Cytellect-Store.json
+      - uses: actions/upload-artifact@v6
+        if: steps.submission.outputs.accepted == 'true'
+        with:
+          name: store-submitted-${{ github.sha }}
+          path: store-package/Cytellect-Store.json
+          retention-days: 14
