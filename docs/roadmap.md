@@ -18,9 +18,7 @@ MVP（画像の登録から検出・修正・測定・統計・作図までの�
 
 ### Microsoft Store への切り替え
 
-[Issue #215](https://github.com/genellect/cytellect/issues/215) に沿って進める。Smart App Control が有効な Windows 11 の実機で、限定配布の 1.0.1.0 を起動し、公開画像の解析・保存と再起動後の再表示を確認した。[実機の記録](https://github.com/genellect/cytellect/issues/215#issuecomment-6968520053)
-
-1.0.2.0 が Store から実機に自動で届き、同じ作業を開けることの確認が残る。一般ユーザーが Store から入手できる状態になったら、オーナーの許可を得て公式サイトと README の導線を切り替える。未導入の Windows 11 実機で、公式サイトから Store を開き、「入手」を押して導入・起動できることを記録する。[一般公開の提出](https://github.com/genellect/cytellect/issues/215#issuecomment-6972491792)
+[Issue #215](https://github.com/genellect/cytellect/issues/215) に沿って、限定配布の実機で解析・再表示と次版への自動更新を確かめる。Smart App Control が有効な Windows 11 実機を含める。オーナーが一般公開と本番導線の切り替えを許可したら、公式サイトと README の導線を Store に切り替え、未導入の Windows 11 実機で公式サイトから「入手」を押して起動できることを記録する。
 
 既存利用者には、Store 版が利用できる Windows の条件、作業の引き継ぎ、従来版を削除するときのデータ保持を[導入ガイド](install-windows.ja.md#microsoft-store-版)で案内する。公式サイトからの導入、既存作業の引き継ぎ、Store の自動更新を実機で確認した時点を、新しい EXE の配布を終える目安とする。終了日と配布済みの EXE の扱いはオーナーが決め、導入ガイドで告知する。
 

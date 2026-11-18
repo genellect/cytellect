@@ -6,9 +6,7 @@ The [0.1.0-local.24 EXE](https://github.com/genellect/cytellect/releases/tag/v0.
 
 ## Microsoft Store edition
 
-On Windows 11 (x64), use [Cytellect's installation page](https://cytellect.app/download) to open the Microsoft Store. Select **Get**, then **Open** when installation completes. Cytellect opens the workspace in your default browser. On subsequent launches, open Cytellect from the Start menu. [Microsoft Store listing](https://apps.microsoft.com/detail/9PGKTQGV7X5C)
-
-Try the [first analysis with public images](install-windows.ja.md#公開画像で最初の測定) to check the detected nuclei against the image and save a measurement table without signing in.
+On Windows 11 (x64), use [Cytellect's installation page](https://cytellect.app/download) to open the Microsoft Store. Select **Get**, then **Open** when installation completes. The Start menu opens Cytellect on subsequent launches. [Microsoft Store listing](https://apps.microsoft.com/detail/9PGKTQGV7X5C)
 
 The Store delivers automatic app updates. Uninstall Cytellect from **Settings → Apps → Installed apps**. Updates and uninstallation keep research data. To delete a saved workspace, use the workspace's delete action before uninstalling. The Store and EXE editions share the workspace folder at the EXE's default location, `%LOCALAPPDATA%\Cytellect`. Close the EXE edition before opening the Store edition, and choose to keep research data if uninstalling the EXE.
 

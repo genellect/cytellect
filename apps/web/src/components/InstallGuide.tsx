@@ -19,13 +19,8 @@ function StoreInstallSteps({ app, web }: { app: string; web: string }) {
       <h2 id="flow-title">インストールと起動</h2>
       <ol className={lp.guideSteps}>
         <li><b>Microsoft Store で「入手」を押します。</b></li>
-        <li><b>「開く」を押します。</b><span>既定のブラウザーに作業画面が開きます。次回からはスタートメニューの「Cytellect」から起動できます。</span></li>
+        <li><b>「開く」を押します。</b><span>次回からはスタートメニューの「Cytellect」から起動できます。</span></li>
       </ol>
-    </section>
-    <section aria-labelledby="first-analysis">
-      <h2 id="first-analysis">公開画像で最初の測定</h2>
-      <p>初回に「このPCで解析を開始」を選びます。作業画面の「練習画像をダウンロード」から公開の TIFF 画像を入手できます。この練習にサインインは不要です。</p>
-      <p><a className={lp.guideInlineLink} href={docs + "install-windows.ja.md#公開画像で最初の測定"}>核の輪郭を確かめ、測定結果を保存する手順</a></p>
     </section>
     <section aria-labelledby="update-title">
       <h2 id="update-title">更新</h2>
@@ -92,9 +87,8 @@ export function InstallGuide() {
       </>}
 
       <section aria-labelledby="cloud-title">
-        <h2 id="cloud-title">研究室向けクラウド機能</h2>
-        <p>クラウド GPU による検出や AI による解析提案・考察には、利用承認とログインが必要です。利用条件や料金は、導入時にご案内します。</p>
-        <p><Link className={lp.guideInlineLink} href="/privacy">機能ごとに送る情報を確認する</Link></p>
+        <h2 id="cloud-title">GPU推論とLLMの利用</h2>
+        <p>Windows版は、核のセグメンテーションから統計、論文の図までに対応します。GPU推論による核小体・細胞の検出と、LLMによる解析の設定は、研究室のクラウドで提供します。料金は応相談で、大学内での試験導入は基本無料です。</p>
         <a className={lp.secondary} data-lp-event="consult" href={CONTACT_URL} target="_blank" rel="noopener noreferrer">研究室で導入を相談 <Out /></a>
       </section>
 

@@ -32,7 +32,7 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
  const scenes:{id:string;workspaceId:string}[]=(await (await page.request.get("/showcase/snapshot/scenes.json")).json()).scenes;
  const scene=(id:string,step:string)=>`/demo?id=${scenes.find(item=>item.id===id)!.workspaceId}&step=${step}`;
  const plk1="cpg0016-jump-source13-plk1",oxaliplatin="zenodo-6643470-oxaliplatin";
- for(const [tab,title,link,href,images] of [["要約と考察",/^結果を読み解く時間を、/,"この結果をデモで開く",scene(plk1,"statistics"),3],["AIによる設定",/^調べたいことを伝えると、/,"デモで提案の例を見る",scene(plk1,"statistics"),2],["統計と論文の図",/^実験回ごとの結果を、/,"この図をデモで開く",scene(plk1,"figure"),3],["検出と測定",/^測りたい値が、/,"この表をデモで開く",scene(oxaliplatin,"image"),1]] as const){
+ for(const [tab,title,link,href,images] of [["要約と考察",/^結果を読み解く時間を、/,"この結果をデモで開く",scene(plk1,"statistics"),3],["AIによる設定",/^やりたいことを一文で。/,"デモで指示する",scene(plk1,"statistics"),2],["統計と論文の図",/^統計の検定も、論文に載せる図も、/,"この図をデモで開く",scene(plk1,"figure"),3],["検出と測定",/^測りたい値が、/,"この表をデモで開く",scene(oxaliplatin,"image"),1]] as const){
   await features.getByRole("tab",{name:tab}).click();
   const panel=page.getByRole("tabpanel");
   await expect(panel).toHaveCount(1);
@@ -75,7 +75,7 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
   await expect(hero.getByRole("heading")).toBeVisible();
   expect(await hero.locator("h1 span").evaluateAll(nodes=>nodes.every(node=>node.getBoundingClientRect().right<=innerWidth-16&&node.scrollWidth<=node.clientWidth))).toBe(true);
   expect(await page.locator("h2 span").evaluateAll(nodes=>nodes.every(node=>node.getBoundingClientRect().right<=innerWidth-16&&node.scrollWidth<=node.clientWidth))).toBe(true);
-  for(const name of [/^画像解析を、一部の専門家の技術から、/,/^顕微鏡画像の測定から、/,/^研究の先に、待っている患者さんがいる。$/,/^その未来を、あなたの研究から。$/,/^まず、あなたのPCで。そして、研究室へ。$/]){await expect(page.getByRole("heading",{name})).toBeVisible();}
+  for(const name of [/^画像解析を、一部の専門家の技術から、/,/^手作業で数週間かかっていた解析を、/,/^研究の先に、待っている患者さんがいる。$/,/^その未来を、あなたの研究から。$/,/^まず、あなたのPCで。そして、研究室へ。$/]){await expect(page.getByRole("heading",{name})).toBeVisible();}
   if(dir){for(const img of await page.locator('main img[src^="/marketing/"]').filter({visible:true}).all()){await img.scrollIntoViewIfNeeded();await expect.poll(()=>img.evaluate((node:HTMLImageElement)=>node.complete&&node.naturalWidth>0)).toBe(true);}await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:path.join(dir,`lp-${width}.png`),fullPage:true});if(width===1440||width===390)await page.screenshot({path:path.join(dir,`lp-hero-${width}.png`),fullPage:false});}
  }
  await page.setViewportSize({width:390,height:844});await page.evaluate(()=>scrollTo(0,0));
