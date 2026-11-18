@@ -23,7 +23,7 @@
 .navigation{display:flex;align-items:center;gap:clamp(18px,2vw,32px)}
 .navigation a{font-size:13px;font-weight:500;white-space:nowrap}
 .navDownload{display:inline-flex;align-items:center;gap:14px;height:42px;padding:0 20px;background:var(--h-fg);color:var(--green)!important;border-radius:999px;transition:background .45s,color .45s}
-.header[data-tone="light"] .navDownload{color:#f6f6f3!important}
+.header[data-tone="light"] .navigation .navDownload{color:#f6f6f3!important}
 .navDownload:hover{text-decoration:none!important}
 
 /* Buttons: one pill shape across the page. */
