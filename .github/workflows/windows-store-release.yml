@@ -11,7 +11,7 @@ jobs:
   package:
     if: >-
       github.ref == 'refs/heads/main' && github.event_name != 'schedule' &&
-      vars.STORE_MSIX_PUBLISHER != '' && vars.STORE_MSIX_PUBLISHER_DISPLAY_NAME != ''
+      vars.STORE_MSIX_PUBLISHER != ''
     runs-on: windows-latest
     timeout-minutes: 120
     concurrency:
@@ -40,9 +40,10 @@ jobs:
         shell: pwsh
         env:
           STORE_PUBLISHER: ${{ vars.STORE_MSIX_PUBLISHER }}
-          STORE_PUBLISHER_DISPLAY_NAME: ${{ vars.STORE_MSIX_PUBLISHER_DISPLAY_NAME }}
+          STORE_PUBLISHER_DISPLAY_NAME: ${{ secrets.STORE_MSIX_PUBLISHER_DISPLAY_NAME }}
         run: |
           if ((git rev-parse HEAD).Trim() -ne $env:GITHUB_SHA) { throw 'Unexpected source commit' }
+          if (!$env:STORE_PUBLISHER_DISPLAY_NAME) { throw 'The Store publisher display name is required' }
           $buildNumber = [int]$env:GITHUB_RUN_NUMBER + 3
           if ($buildNumber -gt 65535) { throw 'MSIX build number exhausted' }
           $version = "1.0.$buildNumber.0"

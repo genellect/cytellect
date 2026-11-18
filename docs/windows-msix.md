@@ -15,7 +15,7 @@
 [Windows Store release](../.github/workflows/windows-store-release.yml) は `main` の更新を Windows ランナーでビルドし、MSIX と受領書を保存する。Microsoft Store 用の製品識別子は `24D2FD66.Cytellect`。3 番目の版番号にはこのワークフローの実行番号に 3 を足した値を使う。1.0.3.0 までは手動で採番した版に残す。
 
 1. Partner Center に [Microsoft Entra テナントを関連付け](https://learn.microsoft.com/en-us/windows/apps/publish/partner-center/associate-existing-azure-ad-tenant-with-partner-center-account)、[Store 提出 API 用のアプリ](https://learn.microsoft.com/en-us/windows/uwp/monetize/create-and-manage-submissions-using-windows-store-services)を登録する。
-2. GitHub のリポジトリ変数 `STORE_MSIX_PUBLISHER` と `STORE_MSIX_PUBLISHER_DISPLAY_NAME` に、Partner Center の製品識別情報と同じ発行者名を設定する。
+2. GitHub のリポジトリ変数 `STORE_MSIX_PUBLISHER` に Partner Center の発行者識別子を設定する。発行者の表示名はリポジトリの Secret `STORE_MSIX_PUBLISHER_DISPLAY_NAME` に保存して CI ログでマスクする。
 3. GitHub の `store-release` Environment にオーナーの承認と `main` からの実行制限を設定する。専用の Secrets に `STORE_TENANT_ID`、`STORE_CLIENT_ID`、`STORE_CLIENT_SECRET` を登録し、提出を開始するときにリポジトリ変数 `STORE_SUBMISSIONS_ENABLED` を `true` にする。
 
 提出ジョブは、実行時点の `main` と受領書・MSIX 内のコミットを照合する。一般公開済みの提出から新しい提出を作り、掲載情報や価格などを引き継いだまま x64 パッケージを差し替える。既存の審査が進行中なら、そのまま待つ。6 時間ごとの実行でも最新のビルドを選び直す。途中で止まった場合は、Actions に記録された提出 ID を Partner Center で確認する。Store の審査と公開後、端末は Microsoft Store の自動更新で新しい版を受け取る。
