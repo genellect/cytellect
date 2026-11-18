@@ -81,6 +81,11 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
  await page.keyboard.press("Escape");await expect(toggle).toBeFocused();await expect(toggle).toHaveAttribute("aria-expanded","false");
  await toggle.click();await nav.getByRole("link",{name:"ガイド",exact:true}).click();await expect(toggle).toHaveAttribute("aria-expanded","false");
  await expect(page.getByRole("heading",{name:"よくある質問",exact:true})).toBeInViewport();
+ // Over a bright section the header turns light; the menu's demo button must keep its dark text on its light fill.
+ await expect(page.locator("[data-lp-header]")).toHaveAttribute("data-tone","light");
+ await toggle.click();
+ expect(await nav.getByRole("link",{name:"デモを体験",exact:true}).evaluate(link=>{const style=getComputedStyle(link);return style.color!==style.backgroundColor;})).toBe(true);
+ await page.keyboard.press("Escape");
  const images=page.locator('main img[src^="/marketing/"]').filter({visible:true});
  for(const img of await images.all()){await img.scrollIntoViewIfNeeded();await expect.poll(()=>img.evaluate((node:HTMLImageElement)=>node.complete&&node.naturalWidth>0)).toBe(true);}
  // The wide table scrolls inside its own frame on a phone; the page itself never scrolls sideways.
