@@ -45,7 +45,7 @@ test("unconfigured public build makes no analysis connection",async({page})=>{
   await expect(page.getByRole("link",{name:storeButton})).toHaveCount(0);
  }
  await expect(page.getByLabel("招待コード",{exact:true})).toHaveCount(0);
- await expect(page.locator("#download").getByRole("link",{name:/研究室で導入を相談/}).first()).toHaveAttribute("href","https://compass-official.pages.dev/contact/");
+ await expect(page.locator("#download").getByRole("link",{name:/研究室で導入を相談/}).first()).toHaveAttribute("href","https://yuto-matsui.com/contact/");
  await page.getByText("画像はPCの外に出ますか？",{exact:true}).click();
  await expect(page.getByText(/検出に使う画像だけを送り、クラウドには残しません。/)).toBeVisible();
  for(const width of [1440,390]){
