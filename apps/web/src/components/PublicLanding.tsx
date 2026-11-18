@@ -67,13 +67,13 @@ export default function PublicLanding() {
       <section className={lp.reasons} aria-labelledby="loop-title">
         <img className={lp.reasonsPhoto} src="/marketing/lp-pipetting.webp" alt="白い実験台でマルチチャンネルピペットを使う手元" width={2400} height={1600} loading="lazy" decoding="async" />
         <div className={lp.wide}>
-          <h2 id="loop-title" className={lp.statement} aria-label="どんな研究の画像も、入れるだけで、自動で。"><span>どんな研究の画像も、</span><span>入れるだけで、自動で。</span></h2>
-          <p className={lp.reasonsLead}>汎用のAIでは見つからない構造まで、輪郭を一つも描かずに測れます。</p>
-          <ul className={lp.loop} aria-label="自動で測れる理由">
-            <li><b>研究ごとに、専用のAI</b><span>測りたいものは、研究ごとに違う。それぞれの研究に合わせたAIが、細胞を一つずつ切り分けます。</span></li>
-            <li><b>どのPCでも、GPUの速さで</b><span>検出はクラウドの高性能なGPUで。研究室のノートPCのままで、GPUを買う必要はありません。</span></li>
-            <li><b>何度やっても、同じ結果</b><span>同じ画像からは、いつも同じ輪郭と数値。使ったAIの版まで記録します。</span></li>
-            <li><b>すべての数値が、元の画像に戻れる</b><span>測定は元の画素値から。グラフの点から、その細胞の輪郭へ戻れます。</span></li>
+          <h2 id="loop-title" className={lp.statement} aria-label="検出した輪郭を、元の画像で確かめる。"><span>検出した輪郭を、</span><span>元の画像で確かめる。</span></h2>
+          <p className={lp.reasonsLead}>検出した核の輪郭を画像に重ねて表示します。測る領域は、画像を見ながら修正できます。</p>
+          <ul className={lp.loop} aria-label="測定から出力まで">
+            <li><b>画像と染色を対応させる</b><span>核の検出と、検出した領域で測定する染色を指定します。</span></li>
+            <li><b>条件と実験回を記録する</b><span>どの画像がどの条件・実験回に属するかを登録し、条件間の比較に使います。</span></li>
+            <li><b>測定値を画像に照らす</b><span>測定表で選んだ領域を、元の画像の上で確認できます。</span></li>
+            <li><b>図と根拠を保存する</b><span>図は SVG・PDF で保存できます。図に使った測定値も書き出せます。</span></li>
           </ul>
         </div>
       </section>

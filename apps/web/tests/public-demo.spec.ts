@@ -46,8 +46,9 @@ test("unconfigured public build makes no analysis connection",async({page})=>{
  }
  await expect(page.getByLabel("招待コード",{exact:true})).toHaveCount(0);
  await expect(page.locator("#download").getByRole("link",{name:/研究室で導入を相談/}).first()).toHaveAttribute("href","https://yuto-matsui.com/contact/");
- await page.getByText("画像はPCの外に出ますか？",{exact:true}).click();
- await expect(page.getByText(/検出に使う画像だけを送り、クラウドには残しません。/)).toBeVisible();
+ await page.getByText("画像は PC の外に出ますか？",{exact:true}).click();
+ await expect(page.getByText(/クラウド GPU で検出するときは対象の画像を送ります。/)).toBeVisible();
+ await expect(page.getByRole("link",{name:"機能ごとに送る情報を確認する"})).toHaveAttribute("href","/privacy");
  for(const width of [1440,390]){
   await page.setViewportSize({width,height:900});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
@@ -90,6 +91,9 @@ test("the install guide matches the public Windows distribution",async({page})=>
  await expect(download).toHaveAttribute("href",release??storeApp);
  if(release===undefined){
   await expect(page.getByRole("heading",{name:"インストールと起動"})).toBeVisible();
+  const firstAnalysis=page.getByRole("region",{name:"公開画像で最初の測定"});
+  await expect(firstAnalysis).toContainText("練習画像をダウンロード");
+  await expect(firstAnalysis.getByRole("link",{name:"核の輪郭を確かめ、測定結果を保存する手順"})).toHaveAttribute("href",/install-windows\.ja\.md#公開画像で最初の測定$/);
   await expect(page.getByRole("heading",{name:"更新",exact:true})).toBeVisible();
   await expect(page.getByRole("link",{name:"Store の掲載ページ"})).toHaveAttribute("href",storeWeb);
   const migration=page.getByRole("region",{name:"従来版からの移行"});

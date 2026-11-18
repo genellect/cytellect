@@ -39,7 +39,7 @@ const chapters = (links: FeatureLinks): Chapter[] => [
   {
     id: "measure", number: "01", label: "検出と測定", shot: 2, then: 3, kind: "strip",
     title: "測りたい値が、細胞ひとつひとつに並びます。",
-    lead: "汎用のAIでは見つからない構造まで、輪郭を一つも描かずに。測った値は、細胞ごとに一行に並びます。",
+    lead: "輪郭ごとに面積や蛍光強度を測ります。下の表は、核ごとの測定結果です。",
     extra: <>
       <ul className={lp.params} aria-label="測れる値">{["数と密度", "大きさと形", "明るさ", "陽性の割合", "位置と分布", "区画のあいだの比"].map(item => <li key={item}>{item}</li>)}</ul>
       <div className={lp.example}>
@@ -55,7 +55,7 @@ const chapters = (links: FeatureLinks): Chapter[] => [
   {
     id: "discussion", number: "02", label: "要約と考察", shot: 4, kind: "layers",
     title: "結果を読み解く時間を、次の実験を考える時間に。",
-    lead: "解析が終わると、結論の一文と考察が並びます。解釈も、ほかの説明も、次に確かめることも。",
+    lead: "群間比較では、差の大きさと実験回ごとの値を確認できます。クラウド機能では、保存した比較結果をもとに AI に考察を依頼できます。",
     link: <Link data-lp-event="demo_statistics" href={links.discussion} className={lp.button}>この結果をデモで開く <Forward /></Link>,
     back: { file: "lp-screen-statistics.webp", alt: "Cytellectの統計の画面。結果のまとめ、図、解析の設定が並ぶ", width: 1600, height: 790 },
     front: [
@@ -65,16 +65,16 @@ const chapters = (links: FeatureLinks): Chapter[] => [
   },
   {
     id: "ask", number: "03", label: "AIによる設定", shot: 1, kind: "layers",
-    title: "やりたいことを一文で。解析の設定は、AIが組み立てます。",
-    lead: "どの値を、どの群で、どう比べるか。メニューを一つずつ選ぶ必要はありません。",
-    link: <Link data-lp-event="example" href={links.ask} className={lp.button}>デモで指示する <Forward /></Link>,
+    title: "調べたいことを伝えると、AI が解析条件を提案します。",
+    lead: "提案を確認し、必要に応じて直してから採用できます。Windows 版で AI の提案を使うには、クラウド利用の承認とログインが必要です。",
+    link: <Link data-lp-event="example" href={links.ask} className={lp.button}>デモで提案の例を見る <Forward /></Link>,
     back: { file: "lp-screen-ai.webp", alt: "Cytellectの統計の画面。右に AI のパネルが開いている", width: 1600, height: 790 },
     front: [{ file: "lp-focus-ai.webp", alt: "AI への指示「核の数と面積を視野ごとに確認したい」と、組み立てた設定の説明", width: 320, height: 132 }],
   },
   {
     id: "figure", number: "04", label: "統計と論文の図", shot: 5, kind: "layers",
-    title: "統計の検定も、論文に載せる図も、クリックだけで。",
-    lead: "結果に合った検定で比べ、論文の体裁で図を組みます。幅も、レイアウトも、文字の大きさも。",
+    title: "実験回ごとの結果を、図で確かめる。",
+    lead: "登録した実験デザインをもとに条件を比較します。図の幅、レイアウト、文字の大きさを調整し、SVG や PDF で保存できます。",
     link: <Link data-lp-event="demo_figure" href={links.figure} className={lp.button}>この図をデモで開く <Forward /></Link>,
     back: { file: "lp-screen-figure.webp", alt: "Cytellectのグラフの画面。実験回ごとの図と、図の設定が並ぶ", width: 1600, height: 790 },
     front: [
@@ -184,8 +184,8 @@ export function LandingExperience({ links }: { links: FeatureLinks }) {
   return <section id="workflow" className={lp.experience} data-mode={mode} aria-labelledby="workflow-title">
     <header className={lp.experienceIntro}>
       <p className={lp.eyebrow}><span>Cytellect</span>画像から、論文まで</p>
-      <h2 id="workflow-title" className={lp.statement} aria-label="手作業で数週間かかっていた解析を、一つの画面で数分に。"><span>手作業で数週間かかっていた</span><span>解析を、一つの画面で数分に。</span></h2>
-      <p className={lp.experienceLead}>画像を入れるだけ。輪郭を手で描く、表に写す、統計ソフトに移す。その作業がなくなります。</p>
+      <h2 id="workflow-title" className={lp.statement} aria-label="顕微鏡画像の測定から、表と図の保存まで。"><span>顕微鏡画像の測定から、</span><span>表と図の保存まで。</span></h2>
+      <p className={lp.experienceLead}>公開画像の解析例で、輪郭と測定表、条件間の比較、書き出す図を見られます。</p>
     </header>
     {/* Keyboard focus anywhere in the bar or the open panel stops the tour for good, so a focused link is never
         hidden by the next tab. */}
