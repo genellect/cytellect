@@ -124,7 +124,7 @@ def value_formatter(scale: str, values) -> tuple[FuncFormatter, str]:
     the tick labels stay short; the multiplier goes into the axis title.
     """
     if scale == "fraction":
-        return FuncFormatter(lambda value, _: f"{value * 100:.0f}"), "%"
+        return FuncFormatter(lambda value, _: _compact(value * 100)), "%"
     peak = float(np.nanmax(np.abs(values))) if len(values) else 0.0
     if peak >= 1e5:
         power = int(math.floor(math.log10(peak)))

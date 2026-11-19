@@ -58,6 +58,7 @@ def figure_images(store, job, result):
     representative images (common-statistics figure 2.0.0, composition images-quantification)."""
     import numpy as np
     from cytellect_analysis.figure_images import image_channels, representative_fields
+    from cytellect_analysis.regions import _array_hash
 
     presentation = (result.get("spec", {}).get("plot") or {}).get("presentation") or {}
     if presentation.get("composition") != "images-quantification" or result.get("analysis_kind") == "region-association":
@@ -72,12 +73,21 @@ def figure_images(store, job, result):
         if (revision is None or revision["workspace_id"] != job["workspace_id"] or revision["state"] != "succeeded"
                 or not revision["result_dir"]):
             continue
-        labels = np.load(store.safe_path(revision["result_dir"], field_id, "labels.npy"), allow_pickle=False)
+        # Only the arrays the saved result records are shown: a field whose labels or channel are missing
+        # or differ from the record is left out, and the figure is drawn without images.
+        labels_path = store.safe_path(revision["result_dir"], field_id, "labels.npy")
+        if not labels_path.is_file():
+            continue
+        labels = np.load(labels_path, allow_pickle=False)
+        if _array_hash(labels, "<u4") != source.get("mask_sha256"):
+            continue
+        records = (source.get("image_info") or {}).get("channel_arrays") or {}
         channels = {}
         for channel_id in (measured, counterstain):
-            if channel_id:
+            record = records.get(channel_id) if channel_id else None
+            if record:
                 path = store.safe_path("workspaces", job["workspace_id"], "fields", field_id, f"channel-{channel_id}.npy")
-                if path.is_file():
+                if path.is_file() and path.stat().st_size == record["bytes"] and sha256(path) == record["sha256"]:
                     channels[channel_id] = np.load(path, allow_pickle=False)
         if measured in channels and channels[measured].shape == labels.shape:
             loaded[field_id] = {"channels": channels, "labels": labels}

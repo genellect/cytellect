@@ -542,6 +542,11 @@ def _render_publication(canonical, output: Path, template, order, images=None):
             image_width = 7 + columns * tile
             if presentation["size"] == "panel":
                 size.width_mm += image_width + 3
+            elif presentation["size"] == "custom":
+                # A custom width narrower than the images beside the panel is widened to the panel's layout.
+                panel = layout(plot, {**presentation, "size": "panel"}, len(order), legend=paired_runs,
+                               bracket_levels=levels)
+                size.width_mm = max(size.width_mm, panel.width_mm + image_width + 3)
             size.height_mm = max(size.height_mm, len(image_figure.panels) * tile + 12)
     style = size.style()
     with plt.rc_context(rc(size.font_size)):
@@ -563,6 +568,10 @@ def _render_publication(canonical, output: Path, template, order, images=None):
                 ax.set_gid("panel-b-quantification")
             drawn = (draw_association(fig, ax, canonical, plot, order) if association
                      else draw_comparison(fig, ax, canonical, plot, presentation, order))
+            if association:
+                # The researcher's axis ranges, tick steps and log display, checked as in the earlier figures
+                # (a log axis refuses non-positive values). A comparison lays out its own value axis.
+                apply_plot_controls(ax, plot)
             if image_figure is not None:
                 # The layout is fixed now; the tiles take the reserved space as exact squares.
                 image_axes = draw_images(fig, holder, image_figure, size.font_size,

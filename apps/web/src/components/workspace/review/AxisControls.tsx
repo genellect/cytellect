@@ -2,10 +2,11 @@
 export type DisplayScale="linear"|"log10"|"log2";
 export interface AxisState {min:string;max:string;step:string;scale:DisplayScale}
 export const emptyAxis=():AxisState=>({min:"",max:"",step:"",scale:"linear"});
-export function AxisControls({axis,value,onChange,numeric=true}:{axis:"x"|"y";value:AxisState;onChange:(value:AxisState)=>void;numeric?:boolean}){
+/** `scale` false leaves out the log display, for a figure that lays out its own linear axis (the run hierarchy). */
+export function AxisControls({axis,value,onChange,numeric=true,scale=true}:{axis:"x"|"y";value:AxisState;onChange:(value:AxisState)=>void;numeric?:boolean;scale?:boolean}){
   if(!numeric)return null;
   const label=axis==="x"?"横軸":"縦軸";
-  return <><label>{label}の表示<select value={value.scale} onChange={event=>onChange({...value,scale:event.target.value as DisplayScale})}><option value="linear">線形</option><option value="log10">対数（10）</option><option value="log2">対数（2）</option></select></label>
+  return <>{scale&&<label>{label}の表示<select value={value.scale} onChange={event=>onChange({...value,scale:event.target.value as DisplayScale})}><option value="linear">線形</option><option value="log10">対数（10）</option><option value="log2">対数（2）</option></select></label>}
     <label>{label}の最小値<input inputMode="decimal" value={value.min} placeholder="自動" onChange={event=>onChange({...value,min:event.target.value})}/></label>
     <label>{label}の最大値<input inputMode="decimal" value={value.max} placeholder="自動" onChange={event=>onChange({...value,max:event.target.value})}/></label>
     <label>目盛間隔（元の単位）<input inputMode="decimal" value={value.step} placeholder="自動" onChange={event=>onChange({...value,step:event.target.value})}/></label></>;

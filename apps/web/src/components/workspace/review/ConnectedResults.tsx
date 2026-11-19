@@ -125,7 +125,8 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   const [confirmed,setConfirmed]=useState(false),[reviewed,setReviewed]=useState(false);
   const [contrasts,setContrasts]=useState<string[][]>([]);
   const [xMetric,setXMetric]=useState("area_px"),[xChannel,setXChannel]=useState<string|null>(channel);
-  const [width,setWidth]=useState(89),[height,setHeight]=useState(60),[font,setFont]=useState(7);
+  // A size left unchosen follows the page: a distribution keeps 183 × 100 mm, a publication figure's custom size starts at 89 × 60 mm.
+  const [chosenWidth,setWidth]=useState<number|null>(null),[chosenHeight,setHeight]=useState<number|null>(null),[font,setFont]=useState(7);
   // The publication figure's presentation; a choice left empty follows the saved result (plan FS, FQ, FA).
   const [size,setSize]=useState<FigureSize>("panel"),[annotation,setAnnotation]=useState<NonNullable<Presentation["annotation"]>>("value");
   const [observations,setObservations]=useState<Observations|null>(null),[colorBy,setColorBy]=useState<"run"|"group"|null>(null);
@@ -142,6 +143,8 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   const [selectedSeries,setSelectedSeries]=useState("");
   const [pointSource,setPointSource]=useState<{job:string;source:FigureSource}|null>(null);
   const [saved,setSaved]=useState<Saved|null>(null),[busy,setBusy]=useState(""),[error,setError]=useState("");
+  const pageSize=(page:ResultOperation)=>page==="distribution"?{width:183,height:100}:{width:89,height:60};
+  const width=chosenWidth??pageSize(saved?saved.operation:operation).width,height=chosenHeight??pageSize(saved?saved.operation:operation).height;
   const [recordedGate,setRecordedGate]=useState<{identity:string;revision:string;filter:ChannelGateFilter;result:ChannelGateResult}|null>(null);
   const [rawExport,setRawExport]=useState<{revision:string;included:boolean}|null>(null);
   const includeRaw=!!saved&&rawExport?.revision===saved.revision&&rawExport.included;
@@ -254,7 +257,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   const pointRows=saved&&pointSource?.job===saved.figureJob?(saved.result.plot_data||saved.result.y_source?.plot_data||[]).filter(row=>["condition","sample","experimental_unit"].every(key=>!(key in pointSource.source)||row[key]===pointSource.source[key as keyof FigureSource])):[];
   function openPoint(source:FigureSource){if(!saved)return;if(source.field_id){if(!resultSources(saved.result).some(field=>field.field_id===source.field_id))return;onSource(source.field_id,source.region_id??source.nucleus_id,saved.revision,saved.target,savedChannel,savedStructure);}else if(source.experimental_unit){setPointSource({job:saved.figureJob,source});}}
   const series=saved?.historical?(saved.operation==="distribution"?(saved.sources||[]).map(source=>source.field):saved.result.spec?.conditions||[]):resultSeries(operation,sources.map(source=>source.field),conditions,contrasts);
-  const plot=():RenderPlot=>({...checkedPlot(width,height,font,xLabel,yLabel,yMin,yMax),...axisPlotOptions(xAxis,{...yAxis,min:yMin,max:yMax},(saved?.historical?saved.operation:operation)==="association"),...(pointSize?{point_size:pointSize}:{}),group_order:seriesOrder(order,series),style:{version:"1.0.0",series_colors:colors,show_legend:legend},
+  const plot=():RenderPlot=>({...checkedPlot(width,height,font,xLabel,yLabel,yMin,yMax),...axisPlotOptions(xAxis,{...yAxis,min:yMin,max:yMax,...(layered&&(saved?.historical?saved.operation:operation)==="comparison"?{scale:"linear" as const}:{})},(saved?.historical?saved.operation:operation)==="association"),...(pointSize?{point_size:pointSize}:{}),group_order:seriesOrder(order,series),style:{version:"1.0.0",series_colors:colors,show_legend:legend},
     // Distribution pages have their own layout; comparisons and associations draw the publication figure.
     ...((saved?.historical?saved.operation:operation)==="distribution"?{}:{presentation:{version:"1.0.0" as const,annotation,size,...(observations?{observations}:{}),...(colorBy?{color_by:colorBy}:{}),
       composition,...(Object.keys(imageFields).length?{image_fields:imageFields}:{}),outlines}})});
@@ -318,7 +321,8 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
       // visitor chose beforehand is drawn right after (below).
       // The figure follows the analysis being calculated, not the saved result on screen: a distribution page
       // has no publication presentation (its request refuses one).
-      const {presentation:shownPresentation,...pagePlot}=plot();
+      const {presentation:shownPresentation,...shownPlot}=plot();
+      const pagePlot={...shownPlot,...(chosenWidth===null?{width_inches:pageSize(operation).width/25.4}:{}),...(chosenHeight===null?{height_inches:pageSize(operation).height/25.4}:{})};
       const drawn=operation==="distribution"?pagePlot:{...pagePlot,...(shownPresentation?{presentation:shownPresentation}:{})};
       const display=demo?(operation==="distribution"?{...pagePlot,width_inches:183/25.4}:{...pagePlot,presentation:{version:"1.0.0" as const,annotation:"value" as const,size:"panel" as const,composition:"quantification" as const,outlines:true}}):drawn;const base=resultRequest(design,fields,display);
       // A new comparison opens on its publication figure; the bar stays when the researcher chose it.
@@ -355,14 +359,14 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
         const accepted=await post<{job_id:string}>(`/v1/jobs/${saved.job}/figure-render`,{request_id:requestId,plot:{...display,y_min:display.y_min??null,y_max:display.y_max??null}});await waitJob(accepted.job_id);
         const output=await request<{source_job_id:string;figure:ResultPayload["figure"]}>(`/v1/jobs/${accepted.job_id}/figure-render`);
         if(output.source_job_id!==saved.job)throw new Error("図の元データが一致しません。");rendered={job:accepted.job_id,figure:output.figure};renderCache.current.set(key,rendered);}
-      baseline.current={job:rendered.job,signature:JSON.stringify(display)};
+      baseline.current={job:rendered.job,signature:JSON.stringify(display)};failedSignature.current="";
       const updated={...saved,plot:display,figureJob:rendered.job,figure:rendered.figure};setSaved(updated);setHistory(previous=>[updated,...previous.filter(value=>value.figureJob!==updated.figureJob)]);
       if(downloadZip){setBusy("保存ファイルを作成中…");try{const exported=await post<{job_id:string}>(`/v1/revisions/${saved.revision}/export${includeRaw?"?include_raw=true":""}`,{});await waitJob(exported.job_id);const packaged=await post<{job_id:string}>(`/v1/jobs/${rendered.job}/publication-package`,{analysis_job_id:exported.job_id,request_id:crypto.randomUUID()});await waitJob(packaged.job_id);await download(`/v1/jobs/${packaged.job_id}/files/publication.zip`,"Cytellect-publication.zip");}catch(cause){
         // The public demo records the publication package for the guided result only; any other
         // result saves the figure it shows, which is recorded.
         if(!demo||!(cause instanceof ApiError)||cause.code!=="showcase_action_not_recorded")throw cause;
         const file=rendered.figure.source_files.find(name=>name.endsWith(".svg"))||"figure-001.svg";await download(`/v1/jobs/${rendered.job}/files/${encodeURIComponent(file)}`,"Cytellect-figure.svg");setSavedNote("図（SVG）を保存しました。論文用パッケージ（ZIP）の作成には、Windows 版とお手元の画像が必要です。");}}
-    }catch(cause){setError(fail(cause));}finally{lock.current=false;setBusy("");}
+    }catch(cause){failedSignature.current=signature;setError(fail(cause));}finally{lock.current=false;setBusy("");}
   }
   /** The drawn figure as an image on the clipboard, for a slide (FU-08). */
   async function copyPng(){if(!saved)return;try{const blob=await fetchBlob(`/v1/jobs/${saved.figureJob}/files/figure.png`);await navigator.clipboard.write([new ClipboardItem({"image/png":blob.type==="image/png"?blob:new Blob([blob],{type:"image/png"})})]);setSavedNote("PNG をコピーしました。");}catch(cause){setError(fail(cause));}}
@@ -385,9 +389,11 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   // A changed setting redraws the figure (FU-04); the drawn figure stays until the new one is ready.
   const signature=(()=>{try{return saved&&mode==="figure"?JSON.stringify({...plot(),kind:figureKind}):"";}catch{return "";}})();
   const baseline=useRef<{job:string;signature:string}|null>(null);
+  // The settings whose redraw failed: they are not drawn again until one of them changes.
+  const failedSignature=useRef("");
   useEffect(()=>{if(!saved){baseline.current=null;return;}
     if(baseline.current?.job!==saved.figureJob){if(signature)baseline.current={job:saved.figureJob,signature};return;}
-    if(!signature||signature===baseline.current.signature||busy||stale||disabled)return;
+    if(!signature||signature===baseline.current.signature||signature===failedSignature.current||busy||stale||disabled)return;
     const timer=setTimeout(()=>void render(),350);return()=>clearTimeout(timer);},[signature,saved?.figureJob,busy,stale,disabled]);// eslint-disable-line react-hooks/exhaustive-deps
   const openingTarget=useRef<ReviewTarget|null>(null);
   const openLatestSaved=useEffectEvent((entry:Saved)=>{if(saved)return;restoreFigure(entry);
@@ -466,7 +472,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
           {publication&&layered&&composition==="images-quantification"&&<label className={styles.check}><input type="checkbox" checked={outlines} onChange={event=>setOutlines(event.target.checked)}/>測定した領域の輪郭</label>}
           {publication&&forms.length>1&&<label>形<select value={currentForm?.id||""} onChange={event=>{const chosen=forms.find(value=>value.id===event.target.value);if(chosen){setFigureKind(chosen.kind);setObservations(chosen.observations??null);}}}>{!currentForm&&<option value="" disabled>保存した形</option>}{forms.map(value=><option key={value.id} value={value.id}>{formNames[value.id]||value.id}</option>)}</select></label>}
           {publication?<label>大きさ<select value={size} onChange={event=>setSize(event.target.value as FigureSize)}>{(Object.keys(sizeNames) as FigureSize[]).map(value=><option key={value} value={value}>{sizeNames[value]}</option>)}</select></label>
-            :<label>図の幅<select value={width===89?"89":width===183?"183":"custom"} onChange={event=>{if(event.target.value!=="custom"){setWidth(Number(event.target.value));setHeight(previous=>Math.min(previous,170));setFont(previous=>Math.min(previous,7));}}}><option value="89">1段幅 · 89 mm</option><option value="183">2段幅 · 183 mm</option><option value="custom">カスタム</option></select></label>}
+            :<label>図の幅<select value={width===89?"89":width===183?"183":"custom"} onChange={event=>{if(event.target.value!=="custom"){setWidth(Number(event.target.value));setHeight(Math.min(height,170));setFont(previous=>Math.min(previous,7));}}}><option value="89">1段幅 · 89 mm</option><option value="183">2段幅 · 183 mm</option><option value="custom">カスタム</option></select></label>}
           {publication&&layered&&saved?.operation==="comparison"&&<label>注釈<select value={annotation} onChange={event=>setAnnotation(event.target.value as typeof annotation)}><option value="value">{descriptiveResult?"実験回ごとの変化":"効果と P 値"}</option>{!descriptiveResult&&<option value="stars">P 値（星印）</option>}<option value="none">なし</option></select></label>}
           {publication&&layered&&saved?.operation==="comparison"&&pairedRuns&&<label>色分け<select value={colorBy||"run"} onChange={event=>setColorBy(event.target.value as "run"|"group")}><option value="run">実験回</option><option value="group">群</option></select></label>}
           {(!publication||size==="custom")&&<div className={styles.row}><label>幅 / mm<input type="number" min={30} max={406.4} value={width} onChange={event=>setWidth(Number(event.target.value))}/></label><label>高さ / mm<input type="number" min={25.4} max={170} value={height} onChange={event=>setHeight(Number(event.target.value))}/></label></div>}
@@ -475,7 +481,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
           {saved?.operation==="comparison"&&<p className={styles.figureHint}>{descriptiveResult?"記述統計のため、信頼区間は描きません。":"群の平均に 95% 信頼区間を付けます。"}</p>}
         </>}
         {part==="x"&&<fieldset className={styles.plain}><label>横軸ラベル<input value={xLabel} maxLength={120} onChange={event=>setXLabel(event.target.value)}/></label><AxisControls axis="x" value={xAxis} onChange={setXAxis} numeric={(saved?.operation||operation)==="association"}/></fieldset>}
-        {part==="y"&&<fieldset className={styles.plain}><label>縦軸ラベル<input value={yLabel} maxLength={120} onChange={event=>setYLabel(event.target.value)}/></label><AxisControls axis="y" value={{...yAxis,min:yMin,max:yMax}} onChange={value=>{setYAxis(value);setYMin(value.min);setYMax(value.max);}}/></fieldset>}
+        {part==="y"&&<fieldset className={styles.plain}><label>縦軸ラベル<input value={yLabel} maxLength={120} onChange={event=>setYLabel(event.target.value)}/></label><AxisControls axis="y" value={{...yAxis,min:yMin,max:yMax}} onChange={value=>{setYAxis(value);setYMin(value.min);setYMax(value.max);}} scale={!(layered&&saved?.operation==="comparison")}/></fieldset>}
         {part==="series"&&<><fieldset className={styles.plain}><label>系列<select value={selectedSeries||series[0]||""} onChange={event=>setSelectedSeries(event.target.value)}>{(order.length?seriesOrder(order,series):series).map(key=><option key={key} value={key}>{sources.find(source=>source.field===key)?.label||key}</option>)}</select></label><label>色<input type="color" value={colors[selectedSeries||series[0]]||"#0072b2"} onChange={event=>setColors(previous=>({...previous,[selectedSeries||series[0]]:event.target.value}))}/></label><label>点の大きさ<input type="number" min={1} max={400} value={pointSize??""} placeholder="自動" onChange={event=>setPointSize(event.target.value?Number(event.target.value):null)}/></label><div className={styles.row}>{[-1,1].map(direction=><button key={direction} onClick={()=>{const current=order.length?seriesOrder(order,series):[...series];const index=current.indexOf(selectedSeries||series[0]);if(index+direction<0||index+direction>=current.length)return;[current[index],current[index+direction]]=[current[index+direction],current[index]];setOrder(current);}}>{direction<0?"前へ":"後へ"}</button>)}</div></fieldset>{operation==="distribution"&&<button onClick={()=>onSource(selectedSeries||series[0],undefined,saved?.revision,saved?.target,savedChannel,savedStructure)}>元の視野を表示</button>}</>}
         {busy&&<p role="status" className={styles.figureHint}>{busy}</p>}
         {!saved&&<p>図の編集には、統計での計算結果が必要です。</p>}
@@ -510,7 +516,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
           </div>
           <div>{svgFiles.map(file=><VectorFigure key={`${saved.figureJob}:${file}`} widthMm={saved.figure.style?.width_mm} path={`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(file)}`}/>)}</div>
         </div>:svgFiles.map(file=>mode==="figure"?<div key={`${saved.figureJob}:${file}`} className={styles.figureFrame} style={saved.figure.style?.width_mm?{maxWidth:`${Math.round(saved.figure.style.width_mm*8)}px`}:undefined}><EditableFigure path={`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(file)}`} onSelect={setPart} onSource={openPoint}/></div>:<VectorFigure key={`${saved.figureJob}:${file}`} widthMm={saved.figure.style?.width_mm} path={`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(file)}`}/>)}
-        {mode==="figure"&&saved.figure.source_files.includes("figure-legend.md")&&<FigureLegend key={saved.figureJob} path={`/v1/jobs/${saved.figureJob}/files/figure-legend.md`} gaps={saved.figure.legend_gaps||[]} terms={initialSpec?.figure_presentation?.legend_terms??null}/>}
+        {mode==="figure"&&saved.figure.source_files.includes("figure-legend.md")&&<FigureLegend key={saved.job} path={`/v1/jobs/${saved.figureJob}/files/figure-legend.md`} gaps={saved.figure.legend_gaps||[]} terms={initialSpec?.figure_presentation?.legend_terms??null}/>}
         {pointSource?.job===saved.figureJob&&pointRows.length>0&&<section aria-label="選択した点の試料・視野"><strong>この点の元データ</strong><button onClick={()=>setPointSource(null)} aria-label="点の元データを閉じる">×</button><SavedTable rows={pointRows} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel,savedStructure)}/></section>}
         {!svgFiles.length&&<p>この設定では図を表示できません。測定表と出力条件を確認してください。</p>}
         {mode==="statistics"&&tableRows&&(saved.result.estimates
@@ -539,16 +545,22 @@ type LegendTerms={cell_line?:string|null;treatment?:string|null;stains?:string|n
 const termGaps:Array<[keyof LegendTerms,string]>=[["cell_line","[Cell line]"],["treatment","[treatment and duration]"],["stains","[antibody or dye for each stain]"]];
 function FigureLegend({path,gaps,terms}:{path:string;gaps:string[];terms?:LegendTerms|null}){
   const [text,setText]=useState(""),[note,setNote]=useState(""),[filled,setFilled]=useState<string[]>([]);
+  // A redraw of the same result brings a new draft. What the researcher wrote stays; the new draft waits
+  // until they take it.
+  const edited=useRef(false),taken=useRef(""),[pending,setPending]=useState<{draft:string;used:string[]}|null>(null);
+  function take(draft:string,used:string[]){taken.current=draft;edited.current=false;setText(draft);setFilled(used);setPending(null);}
+  const proposed=JSON.stringify(terms??null);
   useEffect(()=>{let live=true;void fetchBlob(path).then(blob=>blob.text()).then(value=>{if(!live)return;let draft=value.trim();const used:string[]=[];
     for(const [key,gap] of termGaps){const term=terms?.[key];if(term&&draft.includes(gap)){draft=draft.replaceAll(gap,term);used.push(gapNames[gap]);}}
-    setText(draft);setFilled(used);}).catch(()=>{if(live)setText("");});return()=>{live=false;};},[path,terms]);
+    if(edited.current)setPending(draft===taken.current?null:{draft,used});else take(draft,used);}).catch(()=>{if(live&&!edited.current)setText("");});return()=>{live=false;};},[path,proposed]);// eslint-disable-line react-hooks/exhaustive-deps -- terms is read by its content
   if(!text)return null;
   const open=gaps.filter(gap=>text.includes(gap));
   return <section className={styles.legendDraft} aria-label="凡例の下書き">
     <div className={styles.legendHead}><strong>凡例（英語）</strong><button type="button" onClick={()=>void navigator.clipboard.writeText(text).then(()=>setNote("コピーしました")).catch(()=>setNote("コピーできませんでした"))}>コピー</button>{note&&<span role="status">{note}</span>}</div>
     {filled.length>0&&<p className={styles.figureHint}>AI の提案から記入：{filled.join("、")}。内容を確認してください</p>}
     {open.length>0&&<p className={styles.figureHint}>未記入：{open.map(gap=>gapNames[gap]||gap).join("、")}</p>}
-    <textarea aria-label="凡例" value={text} rows={Math.min(12,Math.max(5,Math.ceil(text.length/90)))} onChange={event=>setText(event.target.value)}/>
+    {pending&&<p role="status" className={styles.figureHint}>図を描き直したため、凡例の下書きが変わりました。記入した内容はそのまま残しています。<button type="button" onClick={()=>take(pending.draft,pending.used)}>新しい下書きに置き換える</button></p>}
+    <textarea aria-label="凡例" value={text} rows={Math.min(12,Math.max(5,Math.ceil(text.length/90)))} onChange={event=>{edited.current=true;setText(event.target.value);}}/>
   </section>;
 }
 const gapNames:Record<string,string>={"[Cell line]":"細胞株","[treatment and duration]":"処理と時間","[antibody or dye for each stain]":"抗体・色素"};
