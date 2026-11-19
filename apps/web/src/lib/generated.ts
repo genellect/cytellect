@@ -1456,6 +1456,7 @@ export interface components {
             y_tick_step?: number | null;
             /** Point Size */
             point_size?: number | null;
+            presentation?: components["schemas"]["FigurePresentation"] | null;
         };
         /** AssociationView */
         AssociationView: {
@@ -2218,6 +2219,7 @@ export interface components {
              * @default 10
              */
             histogram_bins: number;
+            presentation?: components["schemas"]["FigurePresentation"] | null;
         };
         /** CommonComparisonView */
         CommonComparisonView: {
@@ -3141,6 +3143,35 @@ export interface components {
             channel_id?: string | null;
             /** Plot */
             plot?: components["schemas"]["CommonComparisonPlot"] | components["schemas"]["AssociationPlot"];
+        };
+        /**
+         * FigurePresentation
+         * @description Presentation of a publication figure (common-statistics figure 2.0.0). Never changes a value.
+         *
+         *     An omitted field is chosen from the saved result (docs/drafts/publication-figures/plan.md §4.3).
+         */
+        FigurePresentation: {
+            /**
+             * Version
+             * @constant
+             */
+            version: "1.0.0";
+            /** Observations */
+            observations?: ("points" | "violin" | "box" | "none") | null;
+            /** Color By */
+            color_by?: ("run" | "group") | null;
+            /**
+             * Annotation
+             * @default value
+             * @enum {string}
+             */
+            annotation: "value" | "stars" | "none";
+            /**
+             * Size
+             * @default panel
+             * @enum {string}
+             */
+            size: "panel" | "single-column" | "double-column" | "custom";
         };
         /** FigureRenderRequest */
         FigureRenderRequest: {

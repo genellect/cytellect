@@ -150,7 +150,8 @@ def test_categorical_figure_margins_do_not_depend_on_jitter(tmp_path, monkeypatc
 
     monkeypatch.setattr(common_statistics_figures.plt, "subplots", capture)
     manifest = render_common_statistics(result, tmp_path)
-    assert manifest["common_statistics_figure_version"] == "1.0.1"
+    # Run-value forms keep their 1.0.1 drawing under the publication figure version.
+    assert manifest["common_statistics_figure_version"] == common_statistics_figures.FIGURE_VERSION
     assert axes[0].get_xlim() == (-.5, 1.5)
     source = json.loads((tmp_path / "figure-data.json").read_text(encoding="utf-8"))
     assert source["unit_summary"] == result["unit_summary"]

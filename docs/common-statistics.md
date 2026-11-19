@@ -135,8 +135,14 @@ independently of jitter and group size. Numeric values, tests, summaries and
 Methods are unchanged. Export and replay retain the saved renderer version;
 1.0.0 figures keep their original autoscaling. Unknown versions are rejected.
 
+Figure renderer 2.0.0 (2026-11-19) draws `superplot`, `unit-mean-bar` and
+association scatter as publication figures ([figure export contract](figures.md#publication-figures-common-statistics-figure-200)):
+every observation, the runs, the mean of runs and the saved effect, at the printed
+panel size, with `figure-legend.md`. The other forms keep their 1.0.1 drawing.
+Values, tests and Methods are unchanged.
+
 Association scatter shows one matched independent-unit X/Y point, with no
-fitted line. All figures export editable SVG, font-embedded PDF, 300 dpi PNG,
+fitted line. All figures export editable SVG, font-embedded PDF, PNG (600 dpi from 2.0.0),
 complete saved-value CSV tables and figure-data JSON with file hashes and exact
 display coordinates. Regular font glyph coverage and label layout are checked.
 Journal-size formatting does not imply journal acceptance.

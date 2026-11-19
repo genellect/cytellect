@@ -1633,5 +1633,20 @@
     "sha256": "bdb2a721cd70b13e76688afac41dadfea92e8796b3e628fa7ae5194d446da6d8",
     "source": "https://zenodo.org/records/6643470 (public demo scene zenodo-6643470-oxaliplatin; docs/drafts/publication-figures/prototype.py.txt)",
     "license": "CC-BY-4.0 (public images/derived measurements); Apache-2.0 (Cytellect figure)"
+  },
+  "packages/analysis/src/cytellect_analysis/assets/fonts/LiberationSans-Regular.ttf": {
+    "sha256": "bade59d822652f76e6941aa87b40a87c13d1cc70db98ededb5011127efafd1d3",
+    "source": "http://deb.debian.org/debian/pool/main/f/fonts-liberation/fonts-liberation_2.1.5-3_all.deb ; Liberation Sans 2.1.5 (upstream https://github.com/liberationfonts/liberation-fonts), unmodified",
+    "license": "OFL-1.1"
+  },
+  "packages/analysis/src/cytellect_analysis/assets/fonts/LiberationSans-Bold.ttf": {
+    "sha256": "1b5f2da6f4cadce4c05b9ecebe3a6fcd374eb95ae443605e799f4c3287978939",
+    "source": "http://deb.debian.org/debian/pool/main/f/fonts-liberation/fonts-liberation_2.1.5-3_all.deb ; Liberation Sans 2.1.5 (upstream https://github.com/liberationfonts/liberation-fonts), unmodified",
+    "license": "OFL-1.1"
+  },
+  "packages/analysis/src/cytellect_analysis/assets/fonts/LiberationSans-LICENSE.txt": {
+    "sha256": "93fed46019c38bbe566b479d22148e2e8a1e85ada614accb0211c37b2c61c19b",
+    "source": "LICENSE of https://deb.debian.org/debian/pool/main/f/fonts-liberation/fonts-liberation_2.1.5.orig.tar.gz",
+    "license": "OFL-1.1"
   }
 }

@@ -4329,7 +4329,7 @@
           "width_inches": {
             "type": "number",
             "maximum": 16.0,
-            "minimum": 3.0,
+            "minimum": 1.1811023622047245,
             "title": "Width Inches",
             "default": 7
           },
@@ -4418,6 +4418,16 @@
               }
             ],
             "title": "Point Size"
+          },
+          "presentation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FigurePresentation"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -6282,7 +6292,7 @@
           "width_inches": {
             "type": "number",
             "maximum": 16.0,
-            "minimum": 3.0,
+            "minimum": 1.1811023622047245,
             "title": "Width Inches",
             "default": 7
           },
@@ -6378,6 +6388,16 @@
             "minimum": 3.0,
             "title": "Histogram Bins",
             "default": 10
+          },
+          "presentation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FigurePresentation"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -7336,7 +7356,7 @@
           "width_inches": {
             "default": 7,
             "maximum": 16,
-            "minimum": 3,
+            "minimum": 1.1811023622047245,
             "title": "Width Inches",
             "type": "number"
           },
@@ -8950,6 +8970,75 @@
         "additionalProperties": false,
         "type": "object",
         "title": "FigureDraft"
+      },
+      "FigurePresentation": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Version"
+          },
+          "observations": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "points",
+                  "violin",
+                  "box",
+                  "none"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observations"
+          },
+          "color_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "run",
+                  "group"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color By"
+          },
+          "annotation": {
+            "type": "string",
+            "enum": [
+              "value",
+              "stars",
+              "none"
+            ],
+            "title": "Annotation",
+            "default": "value"
+          },
+          "size": {
+            "type": "string",
+            "enum": [
+              "panel",
+              "single-column",
+              "double-column",
+              "custom"
+            ],
+            "title": "Size",
+            "default": "panel"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version"
+        ],
+        "title": "FigurePresentation",
+        "description": "Presentation of a publication figure (common-statistics figure 2.0.0). Never changes a value.\n\nAn omitted field is chosen from the saved result (docs/drafts/publication-figures/plan.md \u00a74.3)."
       },
       "FigureRenderRequest": {
         "properties": {
@@ -12346,7 +12435,7 @@
           "width_inches": {
             "type": "number",
             "maximum": 16.0,
-            "minimum": 3.0,
+            "minimum": 1.1811023622047245,
             "title": "Width Inches",
             "default": 7
           },
@@ -13395,7 +13484,7 @@
           "width_inches": {
             "type": "number",
             "maximum": 16.0,
-            "minimum": 3.0,
+            "minimum": 1.1811023622047245,
             "title": "Width Inches",
             "default": 7
           },

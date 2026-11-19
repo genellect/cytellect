@@ -17,12 +17,31 @@ from .region_comparison_contracts import (
 from .regions import RegionModel
 
 
+class FigurePresentation(RegionModel):
+    """Presentation of a publication figure (common-statistics figure 2.0.0). Never changes a value.
+
+    An omitted field is chosen from the saved result (docs/drafts/publication-figures/plan.md §4.3).
+    """
+    version: Literal["1.0.0"]
+    # The observation layer under the runs: every point, a density outline or a box behind the points.
+    observations: Literal["points", "violin", "box", "none"] | None = None
+    color_by: Literal["run", "group"] | None = None
+    # Effect and P value as numbers, P value as asterisks, or no annotation (the legend keeps it).
+    annotation: Literal["value", "stars", "none"] = "value"
+    size: Literal["panel", "single-column", "double-column", "custom"] = "panel"
+
+
+def _omit_none(value):
+    return value is None
+
+
 class CommonComparisonPlot(PlotSpec):
     # Opt-in protocol expands this enum without changing the historical PlotSpec schema.
     # "superplot" and "unit-mean-bar" draw the experiment hierarchy (requirements F-01, F-02).
     kind: Literal["distribution", "paired", "histogram", "box", "violin", "superplot",
                   "unit-mean-bar"] = "distribution"  # type: ignore[assignment]
     histogram_bins: Annotated[int, Field(strict=True, ge=3, le=50)] = 10
+    presentation: FigurePresentation | None = Field(default=None, exclude_if=_omit_none)
 
 
 class RegionComparisonRequestV2(RegionComparisonRequest):
@@ -93,6 +112,7 @@ class RegionComparisonResultV2(RegionComparisonResult):
 
 class AssociationPlot(PlotSpec):
     kind: Literal["scatter"] = "scatter"
+    presentation: FigurePresentation | None = Field(default=None, exclude_if=_omit_none)
 
 
 class RegionAssociationRequest(RegionModel):
