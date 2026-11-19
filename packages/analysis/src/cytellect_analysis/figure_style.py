@@ -102,6 +102,18 @@ def balanced_two_lines(text: str, width_mm: float, font_size: float) -> str:
     return (" ".join(words[:best]) + "\n" + " ".join(words[best:])).replace(" ", " ")
 
 
+def fit_axis_title(text: str, length_mm: float, font_size: float) -> str:
+    """An axis title along ``length_mm``: one line, two of similar length, or more lines (up to four)
+    when two are still longer than the axis (a long stain, statistic and unit)."""
+    per_char_mm = font_size * .52 * 25.4 / 72
+    fits = lambda value: all(len(line) * per_char_mm <= length_mm for line in value.split("\n"))  # noqa: E731
+    balanced = balanced_two_lines(text, length_mm, font_size)
+    if fits(balanced):
+        return balanced
+    wrapped = wrap_label(text, length_mm, font_size, max_lines=3)
+    return wrapped if fits(wrapped) else wrap_label(text, length_mm, font_size, max_lines=4)
+
+
 def nice_upper(value: float) -> float:
     """The smallest 1, 2, 2.5 or 5 × 10^k at or above ``value``."""
     if value <= 0:

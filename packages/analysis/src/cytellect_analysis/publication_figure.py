@@ -29,7 +29,7 @@ from .figure_style import (
     MUTED,
     OKABE_ITO,
     SIZES_MM,
-    balanced_two_lines,
+    fit_axis_title,
     run_colors,
     run_marker,
     tick_locator,
@@ -106,11 +106,17 @@ def axis_title(source) -> tuple[str, str]:
 
 
 def fit_line(line: str, width_mm: float, font_size: float) -> list[str]:
-    """Put a confidence interval on its own line when the effect does not fit the panel."""
-    if len(line) * font_size * .52 * 25.4 / 72 <= width_mm or " (95% CI " not in line:
+    """Put a confidence interval (or another parenthesis, such as the runs a change holds in) on its
+    own line when the annotation does not fit the panel."""
+    if len(line) * font_size * .52 * 25.4 / 72 <= width_mm:
         return [line]
-    head, _, tail = line.partition(" (95% CI ")
-    return [head, "(95% CI " + tail]
+    if " (95% CI " in line:
+        head, _, tail = line.partition(" (95% CI ")
+        return [head, "(95% CI " + tail]
+    if " (" in line:
+        head, _, tail = line.rpartition(" (")
+        return [head, "(" + tail]
+    return [line]
 
 
 def _scale(source) -> str:
@@ -349,8 +355,13 @@ def draw_comparison(fig, ax, canonical, plot, presentation, order) -> Drawn:
     labels = [wrap_label(group, max(9.0, group_width), plot.get("font_size") or 7)
               + f"\nn = {summaries[group][3]}" + (f" {run_word}" if run_word else "") for group in order]
     ax.set_xticks(range(len(order)), labels)
-    ax.set_ylabel(plot.get("y_label") or balanced_two_lines(_full_title(title, unit_note, ""), 32,
-                                                             plot.get("font_size") or 7))
+    # The title runs along the value axis: about the figure's height less the group labels.
+    ax.set_ylabel(plot.get("y_label") or fit_axis_title(_full_title(title, unit_note, ""),
+                                                        max(24.0, fig.get_figheight() / MM - 16), plot.get("font_size") or 7))
+    # A panel takes the width of each axis-title line past the second, so the group labels keep theirs.
+    extra = ax.get_ylabel().count("\n") - 1
+    if extra > 0 and presentation.get("size", "panel") == "panel":
+        fig.set_figwidth(fig.get_figwidth() + extra * 3.2 * MM)
     if plot.get("x_label"):
         ax.set_xlabel(plot["x_label"])
     legend = None
@@ -476,7 +487,7 @@ def draw_association(fig, ax, canonical, plot, order) -> Drawn:
     for axis, source in (("x", canonical["x_source"]), ("y", canonical["y_source"])):
         title, unit = axis_title(source)
         label = plot.get(f"{axis}_label") or _full_title(title, "%" if _scale(source) == "fraction" else unit, "")
-        getattr(ax, f"set_{axis}label")(balanced_two_lines(label, 34, plot.get("font_size") or 7))
+        getattr(ax, f"set_{axis}label")(fit_axis_title(label, 34, plot.get("font_size") or 7))
         values = [r[axis] for r in rows]
         formatter, _ = value_formatter(_scale(source), values)
         getattr(ax, f"{axis}axis").set_major_formatter(formatter)

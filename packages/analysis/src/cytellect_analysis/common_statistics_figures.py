@@ -572,6 +572,8 @@ def _render_publication(canonical, output: Path, template, order, images=None):
                 ax.set_gid("panel-b-quantification")
             drawn = (draw_association(fig, ax, canonical, plot, order) if association
                      else draw_comparison(fig, ax, canonical, plot, presentation, order))
+            # The panel may have widened for a long axis title; the manifest records the drawn size.
+            style = {**style, "width_inches": fig.get_figwidth(), "width_mm": fig.get_figwidth() * 25.4}
             if association:
                 # The researcher's axis ranges, tick steps and log display, checked as in the earlier figures
                 # (a log axis refuses non-positive values). A comparison lays out its own value axis.

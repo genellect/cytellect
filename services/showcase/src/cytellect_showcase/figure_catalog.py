@@ -139,7 +139,10 @@ class Catalog:
         name = f"{hashlib.sha256(body).hexdigest()[:24]}{suffix}"
         path = self.target / name
         if not path.is_file():
-            path.write_bytes(body)
+            # Several drawing processes may write the same file at once: each writes whole bytes.
+            partial = path.with_name(f".{name}.{uuid.uuid4().hex}")
+            partial.write_bytes(body)
+            partial.replace(path)
             self.files_written += 1
         return name
 
@@ -194,8 +197,13 @@ def opening_figure(result: dict, plot: dict, out: Path) -> dict:
     return drawn
 
 
-def build(api, target: Path, scratch: Path) -> dict:
-    """Write ``figures.json`` for the tour in ``target`` and drop the tour's own figure answers."""
+def build(api, target: Path, scratch: Path, shard: tuple[int, int] | None = None,
+          parts: list[Path] | None = None) -> dict:
+    """Write ``figures.json`` for the tour in ``target`` and drop the tour's own figure answers.
+
+    ``shard`` ``(i, n)`` draws only every n-th group of results, from the i-th, into
+    ``scratch/part-<i>.json`` and stops there; ``parts`` are those files, whose groups are not
+    drawn again (``build.py`` ``figures`` draws the groups in several processes)."""
     from cytellect_api.db import jobs
 
     catalog = Catalog(api, target)
@@ -254,8 +262,15 @@ def build(api, target: Path, scratch: Path) -> dict:
         sources[job] = {"group": identity, "workspace": value["workspace"], "revision": value["result"]["revision_id"]}
 
     written: dict[str, dict] = {}
+    for part in parts or []:
+        for identity, value in json.loads(part.read_text())["groups"].items():
+            for item in value["figures"]:
+                item["root"] = Path(item["root"])
+            written[identity] = value
     started = time.perf_counter()
     for count, (identity, group) in enumerate(sorted(groups.items())):
+        if identity in written or (shard is not None and count % shard[1] != shard[0]):
+            continue
         if group["seed"]:
             # A saved result of the seed is drawn anew too: every figure of the demo comes from this stage.
             representative = group["seed"]
@@ -294,6 +309,11 @@ def build(api, target: Path, scratch: Path) -> dict:
             "figures": figures,
         }
         print(f"figures {count + 1}/{len(groups)} {len(figures)} drawn, {time.perf_counter() - started:.0f}s", flush=True)
+    if shard is not None:
+        drawn_part = {identity: {**value, "figures": [{**item, "root": str(item["root"])} for item in value["figures"]]}
+                      for identity, value in written.items()}
+        (scratch / f"part-{shard[0]}.json").write_text(json.dumps({"groups": drawn_part}))
+        return {"groups": len(written)}
 
     # Publication packages of the tour: the recorded analysis with the opening figure drawn anew.
     from cytellect_worker.figure_render import run_publication_package
@@ -386,3 +406,17 @@ def build(api, target: Path, scratch: Path) -> dict:
     return {"groups": len(written), "sources": len(sources), "figures": sum(len(value["figures"]) for value in written.values()),
             "saved": len(saved_figures), "packages": len(package_entries), "journal_entries_removed": removed,
             "files_written": catalog.files_written}
+
+
+if __name__ == "__main__":
+    # One drawing process of build.py ``figures``: <data> <target> <scratch> <fiji> <owner> <i> <n>.
+    import sys
+
+    from .build import open_api
+
+    data_dir, out, work, fiji, owner, index, count = sys.argv[1:8]
+    api = open_api(Path(data_dir), "http://127.0.0.1", fiji, owner)
+    try:
+        print(json.dumps(build(api, Path(out), Path(work), shard=(int(index), int(count)))), flush=True)
+    finally:
+        api.client.close()

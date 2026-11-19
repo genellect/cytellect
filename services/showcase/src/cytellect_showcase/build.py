@@ -1857,14 +1857,29 @@ def figures(seed_data: Path, work: Path, out: Path, fiji: str, owner: str) -> di
     figures it answered with are replaced by ``snapshot/figures.json``."""
     from . import figure_catalog
 
+    workers = max(1, min(4, (os.cpu_count() or 2) - 1))
     data, scratch = work / "figures-data", work / "figures-scratch"
-    for path in (data, scratch):
+    copies = [work / f"figures-data-{index}" for index in range(workers)]
+    for path in (data, scratch, *copies):
         shutil.rmtree(path, ignore_errors=True)
-    shutil.copytree(seed_data, data, ignore=shutil.ignore_patterns("tmp"))
     scratch.mkdir(parents=True)
+    # The groups of results are drawn in several processes, each on its own copy of the seed;
+    # this process then writes the catalogue from their parts.
+    processes = []
+    for index, copy_dir in enumerate(copies):
+        shutil.copytree(seed_data, copy_dir, ignore=shutil.ignore_patterns("tmp"))
+        (scratch / f"shard-{index}").mkdir()
+        processes.append(subprocess.Popen(
+            [sys.executable, "-m", "cytellect_showcase.figure_catalog", str(copy_dir), str(out / "snapshot"),
+             str(scratch / f"shard-{index}"), fiji, owner, str(index), str(workers)], cwd=REPO))
+    failed = [process.args for process in processes if process.wait()]
+    if failed:
+        raise SystemExit(f"figures: {len(failed)} drawing process(es) failed")
+    shutil.copytree(seed_data, data, ignore=shutil.ignore_patterns("tmp"))
     api = open_api(data, "http://127.0.0.1", fiji, owner)
     try:
-        report = figure_catalog.build(api, out / "snapshot", scratch)
+        report = figure_catalog.build(api, out / "snapshot", scratch,
+                                      parts=[scratch / f"shard-{index}" / f"part-{index}.json" for index in range(workers)])
     finally:
         api.client.close()
     target = out / "snapshot"
