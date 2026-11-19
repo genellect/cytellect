@@ -54,8 +54,8 @@ def test_publication_figure_from_a_saved_demo_comparison(tmp_path):
     manifest = render_common_statistics(result, tmp_path)
     assert manifest["common_statistics_figure_version"] == FIGURE_VERSION == "2.0.0"
     assert manifest["font"] == "Liberation Sans"
-    # A two-group panel is drawn at its printed size, not two columns wide.
-    assert 36 <= manifest["style"]["width_mm"] <= 60
+    # A two-group panel is drawn at its printed size (each group as wide as its longest word), not a column wide.
+    assert 36 <= manifest["style"]["width_mm"] <= 70
     svg = (tmp_path / "figure.svg").read_text(encoding="utf-8")
     assert "Liberation Sans', Arial, Helvetica" in svg and "<text" in svg
     assert "Higher in 2 of 3 runs" in svg and "n = 3 runs" in svg
@@ -241,3 +241,78 @@ def test_representative_images_share_one_display_range(tmp_path):
     first = record["fields"][0]
     y0, y1, x0, x1 = first["crop_yx"]
     assert np.array_equal(saved["0-npm1"], images[first["field_id"]]["channels"]["npm1"][y0:y1, x0:x1])
+
+
+def drawn(result, tmp_path, name, **plot):
+    """Draw the saved demo comparison with one setting changed, as the 「グラフ」 view asks for it."""
+    result = copy.deepcopy(result)
+    presentation = {**OPENING, **plot.pop("presentation", {})}
+    result["spec"]["plot"].update({"kind": "superplot", **plot, "presentation": presentation})
+    out = tmp_path / name
+    manifest = render_common_statistics(result, out)
+    return manifest, (out / "figure.svg").read_text(encoding="utf-8"), (out / "figure-legend.md").read_text(encoding="utf-8")
+
+
+def test_every_form_is_a_publication_figure_that_says_what_it_summarises(tmp_path):
+    # Each form the view offers reads as its summary, and the legend names it (2026-11-19, owner: only the
+    # default figure was a publication figure; the box hid under the points).
+    result = demo_comparison()
+    box, _, box_legend = drawn(result, tmp_path, "box", presentation={"observations": "box"})
+    assert box["common_statistics_figure_version"] == "2.0.0"
+    assert "boxes show the median and interquartile range" in box_legend
+    _, _, density_legend = drawn(result, tmp_path, "density", presentation={"observations": "violin"})
+    assert "grey outlines show the distribution" in density_legend
+    _, _, bar_legend = drawn(result, tmp_path, "bar", kind="unit-mean-bar", presentation={"observations": "points"})
+    assert "bars show the mean of runs" in bar_legend
+    selected = [row["condition"] for row in result["plot_data"] if row["selection_status"] == "selected"]
+    largest = max(selected.count(condition) for condition in set(selected))
+    # A bar over more than 150 observations in a group leaves them out; the legend then does not mention them.
+    assert ("small dots" in bar_legend.lower()) == (largest <= 150)
+
+
+def test_a_column_width_is_used_by_the_groups_not_left_blank(tmp_path):
+    import xml.etree.ElementTree as ET
+
+    result = demo_comparison()
+    manifest, svg, _ = drawn(result, tmp_path, "double", presentation={"size": "double-column"})
+    assert manifest["style"]["width_mm"] == pytest.approx(183)
+    root = ET.fromstring(svg)
+    # The axes patch spans most of the width (it was a 40 mm panel centred in 183 mm).
+    patch = next(element for element in root.iter() if element.get("id") == "patch_2")
+    path = next(child for child in patch.iter() if child.tag.endswith("path"))
+    xs = [float(value) for value in path.get("d").replace("M", " ").replace("L", " ").replace("z", " ").split()[::2]]
+    width_pt = float(root.get("width").removesuffix("pt"))
+    assert (max(xs) - min(xs)) / width_pt > .6
+
+
+def test_group_names_take_the_same_rows_so_n_reads_across(tmp_path):
+    import matplotlib.pyplot as plt
+    from cytellect_analysis import publication_figure
+
+    result = demo_comparison()
+    captured = {}
+    original = publication_figure.draw_comparison
+
+    def record(fig, ax, *args, **kwargs):
+        value = original(fig, ax, *args, **kwargs)
+        captured["labels"] = [label.get_text() for label in ax.get_xticklabels()]
+        return value
+
+    publication_figure.draw_comparison = record
+    try:
+        drawn(result, tmp_path, "labels")
+    finally:
+        publication_figure.draw_comparison = original
+        plt.close("all")
+    lines = {label.count("\n") for label in captured["labels"]}
+    assert len(lines) == 1 and all(label.split("\n")[-1].startswith("n = ") for label in captured["labels"])
+
+
+@pytest.mark.parametrize("kind,observations", [("box", "box"), ("violin", "violin"), ("paired", "points"), ("histogram", "points")])
+def test_a_form_saved_before_is_drawn_as_its_nearest_publication_form(tmp_path, kind, observations):
+    # Three runs offer no run-value form; a figure saved with one is drawn as the run hierarchy.
+    result = demo_comparison()
+    result["spec"]["plot"].update(kind=kind, presentation=OPENING)
+    manifest = render_common_statistics(result, tmp_path)
+    assert manifest["common_statistics_figure_version"] == "2.0.0"
+    assert manifest["presentation"]["observations"] == observations

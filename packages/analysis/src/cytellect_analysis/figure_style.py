@@ -28,6 +28,8 @@ INK = "#1A1A1A"
 MUTED = "#6B6B6B"
 DENSITY_FILL = "#E9E9E9"
 DENSITY_EDGE = "#A6A6A6"
+# The outline of a summary drawn over the observations (box, density, histogram): read before the faint points.
+SHAPE_EDGE = "#5E5E5E"
 BAR_FILL = "#DDDDDD"
 SIZES_MM = {"single-column": 89.0, "double-column": 183.0}
 PNG_DPI = 600
