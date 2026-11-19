@@ -489,7 +489,9 @@ function walksOf(demo) {
 }
 await mkdir(config.out, {recursive: true});
 // Scenes are independent (each starts from the seed), so several run at once.
-const walks = SCENES.flatMap(walksOf).filter(item => !config.only || config.only.includes(item.name));
+// Walks kept from the published journal (build.py --journal-keep) are not recorded again.
+const kept = config.keep ? new RegExp(config.keep) : null;
+const walks = SCENES.flatMap(walksOf).filter(item => (!config.only || config.only.includes(item.name)) && !kept?.test(item.name));
 const names = walks.map(item => item.name);
 const queue = [...walks];
 await Promise.all(Array.from({length: config.concurrency ?? 3}, async () => {

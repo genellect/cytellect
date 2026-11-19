@@ -1389,8 +1389,15 @@ def rank_examples(manifest: dict) -> list[int]:
             or item["draft"]["statistics"].get("association") == "spearman"]
 
 
-def journal(work: Path, origin_port: int, out: Path, scenes: list[dict]) -> dict:
-    """Record the tour on /demo (published seed, in-browser API) into ``snapshot/journal.json``."""
+def journal(work: Path, origin_port: int, out: Path, scenes: list[dict], keep: str | None = None,
+            previous: Path | None = None) -> dict:
+    """Record the tour on /demo (published seed, in-browser API) into ``snapshot/journal.json``.
+
+    ``keep`` (a regular expression of walk names) keeps those walks' entries from the journal in
+    ``previous`` (a snapshot directory) instead of recording them again: for a change of figures only,
+    the walks that draw no figure (deleting and restoring an outline, the AI examples on each field)
+    stay as published, with their files.
+    """
     origin = f"http://127.0.0.1:{origin_port}"
     web = REPO / "apps" / "web"
     preserved = {name: (web / name).read_bytes() for name in ("next-env.d.ts", "tsconfig.json")}
@@ -1414,6 +1421,7 @@ def journal(work: Path, origin_port: int, out: Path, scenes: list[dict]) -> dict
         if destination.exists():
             shutil.rmtree(destination)
         config = {"origin": origin, "out": str(destination), "web": str(web), "snapshot": str(out / "snapshot"), "scenes": scenes,
+                  **({"keep": keep} if keep else {}),
                   "chromium": os.environ.get("CYTELLECT_CHROMIUM_EXECUTABLE", "/opt/pw-browsers/chromium")}
         # Each finished walk is logged as it completes (journal.mjs writes progress lines to stderr).
         walker = subprocess.Popen(["node", str(Path(__file__).with_name("journal.mjs"))], stdin=subprocess.PIPE,
@@ -1449,14 +1457,28 @@ def journal(work: Path, origin_port: int, out: Path, scenes: list[dict]) -> dict
     target = out / "snapshot"
     for path in (destination / "files").iterdir():
         shutil.copyfile(path, target / path.name)
-    shutil.copyfile(destination / "journal.json", target / "journal.json")
+    recorded = json.loads((destination / "journal.json").read_text())
+    if keep:
+        import re
+
+        if previous is None:
+            raise SystemExit("journal: keeping walks needs the previous snapshot directory")
+        earlier = json.loads((previous / "journal.json").read_text())["entries"]
+        kept = [entry for entry in earlier if re.search(keep, entry.get("scene", ""))]
+        for entry in kept:
+            if entry.get("file") and not (target / entry["file"]).is_file():
+                shutil.copyfile(previous / entry["file"], target / entry["file"])
+        recorded["entries"] = [*recorded["entries"], *kept]
+        report["entries"] = len(recorded["entries"])
+        report["kept_scenes"] = sorted({entry["scene"] for entry in kept})
+    (target / "journal.json").write_text(json.dumps(recorded, indent=1, ensure_ascii=False) + "\n")
     # The previous recording's answers that this one no longer names are not published.
     named = {entry["file"] for entry in json.loads((target / "index.json").read_text())["entries"].values() if entry.get("file")}
     named |= {entry["file"] for entry in json.loads((target / "journal.json").read_text())["entries"] if entry.get("file")}
     for path in target.iterdir():
         if path.name not in named and path.name not in SNAPSHOT_KEEP | {"journal.json"}:
             path.unlink()
-    return {key: report[key] for key in ("entries", "scenes")}
+    return {key: report[key] for key in ("entries", "scenes", "kept_scenes") if key in report}
 
 
 def _owner_session(app, workspace_id: str) -> str:
@@ -1636,6 +1658,10 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--fiji", required=True, help="pinned Fiji installation (scripts/fiji_setup.py)")
     parser.add_argument("--out", type=Path, default=PUBLIC)
     parser.add_argument("--stages", default="prepare,scenario,grid,proposals,publish,snapshot,journal,qa")
+    parser.add_argument("--journal-keep", default=None,
+                        help="regular expression of journal walks kept from --journal-previous instead of recorded again")
+    parser.add_argument("--journal-previous", type=Path, default=None,
+                        help="snapshot directory holding the journal and files the kept walks come from")
     parser.add_argument("--web-port", type=int, default=3217)
     parser.add_argument("--api-port", type=int, default=8217)
     args = parser.parse_args(argv)
@@ -1749,7 +1775,8 @@ def main(argv: list[str] | None = None) -> None:
              "examples": len((manifest["scenario"].get("proposals") or {}).get("presets", [])),
              "rank": rank_examples(manifest),
              "gateChannels": manifest["scenario"].get("gate_channels", []),
-             "scope": journal_scope(manifest), "story": story_metrics(manifest)} for _, manifest in manifests])
+             "scope": journal_scope(manifest), "story": story_metrics(manifest)} for _, manifest in manifests],
+            keep=args.journal_keep, previous=args.journal_previous)
         save()
         write_manifest(args, manifests, state)
     if "manifest" in stages:
