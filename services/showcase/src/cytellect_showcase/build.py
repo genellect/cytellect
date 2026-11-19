@@ -1277,6 +1277,28 @@ def serve(data_dir: Path, origin: str, fiji: str, port: int, *, worker: bool = F
     return app, settings, server, thread
 
 
+def start_next(command: str, web: Path, env: dict, origin_port: int, ready_path: str = "/",
+               timeout: float = 5) -> subprocess.Popen:
+    """Start ``next dev`` or ``next start`` and wait until it answers. The Next.js CLI sometimes stops
+    once to show a notice instead of serving; a server that exits before answering is started again."""
+    url = f"http://127.0.0.1:{origin_port}{ready_path}"
+    for _attempt in range(4):
+        process = subprocess.Popen(["pnpm", "exec", "next", command, "--hostname", "127.0.0.1", "--port", str(origin_port)],
+                                   cwd=web, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                   stderr=subprocess.DEVNULL, start_new_session=True)
+        for _ in range(240):
+            try:
+                urllib.request.urlopen(url, timeout=timeout)
+                return process
+            except OSError:
+                if process.poll() is not None:
+                    break
+                time.sleep(1)
+        else:
+            return process
+    raise SystemExit(f"next {command} did not start")
+
+
 def snapshot(seed_data: Path, work: Path, origin_port: int, api_port: int, fiji: str, out: Path,
              fields: list[dict], workspace_id: str, regions: list[str] | None = None, fresh: bool = True,
              opening: bool = True) -> dict:
@@ -1304,16 +1326,8 @@ def snapshot(seed_data: Path, work: Path, origin_port: int, api_port: int, fiji:
     preserved = {name: (web / name).read_bytes() for name in ("next-env.d.ts", "tsconfig.json")}
     env = {**os.environ, "NEXT_PUBLIC_API_ORIGIN": api_origin, "CYTELLECT_NEXT_DIST_DIR": ".next-showcase",
            "NEXT_TELEMETRY_DISABLED": "1", "PORT": str(origin_port)}
-    nextjs = subprocess.Popen(["pnpm", "exec", "next", "dev", "--hostname", "127.0.0.1", "--port", str(origin_port)],
-                              cwd=web, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                              start_new_session=True)
+    nextjs = start_next("dev", web, env, origin_port)
     try:
-        for _ in range(240):
-            try:
-                urllib.request.urlopen(f"{origin}/", timeout=5)
-                break
-            except OSError:
-                time.sleep(1)
         destination = work / "snapshot-out"
         if destination.exists():
             shutil.rmtree(destination)
@@ -1384,22 +1398,19 @@ def journal(work: Path, origin_port: int, out: Path, scenes: list[dict]) -> dict
     env.update({"CYTELLECT_NEXT_DIST_DIR": ".next-showcase-journal", "NEXT_TELEMETRY_DISABLED": "1", "PORT": str(origin_port)})
     destination = work / "journal-out"
     # The public build (no analysis API) is the one that serves /demo; `next dev` defaults to a local API.
-    built = subprocess.run(["pnpm", "exec", "next", "build"], cwd=web, env=env, capture_output=True, text=True)
+    # The CLI sometimes stops once to show a notice; the build is run again then.
+    for _attempt in range(3):
+        built = subprocess.run(["pnpm", "exec", "next", "build"], cwd=web, env=env, capture_output=True, text=True,
+                               stdin=subprocess.DEVNULL)
+        if not built.returncode:
+            break
     if built.returncode:
         for name, content in preserved.items():
             (web / name).write_bytes(content)
         sys.stderr.write(built.stdout[-4000:] + built.stderr[-4000:])
         raise SystemExit("journal: web build failed")
-    nextjs = subprocess.Popen(["pnpm", "exec", "next", "start", "--hostname", "127.0.0.1", "--port", str(origin_port)],
-                              cwd=web, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                              start_new_session=True)
+    nextjs = start_next("start", web, env, origin_port, "/demo", timeout=30)
     try:
-        for _ in range(240):
-            try:
-                urllib.request.urlopen(f"{origin}/demo", timeout=30)
-                break
-            except OSError:
-                time.sleep(1)
         if destination.exists():
             shutil.rmtree(destination)
         config = {"origin": origin, "out": str(destination), "web": str(web), "snapshot": str(out / "snapshot"), "scenes": scenes,
@@ -1505,18 +1516,10 @@ def record_proposals(manifest: dict, seed_data: Path, work: Path, origin_port: i
     preserved = {name: (web / name).read_bytes() for name in ("next-env.d.ts", "tsconfig.json")}
     env = {**os.environ, "NEXT_PUBLIC_API_ORIGIN": api_origin, "CYTELLECT_NEXT_DIST_DIR": ".next-showcase",
            "NEXT_TELEMETRY_DISABLED": "1"}
-    nextjs = subprocess.Popen(["pnpm", "exec", "next", "dev", "--hostname", "127.0.0.1", "--port", str(origin_port)],
-                              cwd=web, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                              start_new_session=True)
+    nextjs = start_next("dev", web, env, origin_port)
     reports = []
     route.request_draft = authored
     try:
-        for _ in range(240):
-            try:
-                urllib.request.urlopen(f"{origin}/", timeout=5)
-                break
-            except OSError:
-                time.sleep(1)
         for sequence in sequences:
             data = work / "proposal-data"
             if data.exists():
