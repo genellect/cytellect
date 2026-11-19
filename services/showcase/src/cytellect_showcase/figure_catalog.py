@@ -264,8 +264,14 @@ def build(api, target: Path, scratch: Path, shard: tuple[int, int] | None = None
     written: dict[str, dict] = {}
     for part in parts or []:
         for identity, value in json.loads(part.read_text())["groups"].items():
-            for item in value["figures"]:
-                item["root"] = Path(item["root"])
+            # The files are written again from the drawings: the target may be a fresh copy.
+            for item, root in [(value["opening"], value.pop("opening_root")),
+                               *((item, item["root"]) for item in value["figures"])]:
+                item["root"] = Path(root)
+                for name, file in item["files"].items():
+                    if not (target / file).is_file():
+                        catalog.save((Path(root) / name).read_bytes(), Path(name).suffix)
+            value["opening"].pop("root")
             written[identity] = value
     started = time.perf_counter()
     for count, (identity, group) in enumerate(sorted(groups.items())):
@@ -307,6 +313,7 @@ def build(api, target: Path, scratch: Path, shard: tuple[int, int] | None = None
             "opening": {"figure": opening["figure"], "plot": opening["spec"]["plot"],
                         "files": catalog.save_files(root, opening["figure"]["source_files"], images)},
             "figures": figures,
+            "opening_root": str(root),
         }
         print(f"figures {count + 1}/{len(groups)} {len(figures)} drawn, {time.perf_counter() - started:.0f}s", flush=True)
     if shard is not None:
@@ -355,10 +362,14 @@ def build(api, target: Path, scratch: Path, shard: tuple[int, int] | None = None
         source = recorded.get("source_job_id")
         if source not in sources or not recorded.get("figure"):
             continue
-        drawn, folder = catalog.render(source, row["workspace_id"], recorded["spec"]["plot"])
+        # Shown as the 「グラフ」 view opens a comparison (plan G7), in the form it was saved with.
+        plot = {**recorded["spec"]["plot"], **({"presentation": DEFAULT_PRESENTATION} if _comparison(recorded) else {})}
+        drawn, folder = catalog.render(source, row["workspace_id"], plot)
         saved_figures[row["id"]] = {"source": source, "figure": drawn["figure"], "plot": drawn["spec"]["plot"],
                                     "files": catalog.save_files(folder, drawn["figure"]["source_files"], False)}
 
+    for value in written.values():
+        value.pop("opening_root", None)
     document = {
         "version": 1,
         "groups": {identity: {"observations": value["observations"], "opening": value["opening"],

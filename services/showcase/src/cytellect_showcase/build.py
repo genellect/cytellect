@@ -1662,6 +1662,8 @@ def main(argv: list[str] | None = None) -> None:
                         help="regular expression of journal walks kept from --journal-previous instead of recorded again")
     parser.add_argument("--journal-previous", type=Path, default=None,
                         help="snapshot directory holding the journal and files the kept walks come from")
+    parser.add_argument("--figures-reuse", action="store_true",
+                        help="figures: keep the groups the previous run drew and draw only the rest")
     parser.add_argument("--web-port", type=int, default=3217)
     parser.add_argument("--api-port", type=int, default=8217)
     args = parser.parse_args(argv)
@@ -1766,7 +1768,7 @@ def main(argv: list[str] | None = None) -> None:
         save()
     if "figures" in stages:
         first = scenes[manifests[0][1]["id"]]["scenario"]
-        state["figures"] = figures(seed_data, work, args.out, args.fiji, first["owner"])
+        state["figures"] = figures(seed_data, work, args.out, args.fiji, first["owner"], reuse=args.figures_reuse)
         save()
         write_manifest(args, manifests, state)
     if "snapshot" in stages:
@@ -1849,24 +1851,27 @@ def refigure(seed_data: Path, out: Path, fiji: str, owner: str) -> dict:
     return {"replaced": replaced, "legends": added}
 
 
-def figures(seed_data: Path, work: Path, out: Path, fiji: str, owner: str) -> dict:
+def figures(seed_data: Path, work: Path, out: Path, fiji: str, owner: str, reuse: bool = False) -> dict:
     """Draw the demo's figures from its recorded results (stage ``figures``, ``figure_catalog.py``).
 
     For a change of the renderer or of the figure controls: the tour is not recorded again; its
     results are drawn anew through the production API on a copy of the published seed, and the
-    figures it answered with are replaced by ``snapshot/figures.json``."""
+    figures it answered with are replaced by ``snapshot/figures.json``. ``reuse`` keeps the groups the
+    drawing processes of the previous run wrote (``figures-scratch``) and draws only the rest."""
     from . import figure_catalog
 
     workers = max(1, min(4, (os.cpu_count() or 2) - 1))
     data, scratch = work / "figures-data", work / "figures-scratch"
     copies = [work / f"figures-data-{index}" for index in range(workers)]
-    for path in (data, scratch, *copies):
+    parts = [scratch / f"shard-{index}" / f"part-{index}.json" for index in range(workers)]
+    reuse = reuse and all(part.is_file() for part in parts)
+    for path in (data, *([] if reuse else [scratch, *copies])):
         shutil.rmtree(path, ignore_errors=True)
-    scratch.mkdir(parents=True)
+    scratch.mkdir(parents=True, exist_ok=True)
     # The groups of results are drawn in several processes, each on its own copy of the seed;
     # this process then writes the catalogue from their parts.
     processes = []
-    for index, copy_dir in enumerate(copies):
+    for index, copy_dir in enumerate([] if reuse else copies):
         shutil.copytree(seed_data, copy_dir, ignore=shutil.ignore_patterns("tmp"))
         (scratch / f"shard-{index}").mkdir()
         processes.append(subprocess.Popen(
@@ -1878,8 +1883,7 @@ def figures(seed_data: Path, work: Path, out: Path, fiji: str, owner: str) -> di
     shutil.copytree(seed_data, data, ignore=shutil.ignore_patterns("tmp"))
     api = open_api(data, "http://127.0.0.1", fiji, owner)
     try:
-        report = figure_catalog.build(api, out / "snapshot", scratch,
-                                      parts=[scratch / f"shard-{index}" / f"part-{index}.json" for index in range(workers)])
+        report = figure_catalog.build(api, out / "snapshot", scratch, parts=parts)
     finally:
         api.client.close()
     target = out / "snapshot"
@@ -1890,6 +1894,7 @@ def figures(seed_data: Path, work: Path, out: Path, fiji: str, owner: str) -> di
         for item in [group["opening"], *group["figures"]]:
             named |= set(item["files"].values())
     named |= {name for package in catalog["packages"] for name in package["files"].values()}
+    named |= {name for saved in catalog.get("saved", {}).values() for name in saved["files"].values()}
     removed = 0
     for path in target.iterdir():
         if path.name not in named and path.name not in SNAPSHOT_KEEP | {"journal.json", "figures.json"}:
