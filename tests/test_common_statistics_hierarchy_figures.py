@@ -36,9 +36,10 @@ def test_hierarchy_figures_summarise_units_with_a_t_interval(tmp_path, kind):
     assert summary["A"]["n_units"] == 3
     # Every independent unit is a bound point; the legend names what points and n are.
     assert len(data["unit_glyphs"]) == len(result["unit_summary"])
+    # The legend says what n counts, which interval is drawn, and that regions and fields are not replicates.
     caption = (tmp_path / "figure-caption.md").read_text(encoding="utf-8")
-    assert "independent experimental units" in caption and "95% t interval" in caption
-    assert "not fields or nuclei" in caption
+    assert "n = 3 runs per condition" in caption and "95% confidence interval of the mean of runs" in caption
+    assert "Regions and fields are not independent replicates" in caption
 
 
 def test_descriptive_superplot_draws_unit_means_without_an_interval(tmp_path):
@@ -48,5 +49,5 @@ def test_descriptive_superplot_draws_unit_means_without_an_interval(tmp_path):
     assert all(row["ci_low"] is None and row["ci_high"] is None for row in data["graphical_summary"])
     assert len(data["unit_glyphs"]) == len(result["unit_summary"])
     caption = (tmp_path / "figure-caption.md").read_text(encoding="utf-8")
-    assert "no test or interval" in caption and "95% t interval" not in caption
-    assert "independent experimental units" not in caption and "independence not confirmed" in caption
+    assert "no hypothesis test or confidence interval was calculated" in caption and "95% confidence interval" not in caption
+    assert "independence was not confirmed" in caption

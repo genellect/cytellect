@@ -25,7 +25,7 @@ def test_source_allowlist_denies_research_and_runtime(name):
 
 
 def fixture_tree(root):
-    names = bundle.ROOT_FILES | bundle.SCRIPTS | bundle.RUNTIME_RECORDS | bundle.CELLPOSE_ASSETS | bundle.INSTALL_CHECK_ASSETS | {
+    names = bundle.ROOT_FILES | bundle.SCRIPTS | bundle.RUNTIME_RECORDS | bundle.CELLPOSE_ASSETS | bundle.PACKAGE_ASSETS | {
         "scripts/windows/Cytellect Setup.cmd"}
     for name in names:
         path = root / name
@@ -271,7 +271,7 @@ def test_public_install_check_assets_must_match_checkout_bytes(tmp_path, monkeyp
     wheel, requirements = package_inputs(tmp_path)
     monkeypatch.setattr(bundle, "canonical_requirements", lambda root: CANONICAL_REQUIREMENTS)
     names = set()
-    for name in bundle.INSTALL_CHECK_ASSETS:
+    for name in bundle.PACKAGE_ASSETS:
         assert bundle.source_allowed(name)
         path = tmp_path / name
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -281,7 +281,7 @@ def test_public_install_check_assets_must_match_checkout_bytes(tmp_path, monkeyp
     with pytest.raises(ValueError, match="bundle_project_wheel_source_mismatch"):
         bundle.install_payload(tmp_path, wheel, requirements)
     with zipfile.ZipFile(wheel, "a") as archive:
-        for name in bundle.INSTALL_CHECK_ASSETS:
+        for name in bundle.PACKAGE_ASSETS:
             archive.write(tmp_path / name, name.removeprefix("packages/analysis/src/"))
     assert bundle.install_payload(tmp_path, wheel, requirements)
     next(tmp_path.rglob("BBBC013-A01-draq.tif")).write_bytes(b"corrupted public file")

@@ -139,12 +139,20 @@ class Layout:
                 "line_width_pt": .5, "png_dpi": self.png_dpi}
 
 
+def default_size(plot) -> str:
+    """A request that names no presentation (an earlier client, or a figure saved before the publication
+    figure) keeps the width and height it asked for; the 「グラフ」 view names one and opens on the panel."""
+    return "panel" if plot.get("presentation") else "custom"
+
+
 def layout(plot, presentation, groups: int, *, legend: bool, bracket_levels: int) -> Layout:
     size = presentation.get("size", "panel")
     font = float(plot.get("font_size") or 7)
     height = 50 + 4 * max(0, bracket_levels - 1)
     if size == "custom":
-        return Layout(plot["width_inches"] * 25.4, plot["height_inches"] * 25.4, size, font)
+        # A journal preset fixes the width, as in the earlier figures.
+        width = {"nature-single": 89.0, "nature-double": 183.0}.get(plot.get("preset"), plot["width_inches"] * 25.4)
+        return Layout(width, plot["height_inches"] * 25.4, size, font)
     if size in SIZES_MM:
         return Layout(SIZES_MM[size], max(height, 56 if size == "single-column" else 64), size, font)
     width = 15 + 11 * groups + (13 if legend else 3)
@@ -167,7 +175,7 @@ def resolve_presentation(result, plot) -> dict[str, Any]:
     observations = saved.get("observations") or forms["default"].get("observations") or "points"
     return {"version": "1.0.0", "observations": observations,
             "color_by": saved.get("color_by") or ("run" if paired else "group"),
-            "annotation": saved.get("annotation") or "value", "size": saved.get("size") or "panel",
+            "annotation": saved.get("annotation") or "value", "size": saved.get("size") or default_size(plot),
             "composition": saved.get("composition") or "quantification",
             "image_fields": dict(saved.get("image_fields") or {}), "outlines": saved.get("outlines", True)}
 

@@ -44,9 +44,13 @@ def test_bundled_font_is_present():
     assert all(path.is_file() for path in FONT_FILES.values())
 
 
+OPENING = {"version": "1.0.0", "annotation": "value", "size": "panel", "composition": "quantification", "outlines": True}
+
+
 def test_publication_figure_from_a_saved_demo_comparison(tmp_path):
     result = demo_comparison()
-    result["spec"]["plot"]["kind"] = "superplot"
+    # As the 「グラフ」 view opens a saved comparison: the run hierarchy with the opening presentation.
+    result["spec"]["plot"].update(kind="superplot", presentation=OPENING)
     manifest = render_common_statistics(result, tmp_path)
     assert manifest["common_statistics_figure_version"] == FIGURE_VERSION == "2.0.0"
     assert manifest["font"] == "Liberation Sans"
@@ -64,6 +68,15 @@ def test_publication_figure_from_a_saved_demo_comparison(tmp_path):
     source = json.loads((tmp_path / "figure-data.json").read_text(encoding="utf-8"))
     assert source["presentation"]["observations"] == "points"
     assert [form["id"] for form in manifest["forms"]][:3] == ["points", "density", "box"]
+
+
+def test_a_request_naming_no_presentation_keeps_its_size(tmp_path):
+    # An earlier client (the region workspace's figure settings) or a figure saved before the
+    # publication figure: the width and height it asked for, not the panel.
+    result = demo_comparison()
+    result["spec"]["plot"].update(kind="superplot", preset="custom", width_inches=120 / 25.4, height_inches=70 / 25.4)
+    manifest = render_common_statistics(result, tmp_path)
+    assert manifest["style"]["width_mm"] == pytest.approx(120) and manifest["style"]["height_mm"] == pytest.approx(70)
 
 
 def test_same_result_gives_the_same_figure(tmp_path):

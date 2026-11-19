@@ -215,10 +215,10 @@ def build(api, target: Path, scratch: Path) -> dict:
     packages: list[dict] = []
     for position, entry in enumerate(entries):
         method, path = entry["method"], entry["path"]
-        if method == "POST" and STATISTICS_POST.match(path) and entry["file"] and entry["status"] < 300:
+        if method == "POST" and (posted := STATISTICS_POST.match(path)) and entry["file"] and entry["status"] < 300:
             job = read(entry)["job_id"]
             calculated.setdefault(job, {"workspace": scene_workspace[entry["scene"]], "plot": _concrete(json.loads(entry["body"])["plot"]),
-                                        "kind": STATISTICS_POST.match(path).group(2)})
+                                        "kind": posted.group(2)})
         elif method == "GET" and (found := STATISTICS_GET.match(path)) and found.group(1) in calculated and entry["file"]:
             calculated[found.group(1)].setdefault("result", read(entry))
         elif method == "POST" and (found := FIGURE_RENDER.match(path)) and entry["file"] and entry["status"] < 300:
@@ -262,7 +262,10 @@ def build(api, target: Path, scratch: Path) -> dict:
             row = seed[representative]
             saved = json.loads((catalog.store.safe_path(row["result_dir"]) / "result.json").read_text())
             root = scratch / representative
-            opening = opening_figure(saved, saved["spec"]["plot"], root)
+            # The demo opens on the new default figure (plan G7): a saved comparison is drawn as the
+            # 「グラフ」 view opens it, with the opening presentation.
+            opening = opening_figure(saved, {**saved["spec"]["plot"], **({"kind": "superplot", "presentation": DEFAULT_PRESENTATION}
+                                                                         if _comparison(saved) else {})}, root)
             workspace = row["workspace_id"]
             plot = opening["spec"]["plot"]
         else:
@@ -276,7 +279,7 @@ def build(api, target: Path, scratch: Path) -> dict:
             workspace = value["workspace"]
             catalog.inject(representative, workspace, opening)
         images = bool(group["seed"])
-        figures = []
+        figures: list[dict[str, Any]] = []
         for request in variants(opening, opening["figure"], plot, images):
             drawn, folder = catalog.render(representative, workspace, request)
             png = images and (not figures or request.get("presentation", {}).get("composition") == "images-quantification")
@@ -370,7 +373,7 @@ def build(api, target: Path, scratch: Path) -> dict:
         found = JOB_FILE.match(path)
         dropped = (
             (entry["method"] == "POST" and (FIGURE_RENDER.match(path) or PACKAGE.match(path)))
-            or (entry["method"] == "GET" and FIGURE_RENDER.match(path) and FIGURE_RENDER.match(path).group(1) in figure_jobs)
+            or (entry["method"] == "GET" and (rendered := FIGURE_RENDER.match(path)) is not None and rendered.group(1) in figure_jobs)
             or (found is not None and (found.group(1) in figure_jobs or found.group(1) in package_jobs
                                        or (found.group(1) in drawn_by_catalog and SHOWN.search(found.group(2)))))
         )

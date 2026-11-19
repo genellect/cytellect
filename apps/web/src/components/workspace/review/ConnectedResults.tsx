@@ -131,7 +131,8 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   const [size,setSize]=useState<FigureSize>("panel"),[annotation,setAnnotation]=useState<NonNullable<Presentation["annotation"]>>("value");
   const [observations,setObservations]=useState<Observations|null>(null),[colorBy,setColorBy]=useState<"run"|"group"|null>(null);
   const [composition,setComposition]=useState<Composition>("quantification"),[imageFields,setImageFields]=useState<Record<string,string>>({}),[outlines,setOutlines]=useState(true);
-  function restorePresentation(value:unknown){const p=(value||{}) as Presentation;setSize(p.size||"panel");setAnnotation(p.annotation||"value");setObservations(p.observations??null);setColorBy(p.color_by??null);setComposition(p.composition||"quantification");setImageFields(p.image_fields||{});setOutlines(p.outlines??true);}
+  // A figure saved without a presentation (before the publication figure) keeps its own width and height.
+  function restorePresentation(value:unknown){const p=(value||{}) as Presentation;setSize(p.size||(value?"panel":"custom"));setAnnotation(p.annotation||"value");setObservations(p.observations??null);setColorBy(p.color_by??null);setComposition(p.composition||"quantification");setImageFields(p.image_fields||{});setOutlines(p.outlines??true);}
   const [xLabel,setXLabel]=useState(""),[yLabel,setYLabel]=useState(""),[yMin,setYMin]=useState(""),[yMax,setYMax]=useState("");
   const [xAxis,setXAxis]=useState<AxisState>(emptyAxis),[yAxis,setYAxis]=useState<AxisState>(emptyAxis);
   const outputRef=useRef<HTMLDivElement>(null),scrollPositions=useRef<Record<string,number>>({});
@@ -473,7 +474,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
           {publication&&forms.length>1&&<label>形<select value={currentForm?.id||""} onChange={event=>{const chosen=forms.find(value=>value.id===event.target.value);if(chosen){setFigureKind(chosen.kind);setObservations(chosen.observations??null);}}}>{!currentForm&&<option value="" disabled>保存した形</option>}{forms.map(value=><option key={value.id} value={value.id}>{formNames[value.id]||value.id}</option>)}</select></label>}
           {publication?<label>大きさ<select value={size} onChange={event=>setSize(event.target.value as FigureSize)}>{(Object.keys(sizeNames) as FigureSize[]).map(value=><option key={value} value={value}>{sizeNames[value]}</option>)}</select></label>
             :<label>図の幅<select value={width===89?"89":width===183?"183":"custom"} onChange={event=>{if(event.target.value!=="custom"){setWidth(Number(event.target.value));setHeight(Math.min(height,170));setFont(previous=>Math.min(previous,7));}}}><option value="89">1段幅 · 89 mm</option><option value="183">2段幅 · 183 mm</option><option value="custom">カスタム</option></select></label>}
-          {publication&&layered&&saved?.operation==="comparison"&&<label>注釈<select value={annotation} onChange={event=>setAnnotation(event.target.value as typeof annotation)}><option value="value">{descriptiveResult?"実験回ごとの変化":"効果と P 値"}</option>{!descriptiveResult&&<option value="stars">P 値（星印）</option>}<option value="none">なし</option></select></label>}
+          {publication&&layered&&saved?.operation==="comparison"&&<label>注釈<select value={annotation} onChange={event=>setAnnotation(event.target.value as typeof annotation)}><option value="value">{descriptiveResult?"実験回ごとの変化":"効果と P 値"}</option>{!descriptiveResult&&<option value="stars">P 値（アスタリスク）</option>}<option value="none">なし</option></select></label>}
           {publication&&layered&&saved?.operation==="comparison"&&pairedRuns&&<label>色分け<select value={colorBy||"run"} onChange={event=>setColorBy(event.target.value as "run"|"group")}><option value="run">実験回</option><option value="group">群</option></select></label>}
           {(!publication||size==="custom")&&<div className={styles.row}><label>幅 / mm<input type="number" min={30} max={406.4} value={width} onChange={event=>setWidth(Number(event.target.value))}/></label><label>高さ / mm<input type="number" min={25.4} max={170} value={height} onChange={event=>setHeight(Number(event.target.value))}/></label></div>}
           <label>文字 / pt<input type="number" min={5} max={24} value={font} onChange={event=>setFont(Number(event.target.value))}/></label>
@@ -556,7 +557,7 @@ function FigureLegend({path,gaps,terms}:{path:string;gaps:string[];terms?:Legend
   if(!text)return null;
   const open=gaps.filter(gap=>text.includes(gap));
   return <section className={styles.legendDraft} aria-label="凡例の下書き">
-    <div className={styles.legendHead}><strong>凡例（英語）</strong><button type="button" onClick={()=>void navigator.clipboard.writeText(text).then(()=>setNote("コピーしました")).catch(()=>setNote("コピーできませんでした"))}>コピー</button>{note&&<span role="status">{note}</span>}</div>
+    <div className={styles.legendHead}><strong>凡例（English）</strong><button type="button" onClick={()=>void navigator.clipboard.writeText(text).then(()=>setNote("コピーしました")).catch(()=>setNote("コピーできませんでした"))}>コピー</button>{note&&<span role="status">{note}</span>}</div>
     {filled.length>0&&<p className={styles.figureHint}>AI の提案から記入：{filled.join("、")}。内容を確認してください</p>}
     {open.length>0&&<p className={styles.figureHint}>未記入：{open.map(gap=>gapNames[gap]||gap).join("、")}</p>}
     {pending&&<p role="status" className={styles.figureHint}>図を描き直したため、凡例の下書きが変わりました。記入した内容はそのまま残しています。<button type="button" onClick={()=>take(pending.draft,pending.used)}>新しい下書きに置き換える</button></p>}

@@ -325,10 +325,13 @@ def render_common_statistics(result, output: Path, *, methods_template=None, fig
     glyphs: list[dict[str, Any]] = []
     graphical_summary: list[dict[str, Any]] = []
     ja = plot["language"] == "ja"
-    if figure_version == "2.0.0" and (association or plot["kind"] in ("superplot", "unit-mean-bar")):
+    # The publication figure names its axes in English (plan FS); a figure asked for in Japanese keeps
+    # the earlier drawing, which labels in the language requested.
+    if figure_version == "2.0.0" and not ja and (association or plot["kind"] in ("superplot", "unit-mean-bar")):
         return _render_publication(canonical, output, template, order, images)
-    if figure_version == "2.0.0":
-        # Run-value forms keep their drawing at the chosen publication size.
+    if figure_version == "2.0.0" and plot.get("presentation"):
+        # Run-value forms keep their drawing at the chosen publication size; a request naming no
+        # presentation keeps the width and height it asked for.
         size = (plot.get("presentation") or {}).get("size") or "panel"
         width_mm = {"single-column": 89.0, "double-column": 183.0}.get(size)
         if size == "panel":
@@ -509,6 +512,7 @@ def _render_publication(canonical, output: Path, template, order, images=None):
     from .figure_style import PNG_DPI, rc
     from .publication_figure import (
         bind_fonts,
+        default_size,
         draw_association,
         draw_comparison,
         layout,
@@ -519,7 +523,7 @@ def _render_publication(canonical, output: Path, template, order, images=None):
     plot = spec["plot"]
     association = canonical["analysis_kind"] == "region-association"
     presentation = resolve_presentation(canonical, plot) if not association else {
-        "version": "1.0.0", "size": (plot.get("presentation") or {}).get("size") or "panel",
+        "version": "1.0.0", "size": (plot.get("presentation") or {}).get("size") or default_size(plot),
         "annotation": (plot.get("presentation") or {}).get("annotation") or "value"}
     forms = figure_forms(canonical)
     image_figure = None
