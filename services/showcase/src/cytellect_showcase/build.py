@@ -1764,6 +1764,11 @@ def main(argv: list[str] | None = None) -> None:
         first = scenes[manifests[0][1]["id"]]["scenario"]
         state["refigure"] = refigure(seed_data, args.out, args.fiji, first["owner"])
         save()
+    if "figures" in stages:
+        first = scenes[manifests[0][1]["id"]]["scenario"]
+        state["figures"] = figures(seed_data, work, args.out, args.fiji, first["owner"])
+        save()
+        write_manifest(args, manifests, state)
     if "snapshot" in stages:
         for index, (_, manifest) in enumerate(manifests):
             scenario_state = scenes[manifest["id"]]["scenario"]
@@ -1842,6 +1847,41 @@ def refigure(seed_data: Path, out: Path, fiji: str, owner: str) -> dict:
     api.client.close()
     log("refigured the snapshot", replaced, "answers replaced,", added, "legend drafts added")
     return {"replaced": replaced, "legends": added}
+
+
+def figures(seed_data: Path, work: Path, out: Path, fiji: str, owner: str) -> dict:
+    """Draw the demo's figures from its recorded results (stage ``figures``, ``figure_catalog.py``).
+
+    For a change of the renderer or of the figure controls: the tour is not recorded again; its
+    results are drawn anew through the production API on a copy of the published seed, and the
+    figures it answered with are replaced by ``snapshot/figures.json``."""
+    from . import figure_catalog
+
+    data, scratch = work / "figures-data", work / "figures-scratch"
+    for path in (data, scratch):
+        shutil.rmtree(path, ignore_errors=True)
+    shutil.copytree(seed_data, data, ignore=shutil.ignore_patterns("tmp"))
+    scratch.mkdir(parents=True)
+    api = open_api(data, "http://127.0.0.1", fiji, owner)
+    try:
+        report = figure_catalog.build(api, out / "snapshot", scratch)
+    finally:
+        api.client.close()
+    target = out / "snapshot"
+    named = {entry["file"] for entry in json.loads((target / "index.json").read_text())["entries"].values() if entry.get("file")}
+    named |= {entry["file"] for entry in json.loads((target / "journal.json").read_text())["entries"] if entry.get("file")}
+    catalog = json.loads((target / "figures.json").read_text())
+    for group in catalog["groups"].values():
+        for item in [group["opening"], *group["figures"]]:
+            named |= set(item["files"].values())
+    named |= {name for package in catalog["packages"] for name in package["files"].values()}
+    removed = 0
+    for path in target.iterdir():
+        if path.name not in named and path.name not in SNAPSHOT_KEEP | {"journal.json", "figures.json"}:
+            path.unlink()
+            removed += 1
+    log("figures", json.dumps(report), "unreferenced files removed", removed)
+    return {**report, "files_removed": removed}
 
 
 def reseed(out: Path, work: Path, manifests: list, state: dict) -> None:

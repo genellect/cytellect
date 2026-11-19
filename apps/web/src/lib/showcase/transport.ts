@@ -13,7 +13,7 @@
  *
  * The transport only returns Responses; `lib/api.ts` keeps its own error handling.
  */
-import type {HeaderList, Journal, JournalEntry, ShowcaseNoticeCode, ShowcaseRequest, ShowcaseResponse, SnapshotIndex} from "./protocol";
+import type {FigureCatalog, HeaderList, Journal, JournalEntry, ShowcaseNoticeCode, ShowcaseRequest, ShowcaseResponse, SnapshotIndex} from "./protocol";
 import {openingPair, type ExperimentDesign} from "../workspace/experiment-design";
 
 export type EngineState = "idle" | "preparing" | "active" | "unavailable";
@@ -72,6 +72,43 @@ export function journalBodyMatches(recorded: string | null, actual: string | nul
   };
   return same(left, right);
 }
+/** A calculation's figure settings only say how its result is drawn, and the demo draws every result from
+ * `figures.json`: a recorded calculation answers whatever figure the request names. */
+const CALCULATION = /\/(?:descriptive|common-statistics)$/;
+export function calculationBody(path: string, text: string | null): string | null {
+  if (text === null || !CALCULATION.test(path)) return text;
+  try {
+    const value = JSON.parse(text) as unknown;
+    if (!value || typeof value !== "object" || Array.isArray(value)) return text;
+    const rest: Record<string, unknown> = {...value as Record<string, unknown>};
+    delete rest.plot;
+    return JSON.stringify(rest);
+  } catch {return text;}
+}
+/**
+ * What a figure request draws (ConnectedResults.tsx `plot()`): every setting a figure depends on, with
+ * the defaults a request may leave out written in (`observations`: the result's opening form). The size
+ * of a publication figure is its `size`; a width and height count only for a custom size or a page figure.
+ */
+export function figureSettings(plot: unknown, observations: string): string {
+  const value = (plot && typeof plot === "object" ? plot : {}) as Record<string, unknown>;
+  const presentation = (value.presentation && typeof value.presentation === "object" ? value.presentation : null) as Record<string, unknown> | null;
+  const axes = (value.axes && typeof value.axes === "object" ? value.axes : {}) as Record<string, unknown>;
+  const style = (value.style && typeof value.style === "object" ? value.style : {}) as Record<string, unknown>;
+  const sized = !presentation || presentation.size === "custom";
+  const mm = (inches: unknown) => typeof inches === "number" ? Math.round(inches * 254) / 10 : null;
+  const images = presentation?.composition === "images-quantification";
+  return JSON.stringify({
+    kind: value.kind ?? null, font_size: value.font_size ?? null, x_label: value.x_label ?? "", y_label: value.y_label ?? "",
+    y_min: value.y_min ?? null, y_max: value.y_max ?? null, y_tick_step: value.y_tick_step ?? null, point_size: value.point_size ?? null,
+    group_order: value.group_order ?? [], series_colors: style.series_colors ?? {}, show_legend: style.show_legend ?? true,
+    axes: [axes.x_scale ?? "linear", axes.y_scale ?? "linear", axes.x_min ?? null, axes.x_max ?? null, axes.x_tick_step ?? null],
+    width: sized ? mm(value.width_inches) : null, height: sized ? mm(value.height_inches) : null,
+    presentation: presentation ? [presentation.size ?? "panel", presentation.annotation ?? "value", presentation.composition ?? "quantification",
+      presentation.color_by ?? "run", value.kind === "superplot" ? presentation.observations ?? observations : null,
+      images ? presentation.image_fields ?? {} : {}, images ? presentation.outlines ?? true : true] : null,
+  });
+}
 /** Recorded change paths use "*" for an identifier the API generated while recording. */
 export function journalPathMatches(recorded: string, actual: string): boolean {
   const [path, query = ""] = recorded.split("?"), [other, otherQuery = ""] = actual.split("?");
@@ -82,6 +119,12 @@ const SETTINGS = /^\/v1\/workspaces\/([^/?]+)\/analysis-spec$/;
 const RUNS = /^\/v1\/workspaces\/[^/?]+\/runs$/;
 const SELECTION = /^\/v1\/workspaces\/[^/?]+\/selection$/;
 const JOBS = /^\/v1\/workspaces\/[^/?]+\/jobs$/;
+const FIGURE_RENDER = /^\/v1\/jobs\/([^/?]+)\/figure-render$/;
+const JOB_FILE = /^\/v1\/jobs\/([^/?]+)\/files\/([^/?]+)$/;
+const PACKAGE = /^\/v1\/jobs\/([^/?]+)\/publication-package$/;
+const RESULT = /^\/v1\/jobs\/([^/?]+)\/(?:result|common-statistics)$/;
+const FILE_TYPES: Record<string, string> = {".svg": "image/svg+xml", ".png": "image/png", ".md": "text/markdown; charset=utf-8",
+  ".zip": "application/zip", ".json": "application/json", ".pdf": "application/pdf", ".csv": "text/csv"};
 /** Statistics of an analysis version (a cohort): the request names what it calculates, so the same
  * request on another cohort of identical content is the same calculation. Figures and packages are
  * not: their request does not say which result they draw or package. */
@@ -199,6 +242,94 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
     if (response) seen.set(path, "snapshot");
     return response;
   }
+  // The figures of the tour's results (figures.json), and the figure and package jobs this device was given.
+  let catalog: Promise<FigureCatalog | null> | null = null;
+  const settingsOf = new Map<string, string[]>();
+  const drawn = new Map<string, {source: string; group: string; index: number; workspace: string; revision: string}>();
+  const packaged = new Map<string, string>();
+  function loadFigures() {
+    catalog ??= dependencies.fetchStatic(`${dependencies.snapshotBase}figures.json`)
+      .then(async response => {
+        if (!response.ok) {await response.text(); return null;}
+        const value = await response.json() as FigureCatalog;
+        return value?.version === 1 && value.groups && value.sources ? value : null;
+      }).catch(() => null);
+    return catalog;
+  }
+  const staticFile = async (file: string, status = 200): Promise<Response | null> => {
+    if (!/^[A-Za-z0-9._-]+$/.test(file)) return null;
+    const response = await dependencies.fetchStatic(`${dependencies.snapshotBase}${file}`).catch(() => null);
+    if (!response?.ok) {await response?.text().catch(() => ""); return null;}
+    return new Response(await response.arrayBuffer(), {status, headers: {"content-type": FILE_TYPES[file.slice(file.lastIndexOf("."))] ?? "application/octet-stream"}});
+  };
+  const jsonResponse = (value: unknown, status = 200) => new Response(JSON.stringify(value), {status, headers: {"content-type": "application/json"}});
+  /** A job this device was given, listed as the API lists a finished one. */
+  function listJob(workspace: string, record: {id: string; revision_id: string; kind: string}) {
+    const path = `/v1/workspaces/${workspace}/jobs`;
+    const known = jobs.get(path) ?? new Map<string, unknown>();
+    jobs.set(path, known);
+    known.set(record.id, {...record, state: "succeeded", created: Date.now() / 1000, error: null, attempts: 1, analysis_mode: null, analysis_version: null});
+  }
+  const recordedId = (id: string) => reverse.get(id) ?? id;
+  /** A figure request, its drawing and package, answered from figures.json; undefined when it is no figure request of a recorded result. */
+  async function fromFigures(method: string, path: string, body: string | null): Promise<Response | null | undefined> {
+    const render = FIGURE_RENDER.exec(path), file = JOB_FILE.exec(path), pack = PACKAGE.exec(path);
+    if (!render && !file && !pack) return undefined;
+    const value = await loadFigures();
+    if (!value) return undefined;
+    if (render && method === "POST") {
+      const source = value.sources[recordedId(render[1])], group = source && value.groups[source.group];
+      if (!source || !group) return undefined;
+      let plot: unknown;
+      try {plot = (JSON.parse(body ?? "null") as {plot?: unknown} | null)?.plot;} catch {return null;}
+      let known = settingsOf.get(source.group);
+      if (!known) {known = group.figures.map(item => figureSettings(item.plot, group.observations)); settingsOf.set(source.group, known);}
+      const index = known.indexOf(figureSettings(plot, group.observations));
+      if (index < 0) return null;
+      const id = crypto.randomUUID();
+      drawn.set(id, {source: render[1], group: source.group, index, workspace: source.workspace, revision: source.revision});
+      listJob(source.workspace, {id, revision_id: source.revision, kind: "figure-render"});
+      await pause(450);
+      return jsonResponse({job_id: id}, 202);
+    }
+    if (render && method === "GET") {
+      const held = drawn.get(render[1]);
+      return held ? jsonResponse({source_job_id: held.source, figure: value.groups[held.group].figures[held.index].figure}) : undefined;
+    }
+    if (pack && method === "POST") {
+      const held = drawn.get(pack[1]);
+      if (!held) return undefined;
+      let analysis: unknown;
+      try {analysis = (JSON.parse(body ?? "null") as {analysis_job_id?: unknown} | null)?.analysis_job_id;} catch {return null;}
+      const found = typeof analysis === "string" ? value.packages.find(item => item.figure === held.index && item.analysis === recordedId(analysis)
+        && value.sources[item.source]?.group === held.group) : undefined;
+      if (!found?.files["publication.zip"]) return null;
+      const id = crypto.randomUUID();
+      packaged.set(id, found.files["publication.zip"]);
+      listJob(held.workspace, {id, revision_id: held.revision, kind: "publication-package"});
+      await pause(450);
+      return jsonResponse({job_id: id}, 202);
+    }
+    if (file && method === "GET") {
+      const name = decodeURIComponent(file[2]), held = drawn.get(file[1]), zip = packaged.get(file[1]);
+      if (held) {const stored = value.groups[held.group].figures[held.index].files[name]; return stored ? staticFile(stored) : null;}
+      if (zip) return name === "publication.zip" ? staticFile(zip) : null;
+      const source = value.sources[recordedId(file[1])], stored = source && value.groups[source.group]?.opening.files[name];
+      return stored ? staticFile(stored) : undefined;
+    }
+    return undefined;
+  }
+  /** A calculated result read back: its figure is the one figures.json draws for it. */
+  async function withFigure(path: string, response: Response | null): Promise<Response | null> {
+    const found = RESULT.exec(path);
+    if (!found || !response?.ok) return response;
+    const value = await loadFigures(), source = value?.sources[recordedId(found[1])];
+    const opening = source && !source.seed ? value?.groups[source.group]?.opening : undefined;
+    if (!opening) return response;
+    let result: {figure?: unknown; spec?: Record<string, unknown>};
+    try {result = await response.json();} catch {return null;}
+    return jsonResponse({...result, figure: opening.figure, ...(result.spec ? {spec: {...result.spec, plot: opening.plot}} : {})}, response.status);
+  }
   function loadJournal() {
     journal ??= dependencies.fetchStatic(`${dependencies.snapshotBase}journal.json`)
       .then(async response => {
@@ -278,7 +409,7 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       // run answers only when the settings it was recorded under are the visitor's.
       const current = RUNS.test(path) ? JSON.stringify(conditions(settings?.spec ?? await seedSettings())) : null;
       const matches = (entry: JournalEntry, position: number, recorded = entry.path, requested = path) => entry.method === method && !SETTINGS.test(entry.path)
-        && journalPathMatches(recorded, requested) && journalBodyMatches(entry.body, body)
+        && journalPathMatches(recorded, requested) && journalBodyMatches(calculationBody(entry.path, entry.body), calculationBody(path, body))
         && (current === null || journalBodyMatches(JSON.stringify(conditions(recordedSettings(entries, position) ?? seed)), current));
       const seed = current === null ? null : await seedSettings();
       let index = entries.findIndex((entry, position) => position > cursor && matches(entry, position));
@@ -418,7 +549,7 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       // The build-time recorder runs every operation through the API, so it starts the API at once.
       if (dependencies.record) {void ensureEngine().catch(() => undefined); return;}
       // The opening images go first; a change before this loads the recording on demand.
-      setTimeout(() => void loadJournal(), JOURNAL_DELAY_MS);
+      setTimeout(() => {void loadJournal(); void loadFigures();}, JOURNAL_DELAY_MS);
     },
     async fetch(path: string, init: RequestInit = {}): Promise<Response> {
       const signal = init.signal;
@@ -434,8 +565,12 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
         const workspace = SETTINGS.exec(path)?.[1];
         if (isRead && workspace) void openingFields(workspace);
         const decided = gate.then(async (): Promise<Response | null | (() => Promise<Response | null>)> => {
-          const journaled = await fromJournal(method, path, await text());
-          if (journaled || !isRead) return isRead ? withKnownJobs(path, journaled) : journaled;
+          const body = await text();
+          // Figures are drawn from the recorded results (figures.json), not recorded with the tour.
+          const figured = await fromFigures(method, path, body);
+          if (figured !== undefined) return figured;
+          const journaled = await fromJournal(method, path, body);
+          if (journaled || !isRead) return isRead ? withFigure(path, await withKnownJobs(path, journaled)) : journaled;
           if (JOBS.test(path)) return withKnownJobs(path, await fromSnapshot(path));
           const later = await recordedLater(path);
           if (later) seen.set(path, "snapshot");
