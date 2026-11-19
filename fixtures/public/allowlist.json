@@ -269,8 +269,164 @@
     "source": "Cytellect LP UI review; before: origin/main component and CSS rendered in isolation; after: local production build of this PR. No research images or personal data.",
     "license": "Apache-2.0 (Cytellect UI); OFL-1.1 (Inter and Noto Sans JP)"
   },
+  "apps/web/public/marketing/lp-screen-statistics.webp": {
+    "sha256": "ca0dbe40fd678262e86d3ac0492d47d57f799e4e855fd40ea6622f26c9ee0062",
+    "source": "https://github.com/broadinstitute/cellpainting-gallery",
+    "license": "CC0-1.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/lp-focus-conclusion.webp": {
+    "sha256": "faf1e182fb117c393cee56923afe5b40ef833f71ed0b9f79a2243c9fc8c2bf44",
+    "source": "https://github.com/broadinstitute/cellpainting-gallery",
+    "license": "CC0-1.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/lp-focus-discussion.webp": {
+    "sha256": "bc8422799640ac186620cd08d4087ed832f667dc50455ee4dc5872bc2068d77b",
+    "source": "https://github.com/broadinstitute/cellpainting-gallery",
+    "license": "CC0-1.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/lp-focus-table.webp": {
+    "sha256": "07494287a81d87d9319a20d6b843aa582b980da47a3f46b4c0dfbd5e6f00ea7e",
+    "source": "https://zenodo.org/records/6643470",
+    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/lp-screen-ai.webp": {
+    "sha256": "d8ad632ae59278d22af1c892e74fb1225006699256a8986bdc23849b25e9695e",
+    "source": "https://github.com/broadinstitute/cellpainting-gallery",
+    "license": "CC0-1.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/lp-focus-ai.webp": {
+    "sha256": "e1de37ba9df17238b66a372932be3d2038d3b25a9a310b4f802284ef465f2cad",
+    "source": "https://github.com/broadinstitute/cellpainting-gallery",
+    "license": "CC0-1.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/lp-screen-figure.webp": {
+    "sha256": "0c0d5d69f0b8aa574da2cc4063cdd3907b4562756f6b9a6a0cc991928a038f28",
+    "source": "https://github.com/broadinstitute/cellpainting-gallery",
+    "license": "CC0-1.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/lp-focus-figure-layout.webp": {
+    "sha256": "477a9895ec91933e331607372c4ebe11d1a7fc7cedf74ad7f152f91ebed174c1",
+    "source": "https://github.com/broadinstitute/cellpainting-gallery",
+    "license": "CC0-1.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
+  },
+  "apps/web/public/marketing/lp-focus-figure-size.webp": {
+    "sha256": "61345285181a8518c5e75a71a9686307039cca30e182799f283c2db31db41017",
+    "source": "https://github.com/broadinstitute/cellpainting-gallery",
+    "license": "CC0-1.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
+  },
+  "docs/drafts/publication-figures/current.webp": {
+    "sha256": "faf1497e93d83155371f34bd068a3eaa741744169055a646d5cdca6f96531b58",
+    "source": "https://zenodo.org/records/6643470 (public demo scene zenodo-6643470-oxaliplatin; the figure recorded by the public demo, rendered to an image)",
+    "license": "CC-BY-4.0 (public images/derived measurements); Apache-2.0 (Cytellect figure)"
+  },
+  "docs/drafts/publication-figures/prototype.webp": {
+    "sha256": "bdb2a721cd70b13e76688afac41dadfea92e8796b3e628fa7ae5194d446da6d8",
+    "source": "https://zenodo.org/records/6643470 (public demo scene zenodo-6643470-oxaliplatin; docs/drafts/publication-figures/prototype.py.txt)",
+    "license": "CC-BY-4.0 (public images/derived measurements); Apache-2.0 (Cytellect figure)"
+  },
+  "packages/analysis/src/cytellect_analysis/assets/fonts/LiberationSans-Regular.ttf": {
+    "sha256": "bade59d822652f76e6941aa87b40a87c13d1cc70db98ededb5011127efafd1d3",
+    "source": "http://deb.debian.org/debian/pool/main/f/fonts-liberation/fonts-liberation_2.1.5-3_all.deb ; Liberation Sans 2.1.5 (upstream https://github.com/liberationfonts/liberation-fonts), unmodified",
+    "license": "OFL-1.1"
+  },
+  "packages/analysis/src/cytellect_analysis/assets/fonts/LiberationSans-Bold.ttf": {
+    "sha256": "1b5f2da6f4cadce4c05b9ecebe3a6fcd374eb95ae443605e799f4c3287978939",
+    "source": "http://deb.debian.org/debian/pool/main/f/fonts-liberation/fonts-liberation_2.1.5-3_all.deb ; Liberation Sans 2.1.5 (upstream https://github.com/liberationfonts/liberation-fonts), unmodified",
+    "license": "OFL-1.1"
+  },
+  "packages/analysis/src/cytellect_analysis/assets/fonts/LiberationSans-LICENSE.txt": {
+    "sha256": "93fed46019c38bbe566b479d22148e2e8a1e85ada614accb0211c37b2c61c19b",
+    "source": "LICENSE of https://deb.debian.org/debian/pool/main/f/fonts-liberation/fonts-liberation_2.1.5.orig.tar.gz",
+    "license": "OFL-1.1"
+  },
+  "apps/web/public/showcase/runtime/typing_extensions-4.16.0-py3-none-any.whl": {
+    "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+    "source": "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl",
+    "license": "PSF-2.0"
+  },
+  "apps/web/public/showcase/runtime/idna-3.20-py3-none-any.whl": {
+    "sha256": "ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c",
+    "source": "https://files.pythonhosted.org/packages/58/a2/bb081bab032533a855d44de1d56f8e8426114ff1ba5d1f07a438a0a654f8/idna-3.20-py3-none-any.whl",
+    "license": "BSD-3-Clause"
+  },
+  "apps/web/public/showcase/runtime/anyio-4.15.1-py3-none-any.whl": {
+    "sha256": "6152fdbbf9a77fdec97731721bebf7c4c44f7c29b424b0065826173efc7ed101",
+    "source": "https://files.pythonhosted.org/packages/12/b8/4bd346e22b28902df4d651910f5242c28d84e4a5c2435ca5c3f797ed7e2e/anyio-4.15.1-py3-none-any.whl",
+    "license": "MIT"
+  },
+  "apps/web/public/showcase/runtime/starlette-1.7.0-py3-none-any.whl": {
+    "sha256": "67f8e99895493dd2911a03f11314af6ceebeae4e704bb9f43dfc6a9db151c93e",
+    "source": "https://files.pythonhosted.org/packages/4e/d6/1ec1b290f9e0fb067899b61e1d37a30c923068bad260b216dbe37a7d2967/starlette-1.7.0-py3-none-any.whl",
+    "license": "BSD-3-Clause"
+  },
+  "apps/web/public/showcase/runtime/annotated_doc-0.0.5-py3-none-any.whl": {
+    "sha256": "117bac03a25ede5df5440e855b32d556049ca169ead221505badf432fed4b101",
+    "source": "https://files.pythonhosted.org/packages/3e/30/e900b21425a860e195f32e37657aa1f7c7f2b1bfb26f03ca209b90933c06/annotated_doc-0.0.5-py3-none-any.whl",
+    "license": "MIT"
+  },
+  "apps/web/public/showcase/runtime/opentelemetry_api-1.45.2-py3-none-any.whl": {
+    "sha256": "2cbd737377e710ee740d261c94e93fa0f08e6d037c18f17513cc0a2d94479a34",
+    "source": "https://files.pythonhosted.org/packages/a9/2d/610db864d7513158cebb8f36cc88e67e73bd6c7aa1905ef18d89e1281c81/opentelemetry_api-1.45.2-py3-none-any.whl",
+    "license": "Apache-2.0"
+  },
+  "apps/web/public/showcase/runtime/fastapi-0.142.2-py3-none-any.whl": {
+    "sha256": "bd5f4d81f1e93a88bcd77caf4dfe3c2dbffc3805407a0007e9a114c18b3a670b",
+    "source": "https://files.pythonhosted.org/packages/a0/b6/78aaf9141fb46742928c113f3cf6ef2259d538cb02b604b7656c1dc9883c/fastapi-0.142.2-py3-none-any.whl",
+    "license": "MIT"
+  },
+  "apps/web/public/showcase/runtime/python_multipart-0.0.32-py3-none-any.whl": {
+    "sha256": "ff6d3f776f16878c894e52e107296ffc890e913c611b1a4ec6c44e2821fe2e23",
+    "source": "https://files.pythonhosted.org/packages/e1/04/e8135ebd1ad02c56ec633277529b2602ff99ff634be76cdba5744cf554fd/python_multipart-0.0.32-py3-none-any.whl",
+    "license": "Apache-2.0"
+  },
+  "apps/web/public/showcase/runtime/mako-1.4.3-py3-none-any.whl": {
+    "sha256": "723296007c870bfd6b3f0c3230dba7198096e5269297ebf5e4eff9e7ffa39d4f",
+    "source": "https://files.pythonhosted.org/packages/6d/a0/053d6af3e8f871e0073b4a36732d9e65be77a72e5434c31b94f6af78a6bb/mako-1.4.3-py3-none-any.whl",
+    "license": "MIT"
+  },
+  "apps/web/public/showcase/runtime/alembic-1.20.0-py3-none-any.whl": {
+    "sha256": "77eb101048d95f982c0353e9233404889dcd7a6fc244c107836c0e2fc9cf7d9d",
+    "source": "https://files.pythonhosted.org/packages/3f/27/78a89b55b0904d222183164e079b4ca56208e94eff1d35ad1f1ad5be9b06/alembic-1.20.0-py3-none-any.whl",
+    "license": "MIT"
+  },
+  "apps/web/public/showcase/runtime/tifffile-2026.9.20-py3-none-any.whl": {
+    "sha256": "9b913167b8f66a57f2e7c0454486c4c4607196d494797461226166bd0755c0e6",
+    "source": "https://files.pythonhosted.org/packages/05/bf/04f3e61cb20a03678ca43f29bae9a7d0b7d9f563b86f5f600b2d8fba9712/tifffile-2026.9.20-py3-none-any.whl",
+    "license": "BSD-3-Clause"
+  },
+  "apps/web/public/showcase/runtime/roifile-2026.9.22-py3-none-any.whl": {
+    "sha256": "2bde74e084c4f2f07edd0d54df41fc3b482a548044ed43fbbed3e0db6b77363e",
+    "source": "https://files.pythonhosted.org/packages/9b/dc/4b2843b4d5f7ce8f328f8c17616f76f3d935b313047ca1c67e4c6d31392a/roifile-2026.9.22-py3-none-any.whl",
+    "license": "BSD-3-Clause"
+  },
+  "apps/web/public/showcase/runtime/defusedxml-0.7.1-py2.py3-none-any.whl": {
+    "sha256": "a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61",
+    "source": "https://files.pythonhosted.org/packages/07/6c/aa3f2f849e01cb6a001cd8554a88d4c77c5c1a31c95bdf1cf9301e6d9ef4/defusedxml-0.7.1-py2.py3-none-any.whl",
+    "license": "PSF-2.0"
+  },
+  "apps/web/public/showcase/runtime/cytellect-0.1.0-py3-none-any.whl": {
+    "sha256": "802a73565dd317762c9ecd92c87bcbec6893b794a563a7856effbd0e9ba8e5dd",
+    "source": "Built from this repository by scripts/build_showcase_runtime.py",
+    "license": "Apache-2.0"
+  },
+  "apps/web/public/showcase/runtime/NotoSansJP-Regular.ttf": {
+    "sha256": "a66655d7b24ac6f793f73914c60ad44522b9fbd9e5f9b3706220b66c44fdaad2",
+    "source": "https://github.com/google/fonts/tree/main/ofl/notosansjp",
+    "license": "OFL-1.1",
+    "derivation": "fontTools wght=400 static instance of NotoSansJP[wght].ttf sha256 c2f3b4d463500a2ddcd3849cded1fceeb9fd6d1c32e6cbecd568453ba50fc68f"
+  },
+  "apps/web/public/showcase/runtime/NotoSansJP-OFL.txt": {
+    "sha256": "1c05c68c34f9708415aada51f17e1b0092d2cea709bf4a94cd38114f9e73d7d9",
+    "source": "https://github.com/google/fonts/tree/main/ofl/notosansjp",
+    "license": "OFL-1.1"
+  },
+  "apps/web/public/showcase/runtime/THIRD_PARTY_NOTICES.txt": {
+    "sha256": "7a6d8036ec6e88c2646824a49bda95095f6829af6ddeafd24f8c17dabcb9dae3",
+    "source": "Generated by scripts/build_showcase_runtime.py",
+    "license": "Apache-2.0 AND MIT AND BSD-3-Clause AND PSF-2.0 AND OFL-1.1"
+  },
   "apps/web/public/showcase/seed.zip": {
-    "sha256": "64a6cd78390bec1ff96074a1820d4c3923f57fa3a4a6ecf5b3b629c6299ee62e",
+    "sha256": "43a2e95b5ce9b3af34f436adb9246ee6b760414236822c2016074b9f1b7be23d",
     "source": "https://github.com/broadinstitute/cellpainting-gallery ; https://zenodo.org/records/6643470",
     "license": "CC-BY-4.0 ; CC0-1.0",
     "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
@@ -1492,161 +1648,5 @@
     "source": "https://github.com/broadinstitute/cellpainting-gallery ; https://zenodo.org/records/6643470",
     "license": "CC-BY-4.0 ; CC0-1.0",
     "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
-  },
-  "apps/web/public/showcase/runtime/typing_extensions-4.16.0-py3-none-any.whl": {
-    "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
-    "source": "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl",
-    "license": "PSF-2.0"
-  },
-  "apps/web/public/showcase/runtime/idna-3.20-py3-none-any.whl": {
-    "sha256": "ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c",
-    "source": "https://files.pythonhosted.org/packages/58/a2/bb081bab032533a855d44de1d56f8e8426114ff1ba5d1f07a438a0a654f8/idna-3.20-py3-none-any.whl",
-    "license": "BSD-3-Clause"
-  },
-  "apps/web/public/showcase/runtime/anyio-4.15.1-py3-none-any.whl": {
-    "sha256": "6152fdbbf9a77fdec97731721bebf7c4c44f7c29b424b0065826173efc7ed101",
-    "source": "https://files.pythonhosted.org/packages/12/b8/4bd346e22b28902df4d651910f5242c28d84e4a5c2435ca5c3f797ed7e2e/anyio-4.15.1-py3-none-any.whl",
-    "license": "MIT"
-  },
-  "apps/web/public/showcase/runtime/starlette-1.7.0-py3-none-any.whl": {
-    "sha256": "67f8e99895493dd2911a03f11314af6ceebeae4e704bb9f43dfc6a9db151c93e",
-    "source": "https://files.pythonhosted.org/packages/4e/d6/1ec1b290f9e0fb067899b61e1d37a30c923068bad260b216dbe37a7d2967/starlette-1.7.0-py3-none-any.whl",
-    "license": "BSD-3-Clause"
-  },
-  "apps/web/public/showcase/runtime/annotated_doc-0.0.5-py3-none-any.whl": {
-    "sha256": "117bac03a25ede5df5440e855b32d556049ca169ead221505badf432fed4b101",
-    "source": "https://files.pythonhosted.org/packages/3e/30/e900b21425a860e195f32e37657aa1f7c7f2b1bfb26f03ca209b90933c06/annotated_doc-0.0.5-py3-none-any.whl",
-    "license": "MIT"
-  },
-  "apps/web/public/showcase/runtime/fastapi-0.142.2-py3-none-any.whl": {
-    "sha256": "bd5f4d81f1e93a88bcd77caf4dfe3c2dbffc3805407a0007e9a114c18b3a670b",
-    "source": "https://files.pythonhosted.org/packages/a0/b6/78aaf9141fb46742928c113f3cf6ef2259d538cb02b604b7656c1dc9883c/fastapi-0.142.2-py3-none-any.whl",
-    "license": "MIT"
-  },
-  "apps/web/public/showcase/runtime/python_multipart-0.0.32-py3-none-any.whl": {
-    "sha256": "ff6d3f776f16878c894e52e107296ffc890e913c611b1a4ec6c44e2821fe2e23",
-    "source": "https://files.pythonhosted.org/packages/e1/04/e8135ebd1ad02c56ec633277529b2602ff99ff634be76cdba5744cf554fd/python_multipart-0.0.32-py3-none-any.whl",
-    "license": "Apache-2.0"
-  },
-  "apps/web/public/showcase/runtime/mako-1.4.3-py3-none-any.whl": {
-    "sha256": "723296007c870bfd6b3f0c3230dba7198096e5269297ebf5e4eff9e7ffa39d4f",
-    "source": "https://files.pythonhosted.org/packages/6d/a0/053d6af3e8f871e0073b4a36732d9e65be77a72e5434c31b94f6af78a6bb/mako-1.4.3-py3-none-any.whl",
-    "license": "MIT"
-  },
-  "apps/web/public/showcase/runtime/alembic-1.20.0-py3-none-any.whl": {
-    "sha256": "77eb101048d95f982c0353e9233404889dcd7a6fc244c107836c0e2fc9cf7d9d",
-    "source": "https://files.pythonhosted.org/packages/3f/27/78a89b55b0904d222183164e079b4ca56208e94eff1d35ad1f1ad5be9b06/alembic-1.20.0-py3-none-any.whl",
-    "license": "MIT"
-  },
-  "apps/web/public/showcase/runtime/tifffile-2026.9.20-py3-none-any.whl": {
-    "sha256": "9b913167b8f66a57f2e7c0454486c4c4607196d494797461226166bd0755c0e6",
-    "source": "https://files.pythonhosted.org/packages/05/bf/04f3e61cb20a03678ca43f29bae9a7d0b7d9f563b86f5f600b2d8fba9712/tifffile-2026.9.20-py3-none-any.whl",
-    "license": "BSD-3-Clause"
-  },
-  "apps/web/public/showcase/runtime/roifile-2026.9.22-py3-none-any.whl": {
-    "sha256": "2bde74e084c4f2f07edd0d54df41fc3b482a548044ed43fbbed3e0db6b77363e",
-    "source": "https://files.pythonhosted.org/packages/9b/dc/4b2843b4d5f7ce8f328f8c17616f76f3d935b313047ca1c67e4c6d31392a/roifile-2026.9.22-py3-none-any.whl",
-    "license": "BSD-3-Clause"
-  },
-  "apps/web/public/showcase/runtime/defusedxml-0.7.1-py2.py3-none-any.whl": {
-    "sha256": "a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61",
-    "source": "https://files.pythonhosted.org/packages/07/6c/aa3f2f849e01cb6a001cd8554a88d4c77c5c1a31c95bdf1cf9301e6d9ef4/defusedxml-0.7.1-py2.py3-none-any.whl",
-    "license": "PSF-2.0"
-  },
-  "apps/web/public/showcase/runtime/cytellect-0.1.0-py3-none-any.whl": {
-    "sha256": "802a73565dd317762c9ecd92c87bcbec6893b794a563a7856effbd0e9ba8e5dd",
-    "source": "Built from this repository by scripts/build_showcase_runtime.py",
-    "license": "Apache-2.0"
-  },
-  "apps/web/public/showcase/runtime/NotoSansJP-Regular.ttf": {
-    "sha256": "a66655d7b24ac6f793f73914c60ad44522b9fbd9e5f9b3706220b66c44fdaad2",
-    "source": "https://github.com/google/fonts/tree/main/ofl/notosansjp",
-    "license": "OFL-1.1",
-    "derivation": "fontTools wght=400 static instance of NotoSansJP[wght].ttf sha256 c2f3b4d463500a2ddcd3849cded1fceeb9fd6d1c32e6cbecd568453ba50fc68f"
-  },
-  "apps/web/public/showcase/runtime/NotoSansJP-OFL.txt": {
-    "sha256": "1c05c68c34f9708415aada51f17e1b0092d2cea709bf4a94cd38114f9e73d7d9",
-    "source": "https://github.com/google/fonts/tree/main/ofl/notosansjp",
-    "license": "OFL-1.1"
-  },
-  "apps/web/public/showcase/runtime/THIRD_PARTY_NOTICES.txt": {
-    "sha256": "7a6d8036ec6e88c2646824a49bda95095f6829af6ddeafd24f8c17dabcb9dae3",
-    "source": "Generated by scripts/build_showcase_runtime.py",
-    "license": "Apache-2.0 AND MIT AND BSD-3-Clause AND PSF-2.0 AND OFL-1.1"
-  },
-  "apps/web/public/marketing/lp-screen-statistics.webp": {
-    "sha256": "ca0dbe40fd678262e86d3ac0492d47d57f799e4e855fd40ea6622f26c9ee0062",
-    "source": "https://github.com/broadinstitute/cellpainting-gallery",
-    "license": "CC0-1.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
-  },
-  "apps/web/public/marketing/lp-focus-conclusion.webp": {
-    "sha256": "faf1e182fb117c393cee56923afe5b40ef833f71ed0b9f79a2243c9fc8c2bf44",
-    "source": "https://github.com/broadinstitute/cellpainting-gallery",
-    "license": "CC0-1.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
-  },
-  "apps/web/public/marketing/lp-focus-discussion.webp": {
-    "sha256": "bc8422799640ac186620cd08d4087ed832f667dc50455ee4dc5872bc2068d77b",
-    "source": "https://github.com/broadinstitute/cellpainting-gallery",
-    "license": "CC0-1.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
-  },
-  "apps/web/public/marketing/lp-focus-table.webp": {
-    "sha256": "07494287a81d87d9319a20d6b843aa582b980da47a3f46b4c0dfbd5e6f00ea7e",
-    "source": "https://zenodo.org/records/6643470",
-    "license": "CC-BY-4.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
-  },
-  "apps/web/public/marketing/lp-screen-ai.webp": {
-    "sha256": "d8ad632ae59278d22af1c892e74fb1225006699256a8986bdc23849b25e9695e",
-    "source": "https://github.com/broadinstitute/cellpainting-gallery",
-    "license": "CC0-1.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
-  },
-  "apps/web/public/marketing/lp-focus-ai.webp": {
-    "sha256": "e1de37ba9df17238b66a372932be3d2038d3b25a9a310b4f802284ef465f2cad",
-    "source": "https://github.com/broadinstitute/cellpainting-gallery",
-    "license": "CC0-1.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
-  },
-  "apps/web/public/marketing/lp-screen-figure.webp": {
-    "sha256": "0c0d5d69f0b8aa574da2cc4063cdd3907b4562756f6b9a6a0cc991928a038f28",
-    "source": "https://github.com/broadinstitute/cellpainting-gallery",
-    "license": "CC0-1.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
-  },
-  "apps/web/public/marketing/lp-focus-figure-layout.webp": {
-    "sha256": "477a9895ec91933e331607372c4ebe11d1a7fc7cedf74ad7f152f91ebed174c1",
-    "source": "https://github.com/broadinstitute/cellpainting-gallery",
-    "license": "CC0-1.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
-  },
-  "apps/web/public/marketing/lp-focus-figure-size.webp": {
-    "sha256": "61345285181a8518c5e75a71a9686307039cca30e182799f283c2db31db41017",
-    "source": "https://github.com/broadinstitute/cellpainting-gallery",
-    "license": "CC0-1.0 (public images/derived outputs); Apache-2.0 (Cytellect UI)"
-  },
-  "docs/drafts/publication-figures/current.webp": {
-    "sha256": "faf1497e93d83155371f34bd068a3eaa741744169055a646d5cdca6f96531b58",
-    "source": "https://zenodo.org/records/6643470 (public demo scene zenodo-6643470-oxaliplatin; the figure recorded by the public demo, rendered to an image)",
-    "license": "CC-BY-4.0 (public images/derived measurements); Apache-2.0 (Cytellect figure)"
-  },
-  "docs/drafts/publication-figures/prototype.webp": {
-    "sha256": "bdb2a721cd70b13e76688afac41dadfea92e8796b3e628fa7ae5194d446da6d8",
-    "source": "https://zenodo.org/records/6643470 (public demo scene zenodo-6643470-oxaliplatin; docs/drafts/publication-figures/prototype.py.txt)",
-    "license": "CC-BY-4.0 (public images/derived measurements); Apache-2.0 (Cytellect figure)"
-  },
-  "packages/analysis/src/cytellect_analysis/assets/fonts/LiberationSans-Regular.ttf": {
-    "sha256": "bade59d822652f76e6941aa87b40a87c13d1cc70db98ededb5011127efafd1d3",
-    "source": "http://deb.debian.org/debian/pool/main/f/fonts-liberation/fonts-liberation_2.1.5-3_all.deb ; Liberation Sans 2.1.5 (upstream https://github.com/liberationfonts/liberation-fonts), unmodified",
-    "license": "OFL-1.1"
-  },
-  "packages/analysis/src/cytellect_analysis/assets/fonts/LiberationSans-Bold.ttf": {
-    "sha256": "1b5f2da6f4cadce4c05b9ecebe3a6fcd374eb95ae443605e799f4c3287978939",
-    "source": "http://deb.debian.org/debian/pool/main/f/fonts-liberation/fonts-liberation_2.1.5-3_all.deb ; Liberation Sans 2.1.5 (upstream https://github.com/liberationfonts/liberation-fonts), unmodified",
-    "license": "OFL-1.1"
-  },
-  "packages/analysis/src/cytellect_analysis/assets/fonts/LiberationSans-LICENSE.txt": {
-    "sha256": "93fed46019c38bbe566b479d22148e2e8a1e85ada614accb0211c37b2c61c19b",
-    "source": "LICENSE of https://deb.debian.org/debian/pool/main/f/fonts-liberation/fonts-liberation_2.1.5.orig.tar.gz",
-    "license": "OFL-1.1"
-  },
-  "apps/web/public/showcase/runtime/opentelemetry_api-1.45.2-py3-none-any.whl": {
-    "sha256": "2cbd737377e710ee740d261c94e93fa0f08e6d037c18f17513cc0a2d94479a34",
-    "source": "https://files.pythonhosted.org/packages/a9/2d/610db864d7513158cebb8f36cc88e67e73bd6c7aa1905ef18d89e1281c81/opentelemetry_api-1.45.2-py3-none-any.whl",
-    "license": "Apache-2.0"
   }
 }
