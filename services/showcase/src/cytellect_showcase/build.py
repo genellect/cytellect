@@ -1760,6 +1760,10 @@ def main(argv: list[str] | None = None) -> None:
         save()
     if "publish" in stages:
         publish(args, manifests, state, seed_data, recordings, started)
+    if "refigure" in stages:
+        first = scenes[manifests[0][1]["id"]]["scenario"]
+        state["refigure"] = refigure(seed_data, args.out, args.fiji, first["owner"])
+        save()
     if "snapshot" in stages:
         for index, (_, manifest) in enumerate(manifests):
             scenario_state = scenes[manifest["id"]]["scenario"]
@@ -1787,6 +1791,57 @@ def main(argv: list[str] | None = None) -> None:
                                work / "qa" / manifest["id"], scenes[manifest["id"]]["scenario"]["fields"])
             log("qa overlays", manifest["id"], len(written))
     log("done", round(time.perf_counter() - started, 1), "s")
+
+
+SNAPSHOT_EXTENSIONS = {"application/json": ".json", "image/png": ".png", "image/svg+xml": ".svg", "text/csv": ".csv",
+                       "application/pdf": ".pdf", "application/zip": ".zip"}
+
+
+def refigure(seed_data: Path, out: Path, fiji: str, owner: str) -> dict:
+    """Replace the snapshot's recorded statistics results and figure files (stage ``refigure``).
+
+    For a change of figures only: every recorded ``GET /v1/jobs/<id>/result`` and ``…/files/…`` of a
+    saved statistics or figure job is asked again from the published seed (``publish`` drew its figures
+    anew), and each saved figure's legend draft is added. Images, outlines, tables and every other
+    recorded answer stay as they were.
+    """
+    import re
+
+    api = open_api(seed_data, "http://127.0.0.1", fiji, owner)
+    target = out / "snapshot"
+    path = target / "index.json"
+    index = json.loads(path.read_text())
+    entries = index["entries"]
+    pattern = re.compile(r"^GET (/v1/jobs/[^/?]+/(?:result|files/[^?]+))$")
+
+    def record(key: str, route: str) -> bool:
+        response = api.client.get(route)
+        if response.status_code != 200:
+            return False
+        kind = response.headers.get("content-type", "").split(";")[0].strip()
+        body = response.content
+        name = f"{hashlib.sha256(body).hexdigest()[:24]}{SNAPSHOT_EXTENSIONS.get(kind, '.bin')}"
+        (target / name).write_bytes(body)
+        entries[key] = {"status": 200, "headers": [["content-type", response.headers["content-type"]]], "file": name}
+        return True
+
+    replaced = added = 0
+    figures = set()
+    for key in sorted(entries):
+        match = pattern.match(key)
+        if not match or match.group(1).endswith(".zip"):
+            continue
+        replaced += record(key, match.group(1))
+        if match.group(1).endswith("/files/figure.svg"):
+            figures.add(match.group(1).removesuffix("/files/figure.svg"))
+    for job in sorted(figures):
+        key = f"GET {job}/files/figure-legend.md"
+        if key not in entries:
+            added += record(key, f"{job}/files/figure-legend.md")
+    path.write_text(json.dumps(index, indent=1) + "\n")
+    api.client.close()
+    log("refigured the snapshot", replaced, "answers replaced,", added, "legend drafts added")
+    return {"replaced": replaced, "legends": added}
 
 
 def reseed(out: Path, work: Path, manifests: list, state: dict) -> None:

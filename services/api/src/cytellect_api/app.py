@@ -1062,6 +1062,8 @@ def create_app(settings: Settings | None = None, *, proposal_credentials=None):
             "figure.png": "image/png",
             "figure.svg": "image/svg+xml",
             "figure-caption.md": "text/markdown; charset=utf-8",
+            # The English legend draft of a publication figure (common-statistics figure 2.0.0).
+            "figure-legend.md": "text/markdown; charset=utf-8",
             "figure-data.json": "application/json",
             "model-predictions.csv": "text/csv",
             "figure.pdf": "application/pdf",
