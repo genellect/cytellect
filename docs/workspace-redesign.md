@@ -175,7 +175,7 @@ field and unit counts shown separately and Holm over the pre-declared family.
 
 **Figures** generated automatically: group distributions with observations,
 unit-identified comparisons, paired connectors and association scatter. Each
-figure states what one point is. Export SVG/PDF/300 dpi PNG, source table,
+figure states what one point is. Export SVG/PDF/PNG (300 dpi; 600 dpi for common-statistics figure 2.0.0), source table,
 comparison results and effect sizes, units/missingness/exclusions, caption,
 Methods and input/mask identities.
 

@@ -136,7 +136,7 @@ Pyodide の CDN から読み込むパッケージ（再配布しない）:
 `runtime/` に置く純 Python のホイールは、uv.lock と同じ版・同じ SHA-256 です: typing-extensions 4.16.0、idna 3.20、anyio 4.15.1、starlette 1.7.0、annotated-doc 0.0.5、opentelemetry-api 1.45.0（fastapi が読み込む）、fastapi 0.142.2、python-multipart 0.0.32、mako 1.4.3、alembic 1.20.0、tifffile 2026.9.20、roifile 2026.9.22、defusedxml 0.7.1。psutil、uvicorn、imagecodecs は含めません（画像の追加をしないため、圧縮 TIFF の読み込みはできません）。
 
 - Matplotlib 3.10 の SVG 出力は数値の太さ（400 など）で失敗します。3.11 と同じく数値をそのまま使うよう、ブラウザ内でだけ `font_manager.weight_dict` に 0–1000 の数値を加えます。
-- 日本語の図は Noto Sans JP（公式の可変フォント、SHA-256 `c2f3b4d4…fc68f`、OFL-1.1）を fontTools で太さ 400 の静的フォントにしたもの（`NotoSansJP-Regular.ttf`）を使います。サーバーは Noto Sans CJK JP なので、図の font の記録と文字の配置は異なります。英語の図はどちらも DejaVu Sans です。
+- 日本語の図は Noto Sans JP（公式の可変フォント、SHA-256 `c2f3b4d4…fc68f`、OFL-1.1）を fontTools で太さ 400 の静的フォントにしたもの（`NotoSansJP-Regular.ttf`）を使います。サーバーは Noto Sans CJK JP なので、図の font の記録と文字の配置は異なります。英語の図は、どちらも解析パッケージに同梱した Liberation Sans です（2026-11-19 から。以前は DejaVu Sans）。
 - 論文用パッケージの作成時は、解析版のすべての統計結果をブラウザ内で計算し直し、保存した結果と完全に一致することを確かめます。CPython で作った初期状態の結果は、記録する `scipy_version` と、一部の浮動小数点数の最後の桁（相関係数で 1e-16 程度）がブラウザ内と異なります。この食い違いのため、以前は初期状態の解析版で ZIP を保存すると `region_export_statistics_source_mismatch` で失敗していました。そこで、ビルドの `publish` 段階では、書き出した `seed.zip` を Pyodide のハーネスで起動し、保存済みの統計と図をブラウザ内で計算し直したもの（`cytellect_showcase.rederive`）に置き換えてから、もう一度書き出します。計算し直した値が、相対誤差 1e-9（絶対誤差 1e-12）を超えて変わった場合、または版の文字列以外の項目が変わった場合は、ビルドを止めます。図の描き方の記録（`figure`。使ったフォントなど）は照合せず、描き直した図と一緒に置き換えます。ブラウザ内と CPython とで、測定値・統計・図の元データが一致することは、`tests/test_showcase_runtime.py` が同じ要求をハーネスと CPython で実行して、相対誤差 1e-9 で照合しています（公開画像 BBBC013 の切り出し 4 視野、試験用の閾値検出）。
 
 ### ビルドと検査

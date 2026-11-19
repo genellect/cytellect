@@ -327,6 +327,15 @@ def render_common_statistics(result, output: Path, *, methods_template=None, fig
     ja = plot["language"] == "ja"
     if figure_version == "2.0.0" and (association or plot["kind"] in ("superplot", "unit-mean-bar")):
         return _render_publication(canonical, output, template, order, images)
+    if figure_version == "2.0.0":
+        # Run-value forms keep their drawing at the chosen publication size.
+        size = (plot.get("presentation") or {}).get("size") or "panel"
+        width_mm = {"single-column": 89.0, "double-column": 183.0}.get(size)
+        if size == "panel":
+            width_mm = max(60.0, 24 + 14 * len(order))
+        if width_mm is not None:
+            style = {**style, "preset": size, "width_inches": width_mm / 25.4, "width_mm": width_mm,
+                     "height_inches": 60 / 25.4, "height_mm": 60.0}
     with plt.rc_context({"svg.fonttype": "none", "pdf.fonttype": 42, "ps.fonttype": 42,
                          "font.size": style["font_size_pt"], "axes.linewidth": .6,
                          "lines.linewidth": .6, "svg.hashsalt": "cytellect-common-statistics-1"}):
@@ -469,6 +478,14 @@ def render_common_statistics(result, output: Path, *, methods_template=None, fig
     metadata: dict[str, Any] = {"common_statistics_figure_version": figure_version,
                 "common_statistics_methods": template.model_dump(mode="json"), "style": style,
                 "font": selected_font.family, "font_metadata": selected_font.metadata()}
+    if figure_version == "2.0.0" and not association:
+        # A run-value form keeps its 1.0.1 drawing; the screen still offers every form of the result.
+        from .figure_forms import figure_forms
+        from .publication_figure import resolve_presentation
+
+        forms = figure_forms(canonical)
+        metadata.update(presentation=resolve_presentation(canonical, plot), forms=forms["forms"],
+                        default_form=forms["default"], compositions=[])
     source = {**canonical, **metadata, "unit_glyphs": glyphs, "graphical_summary": graphical_summary,
               "jitter_seed": 0, "source_hashes": {n: hashlib.sha256((output / n).read_bytes()).hexdigest() for n in csv_files}}
     (output / "figure-data.json").write_text(json.dumps(source, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
