@@ -1,6 +1,9 @@
 node_modules/
 .next/
 .next-connected-acceptance/
+# Work folders of the public demo's recording (services/showcase build.py); removed when it ends.
+.next-showcase/
+.next-showcase-journal/
 .venv/
 __pycache__/
 *.py[cod]
