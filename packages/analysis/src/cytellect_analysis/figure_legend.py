@@ -37,7 +37,7 @@ def comparison_legend(canonical, order, drawn, presentation, panels=None) -> tup
     paired = description.get("paired")
     unit_word = "runs" if paired else "experimental units"
     n_units = sorted({counts[c].get("experimental_units") for c in order if c in counts})
-    observations = _join([f"{counts[c]['observations']} {nouns} ({c})" for c in order if c in counts])
+    observations = _join([f"{counts[c]['observations']:,} {nouns} ({c})" for c in order if c in counts])
     fields = _join([f"{counts[c]['selected_fields']} ({c})" for c in order if c in counts and "selected_fields" in counts[c]])
     lines = [f"**{title}, {compared}.**", ""]
     lines.append(f"{GAPS[0]} cells were treated as indicated ({GAPS[1]}) and imaged "

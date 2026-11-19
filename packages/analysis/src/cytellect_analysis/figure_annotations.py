@@ -51,12 +51,12 @@ def _effect(estimates) -> tuple[str | None, str | None]:
     if estimates["scale"] == "ratio" and ratio["estimate"] is not None:
         text = (f"{_percent(ratio['estimate'])} (95% CI {_percent(ratio['ci_low'])} to "
                 f"{_percent(ratio['ci_high'])})")
-        return text, f"{ratio['basis']}: {text}"
+        return text, f"{ratio['basis']}, {text}"
     if difference["estimate"] is not None:
         unit = " pp" if estimates["scale"] == "fraction" else ""
         text = (f"Δ = {_signed_number(difference['estimate'])}{unit} (95% CI "
                 f"{_signed_number(difference['ci_low'])} to {_signed_number(difference['ci_high'])}{unit})")
-        return text, f"{difference['basis']}: {text}"
+        return text, f"{difference['basis']}, {text}"
     return None, None
 
 
@@ -90,8 +90,9 @@ def _runs(estimates) -> tuple[str | None, str | None]:
         text = f"Higher in {higher} of {total} runs"
     else:
         text = f"Lower in {lower} of {total} runs"
-    kind = "change" if ratio_scale else "difference"
-    return text, f"Per-run {kind} ({estimates['treatment']} − {estimates['control']}): {listing}"
+    if ratio_scale:
+        return text, f"Per-run change of {estimates['treatment']} relative to {estimates['control']}: {listing}"
+    return text, f"Per-run difference ({estimates['treatment']} − {estimates['control']}): {listing}"
 
 
 def comparison_annotations(result, order, mode: str = "value") -> Annotations:
@@ -130,7 +131,7 @@ def comparison_annotations(result, order, mode: str = "value") -> Annotations:
         test = row.get("method", "test")
         p_sentence = (f"{test}, {'Holm-adjusted ' if adjusted else ''}{p_text(p) or 'P not available'}"
                       if p is not None else f"{test}")
-        legend = "; ".join(part for part in (f"{right} versus {left}", sentence, p_sentence) if part)
+        legend = f"{right} versus {left}: " + "; ".join(part for part in (sentence, p_sentence) if part)
         notes.brackets.append(Bracket(left, right, lines, legend))
         notes.legend.append(legend)
     if result.get("omnibus"):
