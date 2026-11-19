@@ -1,0 +1,252 @@
+"""Prototype for docs/drafts/publication-figures/plan.md. Not product code and not maintained.
+
+Redraws one saved comparison of the public demo with matplotlib only, to show what the
+current stack can reach. Every plotted number is read from the saved result (plot_data,
+unit_summary, estimates.runs, counts); nothing is re-estimated. The images are the public
+crops of the same scene (Zenodo 6643470, CC BY 4.0), shown with one linear range per
+channel shared by both conditions. Outlines come from the label image whose
+cytellect-array-v1 hash equals the result's mask_sha256.
+
+Run from the checkout (2026-11-19, main 7ff06b2b):
+
+    .venv/bin/python docs/drafts/publication-figures/prototype.py.txt . <output directory outside the checkout>
+"""
+import hashlib
+import io
+import json
+import re
+import sys
+import zipfile
+from pathlib import Path
+
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import numpy as np
+import tifffile
+from matplotlib import font_manager
+from matplotlib.lines import Line2D
+from scipy import ndimage
+from skimage import measure
+
+ROOT, OUT = Path(sys.argv[1]).resolve(), Path(sys.argv[2]).resolve()
+SHOWCASE = ROOT / "apps/web/public/showcase"
+SCENE, CONTROL, TREATMENT = "zenodo-6643470-oxaliplatin", "Untreated", "Oxaliplatin 10 µM"
+ORDER = [CONTROL, TREATMENT]
+MM = 1 / 25.4
+OKABE_ITO = ["#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00"]
+
+
+def saved_result():
+    """The recorded comparison of nuclear NPM1 mean intensity over all nuclei (no positivity gate),
+    and the figure the demo recorded for the same job."""
+    journal = json.loads((SHOWCASE / "snapshot/journal.json").read_text(encoding="utf-8"))["entries"]
+    for entry in journal:
+        if (entry["method"] == "GET" and entry["scene"].startswith(SCENE)
+                and re.fullmatch(r"/v1/jobs/[^/]+/common-statistics", entry["path"])):
+            result = json.loads((SHOWCASE / "snapshot" / entry["file"]).read_text(encoding="utf-8"))
+            if (result.get("metric") == "mean" and (result.get("channel") or {}).get("channel_id") == "npm1"
+                    and result["region"]["region_set_id"] == "nuclei" and result.get("estimates")
+                    and not (result.get("selection") or {}).get("channel_gate")
+                    and result["spec"]["conditions"] == ORDER and result["spec"]["plot"]["kind"] == "superplot"):
+                recorded = entry["path"].replace("/common-statistics", "/files/figure.svg")
+                current = next(item["file"] for item in journal if item["path"] == recorded)
+                return result, SHOWCASE / "snapshot" / current
+    raise SystemExit("recorded comparison not found")
+
+
+def array_hash(array):
+    """cytellect-array-v1, as cytellect_analysis.regions._array_hash writes label images."""
+    digest = hashlib.sha256()
+    digest.update(f"cytellect-array-v1|<u4|{array.shape[0]},{array.shape[1]}|".encode("ascii"))
+    digest.update(np.ascontiguousarray(array, dtype=np.dtype("<u4")).tobytes(order="C"))
+    return digest.hexdigest()
+
+
+class Seed:
+    """Images and label arrays of the published initial state, found by their recorded hashes."""
+
+    def __init__(self):
+        self.zip = zipfile.ZipFile(SHOWCASE / "seed.zip")
+        self.names = self.zip.namelist()
+        self.tiffs = {hashlib.sha256(self.zip.read(name)).hexdigest(): name
+                      for name in self.names if name.endswith(".tif")}
+
+    def channel(self, field, index):
+        name = self.tiffs[field["image_info"]["inputs"][f"ch{index}"]["sha256"]]
+        return tifffile.imread(io.BytesIO(self.zip.read(name))).astype(float)
+
+    def labels(self, field):
+        for name in self.names:
+            if field["field_id"] in name and name.endswith("labels.npy"):
+                labels = np.load(io.BytesIO(self.zip.read(name)))
+                if array_hash(labels) == field["mask_sha256"]:
+                    return labels
+        raise SystemExit("label image with the saved mask hash not found")
+
+
+def swarm(values, width=.32):
+    """Deterministic beeswarm: each point takes the smallest offset free of its neighbours."""
+    values = np.asarray(values, float)
+    step, near_y = .045, (np.ptp(values) or 1.0) * .028
+    placed, offsets = [], np.zeros(len(values))
+    for index in np.argsort(values, kind="stable"):
+        y = values[index]
+        taken = [px for px, py in placed if abs(py - y) < near_y]
+        for k in range(200):
+            x = (k + 1) // 2 * step * (1 if k % 2 else -1)
+            if all(abs(x - px) >= step * .95 for px in taken):
+                break
+        offsets[index] = float(np.clip(x, -width, width))
+        placed.append((offsets[index], y))
+    return offsets
+
+
+result, recorded_figure = saved_result()
+rows = [row for row in result["plot_data"] if row["selection_status"] == "selected"]
+units = result["unit_summary"]
+fields = {field["field_id"]: field for field in result["source_fields"]}
+runs = sorted({unit["pair"] for unit in units})
+run_color = dict(zip(runs, OKABE_ITO))
+group_mean = {c: float(np.mean([u["value"] for u in units if u["condition"] == c])) for c in ORDER}
+seed = Seed()
+channel_index = {c["channel_id"]: i for i, c in enumerate(next(iter(fields.values()))["image_info"]["channels"])}
+
+
+def representative(condition):
+    """The field whose median is closest to the condition's mean of runs (ties: field order)."""
+    candidates = []
+    for position, (fid, field) in enumerate(fields.items()):
+        values = [row["value"] for row in rows if row["field_id"] == fid]
+        if field["metadata"]["condition"] == condition and len(values) >= 3:
+            candidates.append((abs(float(np.median(values)) - group_mean[condition]), position, fid))
+    return min(candidates)[2]
+
+
+def crop(fid, labels, size=200):
+    """A square centred on the measured nucleus closest to the condition's mean of runs."""
+    condition = fields[fid]["metadata"]["condition"]
+    chosen = min((abs(row["value"] - group_mean[condition]), row["region_id"])
+                 for row in rows if row["field_id"] == fid)[1]
+    ys, xs = np.nonzero(labels == chosen)
+    y0 = int(np.clip(int(ys.mean()) - size // 2, 0, labels.shape[0] - size))
+    x0 = int(np.clip(int(xs.mean()) - size // 2, 0, labels.shape[1] - size))
+    return slice(y0, y0 + size), slice(x0, x0 + size)
+
+
+shown = {}
+for condition in ORDER:
+    fid = representative(condition)
+    labels = seed.labels(fields[fid])
+    box = crop(fid, labels)
+    shown[condition] = {"field": fid, "labels": labels[box],
+                        "npm1": seed.channel(fields[fid], channel_index["npm1"])[box],
+                        "hoechst": seed.channel(fields[fid], channel_index["hoechst"])[box]}
+# One linear display range per channel, shared by both conditions; recorded, never per-image.
+display = {name: tuple(float(v) for v in np.percentile(
+    np.concatenate([shown[c][name].ravel() for c in ORDER]), [.5, 99.5])) for name in ("npm1", "hoechst")}
+
+
+def scaled(condition, name):
+    low, high = display[name]
+    return np.clip((shown[condition][name] - low) / (high - low), 0, 1)
+
+
+font = next(f.fname for f in font_manager.fontManager.ttflist
+            if f.name == "Liberation Sans" and f.style == "normal" and f.weight in (400, "normal", "regular"))
+font_manager.fontManager.addfont(font)
+plt.rcParams.update({
+    "font.family": "Liberation Sans", "font.size": 6.5, "axes.labelsize": 6.5, "xtick.labelsize": 6.5,
+    "ytick.labelsize": 6.5, "legend.fontsize": 6, "axes.linewidth": .5, "xtick.major.width": .5,
+    "ytick.major.width": .5, "xtick.major.size": 2, "ytick.major.size": 2, "lines.linewidth": .6,
+    "svg.fonttype": "none", "pdf.fonttype": 42, "axes.spines.top": False, "axes.spines.right": False,
+})
+figure = plt.figure(figsize=(120 * MM, 58 * MM))
+grid = figure.add_gridspec(1, 2, width_ratios=[1.38, 1], wspace=.32, left=.075, right=.985, top=.86, bottom=.25)
+images = grid[0].subgridspec(2, 2, wspace=.04, hspace=.05)
+pixel_um = fields[shown[CONTROL]["field"]]["calibration"]["pixel_size_x_um"]
+
+# ---- a: representative images, measured outlines, channel names, scale bar ----
+for row, condition in enumerate(ORDER):
+    npm1, hoechst = scaled(condition, "npm1"), scaled(condition, "hoechst")
+    merge = np.stack([npm1, hoechst * .85, npm1], -1)  # NPM1 magenta, Hoechst green
+    measured = [r["region_id"] for r in rows if r["field_id"] == shown[condition]["field"]]
+    for column, picture in enumerate((npm1, merge)):
+        axes = figure.add_subplot(images[row, column])
+        axes.imshow(picture, cmap="gray" if column == 0 else None, vmin=0, vmax=1, interpolation="nearest")
+        axes.set_xticks([]), axes.set_yticks([])
+        for spine in axes.spines.values():
+            spine.set_visible(False)
+        if column == 0:
+            for region in measured:
+                filled = ndimage.binary_fill_holes(shown[condition]["labels"] == region).astype(float)
+                for contour in measure.find_contours(filled, .5):
+                    axes.plot(contour[:, 1], contour[:, 0], color="#ffd400", lw=.45)
+            axes.set_ylabel(condition.replace(" 10 µM", "\n10 µM"), labelpad=3)
+        if row == 0 and column == 0:
+            axes.set_title("NPM1", fontsize=6.5, pad=2.5)
+        if row == 0 and column == 1:
+            axes.text(.47, 1.035, "Hoechst", color="#1a9e3a", transform=axes.transAxes, ha="right", va="bottom")
+            axes.text(.53, 1.035, "NPM1", color="#c0119d", transform=axes.transAxes, ha="left", va="bottom")
+        if row == 1 and column == 1:
+            side, bar = picture.shape[0], 10 / pixel_um
+            axes.plot([side - 12 - bar, side - 12], [side - 14, side - 14], color="white", lw=1.6, solid_capstyle="butt")
+            axes.text(side - 12 - bar / 2, side - 22, "10 µm", color="white", ha="center", va="bottom", fontsize=5.5)
+figure.text(.012, .94, "a", fontsize=8, fontweight="bold", va="top")
+figure.text(.565, .94, "b", fontsize=8, fontweight="bold", va="top")
+
+# ---- b: observations by run, saved run values, pairing, mean of runs, effect note ----
+axes = figure.add_subplot(grid[1])
+for position, condition in enumerate(ORDER):
+    group = [row for row in rows if row["condition"] == condition]
+    values = np.array([row["value"] for row in group])
+    axes.scatter(position + swarm(values), values, s=3.2, c=[run_color[row["pair"]] for row in group],
+                 alpha=.55, linewidths=0, zorder=2)
+    for unit in (u for u in units if u["condition"] == condition):
+        axes.scatter(position, unit["value"], s=26, color=run_color[unit["pair"]], edgecolors="black",
+                     linewidths=.5, zorder=5)
+    axes.hlines(group_mean[condition], position - .22, position + .22, color="black", lw=1.2, zorder=4)
+for run in runs:
+    axes.plot([0, 1], [next(u["value"] for u in units if u["condition"] == c and u["pair"] == run) for c in ORDER],
+              color=run_color[run], lw=.6, zorder=3)
+axes.set_xlim(-.55, 1.55)
+axes.set_ylim(0, 5200)
+axes.set_yticks(range(0, 5001, 1000), [f"{value:,}" for value in range(0, 5001, 1000)])
+axes.set_xticks([0, 1], [CONTROL, TREATMENT.replace(" 10 µM", "\n10 µM")])
+axes.tick_params(axis="x", length=0, pad=3)
+axes.set_ylabel("Nuclear NPM1 mean intensity (a.u.)")
+# Descriptive comparison (test "none"): the saved per-run values only, no interval and no p value.
+# The note follows plan.md FA-01: a range when every run agrees, otherwise the count of runs.
+saved_runs = result["estimates"]["runs"]
+changes = [(run["ratio"] - 1) * 100 for run in saved_runs]
+higher = sum(run["difference"] > 0 for run in saved_runs)
+if higher in (0, len(saved_runs)):
+    note = f"{min(changes, key=abs):+.0f} to {max(changes, key=abs):+.0f}% ({len(saved_runs)}/{len(saved_runs)} runs)"
+elif higher * 2 > len(saved_runs):
+    note = f"Higher in {higher} of {len(saved_runs)} runs"
+else:
+    note = f"Lower in {len(saved_runs) - higher} of {len(saved_runs)} runs"
+axes.plot([0, 0, 1, 1], [4630, 4750, 4750, 4630], color="black", lw=.5)
+axes.text(.5, 4840, note, ha="center", va="bottom", fontsize=6)
+axes.legend(handles=[Line2D([], [], marker="o", ls="", color=run_color[run], markeredgecolor="black",
+                            markeredgewidth=.4, markersize=3.6, label=f"Run {index + 1}")
+                     for index, run in enumerate(runs)],
+            loc="lower center", bbox_to_anchor=(.5, 1.06), ncols=len(runs), frameon=False,
+            handletextpad=.1, columnspacing=.7, borderaxespad=0)
+counts = {row["condition"]: row for row in result["counts"]}
+figure.text(.565, .015,
+            f"n = {counts[CONTROL]['experimental_units']} runs per condition "
+            f"({counts[CONTROL]['observations']} and {counts[TREATMENT]['observations']} nuclei).\n"
+            "Dots: nuclei; circles: run means; bar: mean of runs.\n"
+            "Descriptive (run independence not confirmed): no test.",
+            ha="left", va="bottom", fontsize=5.2, color="#444444", linespacing=1.25)
+
+OUT.mkdir(parents=True, exist_ok=True)
+for suffix in ("png", "svg", "pdf"):
+    figure.savefig(OUT / f"prototype.{suffix}", dpi=300)
+(OUT / "current.svg").write_bytes(recorded_figure.read_bytes())  # the demo's figure of the same job
+print(json.dumps({"fields": {c: shown[c]["field"] for c in ORDER},
+                  "display_range": {name: [round(v) for v in values] for name, values in display.items()},
+                  "run_changes_percent": [round(v) for v in changes], "runs_higher": higher, "note": note,
+                  "observations": [counts[c]["observations"] for c in ORDER]}, ensure_ascii=False))
