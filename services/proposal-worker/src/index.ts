@@ -7,7 +7,7 @@
  * and returns an unvalidated draft that the local API validates. Request bodies,
  * goals and images are never logged or stored.
  */
-import { ASSISTANT_PROMPT_VERSION, draftProposal, inputTokenCeiling, MODEL, ModelError, PROMPT_VERSION, NUCLEAR_FILTER_PREVIOUS_PROMPT_VERSION, PARENT_PREVIOUS_PROMPT_VERSION, CELLPOSE_PREVIOUS_PROMPT_VERSION, OBJECT_PREVIOUS_PROMPT_VERSION, NCL_PREVIOUS_PROMPT_VERSION, PREVIOUS_PROMPT_VERSION, PROCESSING_PROMPT_VERSION, LEGACY_PROMPT_VERSION, PREIMPORT_PROMPT_VERSION, observedCost, type Preview, type Provider, type ReasoningEffort } from "./openai";
+import { ASSISTANT_PROMPT_VERSION, FIGURE_PROMPT_VERSION, draftProposal, inputTokenCeiling, MODEL, ModelError, PROMPT_VERSION, NUCLEAR_FILTER_PREVIOUS_PROMPT_VERSION, PARENT_PREVIOUS_PROMPT_VERSION, CELLPOSE_PREVIOUS_PROMPT_VERSION, OBJECT_PREVIOUS_PROMPT_VERSION, NCL_PREVIOUS_PROMPT_VERSION, PREVIOUS_PROMPT_VERSION, PROCESSING_PROMPT_VERSION, LEGACY_PROMPT_VERSION, PREIMPORT_PROMPT_VERSION, observedCost, type Preview, type Provider, type ReasoningEffort } from "./openai";
 import { ANTHROPIC_MODELS } from "./anthropic";
 import { D1Store, type D1Database, type Store } from "./store";
 import { checkDiscussionRequest, discussionTokenCeiling, draftDiscussion, DISCUSSION_PROMPT_VERSION, DISCUSSION_PROMPT_VERSIONS } from "./discussion";
@@ -69,7 +69,7 @@ interface ProviderConfig {
 /** Prompt versions written for the redesigned assistant (docs/drafts/llm-assistant/plan.md). They use Claude
  * when it is configured and otherwise the OpenAI model; every other version came from an installed client that
  * accepts only the OpenAI model, so it never moves. */
-export const CLAUDE_PROMPT_VERSIONS = new Set<string>([ASSISTANT_PROMPT_VERSION, DISCUSSION_PROMPT_VERSION]);
+export const CLAUDE_PROMPT_VERSIONS = new Set<string>([FIGURE_PROMPT_VERSION, ASSISTANT_PROMPT_VERSION, DISCUSSION_PROMPT_VERSION]);
 
 interface Config {
   provider: Provider;
@@ -288,7 +288,7 @@ export async function handle(request: Request, env: Env, store: Store, options: 
     if (typeof requested !== "string") return failure(400, "prompt_version_unsupported");
     const promptVersion: string = requested;
     if (discussion ? !DISCUSSION_PROMPT_VERSIONS.includes(promptVersion)
-      : ![ASSISTANT_PROMPT_VERSION, PROMPT_VERSION, NUCLEAR_FILTER_PREVIOUS_PROMPT_VERSION, PARENT_PREVIOUS_PROMPT_VERSION, CELLPOSE_PREVIOUS_PROMPT_VERSION, OBJECT_PREVIOUS_PROMPT_VERSION, NCL_PREVIOUS_PROMPT_VERSION, PREVIOUS_PROMPT_VERSION, PROCESSING_PROMPT_VERSION, PREIMPORT_PROMPT_VERSION, LEGACY_PROMPT_VERSION].includes(promptVersion)) return failure(400, "prompt_version_unsupported");
+      : ![FIGURE_PROMPT_VERSION, ASSISTANT_PROMPT_VERSION, PROMPT_VERSION, NUCLEAR_FILTER_PREVIOUS_PROMPT_VERSION, PARENT_PREVIOUS_PROMPT_VERSION, CELLPOSE_PREVIOUS_PROMPT_VERSION, OBJECT_PREVIOUS_PROMPT_VERSION, NCL_PREVIOUS_PROMPT_VERSION, PREVIOUS_PROMPT_VERSION, PROCESSING_PROMPT_VERSION, PREIMPORT_PROMPT_VERSION, LEGACY_PROMPT_VERSION].includes(promptVersion)) return failure(400, "prompt_version_unsupported");
     if (!discussion && checked.context.field_count === 0 && promptVersion === LEGACY_PROMPT_VERSION) return failure(400, "prompt_version_unsupported");
     const selected = selectProvider(config, promptVersion);
     if (!selected) return failure(503, "proposal_service_disabled");

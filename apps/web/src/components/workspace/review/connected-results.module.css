@@ -51,3 +51,9 @@
 .basis{margin:0 0 8px;font-size:13px;color:#4b5563}.basis summary{cursor:pointer;list-style-position:inside}.basis p{margin:4px 0 0}
 .methodNone details{font-size:13px;color:#4b5563}.methodNone p{margin:4px 0}
 .summary .hint{margin:-2px 0 6px;font-size:13px;color:#4c5663}
+
+/* Publication figures: shown at the proportions of their printed size, with the legend draft below (FU-05, FU-07). */
+.figureFrame{width:100%;margin-bottom:16px}
+.legendDraft{max-width:760px;margin:0 0 18px;display:grid;gap:6px}
+.legendHead{display:flex;align-items:center;gap:10px}.legendHead button{font-size:14px;padding:4px 12px}.legendHead span{font-size:12px;color:#66717f}
+.legendDraft textarea{width:100%;font:13px/1.5 ui-sans-serif,system-ui,sans-serif;padding:8px;border:1px solid #d5dbe3;border-radius:4px;resize:vertical;box-sizing:border-box}

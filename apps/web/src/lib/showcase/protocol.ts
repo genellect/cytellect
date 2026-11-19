@@ -18,6 +18,22 @@ export interface RuntimeConfig {
 export interface JournalEntry {scene?: string; method: string; path: string; pattern?: string; body: string | null; status: number; headers: HeaderList; file: string | null}
 export interface Journal {version: 1; entries: JournalEntry[]}
 
+/** `snapshot/figures.json`: the figures of the tour's results, drawn by the production renderer from the
+ *  recorded results (services/showcase figure_catalog.py). A figure request is answered by the result it
+ *  draws and its settings, not by its text, so the figure controls can change without recording the tour again.
+ *  A group holds the figures of results with the same values; `figures[0]` is the opening figure as a request. */
+export interface CatalogFigure {plot: unknown; figure: unknown; files: Record<string, string>}
+export interface FigureCatalog {
+  version: 1;
+  groups: Record<string, {observations: string; opening: CatalogFigure; figures: CatalogFigure[]}>;
+  /** Statistics jobs (recorded in the tour, or saved in the seed) and the group that draws them. */
+  sources: Record<string, {group: string; workspace: string; revision: string; seed?: boolean}>;
+  /** Figures the seed saved (「保存した図」), drawn anew with the settings each was saved with. */
+  saved?: Record<string, {source: string; figure: unknown; plot: unknown; files: Record<string, string>}>;
+  /** Publication packages of a figure of the group of `source`, with the recorded analysis export. */
+  packages: Array<{source: string; figure: number; analysis: string; files: Record<string, string>}>;
+}
+
 /** `snapshot/index.json`: recorded initial GET responses. */
 export interface SnapshotIndex {version: 1; entries: Record<string, {status: number; headers: HeaderList; file: string}>}
 

@@ -14,7 +14,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
-    text = json.dumps({"draft_schema": draft_json_schema(), "processing_draft_schema": draft_json_schema(processing_only=True), "legacy_draft_schema": draft_json_schema(legacy=True), "context_schema": ProposalContext.model_json_schema(),
+    text = json.dumps({"draft_schema": draft_json_schema(), "processing_draft_schema": draft_json_schema(processing_only=True), "legacy_draft_schema": draft_json_schema(legacy=True),
+                       "figure_draft_schema": draft_json_schema(figure=True), "context_schema": ProposalContext.model_json_schema(),
                        "discussion_draft_schema": discussion_draft_schema(), "discussion_context_schema": DiscussionContext.model_json_schema()},
                       indent=2, ensure_ascii=False, sort_keys=True) + "\n"
     if args.check:

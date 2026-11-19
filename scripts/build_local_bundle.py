@@ -24,6 +24,11 @@ INSTALL_CHECK_ASSETS = {
     "packages/analysis/src/cytellect_analysis/assets/install-check/BBBC013-A01-draq.tif",
     "packages/analysis/src/cytellect_analysis/assets/install-check/NOTICE.json",
 }
+# The figure font the analysis package draws every figure with (Liberation Sans, OFL-1.1; docs/oss.md).
+FIGURE_FONT_ASSETS = {f"packages/analysis/src/cytellect_analysis/assets/fonts/{name}" for name in (
+    "LiberationSans-Regular.ttf", "LiberationSans-Bold.ttf", "LiberationSans-LICENSE.txt")}
+# Non-Python files the project wheel carries, each the checkout's exact bytes.
+PACKAGE_ASSETS = INSTALL_CHECK_ASSETS | FIGURE_FONT_ASSETS
 SCRIPTS = {"scripts/fiji_setup.py", "scripts/local_setup.ps1", "scripts/windows_runtime.ps1",
            "scripts/cellpose_setup.py", "scripts/cellpose_setup.ps1"}
 CELLPOSE_ASSETS = {f"engines/cellpose/{name}" for name in (
@@ -50,7 +55,7 @@ def source_allowed(name: str) -> bool:
     path = Path(name)
     if any(part.startswith(".") or part in {"__pycache__", "node_modules"} for part in path.parts):
         return False
-    return (name in ROOT_FILES | SCRIPTS | DOCS | DATA_NOTICES | RUNTIME_RECORDS | CELLPOSE_ASSETS | INSTALL_CHECK_ASSETS
+    return (name in ROOT_FILES | SCRIPTS | DOCS | DATA_NOTICES | RUNTIME_RECORDS | CELLPOSE_ASSETS | PACKAGE_ASSETS
             or (name.startswith(SOURCE_TREES) and path.suffix == ".py")
             or (name.startswith("engines/fiji/") and path.suffix in {".java", ".json"})
             or (name.startswith("scripts/windows/") and path.suffix == ".cmd"))
@@ -68,7 +73,7 @@ def verify_file(root: Path, path: Path) -> None:
 
 def collect_files(root: Path, tracked: list[str], web_dir: Path) -> dict[str, Path]:
     files = {name: root / name for name in tracked if source_allowed(name)}
-    required = (ROOT_FILES | SCRIPTS | RUNTIME_RECORDS | CELLPOSE_ASSETS | INSTALL_CHECK_ASSETS
+    required = (ROOT_FILES | SCRIPTS | RUNTIME_RECORDS | CELLPOSE_ASSETS | PACKAGE_ASSETS
                 | {"scripts/windows/Cytellect Setup.cmd"})
     if required - files.keys():
         raise ValueError("bundle_required_source_missing")
@@ -200,7 +205,7 @@ def install_payload(root: Path, wheel: Path, requirements: Path) -> dict[str, by
         for path in source.rglob("*.py"):
             verify_file(root, path)
             expected[path.relative_to(source).as_posix()] = path.read_bytes()
-    for name in INSTALL_CHECK_ASSETS:
+    for name in PACKAGE_ASSETS:
         path = root / name
         if not path.exists():
             continue  # Minimal unit-test source trees need not contain the optional check module.

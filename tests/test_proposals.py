@@ -102,8 +102,10 @@ def test_shape_errors_and_unregistered_values_are_rejected():
 
 
 def test_strict_schema_matches_the_pydantic_draft():
-    schema = draft_json_schema()
+    # Prompt 2026-11-19.1 adds the figure presentation; the earlier schema keeps the other fields.
+    schema = draft_json_schema(figure=True)
     assert set(schema["required"]) == set(ProposalDraft.model_fields) == set(schema["properties"])
+    assert set(draft_json_schema()["properties"]) == set(ProposalDraft.model_fields) - {"figure_presentation"}
     assert schema["additionalProperties"] is False
     stats = schema["properties"]["statistics"]
     assert "regression" not in json.dumps(stats)

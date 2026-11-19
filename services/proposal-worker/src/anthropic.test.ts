@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { answerFormat, answerJson, messagesText, normalizedUsage, toMessages, ANTHROPIC_URL } from "./anthropic";
-import { ASSISTANT_INSTRUCTION, ASSISTANT_PROMPT_VERSION, draftProposal, hasDraftShape, ModelError, PROMPT_VERSION, requestPayload } from "./openai";
+import { ASSISTANT_INSTRUCTION, ASSISTANT_PROMPT_VERSION, draftProposal, FIGURE_INSTRUCTION, FIGURE_PROMPT_VERSION, hasDraftShape, ModelError, PROMPT_VERSION, requestPayload } from "./openai";
 import { CLAUDE_PROMPT_VERSIONS, readConfig, selectProvider, type Env } from "./index";
 
 const DRAFT = {
@@ -157,6 +157,25 @@ describe("assistant prompt version", () => {
   it("is routed to Claude", () => {
     expect(CLAUDE_PROMPT_VERSIONS.has(ASSISTANT_PROMPT_VERSION)).toBe(true);
     expect(selectProvider(readConfig({ ...BASE, ...CLAUDE })!, ASSISTANT_PROMPT_VERSION)?.model).toBe("claude-opus-5-5");
+  });
+});
+
+describe("figure prompt version", () => {
+  const figureDraft = { ...DRAFT, processing: null, background: null, gfp_selection: null,
+    figure_presentation: { composition: "images-quantification", legend_terms: { cell_line: "U2OS", treatment: null, stains: null } } };
+  it("adds the figure presentation to the assistant's rules and schema", () => {
+    const assistant = requestPayload({ ...SETTINGS, promptVersion: ASSISTANT_PROMPT_VERSION }, {}, []);
+    const figure = requestPayload({ ...SETTINGS, promptVersion: FIGURE_PROMPT_VERSION }, {}, []);
+    expect(figure.input[0].content[0].text).toBe(`${assistant.input[0].content[0].text}\n${FIGURE_INSTRUCTION}`);
+    const schema = figure.text.format.schema as { properties: Record<string, unknown>; required: string[] };
+    expect(schema.required).toContain("figure_presentation");
+    expect(new Set(Object.keys(schema.properties))).toEqual(new Set([...Object.keys((assistant.text.format.schema as { properties: object }).properties), "figure_presentation"]));
+    expect(hasDraftShape(figureDraft, FIGURE_PROMPT_VERSION)).toBe(true);
+    expect(hasDraftShape({ ...figureDraft, figure_presentation: null }, FIGURE_PROMPT_VERSION)).toBe(true);
+  });
+  it("keeps the earlier versions without the figure presentation", () => {
+    expect(hasDraftShape(figureDraft, ASSISTANT_PROMPT_VERSION)).toBe(false);
+    expect(CLAUDE_PROMPT_VERSIONS.has(FIGURE_PROMPT_VERSION)).toBe(true);
   });
 });
 

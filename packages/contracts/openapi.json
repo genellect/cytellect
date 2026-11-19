@@ -4178,6 +4178,16 @@
               }
             ]
           },
+          "figure_presentation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DraftFigurePresentation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "experiment": {
             "anyOf": [
               {
@@ -4329,7 +4339,7 @@
           "width_inches": {
             "type": "number",
             "maximum": 16.0,
-            "minimum": 3.0,
+            "minimum": 1.1811023622047245,
             "title": "Width Inches",
             "default": 7
           },
@@ -4418,6 +4428,16 @@
               }
             ],
             "title": "Point Size"
+          },
+          "presentation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FigurePresentation"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -6282,7 +6302,7 @@
           "width_inches": {
             "type": "number",
             "maximum": 16.0,
-            "minimum": 3.0,
+            "minimum": 1.1811023622047245,
             "title": "Width Inches",
             "default": 7
           },
@@ -6378,6 +6398,16 @@
             "minimum": 3.0,
             "title": "Histogram Bins",
             "default": 10
+          },
+          "presentation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FigurePresentation"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -7336,7 +7366,7 @@
           "width_inches": {
             "default": 7,
             "maximum": 16,
-            "minimum": 3,
+            "minimum": 1.1811023622047245,
             "title": "Width Inches",
             "type": "number"
           },
@@ -7737,6 +7767,36 @@
         ],
         "title": "DraftFigure"
       },
+      "DraftFigurePresentation": {
+        "properties": {
+          "composition": {
+            "type": "string",
+            "enum": [
+              "quantification",
+              "images-quantification"
+            ],
+            "title": "Composition"
+          },
+          "legend_terms": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DraftLegendTerms"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "composition",
+          "legend_terms"
+        ],
+        "title": "DraftFigurePresentation",
+        "description": "How the main figure is composed (common-statistics figure 2.0.0); the researcher adopts it."
+      },
       "DraftGfpSelection": {
         "properties": {
           "channel": {
@@ -7806,6 +7866,55 @@
           "method"
         ],
         "title": "DraftGfpSelection"
+      },
+      "DraftLegendTerms": {
+        "properties": {
+          "cell_line": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cell Line"
+          },
+          "treatment": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Treatment"
+          },
+          "stains": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stains"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "cell_line",
+          "treatment",
+          "stains"
+        ],
+        "title": "DraftLegendTerms",
+        "description": "Facts of the figure legend the workspace does not record, as the researcher stated them.\nNever values, effects or conclusions (publication figures plan.md FM-01, FL-05)."
       },
       "DraftMetric": {
         "properties": {
@@ -8950,6 +9059,103 @@
         "additionalProperties": false,
         "type": "object",
         "title": "FigureDraft"
+      },
+      "FigurePresentation": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Version"
+          },
+          "observations": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "points",
+                  "violin",
+                  "box",
+                  "none"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observations"
+          },
+          "color_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "run",
+                  "group"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color By"
+          },
+          "annotation": {
+            "type": "string",
+            "enum": [
+              "value",
+              "stars",
+              "none"
+            ],
+            "title": "Annotation",
+            "default": "value"
+          },
+          "size": {
+            "type": "string",
+            "enum": [
+              "panel",
+              "single-column",
+              "double-column",
+              "custom"
+            ],
+            "title": "Size",
+            "default": "panel"
+          },
+          "composition": {
+            "type": "string",
+            "enum": [
+              "quantification",
+              "images-quantification"
+            ],
+            "title": "Composition",
+            "default": "quantification"
+          },
+          "image_fields": {
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 100,
+              "minLength": 1
+            },
+            "propertyNames": {
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "object",
+            "maxProperties": 30,
+            "title": "Image Fields"
+          },
+          "outlines": {
+            "type": "boolean",
+            "title": "Outlines",
+            "default": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version"
+        ],
+        "title": "FigurePresentation",
+        "description": "Presentation of a publication figure (common-statistics figure 2.0.0). Never changes a value.\n\nAn omitted field is chosen from the saved result (docs/drafts/publication-figures/plan.md \u00a74.3)."
       },
       "FigureRenderRequest": {
         "properties": {
@@ -12346,7 +12552,7 @@
           "width_inches": {
             "type": "number",
             "maximum": 16.0,
-            "minimum": 3.0,
+            "minimum": 1.1811023622047245,
             "title": "Width Inches",
             "default": 7
           },
@@ -12571,6 +12777,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/DraftGfpSelection"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "figure_presentation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DraftFigurePresentation"
               },
               {
                 "type": "null"
@@ -13395,7 +13611,7 @@
           "width_inches": {
             "type": "number",
             "maximum": 16.0,
-            "minimum": 3.0,
+            "minimum": 1.1811023622047245,
             "title": "Width Inches",
             "default": 7
           },

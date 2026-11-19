@@ -35,7 +35,9 @@ def test_actual_matplotlib_scatter_axis_scale_range_and_ticks_preserve_statistic
     report, config = comparison_fixture((("A", [1, 2, 3]), ("B", [4, 5, 6])))
     result = analyze_region_association(report, config, association_request())
     before = copy.deepcopy(result)
+    # A double-column figure: tick labels of a researcher's steps need its width on a log axis.
     result["spec"]["plot"].update(y_min=0.5, y_max=20, y_tick_step=5,
+        presentation={"version": "1.0.0", "size": "double-column", "annotation": "value", "composition": "quantification", "outlines": True},
         axes={"version": "1.0.0", "x_min": 0.5, "x_max": 20, "x_tick_step": 5, "x_scale": "log2", "y_scale": "log10"})
     apply = common_statistics_figures.apply_plot_controls
     captured = {}

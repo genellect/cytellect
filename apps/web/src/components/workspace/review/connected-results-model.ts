@@ -47,6 +47,8 @@ export type RenderPlot = ReturnType<typeof defaultFigureEdits> & {
   preset: "custom"; language: "en"; y_min?: number; y_max?: number;point_size?:number;
   style?:{version:"1.0.0";series_colors:Record<string,string>;show_legend:boolean};
   y_tick_step?:number|null;
+  /** The publication figure's presentation (common-statistics figure 2.0.0); omitted values follow the result. */
+  presentation?:{version:"1.0.0";observations?:"points"|"violin"|"box"|"none"|null;color_by?:"run"|"group"|null;annotation:"value"|"stars"|"none";size:"panel"|"single-column"|"double-column"|"custom";composition:"quantification"|"images-quantification";image_fields?:Record<string,string>;outlines:boolean};
   axes?:{version:"1.0.0";x_scale:"linear"|"log10"|"log2";y_scale:"linear"|"log10"|"log2";x_min:number|null;x_max:number|null;x_tick_step:number|null};
 };
 const metrics = new Set(["area_px","area_um2","mean","median","integrated","mean_corrected","median_corrected","integrated_corrected","nucleolar_count","nucleolar_area_fraction","log2_nucleoplasm_over_nucleolus","nucleolar_area_px","nucleolar_area_um2","nucleolar_eccentricity",...FIELD_SUMMARY_METRICS]);
@@ -90,8 +92,9 @@ export function seriesOrder(order: string[], series: string[]): string[] {
 }
 /** The first figure of a comparison: a declared two-group experiment is drawn by run (fields, run
  * values, lines per run, mean and 95% CI; requirements F-01); other comparisons keep their default. */
-export function comparisonKind(design: Pick<ResultDesign, "paired" | "estimates">): "superplot" | "paired" | "distribution" {
-  return design.estimates ? "superplot" : design.paired ? "paired" : "distribution";
+/** Every comparison opens on the run hierarchy: each observation, each run, the mean of runs (F-01, FQ-01). */
+export function comparisonKind(): "superplot" {
+  return "superplot";
 }
 export function resultRequest(design: ResultDesign, fields: Record<string, Metadata>, plot: RenderPlot) {
   const selection = resultSelection(design);
@@ -106,9 +109,9 @@ export function resultRequest(design: ResultDesign, fields: Record<string, Metad
     const choices: ComparisonChoices = {metric:design.metric as ComparisonMetric,channel:design.channel,regionSet:design.regionSet,
       design:design.paired?"paired":"independent",method:design.rank?"rank":"parametric",unitDefinition:design.unit,pairingBasis:design.pairing,
       contrasts:design.contrasts,independence:design.confirmed,acquisition:design.confirmed,sampling:design.confirmed,missingness:design.confirmed,
-      kind:comparisonKind(design),width:plot.width_inches*25.4,height:plot.height_inches*25.4,yLabel:plot.y_label,gfp:design.gfp,channelGate:design.channelGate,estimates:design.estimates,inference:design.inference!==false&&!exploratoryPositivity(design.metric,design.channelGate)};
+      kind:comparisonKind(),width:plot.width_inches*25.4,height:plot.height_inches*25.4,yLabel:plot.y_label,gfp:design.gfp,channelGate:design.channelGate,estimates:design.estimates,inference:design.inference!==false&&!exploratoryPositivity(design.metric,design.channelGate)};
     const request = comparisonRequest(choices);
-    return {...request,plot:{...request.plot,...plot,kind:comparisonKind(design)}};
+    return {...request,plot:{...request.plot,...plot,kind:comparisonKind()}};
   }
   const x = resultSelection({...design,metric:design.xMetric,channel:design.xChannel});
   if (selection.source !== "region" || x.source !== "region") throw new Error("相関には同じ領域の面積・輝度を選択してください。");
@@ -123,7 +126,7 @@ export function resultRequest(design: ResultDesign, fields: Record<string, Metad
 
 export function checkedPlot(width:number,height:number,fontSize:number,xLabel:string,yLabel:string,yMin:string,yMax:string): RenderPlot {
   const min=yMin.trim()?Number(yMin):undefined, max=yMax.trim()?Number(yMax):undefined;
-  if (![width,height,fontSize].every(Number.isFinite) || width<76.2 || width>406.4 || height<25.4 || height>170 || fontSize<5 || fontSize>24
+  if (![width,height,fontSize].every(Number.isFinite) || width<30 || width>406.4 || height<25.4 || height>170 || fontSize<5 || fontSize>24
     || (min!==undefined&&!Number.isFinite(min)) || (max!==undefined&&!Number.isFinite(max)) || (min!==undefined&&max!==undefined&&min>=max)) throw new Error("図の寸法・文字サイズ・縦軸の範囲を確認してください。");
   return {...defaultFigureEdits(),kind:"distribution",preset:"custom",language:"en",width_inches:width/25.4,height_inches:height/25.4,font_size:fontSize,x_label:xLabel,y_label:yLabel,
     ...(min!==undefined?{y_min:min}:{}),...(max!==undefined?{y_max:max}:{})};

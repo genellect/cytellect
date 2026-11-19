@@ -20,7 +20,8 @@ from .region_contracts import NuclearDetectorSpec
 from .signal_engine import SignalDetectorSpec
 
 PROPOSAL_PROTOCOL = "1.1.0"
-PROPOSAL_PROMPT_VERSION = "2026-11-16.1"
+# 2026-11-19.1 adds the figure presentation (publication figures plan.md FM-01); the service keeps 2026-11-16.1.
+PROPOSAL_PROMPT_VERSION = "2026-11-19.1"
 # Context 1.2.0 (docs/drafts/llm-assistant/plan.md) adds the researcher's channel labels, field names and
 # metadata; installed clients up to 0.1.0-local.23 send 1.1.0.
 PROPOSAL_CONTEXT_PROTOCOL = "1.2.0"
@@ -176,6 +177,20 @@ class DraftFigure(ProposalModel):
     analysis_index: Annotated[int, Field(ge=0, le=3)] = 0
 
 
+class DraftLegendTerms(ProposalModel):
+    """Facts of the figure legend the workspace does not record, as the researcher stated them.
+    Never values, effects or conclusions (publication figures plan.md FM-01, FL-05)."""
+    cell_line: Prose | None
+    treatment: Prose | None
+    stains: Prose | None
+
+
+class DraftFigurePresentation(ProposalModel):
+    """How the main figure is composed (common-statistics figure 2.0.0); the researcher adopts it."""
+    composition: Literal["quantification", "images-quantification"]
+    legend_terms: DraftLegendTerms | None
+
+
 class DraftNuclearProcessing(ProposalModel):
     channel: Token
     detection_max_side_px: Annotated[int, Field(strict=True, ge=64, le=2048)] | None = None
@@ -220,6 +235,8 @@ class ProposalDraft(ProposalModel):
     processing: DraftProcessing | None = None
     background: DraftBackground | None = None
     gfp_selection: DraftGfpSelection | None = None
+    # Prompt 2026-11-19.1 and later; earlier drafts have none.
+    figure_presentation: DraftFigurePresentation | None = None
 
 
 class ValidatedProposal(ProposalModel):
@@ -264,7 +281,7 @@ def _strict_model_schema(model) -> dict[str, Any]:
     return convert(schema)
 
 
-def draft_json_schema(*, legacy: bool = False, processing_only: bool = False) -> dict[str, Any]:
+def draft_json_schema(*, legacy: bool = False, processing_only: bool = False, figure: bool = False) -> dict[str, Any]:
     """Strict Structured Outputs schema for ProposalDraft.
 
     Length and pattern limits are enforced by local validation; the strict
@@ -296,6 +313,9 @@ def draft_json_schema(*, legacy: bool = False, processing_only: bool = False) ->
             schema["properties"]["background"] = _nullable(_strict_model_schema(DraftBackground))
             schema["properties"]["gfp_selection"] = _nullable(_strict_model_schema(DraftGfpSelection))
             schema["required"].extend(["background", "gfp_selection"])
+    if figure:
+        schema["properties"]["figure_presentation"] = _nullable(_strict_model_schema(DraftFigurePresentation))
+        schema["required"].append("figure_presentation")
     return schema
 
 

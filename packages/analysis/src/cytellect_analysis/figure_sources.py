@@ -7,8 +7,10 @@ SOURCE_KEYS = ("field_id", "region_id", "nucleus_id", "condition", "sample", "ex
 SVG = "http://www.w3.org/2000/svg"
 
 
-def bind_points(collection, rows):
-    sources = [{key: row[key] for key in SOURCE_KEYS if row.get(key) is not None} for row in rows]
+def bind_points(collection, rows, keys=SOURCE_KEYS, focusable=True):
+    """Link each mark to its saved observation. Observations in their hundreds carry only the keys
+    that open their image and are reached by pointer; the run marks stay keyboard-focusable."""
+    sources = [{key: row[key] for key in keys if row.get(key) is not None} for row in rows]
     if not sources or any(not row for row in sources):
         return collection
     figure = collection.figure
@@ -17,11 +19,16 @@ def bind_points(collection, rows):
     collection.set_gid(gid)
     bindings[gid] = sources
     figure._cytellect_point_sources = bindings
+    if not focusable:
+        quiet: set[str] = getattr(figure, "_cytellect_quiet_sources", set())
+        quiet.add(gid)
+        figure._cytellect_quiet_sources = quiet
     return collection
 
 
 def attach_svg_sources(path: Path, figure):
     bindings = getattr(figure, "_cytellect_point_sources", {})
+    quiet: set[str] = getattr(figure, "_cytellect_quiet_sources", set())
     if not bindings:
         return
     ET.register_namespace("", SVG)
@@ -40,6 +47,8 @@ def attach_svg_sources(path: Path, figure):
             raise ValueError("figure_source_mark_mismatch")
         for mark, source in zip(marks, rows, strict=True):
             mark.set("data-cytellect-source", json.dumps(source, ensure_ascii=True, separators=(",", ":")))
+            if group.get("id") in quiet:
+                continue
             mark.set("tabindex", "0")
             mark.set("role", "button")
             mark.set("aria-label", "元データを表示")

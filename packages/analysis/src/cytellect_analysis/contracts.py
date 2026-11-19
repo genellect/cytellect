@@ -122,7 +122,8 @@ class PlotSpec(StrictModel):
     preset: Literal["custom", "nature-single", "nature-double"] = "nature-single"
     kind: Literal["distribution", "scatter", "paired"] = "distribution"
     language: Literal["en", "ja"] = "en"
-    width_inches: Annotated[FiniteFloat, Field(ge=3, le=16)] = 7
+    # 30 mm: a two-group panel at its printed size (publication figures FS-04).
+    width_inches: Annotated[FiniteFloat, Field(ge=30 / 25.4, le=16)] = 7
     height_inches: Annotated[FiniteFloat, Field(ge=1, le=16)] = 3.0
     font_size: Annotated[FiniteFloat, Field(ge=5, le=24)] = 7
     x_label: str = Field(default="", max_length=120)

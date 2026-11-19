@@ -1277,6 +1277,28 @@ def serve(data_dir: Path, origin: str, fiji: str, port: int, *, worker: bool = F
     return app, settings, server, thread
 
 
+def start_next(command: str, web: Path, env: dict, origin_port: int, ready_path: str = "/",
+               timeout: float = 5) -> subprocess.Popen:
+    """Start ``next dev`` or ``next start`` and wait until it answers. The Next.js CLI sometimes stops
+    once to show a notice instead of serving; a server that exits before answering is started again."""
+    url = f"http://127.0.0.1:{origin_port}{ready_path}"
+    for _attempt in range(4):
+        process = subprocess.Popen(["pnpm", "exec", "next", command, "--hostname", "127.0.0.1", "--port", str(origin_port)],
+                                   cwd=web, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                   stderr=subprocess.DEVNULL, start_new_session=True)
+        for _ in range(240):
+            try:
+                urllib.request.urlopen(url, timeout=timeout)
+                return process
+            except OSError:
+                if process.poll() is not None:
+                    break
+                time.sleep(1)
+        else:
+            return process
+    raise SystemExit(f"next {command} did not start")
+
+
 def snapshot(seed_data: Path, work: Path, origin_port: int, api_port: int, fiji: str, out: Path,
              fields: list[dict], workspace_id: str, regions: list[str] | None = None, fresh: bool = True,
              opening: bool = True) -> dict:
@@ -1304,16 +1326,8 @@ def snapshot(seed_data: Path, work: Path, origin_port: int, api_port: int, fiji:
     preserved = {name: (web / name).read_bytes() for name in ("next-env.d.ts", "tsconfig.json")}
     env = {**os.environ, "NEXT_PUBLIC_API_ORIGIN": api_origin, "CYTELLECT_NEXT_DIST_DIR": ".next-showcase",
            "NEXT_TELEMETRY_DISABLED": "1", "PORT": str(origin_port)}
-    nextjs = subprocess.Popen(["pnpm", "exec", "next", "dev", "--hostname", "127.0.0.1", "--port", str(origin_port)],
-                              cwd=web, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                              start_new_session=True)
+    nextjs = start_next("dev", web, env, origin_port)
     try:
-        for _ in range(240):
-            try:
-                urllib.request.urlopen(f"{origin}/", timeout=5)
-                break
-            except OSError:
-                time.sleep(1)
         destination = work / "snapshot-out"
         if destination.exists():
             shutil.rmtree(destination)
@@ -1375,8 +1389,15 @@ def rank_examples(manifest: dict) -> list[int]:
             or item["draft"]["statistics"].get("association") == "spearman"]
 
 
-def journal(work: Path, origin_port: int, out: Path, scenes: list[dict]) -> dict:
-    """Record the tour on /demo (published seed, in-browser API) into ``snapshot/journal.json``."""
+def journal(work: Path, origin_port: int, out: Path, scenes: list[dict], keep: str | None = None,
+            previous: Path | None = None) -> dict:
+    """Record the tour on /demo (published seed, in-browser API) into ``snapshot/journal.json``.
+
+    ``keep`` (a regular expression of walk names) keeps those walks' entries from the journal in
+    ``previous`` (a snapshot directory) instead of recording them again: for a change of figures only,
+    the walks that draw no figure (deleting and restoring an outline, the AI examples on each field)
+    stay as published, with their files.
+    """
     origin = f"http://127.0.0.1:{origin_port}"
     web = REPO / "apps" / "web"
     preserved = {name: (web / name).read_bytes() for name in ("next-env.d.ts", "tsconfig.json")}
@@ -1384,25 +1405,23 @@ def journal(work: Path, origin_port: int, out: Path, scenes: list[dict]) -> dict
     env.update({"CYTELLECT_NEXT_DIST_DIR": ".next-showcase-journal", "NEXT_TELEMETRY_DISABLED": "1", "PORT": str(origin_port)})
     destination = work / "journal-out"
     # The public build (no analysis API) is the one that serves /demo; `next dev` defaults to a local API.
-    built = subprocess.run(["pnpm", "exec", "next", "build"], cwd=web, env=env, capture_output=True, text=True)
+    # The CLI sometimes stops once to show a notice; the build is run again then.
+    for _attempt in range(3):
+        built = subprocess.run(["pnpm", "exec", "next", "build"], cwd=web, env=env, capture_output=True, text=True,
+                               stdin=subprocess.DEVNULL)
+        if not built.returncode:
+            break
     if built.returncode:
         for name, content in preserved.items():
             (web / name).write_bytes(content)
         sys.stderr.write(built.stdout[-4000:] + built.stderr[-4000:])
         raise SystemExit("journal: web build failed")
-    nextjs = subprocess.Popen(["pnpm", "exec", "next", "start", "--hostname", "127.0.0.1", "--port", str(origin_port)],
-                              cwd=web, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                              start_new_session=True)
+    nextjs = start_next("start", web, env, origin_port, "/demo", timeout=30)
     try:
-        for _ in range(240):
-            try:
-                urllib.request.urlopen(f"{origin}/demo", timeout=30)
-                break
-            except OSError:
-                time.sleep(1)
         if destination.exists():
             shutil.rmtree(destination)
         config = {"origin": origin, "out": str(destination), "web": str(web), "snapshot": str(out / "snapshot"), "scenes": scenes,
+                  **({"keep": keep} if keep else {}),
                   "chromium": os.environ.get("CYTELLECT_CHROMIUM_EXECUTABLE", "/opt/pw-browsers/chromium")}
         # Each finished walk is logged as it completes (journal.mjs writes progress lines to stderr).
         walker = subprocess.Popen(["node", str(Path(__file__).with_name("journal.mjs"))], stdin=subprocess.PIPE,
@@ -1438,14 +1457,28 @@ def journal(work: Path, origin_port: int, out: Path, scenes: list[dict]) -> dict
     target = out / "snapshot"
     for path in (destination / "files").iterdir():
         shutil.copyfile(path, target / path.name)
-    shutil.copyfile(destination / "journal.json", target / "journal.json")
+    recorded = json.loads((destination / "journal.json").read_text())
+    if keep:
+        import re
+
+        if previous is None:
+            raise SystemExit("journal: keeping walks needs the previous snapshot directory")
+        earlier = json.loads((previous / "journal.json").read_text())["entries"]
+        kept = [entry for entry in earlier if re.search(keep, entry.get("scene", ""))]
+        for entry in kept:
+            if entry.get("file") and not (target / entry["file"]).is_file():
+                shutil.copyfile(previous / entry["file"], target / entry["file"])
+        recorded["entries"] = [*recorded["entries"], *kept]
+        report["entries"] = len(recorded["entries"])
+        report["kept_scenes"] = sorted({entry["scene"] for entry in kept})
+    (target / "journal.json").write_text(json.dumps(recorded, indent=1, ensure_ascii=False) + "\n")
     # The previous recording's answers that this one no longer names are not published.
     named = {entry["file"] for entry in json.loads((target / "index.json").read_text())["entries"].values() if entry.get("file")}
     named |= {entry["file"] for entry in json.loads((target / "journal.json").read_text())["entries"] if entry.get("file")}
     for path in target.iterdir():
         if path.name not in named and path.name not in SNAPSHOT_KEEP | {"journal.json"}:
             path.unlink()
-    return {key: report[key] for key in ("entries", "scenes")}
+    return {key: report[key] for key in ("entries", "scenes", "kept_scenes") if key in report}
 
 
 def _owner_session(app, workspace_id: str) -> str:
@@ -1505,18 +1538,10 @@ def record_proposals(manifest: dict, seed_data: Path, work: Path, origin_port: i
     preserved = {name: (web / name).read_bytes() for name in ("next-env.d.ts", "tsconfig.json")}
     env = {**os.environ, "NEXT_PUBLIC_API_ORIGIN": api_origin, "CYTELLECT_NEXT_DIST_DIR": ".next-showcase",
            "NEXT_TELEMETRY_DISABLED": "1"}
-    nextjs = subprocess.Popen(["pnpm", "exec", "next", "dev", "--hostname", "127.0.0.1", "--port", str(origin_port)],
-                              cwd=web, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                              start_new_session=True)
+    nextjs = start_next("dev", web, env, origin_port)
     reports = []
     route.request_draft = authored
     try:
-        for _ in range(240):
-            try:
-                urllib.request.urlopen(f"{origin}/", timeout=5)
-                break
-            except OSError:
-                time.sleep(1)
         for sequence in sequences:
             data = work / "proposal-data"
             if data.exists():
@@ -1633,6 +1658,12 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--fiji", required=True, help="pinned Fiji installation (scripts/fiji_setup.py)")
     parser.add_argument("--out", type=Path, default=PUBLIC)
     parser.add_argument("--stages", default="prepare,scenario,grid,proposals,publish,snapshot,journal,qa")
+    parser.add_argument("--journal-keep", default=None,
+                        help="regular expression of journal walks kept from --journal-previous instead of recorded again")
+    parser.add_argument("--journal-previous", type=Path, default=None,
+                        help="snapshot directory holding the journal and files the kept walks come from")
+    parser.add_argument("--figures-reuse", action="store_true",
+                        help="figures: keep the groups the previous run drew and draw only the rest")
     parser.add_argument("--web-port", type=int, default=3217)
     parser.add_argument("--api-port", type=int, default=8217)
     args = parser.parse_args(argv)
@@ -1726,8 +1757,20 @@ def main(argv: list[str] | None = None) -> None:
             fresh = False
             save()
         uninstall()
+    if "reseed" in stages:
+        reseed(args.out, work, manifests, state)
+        save()
     if "publish" in stages:
         publish(args, manifests, state, seed_data, recordings, started)
+    if "refigure" in stages:
+        first = scenes[manifests[0][1]["id"]]["scenario"]
+        state["refigure"] = refigure(seed_data, args.out, args.fiji, first["owner"])
+        save()
+    if "figures" in stages:
+        first = scenes[manifests[0][1]["id"]]["scenario"]
+        state["figures"] = figures(seed_data, work, args.out, args.fiji, first["owner"], reuse=args.figures_reuse)
+        save()
+        write_manifest(args, manifests, state)
     if "snapshot" in stages:
         for index, (_, manifest) in enumerate(manifests):
             scenario_state = scenes[manifest["id"]]["scenario"]
@@ -1743,7 +1786,8 @@ def main(argv: list[str] | None = None) -> None:
              "examples": len((manifest["scenario"].get("proposals") or {}).get("presets", [])),
              "rank": rank_examples(manifest),
              "gateChannels": manifest["scenario"].get("gate_channels", []),
-             "scope": journal_scope(manifest), "story": story_metrics(manifest)} for _, manifest in manifests])
+             "scope": journal_scope(manifest), "story": story_metrics(manifest)} for _, manifest in manifests],
+            keep=args.journal_keep, previous=args.journal_previous)
         save()
         write_manifest(args, manifests, state)
     if "manifest" in stages:
@@ -1754,6 +1798,169 @@ def main(argv: list[str] | None = None) -> None:
                                work / "qa" / manifest["id"], scenes[manifest["id"]]["scenario"]["fields"])
             log("qa overlays", manifest["id"], len(written))
     log("done", round(time.perf_counter() - started, 1), "s")
+
+
+SNAPSHOT_EXTENSIONS = {"application/json": ".json", "image/png": ".png", "image/svg+xml": ".svg", "text/csv": ".csv",
+                       "application/pdf": ".pdf", "application/zip": ".zip"}
+
+
+def refigure(seed_data: Path, out: Path, fiji: str, owner: str) -> dict:
+    """Replace the snapshot's recorded statistics results and figure files (stage ``refigure``).
+
+    For a change of figures only: every recorded ``GET /v1/jobs/<id>/result`` and ``…/files/…`` of a
+    saved statistics or figure job is asked again from the published seed (``publish`` drew its figures
+    anew), and each saved figure's legend draft is added. Images, outlines, tables and every other
+    recorded answer stay as they were.
+    """
+    import re
+
+    api = open_api(seed_data, "http://127.0.0.1", fiji, owner)
+    target = out / "snapshot"
+    path = target / "index.json"
+    index = json.loads(path.read_text())
+    entries = index["entries"]
+    pattern = re.compile(r"^GET (/v1/jobs/[^/?]+/(?:result|files/[^?]+))$")
+
+    def record(key: str, route: str) -> bool:
+        response = api.client.get(route)
+        if response.status_code != 200:
+            return False
+        kind = response.headers.get("content-type", "").split(";")[0].strip()
+        body = response.content
+        name = f"{hashlib.sha256(body).hexdigest()[:24]}{SNAPSHOT_EXTENSIONS.get(kind, '.bin')}"
+        (target / name).write_bytes(body)
+        entries[key] = {"status": 200, "headers": [["content-type", response.headers["content-type"]]], "file": name}
+        return True
+
+    replaced = added = 0
+    figures = set()
+    for key in sorted(entries):
+        match = pattern.match(key)
+        if not match or match.group(1).endswith(".zip"):
+            continue
+        replaced += record(key, match.group(1))
+        if match.group(1).endswith("/files/figure.svg"):
+            figures.add(match.group(1).removesuffix("/files/figure.svg"))
+    for job in sorted(figures):
+        key = f"GET {job}/files/figure-legend.md"
+        if key not in entries:
+            added += record(key, f"{job}/files/figure-legend.md")
+    path.write_text(json.dumps(index, indent=1) + "\n")
+    api.client.close()
+    log("refigured the snapshot", replaced, "answers replaced,", added, "legend drafts added")
+    return {"replaced": replaced, "legends": added}
+
+
+def figures(seed_data: Path, work: Path, out: Path, fiji: str, owner: str, reuse: bool = False) -> dict:
+    """Draw the demo's figures from its recorded results (stage ``figures``, ``figure_catalog.py``).
+
+    For a change of the renderer or of the figure controls: the tour is not recorded again; its
+    results are drawn anew through the production API on a copy of the published seed, and the
+    figures it answered with are replaced by ``snapshot/figures.json``. ``reuse`` keeps the groups the
+    drawing processes of the previous run wrote (``figures-scratch``) and draws only the rest."""
+    from . import figure_catalog
+
+    workers = max(1, min(4, (os.cpu_count() or 2) - 1))
+    data, scratch = work / "figures-data", work / "figures-scratch"
+    copies = [work / f"figures-data-{index}" for index in range(workers)]
+    parts = [scratch / f"shard-{index}" / f"part-{index}.json" for index in range(workers)]
+    reuse = reuse and all(part.is_file() for part in parts)
+    for path in (data, *([] if reuse else [scratch, *copies])):
+        shutil.rmtree(path, ignore_errors=True)
+    scratch.mkdir(parents=True, exist_ok=True)
+    # The groups of results are drawn in several processes, each on its own copy of the seed;
+    # this process then writes the catalogue from their parts.
+    processes = []
+    for index, copy_dir in enumerate([] if reuse else copies):
+        shutil.copytree(seed_data, copy_dir, ignore=shutil.ignore_patterns("tmp"))
+        (scratch / f"shard-{index}").mkdir()
+        processes.append(subprocess.Popen(
+            [sys.executable, "-m", "cytellect_showcase.figure_catalog", str(copy_dir), str(out / "snapshot"),
+             str(scratch / f"shard-{index}"), fiji, owner, str(index), str(workers)], cwd=REPO))
+    failed = [process.args for process in processes if process.wait()]
+    if failed:
+        raise SystemExit(f"figures: {len(failed)} drawing process(es) failed")
+    shutil.copytree(seed_data, data, ignore=shutil.ignore_patterns("tmp"))
+    api = open_api(data, "http://127.0.0.1", fiji, owner)
+    try:
+        report = figure_catalog.build(api, out / "snapshot", scratch, parts=parts)
+    finally:
+        api.client.close()
+    target = out / "snapshot"
+    named = {entry["file"] for entry in json.loads((target / "index.json").read_text())["entries"].values() if entry.get("file")}
+    named |= {entry["file"] for entry in json.loads((target / "journal.json").read_text())["entries"] if entry.get("file")}
+    catalog = json.loads((target / "figures.json").read_text())
+    for group in catalog["groups"].values():
+        for item in [group["opening"], *group["figures"]]:
+            named |= set(item["files"].values())
+    named |= {name for package in catalog["packages"] for name in package["files"].values()}
+    named |= {name for saved in catalog.get("saved", {}).values() for name in saved["files"].values()}
+    removed = 0
+    for path in target.iterdir():
+        if path.name not in named and path.name not in SNAPSHOT_KEEP | {"journal.json", "figures.json"}:
+            path.unlink()
+            removed += 1
+    log("figures", json.dumps(report), "unreferenced files removed", removed)
+    return {**report, "files_removed": removed}
+
+
+def reseed(out: Path, work: Path, manifests: list, state: dict) -> None:
+    """Start ``publish`` from the published demo instead of new detections (stage ``reseed``).
+
+    For a change of presentation only (figures, screens): the database, files and detector recordings
+    of ``out/seed.zip`` become the working data, and each scene's workspace, owner and fields come
+    from the published ``manifest.json``. No image is downloaded and no detector runs; ``publish``
+    then recomputes the saved statistics and figures in the in-browser runtime as usual.
+    """
+    from .seed import restore
+
+    data, recordings = work / "data", work / "recordings"
+    for path in (data, recordings, work / "grid-data"):
+        if path.exists():
+            shutil.rmtree(path)
+    data.mkdir(parents=True)
+    recordings.mkdir(parents=True)
+    showcase: dict = {}
+    with zipfile.ZipFile(out / "seed.zip") as archive:
+        for member in archive.infolist():
+            name = member.filename
+            if member.is_dir() or name.startswith("/") or ".." in Path(name).parts:
+                continue
+            if name == "proposals.json":
+                (work / "proposals.json").write_bytes(archive.read(member))
+                continue
+            if name == "showcase.json":
+                showcase = json.loads(archive.read(member))
+                continue
+            target = data / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with archive.open(member) as source, target.open("wb") as destination:
+                shutil.copyfileobj(source, destination)
+    # The seed's description lists the files it omits; restoring reads it from the data directory.
+    description = data / "showcase.json"
+    description.write_text(json.dumps(showcase), encoding="utf-8")
+    restored = restore(data)
+    description.unlink()
+    # The seed keeps the detector recordings beside the data; the build keeps them apart.
+    shutil.rmtree(recordings)
+    shutil.move(str(data / "recordings"), str(recordings))
+    log("restored omitted seed files", restored)
+    published = json.loads((out / "manifest.json").read_text())
+    records = {scene["id"]: scene for scene in published["scenes"]}
+    scenes = state.setdefault("scenes", {})
+    for _, manifest in manifests:
+        record = records[manifest["id"]]
+        scene = scenes.setdefault(manifest["id"], {})
+        scene["prepared"] = [{**item, "files": {}} for item in record["fields"]]
+        scene["scenario"] = {"workspace_id": record["workspace_id"], "owner": showcase["owner"],
+                             "fields": [item["id"] for item in record["fields"]], **record.get("scenario", {})}
+        if record.get("grid", {}).get("options"):
+            scene["grid"] = record["grid"]
+        if record.get("proposals"):
+            scene["proposals"] = {"entries": record["proposals"].get("recorded_contexts", 0)}
+    state["reseeded_from"] = {"generated_from_commit": published.get("generated_from_commit"),
+                              "seed": published.get("seed")}
+    log("reseeded from the published demo", len(manifests), "scenes")
 
 
 def journal_scope(manifest: dict) -> str:

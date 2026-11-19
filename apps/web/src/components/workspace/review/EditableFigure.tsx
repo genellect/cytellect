@@ -12,11 +12,13 @@ export function EditableFigure({path,onSelect,onSource}:{path:string;onSelect:(p
   useEffect(()=>{let live=true;setSvg("");void fetchBlob(path).then(blob=>blob.text()).then(text=>{
     const document=new DOMParser().parseFromString(text,"image/svg+xml");
     if(document.querySelector("parsererror")||document.documentElement.tagName!=="svg")return;
-    const allowed=new Set(["svg","g","defs","path","rect","clipPath","use","text","tspan","line","circle","polygon","polyline","title","desc","metadata"]);
+    const allowed=new Set(["svg","g","defs","path","rect","clipPath","use","text","tspan","line","circle","polygon","polyline","title","desc","metadata","image"]);
     for(const element of [...document.querySelectorAll("*")]){
       if(!allowed.has(element.tagName)){element.remove();continue;}
       for(const attribute of [...element.attributes]){
-        if(/^on/i.test(attribute.name)||((attribute.localName==="href")&&!attribute.value.startsWith("#"))||/url\((?!\s*#)/i.test(attribute.value))element.removeAttribute(attribute.name);
+        // Embedded figure images (representative fields) are inline PNG data, never a fetched URL.
+        const inlineImage=element.tagName==="image"&&/^data:image\/png;base64,/.test(attribute.value);
+        if(/^on/i.test(attribute.name)||((attribute.localName==="href")&&!attribute.value.startsWith("#")&&!inlineImage)||/url\((?!\s*#)/i.test(attribute.value))element.removeAttribute(attribute.name);
       }
       if(element.id){element.setAttribute("data-figure-id",element.id);element.id=prefix+element.id;}
       for(const attribute of [...element.attributes]){

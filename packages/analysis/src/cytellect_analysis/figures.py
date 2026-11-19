@@ -18,6 +18,10 @@ from matplotlib.text import Text
 
 from .exports_csv import write_csv
 from .figure_sources import attach_svg_sources, bind_points
+from .figure_style import FONT_FAMILY, register_bundled_fonts
+
+# The bundled Liberation Sans (Arial metrics) makes every environment draw the same figure.
+register_bundled_fonts()
 
 FIGURE_VERSION = "1.1.3"
 COLORS = ["#0072b2", "#d55e00", "#009e73", "#cc79a7", "#e69f00", "#56b4e9", "#000000"]
@@ -114,7 +118,7 @@ def export_statistical_tables(result, output):
 
 FONT_FAMILIES = {
     "ja": ("Noto Sans CJK JP", "Noto Sans JP", "Yu Gothic", "Meiryo", "IPAexGothic"),
-    "en": ("Arial", "Liberation Sans", "DejaVu Sans"),
+    "en": (FONT_FAMILY, "Arial", "DejaVu Sans"),
 }
 NORMAL_WEIGHT_RANGE = (350, 500)
 

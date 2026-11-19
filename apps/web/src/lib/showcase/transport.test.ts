@@ -1,7 +1,7 @@
 import {afterEach, describe, expect, it, vi} from "vitest";
 import {fetchVerified, IntegrityError, sha256Hex} from "./digest";
 import type {ShowcaseRequest, ShowcaseResponse, SnapshotIndex} from "./protocol";
-import {createShowcaseTransport, journalBodyMatches, journalPathMatches, snapshotKey, type ShowcaseEngine} from "./transport";
+import {calculationBody, createShowcaseTransport, figureSettings, journalBodyMatches, journalPathMatches, snapshotKey, type ShowcaseEngine} from "./transport";
 import {bootPyodideRuntime} from "./worker-runtime";
 
 const encoder = new TextEncoder();
@@ -538,5 +538,115 @@ describe("adoption after a recorded change", () => {
     const adopted = await (await transport.fetch("/v1/workspaces/w/selection", {method: "POST", body: JSON.stringify({version: 5, entries: [{...measured.entries[0], revision_id: "nuc"}]})})).json();
     expect(adopted.version).toBe(6);
     expect(await (await transport.fetch("/v1/workspaces/w/selection")).json()).toEqual(adopted);
+  });
+});
+
+describe("figures drawn from the recorded results", () => {
+  const S = "11111111-1111-4111-8111-111111111111", R = "22222222-2222-4222-8222-222222222222";
+  const base = {width_inches: 183 / 25.4, height_inches: 100 / 25.4, font_size: 7, x_label: "", y_label: "", group_order: [], kind: "superplot",
+    preset: "custom", language: "en", axes: {version: "1.0.0", x_scale: "linear", y_scale: "linear", x_min: null, x_max: null, x_tick_step: null},
+    y_tick_step: null, point_size: 18, style: {version: "1.0.0", series_colors: {}, show_legend: true}, y_min: null, y_max: null,
+    presentation: {version: "1.0.0", annotation: "value", size: "panel", composition: "quantification", outlines: true}};
+  const stars = {...base, presentation: {...base.presentation, annotation: "stars"}};
+  function figures() {
+    const files: Record<string, unknown> = {
+      "index.json": {version: 1, entries: {}},
+      "journal.json": {version: 1, entries: [
+        {scene: "s:a", method: "POST", path: `/v1/revisions/${R}/common-statistics`, body: JSON.stringify({mode: "m", plot: {kind: "superplot"}}), status: 202, headers: [["content-type", "application/json"]], file: "a.json"},
+        {scene: "s:a", method: "GET", path: "/v1/workspaces/w/jobs", body: null, status: 200, headers: [["content-type", "application/json"]], file: "l.json"},
+        {scene: "s:a", method: "GET", path: `/v1/jobs/${S}/common-statistics`, body: null, status: 200, headers: [["content-type", "application/json"]], file: "r.json"},
+      ]},
+      "a.json": {job_id: S}, "l.json": [{id: S, state: "succeeded"}], "r.json": {revision_id: R, estimates: {p: 0.01}, spec: {plot: {kind: "superplot"}, test: "paired-t"}, figure: {old: true}},
+      "figures.json": {version: 1, sources: {[S]: {group: "g", workspace: "w", revision: R}}, packages: [],
+        groups: {g: {observations: "points", opening: {plot: base, figure: {opening: true}, files: {"figure.svg": "open.svg"}},
+          figures: [{plot: base, figure: {drawn: "base"}, files: {"figure.svg": "base.svg"}}, {plot: stars, figure: {drawn: "stars"}, files: {"figure.svg": "stars.svg", "figure-legend.md": "legend.md"}}]}}},
+    };
+    const raw: Record<string, string> = {"open.svg": "<svg>opening</svg>", "base.svg": "<svg>base</svg>", "stars.svg": "<svg>stars</svg>", "legend.md": "# Legend"};
+    const fetchStatic = vi.fn(async (url: string) => {
+      const name = url.replace("/showcase/snapshot/", "");
+      if (name in raw) return new Response(raw[name]);
+      return name in files ? new Response(JSON.stringify(files[name])) : new Response("missing", {status: 404});
+    });
+    return createShowcaseTransport({fetchStatic, createEngine: () => fakeEngine(), capable: () => false, snapshotBase: "/showcase/snapshot/"});
+  }
+  const render = (subject: ReturnType<typeof figures>, plot: unknown) =>
+    subject.fetch(`/v1/jobs/${S}/figure-render`, {method: "POST", body: JSON.stringify({request_id: crypto.randomUUID(), plot})});
+
+  it("reads a figure request by what it draws: defaults a request leaves out are the result's", () => {
+    const explicit = {...base, presentation: {...base.presentation, observations: "points", color_by: "run"}};
+    expect(figureSettings(explicit, "points")).toBe(figureSettings(base, "points"));
+    expect(figureSettings({...base, width_inches: 3}, "points")).toBe(figureSettings(base, "points"));
+    expect(figureSettings({...base, presentation: {...base.presentation, observations: "box"}}, "points")).not.toBe(figureSettings(base, "points"));
+    const page = {...base, kind: "distribution", presentation: undefined};
+    expect(figureSettings({...page, width_inches: 89 / 25.4}, "points")).not.toBe(figureSettings(page, "points"));
+  });
+
+  it("matches a recorded calculation whatever figure settings it names", () => {
+    expect(calculationBody("/v1/revisions/r/common-statistics", JSON.stringify({mode: "m", plot: {kind: "box"}})))
+      .toBe(calculationBody("/v1/revisions/r/common-statistics", JSON.stringify({mode: "m", plot: {kind: "superplot", presentation: {}}})));
+    expect(calculationBody("/v1/workspaces/w/selection", "{\"plot\":1}")).toBe("{\"plot\":1}");
+  });
+
+  it("calculates from the tour and shows the result with the figure drawn for it", async () => {
+    const subject = figures();
+    const accepted = await subject.fetch(`/v1/revisions/${R}/common-statistics`, {method: "POST", body: JSON.stringify({mode: "m", plot: base})});
+    expect(await accepted.json()).toEqual({job_id: S});
+    const result = await (await subject.fetch(`/v1/jobs/${S}/common-statistics`)).json();
+    expect(result.estimates).toEqual({p: 0.01});
+    expect(result.figure).toEqual({opening: true});
+    expect(result.spec).toEqual({plot: base, test: "paired-t"});
+    expect(await (await subject.fetch(`/v1/jobs/${S}/files/figure.svg`)).text()).toBe("<svg>opening</svg>");
+  });
+
+  it("answers a figure setting with its drawing, listed as a finished job", async () => {
+    const subject = figures();
+    const accepted = await render(subject, {...stars, presentation: {...stars.presentation, color_by: "run"}});
+    expect(accepted.status).toBe(202);
+    const {job_id: job} = await accepted.json();
+    expect(await (await subject.fetch(`/v1/jobs/${job}/figure-render`)).json()).toEqual({source_job_id: S, figure: {drawn: "stars"}});
+    expect(await (await subject.fetch(`/v1/jobs/${job}/files/figure.svg`)).text()).toBe("<svg>stars</svg>");
+    const legend = await subject.fetch(`/v1/jobs/${job}/files/figure-legend.md`);
+    expect(legend.headers.get("content-type")).toContain("text/markdown");
+    expect(await legend.text()).toBe("# Legend");
+    await subject.fetch(`/v1/revisions/${R}/common-statistics`, {method: "POST", body: JSON.stringify({mode: "m", plot: base})});
+    const listed = await (await subject.fetch("/v1/workspaces/w/jobs")).json() as Array<{id: string; state: string; kind?: string}>;
+    expect(listed.find(item => item.id === job)).toMatchObject({state: "succeeded", kind: "figure-render", revision_id: R});
+  });
+
+  it("explains a figure setting it holds no drawing for", async () => {
+    const subject = figures();
+    const other = await render(subject, {...base, presentation: {...base.presentation, size: "double-column"}});
+    expect(other.status).toBe(409);
+    expect(await other.json()).toEqual({detail: "showcase_action_not_recorded"});
+  });
+});
+
+describe("saved results and figures of the seed", () => {
+  it("shows a saved result and a saved figure with their drawings from figures.json", async () => {
+    const S = "33333333-3333-4333-8333-333333333333", F = "44444444-4444-4444-8444-444444444444";
+    const index = {version: 1, entries: {
+      [snapshotKey(`/v1/jobs/${S}/result`)]: {status: 200, headers: [["content-type", "application/json"]], file: "s.json"},
+      [snapshotKey(`/v1/jobs/${F}/result`)]: {status: 200, headers: [["content-type", "application/json"]], file: "f.json"},
+    }};
+    const files: Record<string, string> = {
+      "index.json": JSON.stringify(index), "journal.json": JSON.stringify({version: 1, entries: []}),
+      "s.json": JSON.stringify({revision_id: "r", estimates: {p: 0.2}, spec: {plot: {kind: "superplot"}}, figure: {old: 1}}),
+      "f.json": JSON.stringify({revision_id: "r", source_job_id: S, spec: {plot: {kind: "box"}}, figure: {old: 2}}),
+      "figures.json": JSON.stringify({version: 1, packages: [], sources: {[S]: {group: "g", workspace: "w", revision: "r", seed: true}},
+        groups: {g: {observations: "points", opening: {plot: {kind: "superplot", presentation: null}, figure: {drawn: "opening"}, files: {"figure.svg": "o.svg"}}, figures: []}},
+        saved: {[F]: {source: S, plot: {kind: "box"}, figure: {drawn: "saved"}, files: {"figure.svg": "b.svg"}}}}),
+      "o.svg": "<svg>opening</svg>", "b.svg": "<svg>saved</svg>",
+    };
+    const fetchStatic = vi.fn(async (url: string) => {
+      const name = url.replace("/showcase/snapshot/", "");
+      return name in files ? new Response(files[name]) : new Response("missing", {status: 404});
+    });
+    const subject = createShowcaseTransport({fetchStatic, createEngine: () => fakeEngine(), capable: () => false, snapshotBase: "/showcase/snapshot/"});
+    const result = await (await subject.fetch(`/v1/jobs/${S}/result`)).json();
+    expect(result).toMatchObject({estimates: {p: 0.2}, figure: {drawn: "opening"}});
+    expect(await (await subject.fetch(`/v1/jobs/${S}/files/figure.svg`)).text()).toBe("<svg>opening</svg>");
+    expect(await (await subject.fetch(`/v1/jobs/${F}/result`)).json()).toMatchObject({source_job_id: S, figure: {drawn: "saved"}});
+    expect(await (await subject.fetch(`/v1/jobs/${F}/figure-render`)).json()).toEqual({source_job_id: S, figure: {drawn: "saved"}});
+    expect(await (await subject.fetch(`/v1/jobs/${F}/files/figure.svg`)).text()).toBe("<svg>saved</svg>");
   });
 });

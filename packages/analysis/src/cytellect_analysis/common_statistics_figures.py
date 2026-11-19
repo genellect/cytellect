@@ -12,6 +12,7 @@ from pydantic import TypeAdapter
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.collections import PolyCollection
+from matplotlib.layout_engine import ConstrainedLayoutEngine
 from matplotlib.text import Text
 from matplotlib.ticker import MaxNLocator
 
@@ -33,7 +34,9 @@ from .figures import (
 from .gfp_selection import recorded_gate_lines
 from .regions import RegionModel
 
-FIGURE_VERSION = "1.0.1"
+# 2.0.0: publication figures (docs/drafts/publication-figures/plan.md). 1.0.0 and 1.0.1 replay saved figures.
+FIGURE_VERSION = "2.0.0"
+FIGURE_VERSIONS = ("1.0.0", "1.0.1", "2.0.0")
 
 
 class CommonStatisticsMethodsTemplate(RegionModel):
@@ -303,8 +306,11 @@ def _hierarchy(ax, canonical, plot, order, glyphs, graphical_summary, bars):
         ax.plot(range(len(order)), values, color="#888888", linewidth=.5, zorder=3)
 
 
-def render_common_statistics(result, output: Path, *, methods_template=None, figure_version=FIGURE_VERSION):
-    if figure_version not in ("1.0.0", "1.0.1"):
+def render_common_statistics(result, output: Path, *, methods_template=None, figure_version=FIGURE_VERSION,
+                             images=None):
+    """``images``: original channel arrays and saved labels of the fields a 2.0.0 figure may show
+    (``{field_id: {"channels": {...}, "labels": ...}}``), loaded by the worker."""
+    if figure_version not in FIGURE_VERSIONS:
         raise ValueError("common_statistics_figure_version_unsupported")
     template = CommonStatisticsMethodsTemplate.model_validate(
         CURRENT_COMMON_METHODS_TEMPLATE if methods_template is None else methods_template)
@@ -319,6 +325,20 @@ def render_common_statistics(result, output: Path, *, methods_template=None, fig
     glyphs: list[dict[str, Any]] = []
     graphical_summary: list[dict[str, Any]] = []
     ja = plot["language"] == "ja"
+    # The publication figure names its axes in English (plan FS); a figure asked for in Japanese keeps
+    # the earlier drawing, which labels in the language requested.
+    if figure_version == "2.0.0" and not ja and (association or plot["kind"] in ("superplot", "unit-mean-bar")):
+        return _render_publication(canonical, output, template, order, images)
+    if figure_version == "2.0.0" and plot.get("presentation"):
+        # Run-value forms keep their drawing at the chosen publication size; a request naming no
+        # presentation keeps the width and height it asked for.
+        size = (plot.get("presentation") or {}).get("size") or "panel"
+        width_mm = {"single-column": 89.0, "double-column": 183.0}.get(size)
+        if size == "panel":
+            width_mm = max(60.0, 24 + 14 * len(order))
+        if width_mm is not None:
+            style = {**style, "preset": size, "width_inches": width_mm / 25.4, "width_mm": width_mm,
+                     "height_inches": 60 / 25.4, "height_mm": 60.0}
     with plt.rc_context({"svg.fonttype": "none", "pdf.fonttype": 42, "ps.fonttype": 42,
                          "font.size": style["font_size_pt"], "axes.linewidth": .6,
                          "lines.linewidth": .6, "svg.hashsalt": "cytellect-common-statistics-1"}):
@@ -409,7 +429,7 @@ def render_common_statistics(result, output: Path, *, methods_template=None, fig
                         points = [next(r for r in rows if r["condition"] == c and r["experimental_unit"] == pair["units"][c]) for c in order]
                         ax.plot(range(len(order)), [r["value"] for r in points], color="#888888", linewidth=.5, zorder=0)
                 ax.set_xticks(range(len(order)), [textwrap.fill(c, 16) + f"\nn={sum(r['condition'] == c for r in rows)}" for c in order])
-                if figure_version == "1.0.1":
+                if figure_version in ("1.0.1", "2.0.0"):
                     # Equal category margins must not depend on the random jitter,
                     # unit count, or whether a box/violin contributes to autoscaling.
                     ax.set_xlim(-.5, len(order) - .5)
@@ -461,8 +481,175 @@ def render_common_statistics(result, output: Path, *, methods_template=None, fig
     metadata: dict[str, Any] = {"common_statistics_figure_version": figure_version,
                 "common_statistics_methods": template.model_dump(mode="json"), "style": style,
                 "font": selected_font.family, "font_metadata": selected_font.metadata()}
+    if figure_version == "2.0.0" and not association:
+        # A run-value form keeps its 1.0.1 drawing; the screen still offers every form of the result.
+        from .figure_forms import figure_forms
+        from .publication_figure import resolve_presentation
+
+        forms = figure_forms(canonical)
+        metadata.update(presentation=resolve_presentation(canonical, plot), forms=forms["forms"],
+                        default_form=forms["default"], compositions=[])
     source = {**canonical, **metadata, "unit_glyphs": glyphs, "graphical_summary": graphical_summary,
               "jitter_seed": 0, "source_hashes": {n: hashlib.sha256((output / n).read_bytes()).hexdigest() for n in csv_files}}
     (output / "figure-data.json").write_text(json.dumps(source, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
     return {**metadata, "figure_version": figure_version, "formats": ["svg", "pdf", "png"], "svg_text": "editable",
             "source_files": ["figure.svg", "figure.pdf", "figure.png", *csv_files, "figure-data.json", "figure-caption.md", "methods.md"]}
+
+
+def _write_svg_font_stack(path: Path):
+    """Name Arial and Helvetica after the bundled face so editors keep the layout."""
+    from .figure_style import FONT_FAMILY, SVG_FONT_STACK
+
+    text = path.read_text(encoding="utf-8")
+    text = text.replace(f"font-family: '{FONT_FAMILY}'", f"font-family: {SVG_FONT_STACK}")
+    path.write_text(text, encoding="utf-8")
+
+
+def _render_publication(canonical, output: Path, template, order, images=None):
+    """Common-statistics figure 2.0.0: the publication layout of plan.md (FS, FQ, FA, FL)."""
+    from .figure_forms import figure_forms
+    from .figure_legend import association_legend, comparison_legend
+    from .figure_style import PNG_DPI, rc
+    from .publication_figure import (
+        bind_fonts,
+        default_size,
+        draw_association,
+        draw_comparison,
+        layout,
+        resolve_presentation,
+    )
+
+    spec = canonical["spec"]
+    plot = spec["plot"]
+    association = canonical["analysis_kind"] == "region-association"
+    presentation = resolve_presentation(canonical, plot) if not association else {
+        "version": "1.0.0", "size": (plot.get("presentation") or {}).get("size") or default_size(plot),
+        "annotation": (plot.get("presentation") or {}).get("annotation") or "value"}
+    forms = figure_forms(canonical)
+    image_figure = None
+    if association:
+        size = layout(plot, presentation, 3, legend=True, bracket_levels=0)
+        if presentation["size"] == "panel":
+            size.width_mm, size.height_mm = 82.0, 56.0
+    else:
+        from .figure_annotations import comparison_annotations
+        from .figure_images import build_panels
+
+        levels = len(comparison_annotations(canonical, order, presentation["annotation"]).brackets)
+        paired_runs = spec["design"]["kind"] == "paired" and presentation["color_by"] == "run"
+        size = layout(plot, presentation, len(order), legend=paired_runs, bracket_levels=levels)
+        if presentation.get("composition") == "images-quantification" and images:
+            image_figure = build_panels(canonical, order, images, presentation.get("image_fields"))
+        if image_figure is not None:
+            columns = 2 if image_figure.counterstain else 1
+            tile = 19.0 if presentation["size"] == "panel" else 22.0
+            image_width = 7 + columns * tile
+            if presentation["size"] == "panel":
+                size.width_mm += image_width + 3
+            elif presentation["size"] == "custom":
+                # A custom width narrower than the images beside the panel is widened to the panel's layout.
+                panel = layout(plot, {**presentation, "size": "panel"}, len(order), legend=paired_runs,
+                               bracket_levels=levels)
+                size.width_mm = max(size.width_mm, panel.width_mm + image_width + 3)
+            size.height_mm = max(size.height_mm, len(image_figure.panels) * tile + 12)
+    style = size.style()
+    with plt.rc_context(rc(size.font_size)):
+        if image_figure is not None:
+            fig = plt.figure(figsize=(style["width_inches"], style["height_inches"]), layout="constrained")
+            grid = fig.add_gridspec(1, 2, width_ratios=[image_width, size.width_mm - image_width])
+        else:
+            fig, ax = plt.subplots(figsize=(style["width_inches"], style["height_inches"]), layout="constrained")
+        try:
+            engine = fig.get_layout_engine()
+            if isinstance(engine, ConstrainedLayoutEngine):
+                engine.set(w_pad=1 / 72, h_pad=1 / 72, wspace=0, hspace=0)
+            if image_figure is not None:
+                from .figure_images import draw_images
+
+                holder = fig.add_subplot(grid[0])
+                holder.set_axis_off()
+                ax = fig.add_subplot(grid[1])
+                ax.set_gid("panel-b-quantification")
+            drawn = (draw_association(fig, ax, canonical, plot, order) if association
+                     else draw_comparison(fig, ax, canonical, plot, presentation, order))
+            # The panel may have widened for a long axis title; the manifest records the drawn size.
+            style = {**style, "width_inches": fig.get_figwidth(), "width_mm": fig.get_figwidth() * 25.4}
+            if association:
+                # The researcher's axis ranges, tick steps and log display, checked as in the earlier figures
+                # (a log axis refuses non-positive values). A comparison lays out its own value axis.
+                apply_plot_controls(ax, plot)
+            if image_figure is not None:
+                # The layout is fixed now; the tiles take the reserved space as exact squares.
+                image_axes = draw_images(fig, holder, image_figure, size.font_size,
+                                         bool(presentation.get("outlines", True)))
+                bind_fonts(fig)
+                fig.canvas.draw()
+                inverse = fig.transFigure.inverted()
+                first = image_axes[0].get_window_extent().transformed(inverse)
+                quantified = ax.get_tightbbox()
+                left = quantified.transformed(inverse).x0 if quantified is not None else ax.get_position().x0
+                for letter, x in (("a", max(.004, first.x0 - .01)), ("b", max(.004, left))):
+                    fig.text(x, .995, letter, fontsize=8, fontweight="bold", ha="left", va="top",
+                             gid=f"panel-letter-{letter}")
+            shown = ax.get_legend()
+            if (plot.get("style") or {}).get("show_legend") is False and shown is not None:
+                shown.remove()
+            bind_fonts(fig)
+            _validate_text_layout(fig, ax)
+            for suffix in ("svg", "pdf", "png"):
+                file_metadata: dict[str, str | None] = {"Creator": "Cytellect common statistics 2.0.0"}
+                if suffix == "svg":
+                    file_metadata["Date"] = None
+                if suffix == "pdf":
+                    file_metadata.update(CreationDate=None, ModDate=None)
+                fig.savefig(output / f"figure.{suffix}", dpi=PNG_DPI, metadata=file_metadata)
+                if suffix == "svg":
+                    attach_svg_sources(output / "figure.svg", fig)
+                    _write_svg_font_stack(output / "figure.svg")
+        finally:
+            plt.close(fig)
+    tables = _tables(canonical)
+    tables["graphical-summary"] = drawn.summary
+    csv_files = []
+    for name, values in tables.items():
+        if values:
+            filename = f"{name}.csv"
+            write_csv(output / filename, values)
+            csv_files.append(filename)
+    methods = common_statistics_methods(canonical)
+    panels = []
+    if image_figure is not None:
+        from .figure_images import legend_sentence
+
+        panels = ["a, " + legend_sentence(image_figure), "b,"]
+        arrays: dict[str, Any] = {f"{index}-{cid}": array for index, panel in enumerate(image_figure.panels)
+                                  for cid, array in panel.channels.items()}
+        arrays.update({f"{index}-labels": panel.labels for index, panel in enumerate(image_figure.panels)})
+        import numpy as np
+
+        np.savez_compressed(output / "figure-images.npz", allow_pickle=False, **arrays)
+    legend, gaps = (association_legend(canonical, order, drawn) if association
+                    else comparison_legend(canonical, order, drawn, presentation, panels))
+    (output / "methods.md").write_text(methods, encoding="utf-8")
+    (output / "figure-legend.md").write_text(legend, encoding="utf-8")
+    (output / "figure-caption.md").write_text("# Figure legend\n\n" + legend + "\n" + methods, encoding="utf-8")
+    from .figure_style import FONT_FAMILY, FONT_FILES
+
+    font_metadata = {"family": FONT_FAMILY, "weight": 400, "style": "normal",
+                     "sha256": hashlib.sha256(FONT_FILES["regular"].read_bytes()).hexdigest()}
+    metadata: dict[str, Any] = {"common_statistics_figure_version": "2.0.0",
+                                "common_statistics_methods": template.model_dump(mode="json"), "style": style,
+                                "font": FONT_FAMILY, "font_metadata": font_metadata,
+                                "presentation": presentation, "forms": forms["forms"], "default_form": forms["default"],
+                                "legend_gaps": gaps,
+                                "compositions": [] if association else ["quantification", "images-quantification"],
+                                "images": image_figure.record() if image_figure is not None else None}
+    annotations = [{"left": b.left, "right": b.right, "lines": b.lines} for b in drawn.annotations.brackets]
+    source = {**canonical, **metadata, "unit_glyphs": drawn.glyphs, "graphical_summary": drawn.summary,
+              "annotations": annotations, "layout": "deterministic beeswarm",
+              "source_hashes": {n: hashlib.sha256((output / n).read_bytes()).hexdigest() for n in csv_files}}
+    (output / "figure-data.json").write_text(json.dumps(source, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
+    return {**metadata, "figure_version": "2.0.0", "formats": ["svg", "pdf", "png"], "svg_text": "editable",
+            "source_files": ["figure.svg", "figure.pdf", "figure.png", *csv_files, "figure-data.json",
+                             "figure-legend.md", "figure-caption.md", "methods.md",
+                             *(["figure-images.npz"] if image_figure is not None else [])]}

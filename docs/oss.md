@@ -157,6 +157,10 @@ CI でインストーラーを試すだけのビルド（`ci.yml` の `windows-i
 - Python は、PSF の公式の Python 3.14.8（x64 ZIP）と、同じリリースの MSI に含まれる Tcl/Tk 9.0.4 から組み立てる。入力と派生物は[構成の記録](windows-runtime.md)と記録ファイルで特定する。PSF と Tcl/Tk のライセンス本文と、Vimix アイコンの CC BY-SA 4.0 の帰属を保持する。PSF が認証した配布物でも、Apache-2.0 だけでまとめた配布物でもない。
 - プロジェクトの wheel と依存は、記録したハッシュで導入する。
 
+### 図のフォント
+
+解析パッケージは、論文の図のために Liberation Sans 2.1.5 の Regular と Bold（SIL Open Font License 1.1、Arial と字幅が同じ）を改変せずに同梱する（`cytellect_analysis/assets/fonts`）。Debian の `fonts-liberation` 2.1.5-3 から取り出したもので、ライセンス本文を同じ場所に置き、SHA-256 を公開ファイルの登録に記録している。wheel に入るので、Windows 版・Docker 版・公開デモが同じフォントで図を描く。
+
 ### Web サイトの部品と素材
 
 次の COMPASS の部品は、著作権者の明示的な許可を得て Cytellect 用に改変した。元は `genellect/compass` のコミット `4805fb6df9e5a0bd267aef9cfa440174ccac5fb1`。元の著作権と改変の表示はソースファイルに残している。この許可は、COMPASS のリポジトリのライセンスや、その第三者の素材の条件を変えない。
@@ -323,6 +327,10 @@ Evidence gaps and follow-up work. README and the product strategy describe capab
 - Setup downloads Astral uv 0.12.2 (MIT OR Apache-2.0) from the official release; the ZIP SHA-256 is pinned in `scripts/local_setup.ps1`.
 - Python is composed from the official PSF Python 3.14.8 x64 ZIP and Tcl/Tk 9.0.4 from the same release's MSI. Inputs and derived assets are identified in the [composition record](windows-runtime.md) and its manifests. PSF and Tcl/Tk license texts and the Vimix icon CC-BY-SA-4.0 attribution are preserved. It is neither a PSF-certified distribution nor an Apache-only bundle.
 - Project wheels and dependencies are installed by recorded hash.
+
+### Figure font
+
+The analysis package bundles Liberation Sans 2.1.5 Regular and Bold (SIL Open Font License 1.1, Arial metrics) unmodified for publication figures (`cytellect_analysis/assets/fonts`), taken from Debian `fonts-liberation` 2.1.5-3. The license text sits beside the fonts and their SHA-256 hashes are in the public-file registry. The fonts are in the wheel, so the Windows, Docker and demo builds draw figures with the same font.
 
 ### Website components and media
 
