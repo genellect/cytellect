@@ -59,7 +59,7 @@ def test_publication_figure_from_a_saved_demo_comparison(tmp_path):
     observations = [r for r in result["plot_data"] if r["selection_status"] == "selected"]
     assert svg.count("data-cytellect-source") == len(observations) + len(result["unit_summary"])
     legend = (tmp_path / "figure-legend.md").read_text(encoding="utf-8")
-    assert "[cell line]" in legend and "n = 3 runs per condition" in legend
+    assert "[Cell line]" in legend and "n = 3 runs per condition" in legend
     assert "no hypothesis test" in legend
     source = json.loads((tmp_path / "figure-data.json").read_text(encoding="utf-8"))
     assert source["presentation"]["observations"] == "points"
@@ -143,3 +143,58 @@ def test_p_value_text():
     assert p_text(0.0123) == "P = 0.012"
     assert p_text(0.213) == "P = 0.21"
     assert p_stars(0.2) == "n.s." and p_stars(0.004) == "**"
+
+
+def demo_images(result):
+    """The original channels and saved labels of the representative fields, from the public seed."""
+    import hashlib
+    import io
+    import zipfile
+
+    import tifffile
+    from cytellect_analysis.figure_images import representative_fields
+
+    seed = zipfile.ZipFile(ROOT / "apps/web/public/showcase/seed.zip")
+    names = seed.namelist()
+    loaded = {}
+    order = result["spec"]["conditions"]
+    sources = {s["field_id"]: s for s in result["source_fields"]}
+    for field_id, _ in representative_fields(result, order).values():
+        source = sources[field_id]
+        wanted = {source["image_info"]["inputs"][f"ch{i}"]["sha256"]: c["channel_id"]
+                  for i, c in enumerate(source["image_info"]["channels"])}
+        channels = {}
+        for name in names:
+            if name.endswith(".tif"):
+                data = seed.read(name)
+                digest = hashlib.sha256(data).hexdigest()
+                if digest in wanted:
+                    channels[wanted[digest]] = tifffile.imread(io.BytesIO(data))
+        labels = [np.load(io.BytesIO(seed.read(n))) for n in names if field_id in n and n.endswith("labels.npy")]
+        labels = [array for array in labels if array.shape == next(iter(channels.values())).shape] if channels else []
+        if len(channels) == len(wanted) and labels:
+            loaded[field_id] = {"channels": channels, "labels": labels[0]}
+    return loaded
+
+
+def test_representative_images_share_one_display_range(tmp_path):
+    result = demo_comparison()
+    images = demo_images(result)
+    if len(images) < 2:
+        pytest.skip("seed images not found by field")
+    result["spec"]["plot"].update(kind="superplot", presentation={"version": "1.0.0", "composition": "images-quantification"})
+    manifest = render_common_statistics(result, tmp_path, images=images)
+    record = manifest["images"]
+    assert record["measured_channel"] == "npm1" and record["counterstain_channel"] == "hoechst"
+    assert {item["condition"] for item in record["fields"]} == set(result["spec"]["conditions"])
+    assert record["scale_bar_um"] and len(record["display_range"]) == 2
+    svg = (tmp_path / "figure.svg").read_text(encoding="utf-8")
+    assert "<image" in svg and "data:image/png;base64," in svg
+    assert "figure-images.npz" in manifest["source_files"]
+    legend = (tmp_path / "figure-legend.md").read_text(encoding="utf-8")
+    assert "same linear display range" in legend and "Scale bar" in legend
+    # The pixels shown are the original values (the crop of the field), unchanged.
+    saved = np.load(tmp_path / "figure-images.npz")
+    first = record["fields"][0]
+    y0, y1, x0, x1 = first["crop_yx"]
+    assert np.array_equal(saved["0-npm1"], images[first["field_id"]]["channels"]["npm1"][y0:y1, x0:x1])

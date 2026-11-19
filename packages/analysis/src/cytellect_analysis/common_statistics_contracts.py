@@ -29,6 +29,12 @@ class FigurePresentation(RegionModel):
     # Effect and P value as numbers, P value as asterisks, or no annotation (the legend keeps it).
     annotation: Literal["value", "stars", "none"] = "value"
     size: Literal["panel", "single-column", "double-column", "custom"] = "panel"
+    # Representative images beside the quantification (panel a), one field per condition.
+    composition: Literal["quantification", "images-quantification"] = "quantification"
+    # The researcher's field for a condition; an omitted condition uses the rule (closest to the mean of runs).
+    image_fields: dict[Annotated[str, Field(min_length=1, max_length=80)],
+                       Annotated[str, Field(min_length=1, max_length=100)]] = Field(default_factory=dict, max_length=30)
+    outlines: bool = True
 
 
 def _omit_none(value):

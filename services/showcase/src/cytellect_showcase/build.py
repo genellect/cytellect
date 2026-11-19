@@ -1726,6 +1726,9 @@ def main(argv: list[str] | None = None) -> None:
             fresh = False
             save()
         uninstall()
+    if "reseed" in stages:
+        reseed(args.out, work, manifests, state)
+        save()
     if "publish" in stages:
         publish(args, manifests, state, seed_data, recordings, started)
     if "snapshot" in stages:
@@ -1754,6 +1757,57 @@ def main(argv: list[str] | None = None) -> None:
                                work / "qa" / manifest["id"], scenes[manifest["id"]]["scenario"]["fields"])
             log("qa overlays", manifest["id"], len(written))
     log("done", round(time.perf_counter() - started, 1), "s")
+
+
+def reseed(out: Path, work: Path, manifests: list, state: dict) -> None:
+    """Start ``publish`` from the published demo instead of new detections (stage ``reseed``).
+
+    For a change of presentation only (figures, screens): the database, files and detector recordings
+    of ``out/seed.zip`` become the working data, and each scene's workspace, owner and fields come
+    from the published ``manifest.json``. No image is downloaded and no detector runs; ``publish``
+    then recomputes the saved statistics and figures in the in-browser runtime as usual.
+    """
+    from .seed import restore
+
+    data, recordings = work / "data", work / "recordings"
+    for path in (data, recordings, work / "grid-data"):
+        if path.exists():
+            shutil.rmtree(path)
+    data.mkdir(parents=True)
+    recordings.mkdir(parents=True)
+    showcase: dict = {}
+    with zipfile.ZipFile(out / "seed.zip") as archive:
+        for member in archive.infolist():
+            name = member.filename
+            if member.is_dir() or name.startswith("/") or ".." in Path(name).parts:
+                continue
+            if name == "proposals.json":
+                (work / "proposals.json").write_bytes(archive.read(member))
+                continue
+            if name == "showcase.json":
+                showcase = json.loads(archive.read(member))
+                continue
+            target = recordings / name.removeprefix("recordings/") if name.startswith("recordings/") else data / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with archive.open(member) as source, target.open("wb") as destination:
+                shutil.copyfileobj(source, destination)
+    restore(data)
+    published = json.loads((out / "manifest.json").read_text())
+    records = {scene["id"]: scene for scene in published["scenes"]}
+    scenes = state.setdefault("scenes", {})
+    for _, manifest in manifests:
+        record = records[manifest["id"]]
+        scene = scenes.setdefault(manifest["id"], {})
+        scene["prepared"] = [{**item, "files": {}} for item in record["fields"]]
+        scene["scenario"] = {"workspace_id": record["workspace_id"], "owner": showcase["owner"],
+                             "fields": [item["id"] for item in record["fields"]], **record.get("scenario", {})}
+        if record.get("grid", {}).get("options"):
+            scene["grid"] = record["grid"]
+        if record.get("proposals"):
+            scene["proposals"] = {"entries": record["proposals"].get("recorded_contexts", 0)}
+    state["reseeded_from"] = {"generated_from_commit": published.get("generated_from_commit"),
+                              "seed": published.get("seed")}
+    log("reseeded from the published demo", len(manifests), "scenes")
 
 
 def journal_scope(manifest: dict) -> str:

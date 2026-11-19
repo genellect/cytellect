@@ -57,14 +57,15 @@ export interface ConnectedResultsProps {
   experimentSha256?:string|null;
   onEditExperiment?:()=>void;
 }
-interface SavedSource {field_id:string;region_set?:{region_set_id:string}}
-interface ResultPayload {stratum?:{label:string;levels:Array<{factor:string;level:string}>;declared_stratum_count?:number;field_ids:string[];analysed_field_ids:string[];excluded_fields:Array<{field_id:string;reason:string|null}>};selection?:{channel_gate?:{channel?:{channel_id:string;label?:string;stain?:string|null}}};revision_id:string;analysis_kind?:string;source_kind?:string;source_job_id?:string;source_fields?:SavedSource[];x_source?:{source_fields?:SavedSource[]};y_source?:{source_fields?:SavedSource[];metric?:string;channel?:{channel_id:string}|null;plot_data?:Record<string,unknown>[]};figure:{source_files:string[];status?:string;forms?:FigureForm[];presentation?:Presentation;legend_gaps?:string[];style?:{width_mm?:number}};metric?:string;channel?:{channel_id:string}|null;spec?:{plot?:Record<string,unknown>;conditions?:string[];test?:string;design?:{kind?:string};selection?:{metric:string;channel_id?:string|null;source?:string;region_set_id?:string;positivity?:{channel_id?:string;gfp_channel_id?:string}|null}};field_summary?:Record<string,unknown>[];comparisons?:Record<string,unknown>[];associations?:Record<string,unknown>[];counts?:unknown;omnibus?:Record<string,unknown>|null;warnings?:string[];plot_data?:Record<string,unknown>[];estimates?:ComparisonEstimates|null;unit?:string;source_field_ledger?:FieldLedgerRow[];compartment_missing?:MissingSummary|null;mask_corrections?:{fields:MaskCorrectionRow[]}|null}
+interface SavedSource {field_id:string;region_set?:{region_set_id:string};metadata?:{condition?:string}}
+interface ResultPayload {stratum?:{label:string;levels:Array<{factor:string;level:string}>;declared_stratum_count?:number;field_ids:string[];analysed_field_ids:string[];excluded_fields:Array<{field_id:string;reason:string|null}>};selection?:{channel_gate?:{channel?:{channel_id:string;label?:string;stain?:string|null}}};revision_id:string;analysis_kind?:string;source_kind?:string;source_job_id?:string;source_fields?:SavedSource[];x_source?:{source_fields?:SavedSource[]};y_source?:{source_fields?:SavedSource[];metric?:string;channel?:{channel_id:string}|null;plot_data?:Record<string,unknown>[]};figure:{source_files:string[];status?:string;forms?:FigureForm[];presentation?:Presentation;legend_gaps?:string[];style?:{width_mm?:number};compositions?:Composition[]};metric?:string;channel?:{channel_id:string}|null;spec?:{plot?:Record<string,unknown>;conditions?:string[];test?:string;design?:{kind?:string};selection?:{metric:string;channel_id?:string|null;source?:string;region_set_id?:string;positivity?:{channel_id?:string;gfp_channel_id?:string}|null}};field_summary?:Record<string,unknown>[];comparisons?:Record<string,unknown>[];associations?:Record<string,unknown>[];counts?:unknown;omnibus?:Record<string,unknown>|null;warnings?:string[];plot_data?:Record<string,unknown>[];estimates?:ComparisonEstimates|null;unit?:string;source_field_ledger?:FieldLedgerRow[];compartment_missing?:MissingSummary|null;mask_corrections?:{fields:MaskCorrectionRow[]}|null}
 type MissingSummary=components["schemas"]["CompartmentMissingSummary"];
 /** A form the saved result supports (common-statistics figure 2.0.0), as the analysis package lists it (FQ-02). */
 interface FigureForm {id:string;kind:RenderPlot["kind"];observations?:Observations}
 type Observations="points"|"violin"|"box"|"none";
 type FigureSize="panel"|"single-column"|"double-column"|"custom";
-interface Presentation {version:"1.0.0";observations?:Observations|null;color_by?:"run"|"group"|null;annotation?:"value"|"stars"|"none";size?:FigureSize}
+type Composition="quantification"|"images-quantification";
+interface Presentation {version:"1.0.0";observations?:Observations|null;color_by?:"run"|"group"|null;annotation?:"value"|"stars"|"none";size?:FigureSize;composition?:Composition;image_fields?:Record<string,string>;outlines?:boolean}
 /** Field-standard names for the forms and sizes (UC-01). */
 const formNames:Record<string,string>={points:"全データ点",density:"全データ点と分布",box:"全データ点と箱ひげ",bar:"平均の棒",
   "run-box":"実験回の箱ひげ","run-violin":"実験回のバイオリン","run-histogram":"実験回のヒストグラム","run-paired":"実験回の対応",scatter:"散布図"};
@@ -128,7 +129,8 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   // The publication figure's presentation; a choice left empty follows the saved result (plan FS, FQ, FA).
   const [size,setSize]=useState<FigureSize>("panel"),[annotation,setAnnotation]=useState<NonNullable<Presentation["annotation"]>>("value");
   const [observations,setObservations]=useState<Observations|null>(null),[colorBy,setColorBy]=useState<"run"|"group"|null>(null);
-  function restorePresentation(value:unknown){const p=(value||{}) as Presentation;setSize(p.size||"panel");setAnnotation(p.annotation||"value");setObservations(p.observations??null);setColorBy(p.color_by??null);}
+  const [composition,setComposition]=useState<Composition>("quantification"),[imageFields,setImageFields]=useState<Record<string,string>>({}),[outlines,setOutlines]=useState(true);
+  function restorePresentation(value:unknown){const p=(value||{}) as Presentation;setSize(p.size||"panel");setAnnotation(p.annotation||"value");setObservations(p.observations??null);setColorBy(p.color_by??null);setComposition(p.composition||"quantification");setImageFields(p.image_fields||{});setOutlines(p.outlines??true);}
   const [xLabel,setXLabel]=useState(""),[yLabel,setYLabel]=useState(""),[yMin,setYMin]=useState(""),[yMax,setYMax]=useState("");
   const [xAxis,setXAxis]=useState<AxisState>(emptyAxis),[yAxis,setYAxis]=useState<AxisState>(emptyAxis);
   const outputRef=useRef<HTMLDivElement>(null),scrollPositions=useRef<Record<string,number>>({});
@@ -250,7 +252,8 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   const series=saved?.historical?(saved.operation==="distribution"?(saved.sources||[]).map(source=>source.field):saved.result.spec?.conditions||[]):resultSeries(operation,sources.map(source=>source.field),conditions,contrasts);
   const plot=():RenderPlot=>({...checkedPlot(width,height,font,xLabel,yLabel,yMin,yMax),...axisPlotOptions(xAxis,{...yAxis,min:yMin,max:yMax},(saved?.historical?saved.operation:operation)==="association"),...(pointSize?{point_size:pointSize}:{}),group_order:seriesOrder(order,series),style:{version:"1.0.0",series_colors:colors,show_legend:legend},
     // Distribution pages have their own layout; comparisons and associations draw the publication figure.
-    ...((saved?.historical?saved.operation:operation)==="distribution"?{}:{presentation:{version:"1.0.0" as const,annotation,size,...(observations?{observations}:{}),...(colorBy?{color_by:colorBy}:{})}})});
+    ...((saved?.historical?saved.operation:operation)==="distribution"?{}:{presentation:{version:"1.0.0" as const,annotation,size,...(observations?{observations}:{}),...(colorBy?{color_by:colorBy}:{}),
+      ...(composition!=="quantification"?{composition}:{}),...(Object.keys(imageFields).length?{image_fields:imageFields}:{}),...(outlines?{}:{outlines:false})}})});
   async function repairUnsupported(){if(!onSaveDraft)return;const additional=initialSpec?.additional_analyses??[],indexes=new Map<number,number>();let next=1;indexes.set(0,0);additional.forEach((value,index)=>{if(!invalidMethod(value))indexes.set(index+1,next++);});
     const primaryInvalid=invalidMethod(initialSpec?.statistics?.method??undefined);
     const statistics=primaryInvalid?{...initialSpec?.statistics,method:{kind:"descriptive",test:null,omnibus:null,association:null,x:null,y:null},x_metric:null,x_channel_id:null}:initialSpec?.statistics;
@@ -450,6 +453,9 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
         <nav className={styles.figureParts} aria-label="図の設定対象">{([["figure","図"],["x","横軸"],["y","縦軸"],["series","系列"]] as const).map(([key,label])=><button key={key} aria-pressed={part===key} onClick={()=>setPart(key)}>{label}</button>)}</nav>
         {part==="figure"&&<>
           {/* Composition first, then the form and the size (FU-02); each change redraws the figure (FU-04). */}
+          {publication&&saved?.operation==="comparison"&&(saved.figure.compositions||[]).length>1&&<label>構成<select value={composition} onChange={event=>setComposition(event.target.value as Composition)}><option value="quantification">定量のみ</option><option value="images-quantification">代表画像と定量</option></select></label>}
+          {publication&&composition==="images-quantification"&&(saved?.result.spec?.conditions||[]).map(group=><label key={group}>代表画像（{group}）<select value={imageFields[group]||""} onChange={event=>setImageFields(previous=>{const next={...previous};if(event.target.value)next[group]=event.target.value;else delete next[group];return next;})}><option value="">自動（実験回の平均に近い視野）</option>{resultSources(saved!.result).filter(field=>field.metadata?.condition===group).map(field=><option key={field.field_id} value={field.field_id}>{fieldLabels[field.field_id]||field.field_id}</option>)}</select></label>)}
+          {publication&&composition==="images-quantification"&&<label className={styles.check}><input type="checkbox" checked={outlines} onChange={event=>setOutlines(event.target.checked)}/>測定した領域の輪郭</label>}
           {publication&&forms.length>1&&<label>形<select value={currentForm?.id||""} onChange={event=>{const chosen=forms.find(value=>value.id===event.target.value);if(chosen){setFigureKind(chosen.kind);setObservations(chosen.observations??null);}}}>{forms.map(value=><option key={value.id} value={value.id}>{formNames[value.id]||value.id}</option>)}</select></label>}
           {publication?<label>大きさ<select value={size} onChange={event=>setSize(event.target.value as FigureSize)}>{(Object.keys(sizeNames) as FigureSize[]).map(value=><option key={value} value={value}>{sizeNames[value]}</option>)}</select></label>
             :<label>図の幅<select value={width===89?"89":width===183?"183":"custom"} onChange={event=>{if(event.target.value!=="custom"){setWidth(Number(event.target.value));setHeight(previous=>Math.min(previous,170));setFont(previous=>Math.min(previous,7));}}}><option value="89">1段幅 · 89 mm</option><option value="183">2段幅 · 183 mm</option><option value="custom">カスタム</option></select></label>}
@@ -531,7 +537,7 @@ function FigureLegend({path,gaps}:{path:string;gaps:string[]}){
     <textarea aria-label="凡例" value={text} rows={Math.min(12,Math.max(5,Math.ceil(text.length/90)))} onChange={event=>setText(event.target.value)}/>
   </section>;
 }
-const gapNames:Record<string,string>={"[cell line]":"細胞株","[treatment and duration]":"処理と時間","[antibody or dye for each stain]":"抗体・色素"};
+const gapNames:Record<string,string>={"[Cell line]":"細胞株","[treatment and duration]":"処理と時間","[antibody or dye for each stain]":"抗体・色素"};
 /** The columns a researcher reads first (N-06): the field to open, its run and group, the region and the value. */
 const leadingKeys=["field_id","pair","condition","experimental_unit","region_id","nucleus_id","value"];
 /** What one saved observation (a region's value) is read by; the run and group already name its unit. */

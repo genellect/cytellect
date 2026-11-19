@@ -295,7 +295,7 @@ test("demo: image, outline, measurement, statistics and figure features run with
   await expect(notRecorded(page)).toHaveCount(0);
   await header.getByRole("button", {name: "グラフ", exact: true}).click();
   await renderFigure(page);
-  await page.getByRole("region", {name: "図の作成・保存"}).getByRole("combobox", {name: "図のレイアウト", exact: true}).selectOption("box");
+  await page.getByRole("region", {name: "図の作成・保存"}).getByRole("combobox", {name: "大きさ", exact: true}).selectOption("single-column");
   await renderFigure(page);
   await expect(notRecorded(page)).toHaveCount(0);
 
@@ -437,17 +437,15 @@ test("phones run the guided operations from the recorded tour", async ({page}) =
   await calculate(page);
   await header.getByRole("button", {name: "グラフ", exact: true}).click();
   const figure = page.getByRole("region", {name: "図の作成・保存"});
-  const update = figure.getByRole("button", {name: "図を更新", exact: true});
-  await update.click();
-  await expect(update).toBeEnabled({timeout: live});
+  await renderFigure(page);
   const download = page.waitForEvent("download", {timeout: live});
   await figure.getByRole("button", {name: "保存", exact: true}).click();
   expect((await download).suggestedFilename()).toBe("Cytellect-publication.zip");
   expect(await alerts(page)).toEqual([]);
 
   // The figure's free sizes are offered as in production; a size the recording does not hold is explained when drawn.
-  await expect(figure.getByRole("combobox", {name: "図の幅", exact: true}).locator("option[value=custom]")).toHaveCount(1);
-  await expect(figure.getByRole("spinbutton", {name: "幅 / mm"})).toBeEnabled();
+  await expect(figure.getByRole("combobox", {name: "大きさ", exact: true}).locator("option[value=custom]")).toHaveCount(1);
+  await expect(figure.getByRole("spinbutton", {name: "文字 / pt"})).toBeEnabled();
   // The phone never downloaded the in-browser API.
   expect(watch.requests.filter(url => /\/showcase\/(runtime\/|seed\.zip)/.test(url))).toEqual([]);
   await noErrors(page, watch);
@@ -488,10 +486,10 @@ async function calculate(page: Page) {
   await expect(results.getByText("測定結果または解析条件が変わりました。再計算してください。")).toHaveCount(0);
   expect(await alerts(page)).toEqual([]);
 }
+/** A figure setting redraws on its own (FU-04); this waits until the drawing has finished. */
 async function renderFigure(page: Page) {
-  const update = page.getByRole("region", {name: "図の作成・保存"}).getByRole("button", {name: "図を更新", exact: true});
-  await update.click();
-  await expect(update).toBeEnabled({timeout: live});
+  await page.waitForTimeout(600);
+  await expect(page.getByRole("region", {name: "図の作成・保存"}).getByRole("status").filter({hasText: "図を更新中"})).toHaveCount(0, {timeout: live});
   await expect(page.getByRole("button", {name: /^グラフを選択/}).first()).toBeVisible({timeout: live});
   expect(await alerts(page)).toEqual([]);
 }
@@ -850,7 +848,7 @@ test("a per-nucleus nucleolar result is read and checked on the nucleoli, and un
   // The figure offers no interval a descriptive comparison does not have (S-07).
   await header.getByRole("button", {name: "グラフ", exact: true}).click();
   await expect(page.getByRole("button", {name: /^グラフを選択/}).first()).toBeVisible({timeout: live});
-  await expect(page.locator("label").filter({hasText: "図のレイアウト"}).locator("option[value=superplot]")).toHaveText("実験回ごと（視野・実験回・平均）");
+  await expect(page.locator("label").filter({hasText: /^形/}).locator("option[value=points]")).toHaveText("全データ点");
   await expect(page.getByText("記述統計のため、信頼区間は描きません。")).toBeVisible();
   // A run's point lists its nuclei with the field to open first; the identifiers are folded.
   const points = page.locator("[data-cytellect-source]");

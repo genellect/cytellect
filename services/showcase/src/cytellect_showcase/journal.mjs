@@ -100,6 +100,8 @@ const browser = await chromium.launch({executablePath: config.chromium, headless
 async function scene(name, walk, workspace) {
   const entries = [];
   const context = await browser.newContext({viewport: {width: 1440, height: 900}, acceptDownloads: true});
+  // 「PNG をコピー」 writes the drawn figure to the clipboard, as a visitor's browser allows it.
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], {origin: config.origin});
   const page = await context.newPage();
   const started = Date.now();
   await page.exposeFunction("__cytellectShowcaseRecord", exchange => keep(entries, name, exchange));
@@ -171,30 +173,34 @@ async function calculate(page, refusal = null) {
   if (refused.length) throw new Error(`calculation refused: ${refused.join(" / ")}`);
   return true;
 }
+// A changed figure setting redraws on its own (FU-04): wait for the drawing to finish.
 async function render(page) {
-  const update = figure(page).getByRole("button", {name: "図を更新", exact: true});
-  await update.click();
-  await page.waitForFunction(() => [...document.querySelectorAll("button")].some(button => button.textContent === "図を更新" && !button.disabled), null, {timeout: LIVE});
+  await page.waitForTimeout(600);
+  await page.waitForFunction(() => ![...document.querySelectorAll("[role=status]")].some(node => /図を更新中/.test(node.textContent ?? "")), null, {timeout: LIVE});
   await idle(page);
 }
-// Figure variants a visitor can choose for the result just calculated: both widths and, for a
-// comparison, every layout at each; then the defaults again for the next calculation.
-async function figures(page, comparison) {
+// Figure variants a visitor can choose for the result just calculated: every choice the panel offers
+// for it (form, size, annotation, colouring and, when asked, the representative images), one at a
+// time from the opening figure, which is then shown again; a distribution page at both widths.
+async function figures(page, _comparison, images = false) {
   await tab(page, "グラフ");
-  const width = figure(page).getByRole("combobox", {name: "図の幅", exact: true});
-  const layout = figure(page).getByRole("combobox", {name: "図のレイアウト", exact: true});
-  // Every layout the panel offers for this result, at each width; then back to the first figure.
-  const first = comparison ? await layout.inputValue() : null;
-  const kinds = comparison ? await choices(layout) : [null];
-  for (const value of ["183", "89"]) {
-    await width.selectOption(value);
-    for (const kind of kinds) {
-      if (kind) await layout.selectOption(kind);
-      await render(page);
-    }
+  const size = figure(page).getByRole("combobox", {name: "大きさ", exact: true});
+  if (!await size.count()) {
+    const width = figure(page).getByRole("combobox", {name: "図の幅", exact: true});
+    for (const value of ["89", "183"]) if (await width.inputValue() !== value) {await width.selectOption(value); await render(page);}
+    await tab(page, "統計");
+    return;
   }
-  await width.selectOption("183");
-  if (comparison && first) await layout.selectOption(first);
+  for (const name of ["形", "大きさ", "注釈", "色分け", ...(images ? ["構成"] : [])]) {
+    const select = figure(page).getByRole("combobox", {name, exact: true});
+    if (!await select.count()) continue;
+    const first = await select.inputValue();
+    for (const value of await choices(select)) {
+      if (value === first || value === "custom") continue;
+      await select.selectOption(value); await render(page);
+    }
+    if (await select.inputValue() !== first) {await select.selectOption(first); await render(page);}
+  }
   await tab(page, "統計");
 }
 // Every metric of the catalog (metric-catalog.ts); a scene skips a metric the panel does not offer
@@ -247,7 +253,7 @@ async function savedFigures(page) {
   await history.waitFor({timeout: LIVE});
   for (const value of await choices(history)) {
     await history.selectOption(value); await idle(page);
-    const comparison = await figure(page).getByRole("combobox", {name: "図のレイアウト", exact: true}).count() > 0;
+    const comparison = await figure(page).getByRole("combobox", {name: "大きさ", exact: true}).count() > 0;
     await figures(page, comparison);
     await tab(page, "グラフ");
   }
@@ -439,6 +445,13 @@ function walksOf(demo) {
     await render(page);
     await figure(page).getByLabel("凡例を表示", {exact: true}).check();
     await render(page);
+    // The opening comparison with its representative images (panel a), and the figure as an image for a slide.
+    const composition = figure(page).getByRole("combobox", {name: "構成", exact: true});
+    if (await composition.count()) {
+      await composition.selectOption("images-quantification"); await render(page);
+      await figure(page).getByRole("button", {name: "PNG をコピー", exact: true}).click(); await idle(page);
+      await composition.selectOption("quantification"); await render(page);
+    }
     // The package with the original images (tens of MB each) is recorded on full scenes only.
     if (demo.scope === "story") return;
     await figure(page).getByLabel("元画像を含める", {exact: true}).check();

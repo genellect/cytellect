@@ -306,7 +306,10 @@ def _hierarchy(ax, canonical, plot, order, glyphs, graphical_summary, bars):
         ax.plot(range(len(order)), values, color="#888888", linewidth=.5, zorder=3)
 
 
-def render_common_statistics(result, output: Path, *, methods_template=None, figure_version=FIGURE_VERSION):
+def render_common_statistics(result, output: Path, *, methods_template=None, figure_version=FIGURE_VERSION,
+                             images=None):
+    """``images``: original channel arrays and saved labels of the fields a 2.0.0 figure may show
+    (``{field_id: {"channels": {...}, "labels": ...}}``), loaded by the worker."""
     if figure_version not in FIGURE_VERSIONS:
         raise ValueError("common_statistics_figure_version_unsupported")
     template = CommonStatisticsMethodsTemplate.model_validate(
@@ -323,7 +326,7 @@ def render_common_statistics(result, output: Path, *, methods_template=None, fig
     graphical_summary: list[dict[str, Any]] = []
     ja = plot["language"] == "ja"
     if figure_version == "2.0.0" and (association or plot["kind"] in ("superplot", "unit-mean-bar")):
-        return _render_publication(canonical, output, template, order)
+        return _render_publication(canonical, output, template, order, images)
     with plt.rc_context({"svg.fonttype": "none", "pdf.fonttype": 42, "ps.fonttype": 42,
                          "font.size": style["font_size_pt"], "axes.linewidth": .6,
                          "lines.linewidth": .6, "svg.hashsalt": "cytellect-common-statistics-1"}):
@@ -482,7 +485,7 @@ def _write_svg_font_stack(path: Path):
     path.write_text(text, encoding="utf-8")
 
 
-def _render_publication(canonical, output: Path, template, order):
+def _render_publication(canonical, output: Path, template, order, images=None):
     """Common-statistics figure 2.0.0: the publication layout of plan.md (FS, FQ, FA, FL)."""
     from .figure_forms import figure_forms
     from .figure_legend import association_legend, comparison_legend
@@ -502,25 +505,60 @@ def _render_publication(canonical, output: Path, template, order):
         "version": "1.0.0", "size": (plot.get("presentation") or {}).get("size") or "panel",
         "annotation": (plot.get("presentation") or {}).get("annotation") or "value"}
     forms = figure_forms(canonical)
+    image_figure = None
     if association:
         size = layout(plot, presentation, 3, legend=True, bracket_levels=0)
         if presentation["size"] == "panel":
             size.width_mm, size.height_mm = 82.0, 56.0
     else:
         from .figure_annotations import comparison_annotations
+        from .figure_images import build_panels
 
         levels = len(comparison_annotations(canonical, order, presentation["annotation"]).brackets)
         paired_runs = spec["design"]["kind"] == "paired" and presentation["color_by"] == "run"
         size = layout(plot, presentation, len(order), legend=paired_runs, bracket_levels=levels)
+        if presentation.get("composition") == "images-quantification" and images:
+            image_figure = build_panels(canonical, order, images, presentation.get("image_fields"))
+        if image_figure is not None:
+            columns = 2 if image_figure.counterstain else 1
+            tile = 19.0 if presentation["size"] == "panel" else 22.0
+            image_width = 7 + columns * tile
+            if presentation["size"] == "panel":
+                size.width_mm += image_width + 3
+            size.height_mm = max(size.height_mm, len(image_figure.panels) * tile + 12)
     style = size.style()
     with plt.rc_context(rc(size.font_size)):
-        fig, ax = plt.subplots(figsize=(style["width_inches"], style["height_inches"]), layout="constrained")
+        if image_figure is not None:
+            fig = plt.figure(figsize=(style["width_inches"], style["height_inches"]), layout="constrained")
+            grid = fig.add_gridspec(1, 2, width_ratios=[image_width, size.width_mm - image_width])
+        else:
+            fig, ax = plt.subplots(figsize=(style["width_inches"], style["height_inches"]), layout="constrained")
         try:
             engine = fig.get_layout_engine()
             if isinstance(engine, ConstrainedLayoutEngine):
                 engine.set(w_pad=1 / 72, h_pad=1 / 72, wspace=0, hspace=0)
+            if image_figure is not None:
+                from .figure_images import draw_images
+
+                holder = fig.add_subplot(grid[0])
+                holder.set_axis_off()
+                ax = fig.add_subplot(grid[1])
+                ax.set_gid("panel-b-quantification")
             drawn = (draw_association(fig, ax, canonical, plot, order) if association
                      else draw_comparison(fig, ax, canonical, plot, presentation, order))
+            if image_figure is not None:
+                # The layout is fixed now; the tiles take the reserved space as exact squares.
+                image_axes = draw_images(fig, holder, image_figure, size.font_size,
+                                         bool(presentation.get("outlines", True)))
+                bind_fonts(fig)
+                fig.canvas.draw()
+                inverse = fig.transFigure.inverted()
+                first = image_axes[0].get_window_extent().transformed(inverse)
+                quantified = ax.get_tightbbox()
+                left = quantified.transformed(inverse).x0 if quantified is not None else ax.get_position().x0
+                for letter, x in (("a", max(.004, first.x0 - .01)), ("b", max(.004, left))):
+                    fig.text(x, .995, letter, fontsize=8, fontweight="bold", ha="left", va="top",
+                             gid=f"panel-letter-{letter}")
             shown = ax.get_legend()
             if (plot.get("style") or {}).get("show_legend") is False and shown is not None:
                 shown.remove()
@@ -547,8 +585,19 @@ def _render_publication(canonical, output: Path, template, order):
             write_csv(output / filename, values)
             csv_files.append(filename)
     methods = common_statistics_methods(canonical)
+    panels = []
+    if image_figure is not None:
+        from .figure_images import legend_sentence
+
+        panels = ["a, " + legend_sentence(image_figure), "b,"]
+        arrays: dict[str, Any] = {f"{index}-{cid}": array for index, panel in enumerate(image_figure.panels)
+                                  for cid, array in panel.channels.items()}
+        arrays.update({f"{index}-labels": panel.labels for index, panel in enumerate(image_figure.panels)})
+        import numpy as np
+
+        np.savez_compressed(output / "figure-images.npz", allow_pickle=False, **arrays)
     legend, gaps = (association_legend(canonical, order, drawn) if association
-                    else comparison_legend(canonical, order, drawn, presentation))
+                    else comparison_legend(canonical, order, drawn, presentation, panels))
     (output / "methods.md").write_text(methods, encoding="utf-8")
     (output / "figure-legend.md").write_text(legend, encoding="utf-8")
     (output / "figure-caption.md").write_text("# Figure legend\n\n" + legend + "\n" + methods, encoding="utf-8")
@@ -560,7 +609,9 @@ def _render_publication(canonical, output: Path, template, order):
                                 "common_statistics_methods": template.model_dump(mode="json"), "style": style,
                                 "font": FONT_FAMILY, "font_metadata": font_metadata,
                                 "presentation": presentation, "forms": forms["forms"], "default_form": forms["default"],
-                                "legend_gaps": gaps}
+                                "legend_gaps": gaps,
+                                "compositions": [] if association else ["quantification", "images-quantification"],
+                                "images": image_figure.record() if image_figure is not None else None}
     annotations = [{"left": b.left, "right": b.right, "lines": b.lines} for b in drawn.annotations.brackets]
     source = {**canonical, **metadata, "unit_glyphs": drawn.glyphs, "graphical_summary": drawn.summary,
               "annotations": annotations, "layout": "deterministic beeswarm",
@@ -568,4 +619,5 @@ def _render_publication(canonical, output: Path, template, order):
     (output / "figure-data.json").write_text(json.dumps(source, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
     return {**metadata, "figure_version": "2.0.0", "formats": ["svg", "pdf", "png"], "svg_text": "editable",
             "source_files": ["figure.svg", "figure.pdf", "figure.png", *csv_files, "figure-data.json",
-                             "figure-legend.md", "figure-caption.md", "methods.md"]}
+                             "figure-legend.md", "figure-caption.md", "methods.md",
+                             *(["figure-images.npz"] if image_figure is not None else [])]}

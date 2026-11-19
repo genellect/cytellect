@@ -167,7 +167,9 @@ def resolve_presentation(result, plot) -> dict[str, Any]:
     observations = saved.get("observations") or forms["default"].get("observations") or "points"
     return {"version": "1.0.0", "observations": observations,
             "color_by": saved.get("color_by") or ("run" if paired else "group"),
-            "annotation": saved.get("annotation") or "value", "size": saved.get("size") or "panel"}
+            "annotation": saved.get("annotation") or "value", "size": saved.get("size") or "panel",
+            "composition": saved.get("composition") or "quantification",
+            "image_fields": dict(saved.get("image_fields") or {}), "outlines": saved.get("outlines", True)}
 
 
 def _font_for(text: str, bold: bool):

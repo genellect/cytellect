@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from .publication_figure import axis_title
 
-GAPS = ("[cell line]", "[treatment and duration]", "[antibody or dye for each stain]")
+GAPS = ("[Cell line]", "[treatment and duration]", "[antibody or dye for each stain]")
 AGGREGATION = {
     "field-summary": "field values → mean of fields per sample → mean of samples per run",
     "region": "median of observations per field → mean of fields per sample → mean of samples per run",
@@ -40,10 +40,9 @@ def comparison_legend(canonical, order, drawn, presentation, panels=None) -> tup
     observations = _join([f"{counts[c]['observations']} {nouns} ({c})" for c in order if c in counts])
     fields = _join([f"{counts[c]['selected_fields']} ({c})" for c in order if c in counts and "selected_fields" in counts[c]])
     lines = [f"**{title}, {compared}.**", ""]
-    lines.append(f"{GAPS[0].capitalize()} cells were treated as indicated ({GAPS[1]}) and imaged "
+    lines.append(f"{GAPS[0]} cells were treated as indicated ({GAPS[1]}) and imaged "
                  f"({GAPS[2]}).")
-    for panel in panels or []:
-        lines.append(panel)
+    lines.extend(panels or [])
     marks = []
     if description.get("bars"):
         marks.append("bars show the mean of runs")
@@ -56,7 +55,10 @@ def comparison_legend(canonical, order, drawn, presentation, panels=None) -> tup
     sentence = first + "; " + "; ".join(marks)
     if description.get("density"):
         sentence += "; grey outlines show the distribution of " + nouns
-    lines.append(sentence + ".")
+    if lines[-1] == "b,":
+        lines[-1] = "b, " + sentence[0].lower() + sentence[1:] + "."
+    else:
+        lines.append(sentence + ".")
     lines.append(f"n = {_join([str(v) for v in n_units])} {unit_word} per condition"
                  + (f"; {observations}" if observations else "") + (f" from {fields} fields" if fields else "")
                  + f". {nouns.capitalize()} and fields are not independent replicates.")
@@ -77,7 +79,7 @@ def association_legend(canonical, order, drawn) -> tuple[str, list[str]]:
     y_title, _ = axis_title(canonical["y_source"])
     counts = {row["condition"]: row for row in canonical.get("counts") or []}
     n = _join([f"{counts[c].get('experimental_units', '?')} ({c})" for c in order if c in counts])
-    body = [f"{GAPS[0].capitalize()} cells were treated as indicated ({GAPS[1]}) and imaged ({GAPS[2]}).",
+    body = [f"{GAPS[0]} cells were treated as indicated ({GAPS[1]}) and imaged ({GAPS[2]}).",
             f"Each point is one independent experimental unit (median per field → mean of fields per sample → "
             f"mean of samples per unit); n = {n}.",
             *[line + "." for line in drawn.annotations.legend],
