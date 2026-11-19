@@ -620,3 +620,33 @@ describe("figures drawn from the recorded results", () => {
     expect(await other.json()).toEqual({detail: "showcase_action_not_recorded"});
   });
 });
+
+describe("saved results and figures of the seed", () => {
+  it("shows a saved result and a saved figure with their drawings from figures.json", async () => {
+    const S = "33333333-3333-4333-8333-333333333333", F = "44444444-4444-4444-8444-444444444444";
+    const index = {version: 1, entries: {
+      [snapshotKey(`/v1/jobs/${S}/result`)]: {status: 200, headers: [["content-type", "application/json"]], file: "s.json"},
+      [snapshotKey(`/v1/jobs/${F}/result`)]: {status: 200, headers: [["content-type", "application/json"]], file: "f.json"},
+    }};
+    const files: Record<string, string> = {
+      "index.json": JSON.stringify(index), "journal.json": JSON.stringify({version: 1, entries: []}),
+      "s.json": JSON.stringify({revision_id: "r", estimates: {p: 0.2}, spec: {plot: {kind: "superplot"}}, figure: {old: 1}}),
+      "f.json": JSON.stringify({revision_id: "r", source_job_id: S, spec: {plot: {kind: "box"}}, figure: {old: 2}}),
+      "figures.json": JSON.stringify({version: 1, packages: [], sources: {[S]: {group: "g", workspace: "w", revision: "r", seed: true}},
+        groups: {g: {observations: "points", opening: {plot: {kind: "superplot", presentation: null}, figure: {drawn: "opening"}, files: {"figure.svg": "o.svg"}}, figures: []}},
+        saved: {[F]: {source: S, plot: {kind: "box"}, figure: {drawn: "saved"}, files: {"figure.svg": "b.svg"}}}}),
+      "o.svg": "<svg>opening</svg>", "b.svg": "<svg>saved</svg>",
+    };
+    const fetchStatic = vi.fn(async (url: string) => {
+      const name = url.replace("/showcase/snapshot/", "");
+      return name in files ? new Response(files[name]) : new Response("missing", {status: 404});
+    });
+    const subject = createShowcaseTransport({fetchStatic, createEngine: () => fakeEngine(), capable: () => false, snapshotBase: "/showcase/snapshot/"});
+    const result = await (await subject.fetch(`/v1/jobs/${S}/result`)).json();
+    expect(result).toMatchObject({estimates: {p: 0.2}, figure: {drawn: "opening"}});
+    expect(await (await subject.fetch(`/v1/jobs/${S}/files/figure.svg`)).text()).toBe("<svg>opening</svg>");
+    expect(await (await subject.fetch(`/v1/jobs/${F}/result`)).json()).toMatchObject({source_job_id: S, figure: {drawn: "saved"}});
+    expect(await (await subject.fetch(`/v1/jobs/${F}/figure-render`)).json()).toEqual({source_job_id: S, figure: {drawn: "saved"}});
+    expect(await (await subject.fetch(`/v1/jobs/${F}/files/figure.svg`)).text()).toBe("<svg>saved</svg>");
+  });
+});

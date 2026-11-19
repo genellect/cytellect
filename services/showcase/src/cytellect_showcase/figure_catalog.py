@@ -235,6 +235,7 @@ def build(api, target: Path, scratch: Path) -> dict:
 
     # Saved statistics of the published seed (the opening view and 「保存した図」).
     seed = {row["id"]: row for row in catalog.store.rows(jobs, kind="statistics", state="succeeded")}
+    seed_figures = list(catalog.store.rows(jobs, kind="figure-render", state="succeeded"))
     groups: dict[str, dict] = {}
     sources: dict[str, dict] = {}
     for job, row in seed.items():
@@ -256,12 +257,14 @@ def build(api, target: Path, scratch: Path) -> dict:
     started = time.perf_counter()
     for count, (identity, group) in enumerate(sorted(groups.items())):
         if group["seed"]:
+            # A saved result of the seed is drawn anew too: every figure of the demo comes from this stage.
             representative = group["seed"]
             row = seed[representative]
-            root = catalog.store.safe_path(row["result_dir"])
-            opening = json.loads((root / "result.json").read_text())
+            saved = json.loads((catalog.store.safe_path(row["result_dir"]) / "result.json").read_text())
+            root = scratch / representative
+            opening = opening_figure(saved, saved["spec"]["plot"], root)
             workspace = row["workspace_id"]
-            plot = {**opening["spec"]["plot"], **({"presentation": DEFAULT_PRESENTATION} if _comparison(opening) else {})}
+            plot = opening["spec"]["plot"]
         else:
             representative = group["members"][0]
             value = calculated[representative]
@@ -274,7 +277,7 @@ def build(api, target: Path, scratch: Path) -> dict:
             catalog.inject(representative, workspace, opening)
         images = bool(group["seed"])
         figures = []
-        for request in variants(opening, opening["figure"], opening["spec"]["plot"] if group["seed"] else plot, images):
+        for request in variants(opening, opening["figure"], plot, images):
             drawn, folder = catalog.render(representative, workspace, request)
             png = images and (not figures or request.get("presentation", {}).get("composition") == "images-quantification")
             figures.append({"plot": request, "figure": drawn["figure"],
@@ -282,7 +285,7 @@ def build(api, target: Path, scratch: Path) -> dict:
                             "root": folder})
         written[identity] = {
             "observations": (opening["figure"].get("presentation") or {}).get("observations") or "points",
-            # A calculated job reads its figure from here; a saved job of the seed keeps its snapshot.
+            # What reading the result back shows: its figure and the settings it was drawn with.
             "opening": {"figure": opening["figure"], "plot": opening["spec"]["plot"],
                         "files": catalog.save_files(root, opening["figure"]["source_files"], images)},
             "figures": figures,
@@ -322,15 +325,36 @@ def build(api, target: Path, scratch: Path) -> dict:
         package_entries.append({"source": package["source"], "figure": 0, "analysis": package["analysis"],
                                 "files": {"publication.zip": catalog.save((out / "publication.zip").read_bytes(), ".zip")}})
 
+    # Figures the seed saved (「保存した図」): each drawn anew with the settings it was saved with.
+    saved_figures: dict[str, dict] = {}
+    for row in seed_figures:
+        recorded = json.loads((catalog.store.safe_path(row["result_dir"]) / "result.json").read_text())
+        source = recorded.get("source_job_id")
+        if source not in sources or not recorded.get("figure"):
+            continue
+        drawn, folder = catalog.render(source, row["workspace_id"], recorded["spec"]["plot"])
+        saved_figures[row["id"]] = {"source": source, "figure": drawn["figure"], "plot": drawn["spec"]["plot"],
+                                    "files": catalog.save_files(folder, drawn["figure"]["source_files"], False)}
+
     document = {
         "version": 1,
         "groups": {identity: {"observations": value["observations"], "opening": value["opening"],
                               "figures": [{key: item[key] for key in ("plot", "figure", "files")} for item in value["figures"]]}
                    for identity, value in written.items()},
         "sources": sources,
+        "saved": saved_figures,
         "packages": package_entries,
     }
     (target / "figures.json").write_text(json.dumps(document, ensure_ascii=False, separators=(",", ":")) + "\n")
+
+    # The opening snapshot's drawings of saved results and figures are answered from the catalogue.
+    drawn_by_catalog = set(sources) | set(saved_figures)
+    index_path = target / "index.json"
+    index = json.loads(index_path.read_text())
+    for key in [key for key in index["entries"] if (found := JOB_FILE.match(key.removeprefix("GET ")))
+                and found.group(1) in drawn_by_catalog and SHOWN.search(found.group(2))]:
+        del index["entries"][key]
+    index_path.write_text(json.dumps(index, indent=1) + "\n")
 
     # The tour's own figure answers are replaced by the catalogue: figure requests, their reads and
     # the drawings of each calculated result.
@@ -348,8 +372,7 @@ def build(api, target: Path, scratch: Path) -> dict:
             (entry["method"] == "POST" and (FIGURE_RENDER.match(path) or PACKAGE.match(path)))
             or (entry["method"] == "GET" and FIGURE_RENDER.match(path) and FIGURE_RENDER.match(path).group(1) in figure_jobs)
             or (found is not None and (found.group(1) in figure_jobs or found.group(1) in package_jobs
-                                       or (found.group(1) in sources and not sources[found.group(1)].get("seed")
-                                           and SHOWN.search(found.group(2)))))
+                                       or (found.group(1) in drawn_by_catalog and SHOWN.search(found.group(2)))))
         )
         if dropped:
             removed += 1
@@ -358,4 +381,5 @@ def build(api, target: Path, scratch: Path) -> dict:
     journal["entries"] = kept
     (target / "journal.json").write_text(json.dumps(journal, indent=1, ensure_ascii=False) + "\n")
     return {"groups": len(written), "sources": len(sources), "figures": sum(len(value["figures"]) for value in written.values()),
-            "packages": len(package_entries), "journal_entries_removed": removed, "files_written": catalog.files_written}
+            "saved": len(saved_figures), "packages": len(package_entries), "journal_entries_removed": removed,
+            "files_written": catalog.files_written}

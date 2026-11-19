@@ -293,8 +293,9 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       return jsonResponse({job_id: id}, 202);
     }
     if (render && method === "GET") {
-      const held = drawn.get(render[1]);
-      return held ? jsonResponse({source_job_id: held.source, figure: value.groups[held.group].figures[held.index].figure}) : undefined;
+      const held = drawn.get(render[1]), saved = value.saved?.[render[1]];
+      if (held) return jsonResponse({source_job_id: held.source, figure: value.groups[held.group].figures[held.index].figure});
+      return saved ? jsonResponse({source_job_id: saved.source, figure: saved.figure}) : undefined;
     }
     if (pack && method === "POST") {
       const held = drawn.get(pack[1]);
@@ -314,17 +315,18 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       const name = decodeURIComponent(file[2]), held = drawn.get(file[1]), zip = packaged.get(file[1]);
       if (held) {const stored = value.groups[held.group].figures[held.index].files[name]; return stored ? staticFile(stored) : null;}
       if (zip) return name === "publication.zip" ? staticFile(zip) : null;
-      const source = value.sources[recordedId(file[1])], stored = source && value.groups[source.group]?.opening.files[name];
+      const source = value.sources[recordedId(file[1])], saved = value.saved?.[file[1]];
+      const stored = saved ? saved.files[name] : source && value.groups[source.group]?.opening.files[name];
       return stored ? staticFile(stored) : undefined;
     }
     return undefined;
   }
-  /** A calculated result read back: its figure is the one figures.json draws for it. */
+  /** A result read back (calculated in the tour, or saved in the seed): its figure is the one figures.json draws for it. */
   async function withFigure(path: string, response: Response | null): Promise<Response | null> {
     const found = RESULT.exec(path);
     if (!found || !response?.ok) return response;
     const value = await loadFigures(), source = value?.sources[recordedId(found[1])];
-    const opening = source && !source.seed ? value?.groups[source.group]?.opening : undefined;
+    const opening = value?.saved?.[found[1]] ?? (source ? value?.groups[source.group]?.opening : undefined);
     if (!opening) return response;
     let result: {figure?: unknown; spec?: Record<string, unknown>};
     try {result = await response.json();} catch {return null;}
@@ -572,6 +574,7 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
           const journaled = await fromJournal(method, path, body);
           if (journaled || !isRead) return isRead ? withFigure(path, await withKnownJobs(path, journaled)) : journaled;
           if (JOBS.test(path)) return withKnownJobs(path, await fromSnapshot(path));
+          if (RESULT.test(path)) return withFigure(path, await fromSnapshot(path));
           const later = await recordedLater(path);
           if (later) seen.set(path, "snapshot");
           return later;

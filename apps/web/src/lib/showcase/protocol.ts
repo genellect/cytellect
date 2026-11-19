@@ -28,6 +28,8 @@ export interface FigureCatalog {
   groups: Record<string, {observations: string; opening: CatalogFigure; figures: CatalogFigure[]}>;
   /** Statistics jobs (recorded in the tour, or saved in the seed) and the group that draws them. */
   sources: Record<string, {group: string; workspace: string; revision: string; seed?: boolean}>;
+  /** Figures the seed saved (「保存した図」), drawn anew with the settings each was saved with. */
+  saved?: Record<string, {source: string; figure: unknown; plot: unknown; files: Record<string, string>}>;
   /** Publication packages of a figure of the group of `source`, with the recorded analysis export. */
   packages: Array<{source: string; figure: number; analysis: string; files: Record<string, string>}>;
 }

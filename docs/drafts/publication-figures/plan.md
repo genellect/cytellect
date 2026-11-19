@@ -423,9 +423,8 @@ class FigurePresentation(StrictModel):
 
 1. 画面の部品の名前に合わせて、`showcase.spec.ts`（と、名前を変えた場合は `journal.mjs`）を直す。
 2. `uv run python scripts/build_showcase_runtime.py` で実行環境を作り直す。
-3. 初期状態の保存した図は `reseed` → `publish` → `refigure` で描き直す（検出と画像の取得をしない）。
-4. 記録した結果の図を `figures` 段階で描き、`snapshot/figures.json` に差し替える。記録（`journal`）は作り直さない。
-5. 公開ファイルの合計を PR に書く。
+3. 記録した結果と初期状態の保存した結果・保存した図を `figures` 段階で描き、`snapshot/figures.json` に差し替える。記録（`journal`）と初期状態（`seed.zip`）は作り直さない。
+4. 公開ファイルの合計を PR に書く。
 
 `main` へのマージは公開サイトの自動デプロイを起動するので、オーナーの指示を受けて行う。
 
