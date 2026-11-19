@@ -155,9 +155,9 @@
     "license": "4DN public-data use policy; source-attributed derived results"
   },
   "docs/images/readme-hero.webp": {
-    "sha256": "56bb59d987749be07fa476dc596e465fac84164a217c91980e9d0f3f971a73ab",
-    "source": "Composed from apps/web/public/marketing/optical-poster.webp, photo-microscope.webp and lp-figure.svg",
-    "license": "Apache-2.0 (Cytellect layout and optical render); Unsplash License (microscope photograph, https://unsplash.com/photos/white-and-black-microscope-on-white-surface-JdtUKqGdqw8); CC-BY-4.0 (figure derived from https://zenodo.org/records/6643470)"
+    "sha256": "611da84e3be276f5cc5866ecc8bbf0e4fdbbe826867379be338bd2206685c9c6",
+    "source": "Composed from apps/web/public/marketing/optical-poster.webp and photo-microscope.webp; the figure card is the actual output of common-statistics figure 2.0.0 (images and quantification) for the public demo's PLK1 scene (nuclear area, Non-targeting versus PLK1 KO, 3 runs), placed unchanged in the card on 2026-11-19",
+    "license": "Apache-2.0 (Cytellect layout, optical render and figure); Unsplash License (microscope photograph, https://unsplash.com/photos/white-and-black-microscope-on-white-surface-JdtUKqGdqw8); CC0-1.0 (images of the figure, JUMP Cell Painting cpg0016, https://github.com/broadinstitute/cellpainting-gallery)"
   },
   "fixtures/public/bbbc013/A01-dapi.tif": {
     "sha256": "06fbe48a163131acf02934765458b3a8f22c542b895ce607614e1e7b06afb21e",

@@ -36,7 +36,7 @@ export interface ConnectedResultsProps {
   onSource:(fieldId:string,regionId?:number,revisionId?:string,target?:ReviewTarget,channelId?:string|null,structure?:ReviewTarget)=>void;beforePrepare?:()=>Promise<WorkspaceSelection|null>;disabled?:boolean;
   gfp?:GfpSelectionChoice|null;
   channelGate?:ChannelGateFilter|null;
-  initialSpec?:Pick<components["schemas"]["AnalysisSpec"],"statistics"|"figure"|"additional_analyses"|"figure_proposals">;
+  initialSpec?:Pick<components["schemas"]["AnalysisSpec"],"statistics"|"figure"|"additional_analyses"|"figure_proposals"|"figure_presentation">;
   onSaveDraft?:(draft:{statistics?:unknown;figure?:unknown;additional_analyses?:unknown[];figure_proposals?:unknown[]})=>Promise<unknown>;
   onMetricChange?:(metric:string,channel:string|null)=>void;
   onAnalysisTargetChange?:(target:ReviewTarget)=>void;
@@ -232,6 +232,8 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
       const restored=restoredMetric(stat);if(restored)chooseMetric(restored,stat.channel_id??null);
       const sx=stat as typeof stat & {x_metric?:string|null;x_channel_id?:string|null};if(stat.method.y)chooseMetric(displayMetric(stat.method.y.metric),stat.method.y.channel??null);if(stat.method.x){setXMetric(displayMetric(stat.method.x.metric));setXChannel(stat.method.x.channel??null);}else if(sx.x_metric){setXMetric(sx.x_metric);setXChannel(sx.x_channel_id??null);}
     }
+    const proposed=initialSpec.figure_presentation;
+    if(proposed&&!(figure?.plot as {presentation?:Presentation}|undefined)?.presentation?.composition)setComposition(proposed.composition);
     if(figure?.plot){const p=figure.plot as typeof figure.plot & {style?:RenderPlot["style"];axes?:RenderPlot["axes"]};setFigureKind(p.kind);setWidth(p.width_inches*25.4);setHeight(p.height_inches*25.4);setFont(p.font_size);setXLabel(p.x_label);setYLabel(p.y_label);setYMin(p.y_min==null?"":String(p.y_min));setYMax(p.y_max==null?"":String(p.y_max));setColors(p.style?.series_colors||{});setLegend(p.style?.show_legend??true);setPointSize(p.point_size??null);restorePresentation((p as {presentation?:unknown}).presentation);setOrder(p.group_order||[]);setXAxis({min:p.axes?.x_min==null?"":String(p.axes.x_min),max:p.axes?.x_max==null?"":String(p.axes.x_max),step:p.axes?.x_tick_step==null?"":String(p.axes.x_tick_step),scale:p.axes?.x_scale||"linear"});setYAxis({min:"",max:"",step:p.y_tick_step==null?"":String(p.y_tick_step),scale:p.axes?.y_scale||"linear"});}
   },[initialSpec,onMetricChange]);// eslint-disable-line react-hooks/exhaustive-deps -- measured and onOpening are read for the first look only
   const requestIdentity=JSON.stringify(design);
@@ -253,7 +255,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   const plot=():RenderPlot=>({...checkedPlot(width,height,font,xLabel,yLabel,yMin,yMax),...axisPlotOptions(xAxis,{...yAxis,min:yMin,max:yMax},(saved?.historical?saved.operation:operation)==="association"),...(pointSize?{point_size:pointSize}:{}),group_order:seriesOrder(order,series),style:{version:"1.0.0",series_colors:colors,show_legend:legend},
     // Distribution pages have their own layout; comparisons and associations draw the publication figure.
     ...((saved?.historical?saved.operation:operation)==="distribution"?{}:{presentation:{version:"1.0.0" as const,annotation,size,...(observations?{observations}:{}),...(colorBy?{color_by:colorBy}:{}),
-      ...(composition!=="quantification"?{composition}:{}),...(Object.keys(imageFields).length?{image_fields:imageFields}:{}),...(outlines?{}:{outlines:false})}})});
+      composition,...(Object.keys(imageFields).length?{image_fields:imageFields}:{}),outlines}})});
   async function repairUnsupported(){if(!onSaveDraft)return;const additional=initialSpec?.additional_analyses??[],indexes=new Map<number,number>();let next=1;indexes.set(0,0);additional.forEach((value,index)=>{if(!invalidMethod(value))indexes.set(index+1,next++);});
     const primaryInvalid=invalidMethod(initialSpec?.statistics?.method??undefined);
     const statistics=primaryInvalid?{...initialSpec?.statistics,method:{kind:"descriptive",test:null,omnibus:null,association:null,x:null,y:null},x_metric:null,x_channel_id:null}:initialSpec?.statistics;
@@ -312,7 +314,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
     try{
       // The public demo calculates with the default figure (recorded for every result); a width the
       // visitor chose beforehand is drawn right after (below).
-      const display=demo?(operation==="distribution"?{...plot(),width_inches:183/25.4}:{...plot(),presentation:{version:"1.0.0" as const,annotation:"value" as const,size:"panel" as const}}):plot();const base=resultRequest(design,fields,display);
+      const display=demo?(operation==="distribution"?{...plot(),width_inches:183/25.4}:{...plot(),presentation:{version:"1.0.0" as const,annotation:"value" as const,size:"panel" as const,composition:"quantification" as const,outlines:true}}):plot();const base=resultRequest(design,fields,display);
       // A new comparison opens on its publication figure; the bar stays when the researcher chose it.
       const chosenKind=operation==="association"?"scatter":operation==="distribution"?"distribution":!demo&&figureKind==="unit-mean-bar"?"unit-mean-bar":comparisonKind();
       const spec={...base,plot:{...base.plot,kind:chosenKind}};
@@ -502,7 +504,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
           </div>
           <div>{svgFiles.map(file=><VectorFigure key={`${saved.figureJob}:${file}`} widthMm={saved.figure.style?.width_mm} path={`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(file)}`}/>)}</div>
         </div>:svgFiles.map(file=>mode==="figure"?<div key={`${saved.figureJob}:${file}`} className={styles.figureFrame} style={saved.figure.style?.width_mm?{maxWidth:`${Math.round(saved.figure.style.width_mm*8)}px`}:undefined}><EditableFigure path={`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(file)}`} onSelect={setPart} onSource={openPoint}/></div>:<VectorFigure key={`${saved.figureJob}:${file}`} widthMm={saved.figure.style?.width_mm} path={`/v1/jobs/${saved.figureJob}/files/${encodeURIComponent(file)}`}/>)}
-        {mode==="figure"&&saved.figure.source_files.includes("figure-legend.md")&&<FigureLegend key={saved.figureJob} path={`/v1/jobs/${saved.figureJob}/files/figure-legend.md`} gaps={saved.figure.legend_gaps||[]}/>}
+        {mode==="figure"&&saved.figure.source_files.includes("figure-legend.md")&&<FigureLegend key={saved.figureJob} path={`/v1/jobs/${saved.figureJob}/files/figure-legend.md`} gaps={saved.figure.legend_gaps||[]} terms={initialSpec?.figure_presentation?.legend_terms??null}/>}
         {pointSource?.job===saved.figureJob&&pointRows.length>0&&<section aria-label="選択した点の試料・視野"><strong>この点の元データ</strong><button onClick={()=>setPointSource(null)} aria-label="点の元データを閉じる">×</button><SavedTable rows={pointRows} fieldLabels={fieldLabels} onSource={(field,region)=>onSource(field,region,saved.revision,saved.target,savedChannel,savedStructure)}/></section>}
         {!svgFiles.length&&<p>この設定では図を表示できません。測定表と出力条件を確認してください。</p>}
         {mode==="statistics"&&tableRows&&(saved.result.estimates
@@ -526,13 +528,19 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
 function VectorFigure({path,widthMm}:{path:string;widthMm?:number}){const url=usePrivateImage(path);return url?<img className={styles.figure} style={widthMm?{maxWidth:`${Math.round(widthMm*6)}px`}:undefined} src={url} alt="保存された解析結果のグラフ"/>:<p role="status">図を読み込み中…</p>;}
 /** The paper's legend, drafted from the saved result (FL-03). Bracketed gaps are facts the workspace does not
  * record (FL-05); the researcher fills them here before copying. */
-function FigureLegend({path,gaps}:{path:string;gaps:string[]}){
-  const [text,setText]=useState(""),[note,setNote]=useState("");
-  useEffect(()=>{let live=true;void fetchBlob(path).then(blob=>blob.text()).then(value=>{if(live)setText(value.trim());}).catch(()=>{if(live)setText("");});return()=>{live=false;};},[path]);
+type LegendTerms={cell_line?:string|null;treatment?:string|null;stains?:string|null};
+/** The gap each proposed term fills; numbers in the legend always come from the saved result (FM-01, FM-02). */
+const termGaps:Array<[keyof LegendTerms,string]>=[["cell_line","[Cell line]"],["treatment","[treatment and duration]"],["stains","[antibody or dye for each stain]"]];
+function FigureLegend({path,gaps,terms}:{path:string;gaps:string[];terms?:LegendTerms|null}){
+  const [text,setText]=useState(""),[note,setNote]=useState(""),[filled,setFilled]=useState<string[]>([]);
+  useEffect(()=>{let live=true;void fetchBlob(path).then(blob=>blob.text()).then(value=>{if(!live)return;let draft=value.trim();const used:string[]=[];
+    for(const [key,gap] of termGaps){const term=terms?.[key];if(term&&draft.includes(gap)){draft=draft.replaceAll(gap,term);used.push(gapNames[gap]);}}
+    setText(draft);setFilled(used);}).catch(()=>{if(live)setText("");});return()=>{live=false;};},[path,terms]);
   if(!text)return null;
   const open=gaps.filter(gap=>text.includes(gap));
   return <section className={styles.legendDraft} aria-label="凡例の下書き">
     <div className={styles.legendHead}><strong>凡例（英語）</strong><button type="button" onClick={()=>void navigator.clipboard.writeText(text).then(()=>setNote("コピーしました")).catch(()=>setNote("コピーできませんでした"))}>コピー</button>{note&&<span role="status">{note}</span>}</div>
+    {filled.length>0&&<p className={styles.figureHint}>AI の提案から記入：{filled.join("、")}。内容を確認してください</p>}
     {open.length>0&&<p className={styles.figureHint}>未記入：{open.map(gap=>gapNames[gap]||gap).join("、")}</p>}
     <textarea aria-label="凡例" value={text} rows={Math.min(12,Math.max(5,Math.ceil(text.length/90)))} onChange={event=>setText(event.target.value)}/>
   </section>;

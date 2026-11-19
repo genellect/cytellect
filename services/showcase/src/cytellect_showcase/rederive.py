@@ -94,9 +94,13 @@ def rederive_in_place() -> dict:
         handlers[job["kind"]](store, job, scratch)
         before = json.loads((target / "result.json").read_text())
         after = json.loads((scratch / "result.json").read_text())
-        names = sorted(path.name for path in target.iterdir()), sorted(path.name for path in scratch.iterdir())
+        names = {path.name for path in target.iterdir()}, {path.name for path in scratch.iterdir()}
+        # A new figure version may write other figure files (a legend draft, image crops); those are
+        # part of the drawing, which is replaced, not of the statistics, which must not change.
+        drawn = {name for result in (before, after) for name in (result.get(RENDERING) or {}).get("source_files", [])}
+        files = sorted((names[0] ^ names[1]) - drawn)
         found = difference({key: value for key, value in before.items() if key != RENDERING},
-                           {key: value for key, value in after.items() if key != RENDERING}) or (f"files {sorted(set(names[0]) ^ set(names[1]))}" if names[0] != names[1] else None)
+                           {key: value for key, value in after.items() if key != RENDERING}) or (f"files {files}" if files else None)
         if found:
             raise ValueError(f"rederive changed {job['kind']} {job['id']} beyond the cross-runtime tolerance: {found}")
         shutil.rmtree(target)

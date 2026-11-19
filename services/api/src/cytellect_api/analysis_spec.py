@@ -9,6 +9,7 @@ from cytellect_analysis.group_comparison_contracts import FieldSummaryMetric, Nu
 from cytellect_analysis.proposal_contracts import (
     DraftCellProcessing,
     DraftFigure,
+    DraftFigurePresentation,
     DraftMetric,
     DraftNuclearProcessing,
     DraftNucleolarProcessing,
@@ -159,6 +160,8 @@ class AnalysisSpec(RegionModel):
     additional_analyses: list[SavedDraftStatistics] = Field(default_factory=list, max_length=3)
     figure_proposals: list[SavedDraftFigure] = Field(default_factory=list, max_length=8)
     figure: FigureDraft | None = None
+    # The adopted proposal's figure composition and legend terms (prompt 2026-11-19.1 and later).
+    figure_presentation: DraftFigurePresentation | None = None
     # Experiment design 1.0.0 (additive): groups, runs and samples entered before analysis;
     # 1.1.0 adds declared strata compared one at a time.
     experiment: AnyExperimentDesign | None = None

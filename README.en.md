@@ -96,7 +96,7 @@ External API spending is managed by the relaying Cloudflare Worker and D1. Costs
 
 Measurement and statistics use NumPy, SciPy, pandas and statsmodels. Cells, fields, specimens and independent experimental units are aggregated separately before group comparisons, paired comparisons and correlation analysis. Object selection, exclusions, missing values and comparison conditions are recorded with the results.
 
-Figures are generated with a fixed random seed and fixed output metadata. SVG keeps text editable and PDF embeds fonts. Exports include input hashes, the masks used, settings and environment information, and a recalculation script.
+Saved comparisons are drawn as publication figures by default: every data point, each run, the mean of runs, the saved effect and P value, optional representative images with one shared display range, outlines and a scale bar, and an English legend draft, at the printed panel size with the bundled Liberation Sans. Point placement is deterministic and output metadata is fixed. SVG keeps text editable, PDF embeds fonts and PNG is 600 dpi. Exports include input hashes, the masks used, settings and environment information, and a recalculation script.
 
 ## Jobs and data management
 

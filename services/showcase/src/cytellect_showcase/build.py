@@ -1787,11 +1787,19 @@ def reseed(out: Path, work: Path, manifests: list, state: dict) -> None:
             if name == "showcase.json":
                 showcase = json.loads(archive.read(member))
                 continue
-            target = recordings / name.removeprefix("recordings/") if name.startswith("recordings/") else data / name
+            target = data / name
             target.parent.mkdir(parents=True, exist_ok=True)
             with archive.open(member) as source, target.open("wb") as destination:
                 shutil.copyfileobj(source, destination)
-    restore(data)
+    # The seed's description lists the files it omits; restoring reads it from the data directory.
+    description = data / "showcase.json"
+    description.write_text(json.dumps(showcase), encoding="utf-8")
+    restored = restore(data)
+    description.unlink()
+    # The seed keeps the detector recordings beside the data; the build keeps them apart.
+    shutil.rmtree(recordings)
+    shutil.move(str(data / "recordings"), str(recordings))
+    log("restored omitted seed files", restored)
     published = json.loads((out / "manifest.json").read_text())
     records = {scene["id"]: scene for scene in published["scenes"]}
     scenes = state.setdefault("scenes", {})

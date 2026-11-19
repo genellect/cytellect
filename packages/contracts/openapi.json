@@ -4178,6 +4178,16 @@
               }
             ]
           },
+          "figure_presentation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DraftFigurePresentation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "experiment": {
             "anyOf": [
               {
@@ -7757,6 +7767,36 @@
         ],
         "title": "DraftFigure"
       },
+      "DraftFigurePresentation": {
+        "properties": {
+          "composition": {
+            "type": "string",
+            "enum": [
+              "quantification",
+              "images-quantification"
+            ],
+            "title": "Composition"
+          },
+          "legend_terms": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DraftLegendTerms"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "composition",
+          "legend_terms"
+        ],
+        "title": "DraftFigurePresentation",
+        "description": "How the main figure is composed (common-statistics figure 2.0.0); the researcher adopts it."
+      },
       "DraftGfpSelection": {
         "properties": {
           "channel": {
@@ -7826,6 +7866,55 @@
           "method"
         ],
         "title": "DraftGfpSelection"
+      },
+      "DraftLegendTerms": {
+        "properties": {
+          "cell_line": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cell Line"
+          },
+          "treatment": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Treatment"
+          },
+          "stains": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stains"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "cell_line",
+          "treatment",
+          "stains"
+        ],
+        "title": "DraftLegendTerms",
+        "description": "Facts of the figure legend the workspace does not record, as the researcher stated them.\nNever values, effects or conclusions (publication figures plan.md FM-01, FL-05)."
       },
       "DraftMetric": {
         "properties": {
@@ -9030,6 +9119,34 @@
             ],
             "title": "Size",
             "default": "panel"
+          },
+          "composition": {
+            "type": "string",
+            "enum": [
+              "quantification",
+              "images-quantification"
+            ],
+            "title": "Composition",
+            "default": "quantification"
+          },
+          "image_fields": {
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 100,
+              "minLength": 1
+            },
+            "propertyNames": {
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "object",
+            "maxProperties": 30,
+            "title": "Image Fields"
+          },
+          "outlines": {
+            "type": "boolean",
+            "title": "Outlines",
+            "default": true
           }
         },
         "additionalProperties": false,
@@ -12660,6 +12777,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/DraftGfpSelection"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "figure_presentation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DraftFigurePresentation"
               },
               {
                 "type": "null"
