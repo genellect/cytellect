@@ -316,7 +316,11 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
     try{
       // The public demo calculates with the default figure (recorded for every result); a width the
       // visitor chose beforehand is drawn right after (below).
-      const display=demo?(operation==="distribution"?{...plot(),width_inches:183/25.4}:{...plot(),presentation:{version:"1.0.0" as const,annotation:"value" as const,size:"panel" as const,composition:"quantification" as const,outlines:true}}):plot();const base=resultRequest(design,fields,display);
+      // The figure follows the analysis being calculated, not the saved result on screen: a distribution page
+      // has no publication presentation (its request refuses one).
+      const {presentation:shownPresentation,...pagePlot}=plot();
+      const drawn=operation==="distribution"?pagePlot:{...pagePlot,...(shownPresentation?{presentation:shownPresentation}:{})};
+      const display=demo?(operation==="distribution"?{...pagePlot,width_inches:183/25.4}:{...pagePlot,presentation:{version:"1.0.0" as const,annotation:"value" as const,size:"panel" as const,composition:"quantification" as const,outlines:true}}):drawn;const base=resultRequest(design,fields,display);
       // A new comparison opens on its publication figure; the bar stays when the researcher chose it.
       const chosenKind=operation==="association"?"scatter":operation==="distribution"?"distribution":!demo&&figureKind==="unit-mean-bar"?"unit-mean-bar":comparisonKind();
       const spec={...base,plot:{...base.plot,kind:chosenKind}};
@@ -337,7 +341,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
       await waitJob(accepted.job_id);
       const result=await request<ResultPayload>(`/v1/jobs/${accepted.job_id}/${operation==="distribution"?"result":"common-statistics"}`);
       if(result.revision_id!==revision)throw new Error("結果の解析版が一致しません。");
-      setFigureKind(chosenKind);if(demo){restorePresentation(display.presentation);}
+      setFigureKind(chosenKind);if(demo){restorePresentation((display as RenderPlot).presentation);}
       if(observations&&!(result.figure.forms||[]).some(form=>form.observations===observations))setObservations(null);
       // A design, stratum or source changed while this ran: its result is not shown as current.
       if(requestedStratum&&scopedIdentity("",requestedStratum)!==scopedIdentity("",stratumRequestRef.current))throw new Error("層または実験デザインが計算中に変わりました。もう一度計算してください。");
