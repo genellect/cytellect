@@ -22,16 +22,26 @@ def beeswarm(values, *, dx: float, dy: float, half_width: float) -> np.ndarray:
     order = np.argsort(values, kind="stable")
     placed_y: list[float] = []
     placed_x: list[float] = []
+    # Candidate offsets in the order they are tried: 0, +dx/2, -dx/2, +dx, -dx, ...
+    steps = np.arange(0, 4 * len(values) + 1)
+    candidates = ((steps + 1) // 2) * dx * .5 * np.where(steps % 2, 1, -1)
+    batch = 64
     for index in order:
         y = values[index]
         start = bisect_left(placed_y, y - dy)
-        neighbours = [(placed_x[k], placed_y[k]) for k in range(start, len(placed_y))]
         chosen = 0.0
-        for step in range(0, 4 * len(values) + 1):
-            candidate = ((step + 1) // 2) * dx * .5 * (1 if step % 2 else -1)
-            if all((candidate - px) ** 2 / dx ** 2 + (y - py) ** 2 / dy ** 2 >= 1 for px, py in neighbours):
-                chosen = candidate
-                break
+        if start == len(placed_y):
+            chosen = float(candidates[0])
+        else:
+            # The same test as for one candidate at a time, for a batch of candidates against every neighbour.
+            near_x = np.asarray(placed_x[start:])
+            vertical = (y - np.asarray(placed_y[start:])) ** 2 / dy ** 2
+            for first in range(0, len(candidates), batch):
+                tried = candidates[first:first + batch]
+                free = np.all((tried[:, None] - near_x[None, :]) ** 2 / dx ** 2 + vertical[None, :] >= 1, axis=1)
+                if free.any():
+                    chosen = float(tried[int(np.argmax(free))])
+                    break
         offsets[index] = chosen
         position = bisect_left(placed_y, y)
         placed_y.insert(position, y)
