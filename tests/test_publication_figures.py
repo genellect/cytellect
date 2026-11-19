@@ -11,13 +11,13 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from cytellect_analysis.common_statistics import analyze_region_comparison
+from cytellect_analysis.common_statistics import analyze_region_association, analyze_region_comparison
 from cytellect_analysis.common_statistics_figures import FIGURE_VERSION, render_common_statistics
 from cytellect_analysis.figure_annotations import comparison_annotations
 from cytellect_analysis.figure_forms import DENSE_OBSERVATIONS, figure_forms
 from cytellect_analysis.figure_layout import beeswarm
 from cytellect_analysis.figure_style import FONT_FILES, p_stars, p_text
-from test_common_statistics import request_v2
+from test_common_statistics import association_request, request_v2
 from test_region_comparison import comparison_fixture
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -143,6 +143,36 @@ def test_p_value_text():
     assert p_text(0.0123) == "P = 0.012"
     assert p_text(0.213) == "P = 0.21"
     assert p_stars(0.2) == "n.s." and p_stars(0.004) == "**"
+
+
+def test_value_axis_encloses_every_value_and_checks_the_chosen_range():
+    from cytellect_analysis.publication_figure import _y_range
+
+    values = [-2.52, -0.4, 0.15]
+    bottom, top, ticks = _y_range(values, "log2", {})
+    assert bottom <= min(values) and top >= max(values) and (bottom, top) == (ticks.min(), ticks.max())
+    bottom, top, _ = _y_range([3.0, 7.0, 12.0], "difference", {"y_tick_step": 5})
+    assert bottom <= 3 and top >= 12
+    with pytest.raises(ValueError, match="figure_y_range_invalid"):
+        _y_range([3.0, 12.0], "difference", {"y_min": 50})
+    with pytest.raises(ValueError, match="figure_tick_count_exceeded"):
+        _y_range([3.0, 30000.0], "difference", {"y_tick_step": 0.001})
+
+
+def test_percent_ticks_keep_their_decimals():
+    from cytellect_analysis.figure_style import value_formatter
+
+    formatter, unit = value_formatter("fraction", [0, .025, .125])
+    assert unit == "%"
+    assert [formatter(value, 0) for value in (0, .025, .075, .125, 1)] == ["0", "2.5", "7.5", "12.5", "100"]
+
+
+def test_association_applies_the_axis_controls(tmp_path):
+    report, config = comparison_fixture((("A", [1, 2, 3]), ("B", [4, 5, 6])))
+    plot = {"preset": "nature-double", "y_tick_step": 1e-9}
+    result = analyze_region_association(report, config, association_request(plot=plot))
+    with pytest.raises(ValueError, match="figure_tick_count_exceeded"):
+        render_common_statistics(result, tmp_path)
 
 
 def demo_images(result):

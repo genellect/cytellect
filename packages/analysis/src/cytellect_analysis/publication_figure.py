@@ -220,13 +220,19 @@ def _y_range(values, scale, plot):
         low = float(plot["y_min"])
     if plot.get("y_max") is not None:
         high = float(plot["y_max"])
+    # The same checks as the earlier figures (figures.apply_plot_controls), before any array is made.
+    if not np.isfinite([low, high]).all() or low >= high:
+        raise ValueError("figure_y_range_invalid")
     if plot.get("y_tick_step"):
         step = float(plot["y_tick_step"])
+        if not np.isfinite(step) or step <= 0 or (high - low) / step > 99:
+            raise ValueError("figure_tick_count_exceeded")
         ticks = low + np.arange(int(np.floor((high - low) / step + 1e-9)) + 1) * step
+        bottom, top = low, high
     else:
         ticks = locator.tick_values(low, high)
-        ticks = ticks[(ticks >= low - 1e-12 * max(1, abs(low))) | np.isclose(ticks, low)]
-        below = ticks[ticks <= low + 1e-12]
+        # The axis ends on the ticks that enclose every value: no observation or interval lies outside it.
+        below = ticks[ticks <= low + 1e-12 * max(1, abs(low))]
         above = ticks[ticks >= high - 1e-12 * max(1, abs(high))]
         bottom = float(below.max()) if len(below) else float(ticks.min())
         top = float(above.min()) if len(above) else float(ticks.max())
@@ -238,7 +244,7 @@ def _y_range(values, scale, plot):
         if scale == "fraction" and top > 1 and high <= 1:
             top = 1.0
             ticks = ticks[ticks <= 1 + 1e-12]
-    return float(ticks.min()), float(ticks.max()), ticks
+    return bottom, top, ticks
 
 
 def draw_comparison(fig, ax, canonical, plot, presentation, order) -> Drawn:

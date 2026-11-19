@@ -1,8 +1,6 @@
 """Deterministic point placement for category plots (presentation only)."""
 from __future__ import annotations
 
-from bisect import bisect_left
-
 import numpy as np
 
 
@@ -20,22 +18,47 @@ def beeswarm(values, *, dx: float, dy: float, half_width: float) -> np.ndarray:
     if len(values) < 2 or dx <= 0 or dy <= 0:
         return offsets
     order = np.argsort(values, kind="stable")
-    placed_y: list[float] = []
-    placed_x: list[float] = []
-    for index in order:
+    # Points are placed in value order, so the placed values stay sorted and the neighbours of a
+    # point (those within one diameter below it) are a window that only moves upwards.
+    placed_y = np.empty(len(values))
+    placed_x = np.empty(len(values))
+    half = dx * .5
+    limit = 2 * len(values)  # the farthest offset tried, in half diameters
+    start = 0
+    for count, index in enumerate(order):
         y = values[index]
-        start = bisect_left(placed_y, y - dy)
-        neighbours = [(placed_x[k], placed_y[k]) for k in range(start, len(placed_y))]
+        while start < count and placed_y[start] < y - dy:
+            start += 1
+        px = placed_x[start:count]
+        rise = (y - placed_y[start:count]) ** 2 / dy ** 2
         chosen = 0.0
-        for step in range(0, 4 * len(values) + 1):
-            candidate = ((step + 1) // 2) * dx * .5 * (1 if step % 2 else -1)
-            if all((candidate - px) ** 2 / dx ** 2 + (y - py) ** 2 / dy ** 2 >= 1 for px, py in neighbours):
-                chosen = candidate
-                break
+        if len(px):
+            # Each neighbour covers an interval of offsets; the half-diameter steps inside it are skipped
+            # at once (those at its very edge are left to the exact test below), which keeps the work
+            # per point proportional to its neighbours instead of their square.
+            reach = dx * np.sqrt(np.clip(1 - rise, 0, None))
+            first = np.ceil((px - reach) / half + 1e-6).astype(np.int64)
+            last = np.floor((px + reach) / half - 1e-6).astype(np.int64)
+            # Two steps past the farthest interval: the step at an interval's edge can still fail the
+            # exact test by rounding, the one after it cannot.
+            span = int(min(limit, max(int(np.abs(first).max()), int(np.abs(last).max())) + 2))
+            covered = first <= last
+            marks = np.zeros(2 * span + 2, dtype=np.int64)
+            np.add.at(marks, np.clip(first[covered], -span, span) + span, 1)
+            np.add.at(marks, np.clip(last[covered], -span, span) + span + 1, -1)
+            taken = np.cumsum(marks)[:-1] > 0
+            # Nearest the centre first: 0, +1, −1, +2, −2, … half diameters.
+            steps = np.zeros(2 * span + 1, dtype=np.int64)
+            steps[1::2] = np.arange(1, span + 1)
+            steps[2::2] = -np.arange(1, span + 1)
+            for step in steps[~taken[steps + span]]:
+                candidate = abs(int(step)) * dx * .5 * (1 if step > 0 else -1)
+                if np.all((candidate - px) ** 2 / dx ** 2 + rise >= 1):
+                    chosen = candidate
+                    break
         offsets[index] = chosen
-        position = bisect_left(placed_y, y)
-        placed_y.insert(position, y)
-        placed_x.insert(position, chosen)
+        placed_y[count] = y
+        placed_x[count] = chosen
     widest = float(np.max(np.abs(offsets)))
     if widest > half_width:
         offsets *= half_width / widest
