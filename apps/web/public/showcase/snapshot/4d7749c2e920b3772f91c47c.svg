@@ -1,0 +1,666 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:ns2="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:xlink="http://www.w3.org/1999/xlink" width="161.897953pt" height="141.732283pt" viewBox="0 0 161.897953 141.732283" version="1.1">
+ <metadata>
+  <rdf:RDF>
+   <ns2:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <ns2:Agent>
+      <dc:title>Cytellect common statistics 2.0.0</dc:title>
+     </ns2:Agent>
+    </dc:creator>
+   </ns2:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 141.732283  L 161.897953 141.732283  L 161.897953 0  L 0 0  z " style="fill: #ffffff" />
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 43.761278 123.583358  L 157.147105 123.583358  L 157.147105 1  L 43.761278 1  z " style="fill: #ffffff" />
+   </g>
+   <g id="matplotlib.axis_1">
+    <g id="xtick_1">
+     <g id="line2d_1" />
+     <g id="text_1">
+      <text style="font-size: 6.5px; font-family: 'Liberation Sans', Arial, Helvetica, sans-serif; fill: #1a1a1a" transform="translate(60.413123 131.802718)">Untreated</text>
+      <text style="font-size: 6.5px; font-family: 'Liberation Sans', Arial, Helvetica, sans-serif; fill: #1a1a1a" transform="translate(60.141443 138.877181)">n = 3 runs</text>
+     </g>
+    </g>
+    <g id="xtick_2">
+     <g id="line2d_2" />
+     <g id="text_2">
+      <text style="font-size: 6.5px; font-family: 'Liberation Sans', Arial, Helvetica, sans-serif; fill: #1a1a1a" transform="translate(110.987799 131.802718)">ActD 1 µM</text>
+      <text style="font-size: 6.5px; font-family: 'Liberation Sans', Arial, Helvetica, sans-serif; fill: #1a1a1a" transform="translate(111.680455 138.877181)">n = 3 runs</text>
+     </g>
+    </g>
+   </g>
+   <g id="matplotlib.axis_2">
+    <g id="ytick_1">
+     <g id="line2d_3">
+      <defs>
+       <path id="m0ffede952a" d="M 0 0  L -2.5 0  " style="stroke: #1a1a1a; stroke-width: 0.5" />
+      </defs>
+      <g>
+       <use xlink:href="#m0ffede952a" x="43.761278" y="123.583358" style="fill: #1a1a1a; stroke: #1a1a1a; stroke-width: 0.5" />
+      </g>
+     </g>
+     <g id="text_3">
+      <text style="font-size: 6.5px; font-family: 'Liberation Sans', Arial, Helvetica, sans-serif; text-anchor: end; fill: #1a1a1a" x="39.261278" y="125.949447" transform="rotate(-0 39.261278 125.949447)">0</text>
+     </g>
+    </g>
+    <g id="ytick_2">
+     <g id="line2d_4">
+      <g>
+       <use xlink:href="#m0ffede952a" x="43.761278" y="102.718105" style="fill: #1a1a1a; stroke: #1a1a1a; stroke-width: 0.5" />
+      </g>
+     </g>
+     <g id="text_4">
+      <text style="font-size: 6.5px; font-family: 'Liberation Sans', Arial, Helvetica, sans-serif; text-anchor: end; fill: #1a1a1a" x="39.261278" y="105.084194" transform="rotate(-0 39.261278 105.084194)">1,000</text>
+     </g>
+    </g>
+    <g id="ytick_3">
+     <g id="line2d_5">
+      <g>
+       <use xlink:href="#m0ffede952a" x="43.761278" y="81.852853" style="fill: #1a1a1a; stroke: #1a1a1a; stroke-width: 0.5" />
+      </g>
+     </g>
+     <g id="text_5">
+      <text style="font-size: 6.5px; font-family: 'Liberation Sans', Arial, Helvetica, sans-serif; text-anchor: end; fill: #1a1a1a" x="39.261278" y="84.218942" transform="rotate(-0 39.261278 84.218942)">2,000</text>
+     </g>
+    </g>
+    <g id="ytick_4">
+     <g id="line2d_6">
+      <g>
+       <use xlink:href="#m0ffede952a" x="43.761278" y="60.987601" style="fill: #1a1a1a; stroke: #1a1a1a; stroke-width: 0.5" />
+      </g>
+     </g>
+     <g id="text_6">
+      <text style="font-size: 6.5px; font-family: 'Liberation Sans', Arial, Helvetica, sans-serif; text-anchor: end; fill: #1a1a1a" x="39.261278" y="63.353689" transform="rotate(-0 39.261278 63.353689)">3,000</text>
+     </g>
+    </g>
+    <g id="ytick_5">
+     <g id="line2d_7">
+      <g>
+       <use xlink:href="#m0ffede952a" x="43.761278" y="40.122348" style="fill: #1a1a1a; stroke: #1a1a1a; stroke-width: 0.5" />
+      </g>
+     </g>
+     <g id="text_7">
+      <text style="font-size: 6.5px; font-family: 'Liberation Sans', Arial, Helvetica, sans-serif; text-anchor: end; fill: #1a1a1a" x="39.261278" y="42.488437" transform="rotate(-0 39.261278 42.488437)">4,000</text>
+     </g>
+    </g>
+    <g id="ytick_6">
+     <g id="line2d_8">
+      <g>
+       <use xlink:href="#m0ffede952a" x="43.761278" y="19.257096" style="fill: #1a1a1a; stroke: #1a1a1a; stroke-width: 0.5" />
+      </g>
+     </g>
+     <g id="text_8">
+      <text style="font-size: 6.5px; font-family: 'Liberation Sans', Arial, Helvetica, sans-serif; text-anchor: end; fill: #1a1a1a" x="39.261278" y="21.623185" transform="rotate(-0 39.261278 21.623185)">5,000</text>
+     </g>
+    </g>
+    <g id="text_9">
+     <text style="font-size: 7px; font-family: 'Liberation Sans', Arial, Helvetica, sans-serif; fill: #1a1a1a" transform="translate(10.380604 93.024413) rotate(-90)">Nuclear 5-EU mean</text>
+     <text style="font-size: 7px; font-family: 'Liberation Sans', Arial, Helvetica, sans-serif; fill: #1a1a1a" transform="translate(17.999256 84.271132) rotate(-90)">intensity (a.u.)</text>
+    </g>
+   </g>
+   <g id="cytellect-source-points-0">
+    <defs>
+     <path id="C0_0_53ada3cc92" d="M 0 1.06066  C 0.28129 1.06066 0.551098 0.948902 0.75 0.75  C 0.948902 0.551098 1.06066 0.28129 1.06066 -0  C 1.06066 -0.28129 0.948902 -0.551098 0.75 -0.75  C 0.551098 -0.948902 0.28129 -1.06066 0 -1.06066  C -0.28129 -1.06066 -0.551098 -0.948902 -0.75 -0.75  C -0.948902 -0.551098 -1.06066 -0.28129 -1.06066 0  C -1.06066 0.28129 -0.948902 0.551098 -0.75 0.75  C -0.551098 0.948902 -0.28129 1.06066 0 1.06066  z " />
+    </defs>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="81.366844" y="55.416056" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;068479b3-f414-4fa9-911f-38b2acedae50&quot;,&quot;region_id&quot;:1}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="78.025765" y="65.426099" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;068479b3-f414-4fa9-911f-38b2acedae50&quot;,&quot;region_id&quot;:2}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="79.139458" y="45.41338" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;068479b3-f414-4fa9-911f-38b2acedae50&quot;,&quot;region_id&quot;:3}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="76.912071" y="40.677545" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;068479b3-f414-4fa9-911f-38b2acedae50&quot;,&quot;region_id&quot;:4}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="68.002526" y="52.430828" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;068479b3-f414-4fa9-911f-38b2acedae50&quot;,&quot;region_id&quot;:5}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="81.366844" y="48.397076" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;068479b3-f414-4fa9-911f-38b2acedae50&quot;,&quot;region_id&quot;:6}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="75.798378" y="49.435008" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;068479b3-f414-4fa9-911f-38b2acedae50&quot;,&quot;region_id&quot;:7}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="70.229912" y="55.750707" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;068479b3-f414-4fa9-911f-38b2acedae50&quot;,&quot;region_id&quot;:8}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="74.684685" y="41.725177" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;068479b3-f414-4fa9-911f-38b2acedae50&quot;,&quot;region_id&quot;:9}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="73.570992" y="48.777518" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;068479b3-f414-4fa9-911f-38b2acedae50&quot;,&quot;region_id&quot;:10}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="79.139458" y="50.067756" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;068479b3-f414-4fa9-911f-38b2acedae50&quot;,&quot;region_id&quot;:11}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="74.684685" y="46.733871" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;068479b3-f414-4fa9-911f-38b2acedae50&quot;,&quot;region_id&quot;:12}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="79.139458" y="53.355166" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;156b2ff2-48a3-46b0-a6e9-a25f3d46042d&quot;,&quot;region_id&quot;:1}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="72.457299" y="57.153697" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;156b2ff2-48a3-46b0-a6e9-a25f3d46042d&quot;,&quot;region_id&quot;:2}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="76.912071" y="71.047601" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;156b2ff2-48a3-46b0-a6e9-a25f3d46042d&quot;,&quot;region_id&quot;:3}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="64.661447" y="63.573455" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;156b2ff2-48a3-46b0-a6e9-a25f3d46042d&quot;,&quot;region_id&quot;:4}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="76.912071" y="51.653" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;156b2ff2-48a3-46b0-a6e9-a25f3d46042d&quot;,&quot;region_id&quot;:5}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="80.253151" y="67.35591" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;156b2ff2-48a3-46b0-a6e9-a25f3d46042d&quot;,&quot;region_id&quot;:6}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="71.343606" y="70.09558" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;156b2ff2-48a3-46b0-a6e9-a25f3d46042d&quot;,&quot;region_id&quot;:7}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="75.798378" y="63.988454" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;156b2ff2-48a3-46b0-a6e9-a25f3d46042d&quot;,&quot;region_id&quot;:8}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="80.253151" y="65.08749" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;156b2ff2-48a3-46b0-a6e9-a25f3d46042d&quot;,&quot;region_id&quot;:9}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="84.707924" y="63.667906" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;21099c3b-1787-46ff-b50a-ce0c89a023c8&quot;,&quot;region_id&quot;:1}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="86.93531" y="63.440003" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;21099c3b-1787-46ff-b50a-ce0c89a023c8&quot;,&quot;region_id&quot;:2}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="72.457299" y="78.859082" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;21099c3b-1787-46ff-b50a-ce0c89a023c8&quot;,&quot;region_id&quot;:3}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="74.684685" y="62.020126" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;21099c3b-1787-46ff-b50a-ce0c89a023c8&quot;,&quot;region_id&quot;:4}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="82.480537" y="63.792076" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;21099c3b-1787-46ff-b50a-ce0c89a023c8&quot;,&quot;region_id&quot;:5}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="79.139458" y="56.548085" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;21099c3b-1787-46ff-b50a-ce0c89a023c8&quot;,&quot;region_id&quot;:6}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="72.457299" y="72.472894" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;21099c3b-1787-46ff-b50a-ce0c89a023c8&quot;,&quot;region_id&quot;:7}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="66.888833" y="63.772341" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;398a2714-3aba-4c33-b5b9-43a15095c2e6&quot;,&quot;region_id&quot;:1}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="70.229912" y="68.075817" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;398a2714-3aba-4c33-b5b9-43a15095c2e6&quot;,&quot;region_id&quot;:2}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="74.684685" y="72.487171" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;398a2714-3aba-4c33-b5b9-43a15095c2e6&quot;,&quot;region_id&quot;:3}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="81.366844" y="52.50816" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;398a2714-3aba-4c33-b5b9-43a15095c2e6&quot;,&quot;region_id&quot;:4}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="73.570992" y="65.432374" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;398a2714-3aba-4c33-b5b9-43a15095c2e6&quot;,&quot;region_id&quot;:5}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="76.912071" y="57.307679" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;398a2714-3aba-4c33-b5b9-43a15095c2e6&quot;,&quot;region_id&quot;:6}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="75.798378" y="69.078182" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;398a2714-3aba-4c33-b5b9-43a15095c2e6&quot;,&quot;region_id&quot;:7}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="75.798378" y="66.482055" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;398a2714-3aba-4c33-b5b9-43a15095c2e6&quot;,&quot;region_id&quot;:8}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="72.457299" y="82.070043" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;660fd17b-f488-4a53-a2df-f456b2760243&quot;,&quot;region_id&quot;:1}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="63.547753" y="77.202366" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;660fd17b-f488-4a53-a2df-f456b2760243&quot;,&quot;region_id&quot;:2}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="70.229912" y="78.536647" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;660fd17b-f488-4a53-a2df-f456b2760243&quot;,&quot;region_id&quot;:3}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="70.229912" y="85.50995" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;660fd17b-f488-4a53-a2df-f456b2760243&quot;,&quot;region_id&quot;:4}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="74.684685" y="83.260692" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;660fd17b-f488-4a53-a2df-f456b2760243&quot;,&quot;region_id&quot;:5}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="76.912071" y="82.490167" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;660fd17b-f488-4a53-a2df-f456b2760243&quot;,&quot;region_id&quot;:6}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="76.912071" y="86.899148" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;660fd17b-f488-4a53-a2df-f456b2760243&quot;,&quot;region_id&quot;:7}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="79.139458" y="78.842995" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;660fd17b-f488-4a53-a2df-f456b2760243&quot;,&quot;region_id&quot;:8}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="81.366844" y="77.79861" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;660fd17b-f488-4a53-a2df-f456b2760243&quot;,&quot;region_id&quot;:9}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="76.912071" y="79.955569" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;660fd17b-f488-4a53-a2df-f456b2760243&quot;,&quot;region_id&quot;:10}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="74.684685" y="86.946812" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;660fd17b-f488-4a53-a2df-f456b2760243&quot;,&quot;region_id&quot;:11}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="61.320367" y="76.6377" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;660fd17b-f488-4a53-a2df-f456b2760243&quot;,&quot;region_id&quot;:12}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="88.049003" y="76.730913" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;660fd17b-f488-4a53-a2df-f456b2760243&quot;,&quot;region_id&quot;:13}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="72.457299" y="88.983968" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;660fd17b-f488-4a53-a2df-f456b2760243&quot;,&quot;region_id&quot;:14}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="74.684685" y="75.674969" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;660fd17b-f488-4a53-a2df-f456b2760243&quot;,&quot;region_id&quot;:15}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="76.912071" y="89.477394" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;660fd17b-f488-4a53-a2df-f456b2760243&quot;,&quot;region_id&quot;:16}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="79.139458" y="85.800831" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;660fd17b-f488-4a53-a2df-f456b2760243&quot;,&quot;region_id&quot;:17}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="74.684685" y="90.00594" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;660fd17b-f488-4a53-a2df-f456b2760243&quot;,&quot;region_id&quot;:18}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="69.116219" y="64.314785" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;776c364c-bb6e-40c0-9574-e0586e2368ac&quot;,&quot;region_id&quot;:1}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="72.457299" y="54.134407" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;776c364c-bb6e-40c0-9574-e0586e2368ac&quot;,&quot;region_id&quot;:2}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="74.684685" y="53.488533" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;776c364c-bb6e-40c0-9574-e0586e2368ac&quot;,&quot;region_id&quot;:3}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="76.912071" y="73.848111" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;776c364c-bb6e-40c0-9574-e0586e2368ac&quot;,&quot;region_id&quot;:4}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="70.229912" y="52.886798" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;776c364c-bb6e-40c0-9574-e0586e2368ac&quot;,&quot;region_id&quot;:5}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="79.139458" y="59.960787" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;776c364c-bb6e-40c0-9574-e0586e2368ac&quot;,&quot;region_id&quot;:6}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="73.570992" y="68.106529" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;776c364c-bb6e-40c0-9574-e0586e2368ac&quot;,&quot;region_id&quot;:7}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="71.343606" y="50.225969" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;776c364c-bb6e-40c0-9574-e0586e2368ac&quot;,&quot;region_id&quot;:8}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="71.343606" y="47.014034" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;776c364c-bb6e-40c0-9574-e0586e2368ac&quot;,&quot;region_id&quot;:9}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="74.684685" y="78.204147" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;a0afa333-ec2e-4859-b80b-06a5bf018ddb&quot;,&quot;region_id&quot;:1}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="74.684685" y="80.516392" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;a0afa333-ec2e-4859-b80b-06a5bf018ddb&quot;,&quot;region_id&quot;:2}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="79.139458" y="72.393914" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;a0afa333-ec2e-4859-b80b-06a5bf018ddb&quot;,&quot;region_id&quot;:3}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="76.912071" y="77.628482" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;a0afa333-ec2e-4859-b80b-06a5bf018ddb&quot;,&quot;region_id&quot;:4}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="85.821617" y="77.473136" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;a0afa333-ec2e-4859-b80b-06a5bf018ddb&quot;,&quot;region_id&quot;:5}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="68.002526" y="77.773634" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;a0afa333-ec2e-4859-b80b-06a5bf018ddb&quot;,&quot;region_id&quot;:6}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="79.139458" y="82.019359" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;a0afa333-ec2e-4859-b80b-06a5bf018ddb&quot;,&quot;region_id&quot;:7}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="70.229912" y="81.670873" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;a0afa333-ec2e-4859-b80b-06a5bf018ddb&quot;,&quot;region_id&quot;:8}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="83.594231" y="77.550385" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;a0afa333-ec2e-4859-b80b-06a5bf018ddb&quot;,&quot;region_id&quot;:9}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="72.457299" y="86.214142" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;a0afa333-ec2e-4859-b80b-06a5bf018ddb&quot;,&quot;region_id&quot;:10}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="69.116219" y="48.600661" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;cbac68b0-6577-442c-ad81-01806737f8eb&quot;,&quot;region_id&quot;:1}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="76.912071" y="54.512091" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;cbac68b0-6577-442c-ad81-01806737f8eb&quot;,&quot;region_id&quot;:2}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="71.343606" y="65.134388" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;cbac68b0-6577-442c-ad81-01806737f8eb&quot;,&quot;region_id&quot;:3}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="74.684685" y="55.757505" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;cbac68b0-6577-442c-ad81-01806737f8eb&quot;,&quot;region_id&quot;:4}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="83.594231" y="52.429561" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;cbac68b0-6577-442c-ad81-01806737f8eb&quot;,&quot;region_id&quot;:5}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="65.77514" y="77.52644" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;cbac68b0-6577-442c-ad81-01806737f8eb&quot;,&quot;region_id&quot;:6}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="73.570992" y="51.328971" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;cbac68b0-6577-442c-ad81-01806737f8eb&quot;,&quot;region_id&quot;:7}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="76.912071" y="61.092375" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;e54560f5-e582-46e1-9ed2-bcb686e15a71&quot;,&quot;region_id&quot;:1}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="74.684685" y="58.13693" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;e54560f5-e582-46e1-9ed2-bcb686e15a71&quot;,&quot;region_id&quot;:2}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="76.912071" y="47.315544" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;e54560f5-e582-46e1-9ed2-bcb686e15a71&quot;,&quot;region_id&quot;:3}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="73.570992" y="70.420018" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;e54560f5-e582-46e1-9ed2-bcb686e15a71&quot;,&quot;region_id&quot;:4}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="72.457299" y="60.942942" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;e54560f5-e582-46e1-9ed2-bcb686e15a71&quot;,&quot;region_id&quot;:5}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C0_0_53ada3cc92" x="78.025765" y="68.925578" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;e54560f5-e582-46e1-9ed2-bcb686e15a71&quot;,&quot;region_id&quot;:6}" />
+    </g>
+   </g>
+   <g id="cytellect-source-points-4">
+    <defs>
+     <path id="C1_0_53ada3cc92" d="M 0 1.06066  C 0.28129 1.06066 0.551098 0.948902 0.75 0.75  C 0.948902 0.551098 1.06066 0.28129 1.06066 -0  C 1.06066 -0.28129 0.948902 -0.551098 0.75 -0.75  C 0.551098 -0.948902 0.28129 -1.06066 0 -1.06066  C -0.28129 -1.06066 -0.551098 -0.948902 -0.75 -0.75  C -0.948902 -0.551098 -1.06066 -0.28129 -1.06066 0  C -1.06066 0.28129 -0.948902 0.551098 -0.75 0.75  C -0.551098 0.948902 -0.28129 1.06066 0 1.06066  z " />
+    </defs>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="128.451084" y="63.448482" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;010270c6-fd72-4f04-97cb-afbfaa21e107&quot;,&quot;region_id&quot;:1}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="126.223697" y="64.676717" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;010270c6-fd72-4f04-97cb-afbfaa21e107&quot;,&quot;region_id&quot;:2}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="128.451084" y="35.106899" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;010270c6-fd72-4f04-97cb-afbfaa21e107&quot;,&quot;region_id&quot;:3}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="127.33739" y="42.47946" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;010270c6-fd72-4f04-97cb-afbfaa21e107&quot;,&quot;region_id&quot;:4}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="132.905856" y="58.012217" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;010270c6-fd72-4f04-97cb-afbfaa21e107&quot;,&quot;region_id&quot;:5}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="126.223697" y="50.090488" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;010270c6-fd72-4f04-97cb-afbfaa21e107&quot;,&quot;region_id&quot;:6}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="122.882618" y="59.180259" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;08f409ce-0f8a-420d-ab51-dac99807e3b5&quot;,&quot;region_id&quot;:1}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="131.792163" y="67.626163" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;08f409ce-0f8a-420d-ab51-dac99807e3b5&quot;,&quot;region_id&quot;:2}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="125.110004" y="57.165975" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;08f409ce-0f8a-420d-ab51-dac99807e3b5&quot;,&quot;region_id&quot;:3}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="121.768925" y="81.580936" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;08f409ce-0f8a-420d-ab51-dac99807e3b5&quot;,&quot;region_id&quot;:4}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="121.768925" y="73.209012" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;08f409ce-0f8a-420d-ab51-dac99807e3b5&quot;,&quot;region_id&quot;:5}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="126.223697" y="67.157618" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;35bf80c1-e775-4c7f-8bcb-da88c9f0f8f4&quot;,&quot;region_id&quot;:1}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="128.451084" y="48.37405" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;35bf80c1-e775-4c7f-8bcb-da88c9f0f8f4&quot;,&quot;region_id&quot;:2}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="125.110004" y="44.028027" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;35bf80c1-e775-4c7f-8bcb-da88c9f0f8f4&quot;,&quot;region_id&quot;:3}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="126.223697" y="62.441695" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;35bf80c1-e775-4c7f-8bcb-da88c9f0f8f4&quot;,&quot;region_id&quot;:4}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="129.564777" y="68.48796" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;35bf80c1-e775-4c7f-8bcb-da88c9f0f8f4&quot;,&quot;region_id&quot;:5}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="123.996311" y="70.276233" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;35bf80c1-e775-4c7f-8bcb-da88c9f0f8f4&quot;,&quot;region_id&quot;:6}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="128.451084" y="70.516489" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;35bf80c1-e775-4c7f-8bcb-da88c9f0f8f4&quot;,&quot;region_id&quot;:7}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="128.451084" y="40.358148" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;35bf80c1-e775-4c7f-8bcb-da88c9f0f8f4&quot;,&quot;region_id&quot;:8}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="128.451084" y="91.962065" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;52f9e52f-f538-499d-b308-642bdb487682&quot;,&quot;region_id&quot;:1}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="123.996311" y="85.608805" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;52f9e52f-f538-499d-b308-642bdb487682&quot;,&quot;region_id&quot;:2}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="126.223697" y="80.797632" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;52f9e52f-f538-499d-b308-642bdb487682&quot;,&quot;region_id&quot;:3}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="128.451084" y="79.911555" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;52f9e52f-f538-499d-b308-642bdb487682&quot;,&quot;region_id&quot;:4}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="126.223697" y="96.886243" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;52f9e52f-f538-499d-b308-642bdb487682&quot;,&quot;region_id&quot;:5}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="126.223697" y="91.261853" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;52f9e52f-f538-499d-b308-642bdb487682&quot;,&quot;region_id&quot;:6}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="123.996311" y="82.046293" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;52f9e52f-f538-499d-b308-642bdb487682&quot;,&quot;region_id&quot;:7}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="126.223697" y="99.490916" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;52f9e52f-f538-499d-b308-642bdb487682&quot;,&quot;region_id&quot;:8}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="126.223697" y="78.326473" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;671d0181-8952-4915-bd02-436d4d277dd1&quot;,&quot;region_id&quot;:1}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="126.223697" y="54.639457" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;671d0181-8952-4915-bd02-436d4d277dd1&quot;,&quot;region_id&quot;:2}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="125.110004" y="41.414701" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;671d0181-8952-4915-bd02-436d4d277dd1&quot;,&quot;region_id&quot;:3}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="122.882618" y="68.197454" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;671d0181-8952-4915-bd02-436d4d277dd1&quot;,&quot;region_id&quot;:4}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="120.655231" y="58.10412" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;671d0181-8952-4915-bd02-436d4d277dd1&quot;,&quot;region_id&quot;:5}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="120.655231" y="66.683008" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;671d0181-8952-4915-bd02-436d4d277dd1&quot;,&quot;region_id&quot;:6}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="127.33739" y="45.184456" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;671d0181-8952-4915-bd02-436d4d277dd1&quot;,&quot;region_id&quot;:7}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="123.996311" y="53.645864" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;671d0181-8952-4915-bd02-436d4d277dd1&quot;,&quot;region_id&quot;:8}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="125.110004" y="60.224219" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;671d0181-8952-4915-bd02-436d4d277dd1&quot;,&quot;region_id&quot;:9}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="126.223697" y="32.652188" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;671d0181-8952-4915-bd02-436d4d277dd1&quot;,&quot;region_id&quot;:10}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="126.223697" y="38.805256" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;671d0181-8952-4915-bd02-436d4d277dd1&quot;,&quot;region_id&quot;:11}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="130.67847" y="59.07138" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;b30507fc-5417-4380-9aba-26f57eefa745&quot;,&quot;region_id&quot;:1}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="128.451084" y="54.278843" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;b30507fc-5417-4380-9aba-26f57eefa745&quot;,&quot;region_id&quot;:2}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="130.67847" y="52.902129" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;b30507fc-5417-4380-9aba-26f57eefa745&quot;,&quot;region_id&quot;:3}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="128.451084" y="56.725345" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;b30507fc-5417-4380-9aba-26f57eefa745&quot;,&quot;region_id&quot;:4}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="126.223697" y="36.030491" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;b30507fc-5417-4380-9aba-26f57eefa745&quot;,&quot;region_id&quot;:5}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="128.451084" y="60.678952" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;b30507fc-5417-4380-9aba-26f57eefa745&quot;,&quot;region_id&quot;:6}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="128.451084" y="37.71442" style="fill: #0072b2; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;b30507fc-5417-4380-9aba-26f57eefa745&quot;,&quot;region_id&quot;:7}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="126.223697" y="93.529959" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;d069f51c-4f2c-43a1-9402-e2912078e669&quot;,&quot;region_id&quot;:1}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="130.67847" y="81.875938" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;d069f51c-4f2c-43a1-9402-e2912078e669&quot;,&quot;region_id&quot;:2}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="126.223697" y="89.008818" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;d069f51c-4f2c-43a1-9402-e2912078e669&quot;,&quot;region_id&quot;:3}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="132.905856" y="81.534705" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;d069f51c-4f2c-43a1-9402-e2912078e669&quot;,&quot;region_id&quot;:4}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="132.905856" y="77.990716" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;d069f51c-4f2c-43a1-9402-e2912078e669&quot;,&quot;region_id&quot;:5}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="126.223697" y="86.227272" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;d069f51c-4f2c-43a1-9402-e2912078e669&quot;,&quot;region_id&quot;:6}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="123.996311" y="74.517856" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;d069f51c-4f2c-43a1-9402-e2912078e669&quot;,&quot;region_id&quot;:7}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="128.451084" y="77.600776" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;d069f51c-4f2c-43a1-9402-e2912078e669&quot;,&quot;region_id&quot;:8}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="135.133243" y="77.37022" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;d069f51c-4f2c-43a1-9402-e2912078e669&quot;,&quot;region_id&quot;:9}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="128.451084" y="87.297549" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;d069f51c-4f2c-43a1-9402-e2912078e669&quot;,&quot;region_id&quot;:10}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="127.33739" y="58.703466" style="fill: #e69f00; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;d069f51c-4f2c-43a1-9402-e2912078e669&quot;,&quot;region_id&quot;:11}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="130.67847" y="76.245829" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;db242881-beda-499c-bc99-42b6fa29c452&quot;,&quot;region_id&quot;:1}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="123.996311" y="79.731801" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;db242881-beda-499c-bc99-42b6fa29c452&quot;,&quot;region_id&quot;:2}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="128.451084" y="74.566502" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;db242881-beda-499c-bc99-42b6fa29c452&quot;,&quot;region_id&quot;:3}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="130.67847" y="78.766398" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;db242881-beda-499c-bc99-42b6fa29c452&quot;,&quot;region_id&quot;:4}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="128.451084" y="82.344122" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;db242881-beda-499c-bc99-42b6fa29c452&quot;,&quot;region_id&quot;:5}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="130.67847" y="73.599125" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;db242881-beda-499c-bc99-42b6fa29c452&quot;,&quot;region_id&quot;:6}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="126.223697" y="83.325968" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;db242881-beda-499c-bc99-42b6fa29c452&quot;,&quot;region_id&quot;:7}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="123.996311" y="77.43206" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;f3f0749c-97b2-4d1a-b17e-da70585ddf56&quot;,&quot;region_id&quot;:1}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="126.223697" y="71.74782" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;f3f0749c-97b2-4d1a-b17e-da70585ddf56&quot;,&quot;region_id&quot;:2}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="119.541538" y="80.203289" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;f3f0749c-97b2-4d1a-b17e-da70585ddf56&quot;,&quot;region_id&quot;:3}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="126.223697" y="47.203776" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;f3f0749c-97b2-4d1a-b17e-da70585ddf56&quot;,&quot;region_id&quot;:4}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="119.541538" y="77.957604" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;f3f0749c-97b2-4d1a-b17e-da70585ddf56&quot;,&quot;region_id&quot;:5}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="121.768925" y="78.654785" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;f3f0749c-97b2-4d1a-b17e-da70585ddf56&quot;,&quot;region_id&quot;:6}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="126.223697" y="69.511871" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;f3f0749c-97b2-4d1a-b17e-da70585ddf56&quot;,&quot;region_id&quot;:7}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="126.223697" y="75.160245" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;f3f0749c-97b2-4d1a-b17e-da70585ddf56&quot;,&quot;region_id&quot;:8}" />
+    </g>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#C1_0_53ada3cc92" x="128.451084" y="65.986064" style="fill: #009e73; fill-opacity: 0.55" data-cytellect-source="{&quot;field_id&quot;:&quot;f3f0749c-97b2-4d1a-b17e-da70585ddf56&quot;,&quot;region_id&quot;:9}" />
+    </g>
+   </g>
+   <g id="patch_3">
+    <path d="M 43.761278 123.583358  L 43.761278 19.257096  " style="fill: none; stroke: #1a1a1a; stroke-width: 0.5; stroke-linejoin: miter; stroke-linecap: square" />
+   </g>
+   <g id="line2d_9">
+    <path d="M 74.684685 74.752483  L 126.223697 70.113445  " clip-path="url(#p01373bf4de)" style="fill: none; stroke: #0072b2; stroke-opacity: 0.9; stroke-width: 0.6" />
+   </g>
+   <g id="line2d_10">
+    <path d="M 74.684685 60.36976  L 121.981057 66.991273  " clip-path="url(#p01373bf4de)" style="fill: none; stroke: #e69f00; stroke-opacity: 0.9; stroke-width: 0.6" />
+   </g>
+   <g id="line2d_11">
+    <path d="M 74.684685 55.762087  L 130.466338 69.325999  " clip-path="url(#p01373bf4de)" style="fill: none; stroke: #009e73; stroke-opacity: 0.9; stroke-width: 0.6" />
+   </g>
+   <g id="LineCollection_1">
+    <path d="M 60.769152 63.62811  L 88.600218 63.62811  " clip-path="url(#p01373bf4de)" style="fill: none; stroke: #1a1a1a; stroke-width: 1.1" />
+   </g>
+   <g id="LineCollection_2">
+    <path d="M 112.308164 68.810239  L 140.139231 68.810239  " clip-path="url(#p01373bf4de)" style="fill: none; stroke: #1a1a1a; stroke-width: 1.1" />
+   </g>
+   <g id="cytellect-source-points-1">
+    <defs>
+     <path id="m1b849ee165" d="M 0 2.12132  C 0.562581 2.12132 1.102195 1.897805 1.5 1.5  C 1.897805 1.102195 2.12132 0.562581 2.12132 0  C 2.12132 -0.562581 1.897805 -1.102195 1.5 -1.5  C 1.102195 -1.897805 0.562581 -2.12132 0 -2.12132  C -0.562581 -2.12132 -1.102195 -1.897805 -1.5 -1.5  C -1.897805 -1.102195 -2.12132 -0.562581 -2.12132 0  C -2.12132 0.562581 -1.897805 1.102195 -1.5 1.5  C -1.102195 1.897805 -0.562581 2.12132 0 2.12132  z " style="stroke: #1a1a1a; stroke-width: 0.5" />
+    </defs>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#m1b849ee165" x="74.684685" y="74.752483" style="fill: #0072b2; stroke: #1a1a1a; stroke-width: 0.5" data-cytellect-source="{&quot;condition&quot;:&quot;Untreated&quot;,&quot;experimental_unit&quot;:&quot;Rep1 \u00b7 Untreated&quot;}" tabindex="0" role="button" aria-label="元データを表示" />
+    </g>
+   </g>
+   <g id="cytellect-source-points-2">
+    <defs>
+     <path id="m8314c8928d" d="M 0 2.12132  C 0.562581 2.12132 1.102195 1.897805 1.5 1.5  C 1.897805 1.102195 2.12132 0.562581 2.12132 0  C 2.12132 -0.562581 1.897805 -1.102195 1.5 -1.5  C 1.102195 -1.897805 0.562581 -2.12132 0 -2.12132  C -0.562581 -2.12132 -1.102195 -1.897805 -1.5 -1.5  C -1.897805 -1.102195 -2.12132 -0.562581 -2.12132 0  C -2.12132 0.562581 -1.897805 1.102195 -1.5 1.5  C -1.102195 1.897805 -0.562581 2.12132 0 2.12132  z " style="stroke: #1a1a1a; stroke-width: 0.5" />
+    </defs>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#m8314c8928d" x="74.684685" y="60.36976" style="fill: #e69f00; stroke: #1a1a1a; stroke-width: 0.5" data-cytellect-source="{&quot;condition&quot;:&quot;Untreated&quot;,&quot;experimental_unit&quot;:&quot;Rep2 \u00b7 Untreated&quot;}" tabindex="0" role="button" aria-label="元データを表示" />
+    </g>
+   </g>
+   <g id="cytellect-source-points-3">
+    <defs>
+     <path id="mecd832b46a" d="M 0 2.12132  C 0.562581 2.12132 1.102195 1.897805 1.5 1.5  C 1.897805 1.102195 2.12132 0.562581 2.12132 0  C 2.12132 -0.562581 1.897805 -1.102195 1.5 -1.5  C 1.102195 -1.897805 0.562581 -2.12132 0 -2.12132  C -0.562581 -2.12132 -1.102195 -1.897805 -1.5 -1.5  C -1.897805 -1.102195 -2.12132 -0.562581 -2.12132 0  C -2.12132 0.562581 -1.897805 1.102195 -1.5 1.5  C -1.102195 1.897805 -0.562581 2.12132 0 2.12132  z " style="stroke: #1a1a1a; stroke-width: 0.5" />
+    </defs>
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#mecd832b46a" x="74.684685" y="55.762087" style="fill: #009e73; stroke: #1a1a1a; stroke-width: 0.5" data-cytellect-source="{&quot;condition&quot;:&quot;Untreated&quot;,&quot;experimental_unit&quot;:&quot;Rep3 \u00b7 Untreated&quot;}" tabindex="0" role="button" aria-label="元データを表示" />
+    </g>
+   </g>
+   <g id="cytellect-source-points-5">
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#m1b849ee165" x="126.223697" y="70.113445" style="fill: #0072b2; stroke: #1a1a1a; stroke-width: 0.5" data-cytellect-source="{&quot;condition&quot;:&quot;ActD 1 \u00b5M&quot;,&quot;experimental_unit&quot;:&quot;Rep1 \u00b7 ActD 1 \u00b5M&quot;}" tabindex="0" role="button" aria-label="元データを表示" />
+    </g>
+   </g>
+   <g id="cytellect-source-points-6">
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#m8314c8928d" x="121.981057" y="66.991273" style="fill: #e69f00; stroke: #1a1a1a; stroke-width: 0.5" data-cytellect-source="{&quot;condition&quot;:&quot;ActD 1 \u00b5M&quot;,&quot;experimental_unit&quot;:&quot;Rep2 \u00b7 ActD 1 \u00b5M&quot;}" tabindex="0" role="button" aria-label="元データを表示" />
+    </g>
+   </g>
+   <g id="cytellect-source-points-7">
+    <g clip-path="url(#p01373bf4de)">
+     <use xlink:href="#mecd832b46a" x="130.466338" y="69.325999" style="fill: #009e73; stroke: #1a1a1a; stroke-width: 0.5" data-cytellect-source="{&quot;condition&quot;:&quot;ActD 1 \u00b5M&quot;,&quot;experimental_unit&quot;:&quot;Rep3 \u00b7 ActD 1 \u00b5M&quot;}" tabindex="0" role="button" aria-label="元データを表示" />
+    </g>
+   </g>
+   <g id="line2d_12">
+    <path d="M 74.684685 16.648939  L 74.684685 14.040783  L 126.223697 14.040783  L 126.223697 16.648939  " style="fill: none; stroke: #1a1a1a; stroke-width: 0.5" />
+   </g>
+   <g id="text_10">
+    <text style="font-size: 6.5px; font-family: 'Liberation Sans', Arial, Helvetica, sans-serif; text-anchor: middle; fill: #1a1a1a" x="100.454191" y="11.291575" transform="rotate(-0 100.454191 11.291575)">Lower in 2 of 3 runs</text>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="p01373bf4de">
+   <rect x="43.761278" y="1" width="113.385827" height="122.583358" />
+  </clipPath>
+ </defs>
+</svg>
