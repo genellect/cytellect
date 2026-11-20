@@ -168,6 +168,18 @@
       "path": "apps/web/public/fonts/subset-manifest.json",
       "sha256": "9eb445132d3a4ebc525c1bc9427ffde3f961baf341a6d1d5484c7ff79963dff4",
       "reason": "Font subset input SHA-256 independently matched to public apps/web/src/lib/workspace/api-adapter.ts at 3abff58e. API in the filename triggers the generic rule. Exact checksum and manifest path only."
+    },
+    {
+      "rule_id": "generic-api-key",
+      "path": "apps/web/public/fonts/subset-manifest.json",
+      "sha256": "a1f232c872b64f604a9f35a47d96160730507a6f9a949d21d48a80b2f70db8fc",
+      "reason": "Font subset input SHA-256 independently matched to public apps/web/src/lib/api.ts at bb36a0e6. API in the filename triggers the generic rule. Exact checksum and manifest path only."
+    },
+    {
+      "rule_id": "generic-api-key",
+      "path": "apps/web/public/fonts/subset-manifest.json",
+      "sha256": "4913de09de94a3628641c03537104bdeb9e1542c1760c3d95be3c7e65dd5ff49",
+      "reason": "Font subset input SHA-256 independently matched to public apps/web/src/lib/api.ts at 756b3c23. API in the filename triggers the generic rule. Exact checksum and manifest path only."
     }
   ],
   "gitleaks": {

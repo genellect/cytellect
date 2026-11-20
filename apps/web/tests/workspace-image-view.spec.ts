@@ -76,6 +76,37 @@ async function imageWorkspace(context:BrowserContext,page:Page,options:{pair?:bo
   return {unexpected,uploads,discussions};
 }
 
+test("a failed AI instruction can be resent explicitly, with one confirmation and no automatic retry",async({context,page})=>{
+  await context.addInitScript(()=>localStorage.setItem("cytellect.ai.proposal-scope-seen.v2","1"));
+  const requests:Array<{goal:string;retry_failed?:boolean}>=[];
+  await page.route("**/v1/workspaces/w/proposal-drafts",async route=>{
+    const headers={"Access-Control-Allow-Origin":new URL(page.url()).origin,"Access-Control-Allow-Credentials":"true",
+      "Access-Control-Allow-Headers":"content-type,x-cytellect-request","Access-Control-Allow-Methods":"POST,OPTIONS"};
+    if(route.request().method()==="OPTIONS")return route.fulfill({status:204,headers});
+    const body=route.request().postDataJSON();requests.push(body);
+    const code=requests.length===1||body.retry_failed?"proposal_service_unavailable":"proposal_explicit_retry_required";
+    await route.fulfill({status:code==="proposal_explicit_retry_required"?409:503,headers,contentType:"application/json",body:JSON.stringify({detail:code})});
+  });
+  await imageWorkspace(context,page);
+  await page.goto("/workspace?id=w");
+  await page.getByRole("textbox",{name:"AIへの指示"}).fill("same instruction");
+  const send=page.getByRole("button",{name:"AIへ送信",exact:true});
+  await send.click();await expect(appAlerts(page)).toContainText("AI のサービスに接続できません。接続状態を確認してください。");
+  expect(requests).toHaveLength(1);
+  await send.click();
+  const confirm=page.getByRole("group",{name:"AIへの再送の確認"});
+  await expect(confirm).toBeVisible();
+  await expect(page.getByText("前回の依頼が未完了です。再送には課金される場合があります。",{exact:true})).toHaveCount(1);
+  await confirm.getByRole("button",{name:"キャンセル"}).click();
+  expect(requests).toHaveLength(2);
+  await send.click();await expect(confirm).toBeVisible();
+  await confirm.getByRole("button",{name:"再送",exact:true}).click();
+  await expect(confirm).toHaveCount(0);await expect(send).toBeEnabled();
+  expect(requests).toHaveLength(4);
+  expect(requests.map(value=>value.goal)).toEqual(Array(4).fill("same instruction"));
+  expect(requests.map(value=>value.retry_failed)).toEqual([undefined,undefined,undefined,true]);
+});
+
 test("the table beside one image names what it lists, its stain and the field of its rows, also when a comparison shows another plane",async({page,context})=>{
   const fixture=await imageWorkspace(context,page);
   await page.goto("/workspace?id=w");
