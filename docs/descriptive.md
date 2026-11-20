@@ -139,8 +139,10 @@ The new output divides the complete saved field order into four fields per
 tick positions and retain global field numbers. Empty successful fields remain
 in the page plan; explicitly excluded failed fields retain their separate
 diagnostics and unknown observation counts. Pagination never pools values,
-selects observations or infers an independent replicate count. Jitter is
-generated once in global field order with seed zero.
+selects observations or infers an independent replicate count. Since render
+2.1.0 (2026-11-19) the points of a field are placed side by side by a
+deterministic layout; earlier renders used a jitter generated once in global
+field order with seed zero.
 
 A field's registered display name is its global label when it is unique, at most
 12 columns wide (a wide character counts two), not another field's number and,

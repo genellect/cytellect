@@ -2,10 +2,12 @@
 
 A comparison is drawn in four layers: every observation (nucleus, region or field), the
 value of each run, the mean of runs, and the annotation of the saved effect. Every plotted
-number is a saved value; nothing is estimated here except the display geometry.
+number is a saved value. The summaries a form draws over them (box quartiles, a kernel density,
+histogram counts) are display summaries of those values and are written to ``graphical-summary``.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -20,7 +22,6 @@ from .figure_layout import beeswarm
 from .figure_sources import bind_points
 from .figure_style import (
     BAR_FILL,
-    DENSITY_EDGE,
     DENSITY_FILL,
     FONT_FAMILY,
     FONT_FILES,
@@ -28,6 +29,7 @@ from .figure_style import (
     MM,
     MUTED,
     OKABE_ITO,
+    SHAPE_EDGE,
     SIZES_MM,
     fit_axis_title,
     run_colors,
@@ -151,7 +153,19 @@ def default_size(plot) -> str:
     return "panel" if plot.get("presentation") else "custom"
 
 
-def layout(plot, presentation, groups: int, *, legend: bool, bracket_levels: int) -> Layout:
+def group_slot(names, font: float) -> float:
+    """Millimetres each group takes in a panel: at least 11, or its name's longest word (a group name
+    wraps between words, never inside one)."""
+    per_char_mm = font * .52 * 25.4 / 72
+    return max([11.0, *(max(len(word) for word in str(name).split()) * per_char_mm + 3 for name in names if str(name).split())])
+
+
+def natural_order(values) -> list:
+    """Run names in reading order (Rep2 before Rep10)."""
+    return sorted(values, key=lambda value: [int(part) if part.isdigit() else part.lower() for part in re.split(r"(\d+)", str(value))])
+
+
+def layout(plot, presentation, groups: int, *, legend: bool, bracket_levels: int, names=()) -> Layout:
     size = presentation.get("size", "panel")
     font = float(plot.get("font_size") or 7)
     height = 50 + 4 * max(0, bracket_levels - 1)
@@ -160,8 +174,8 @@ def layout(plot, presentation, groups: int, *, legend: bool, bracket_levels: int
         width = {"nature-single": 89.0, "nature-double": 183.0}.get(plot.get("preset"), plot["width_inches"] * 25.4)
         return Layout(width, plot["height_inches"] * 25.4, size, font)
     if size in SIZES_MM:
-        return Layout(SIZES_MM[size], max(height, 56 if size == "single-column" else 64), size, font)
-    width = 15 + 11 * groups + (13 if legend else 3)
+        return Layout(SIZES_MM[size], max(height, 60 if size == "single-column" else 78), size, font)
+    width = 15 + group_slot(names, font) * groups + (13 if legend else 3)
     return Layout(max(width, 36), height, "panel", font)
 
 
@@ -273,7 +287,7 @@ def draw_comparison(fig, ax, canonical, plot, presentation, order) -> Drawn:
     bars = plot.get("kind") == "unit-mean-bar"
     scale = _scale(canonical)
     rows = _observations(canonical, order)
-    runs = sorted({u["pair"] for u in units if u.get("pair")}) if paired else []
+    runs = natural_order({u["pair"] for u in units if u.get("pair")}) if paired else []
     overrides = (plot.get("style") or {}).get("series_colors") or {}
     by_run = presentation["color_by"] == "run" and bool(runs)
     colours = run_colors(runs, overrides) if by_run else {
@@ -351,9 +365,14 @@ def draw_comparison(fig, ax, canonical, plot, presentation, order) -> Drawn:
         unit_note = f"{multiplier} {unit}".strip()
     counts = {g: sum(r["condition"] == g for r in rows) for g in order}
     run_word = "runs" if paired else ""
-    group_width = (fig.get_figwidth() / MM - 28) / max(1, len(order))
-    labels = [wrap_label(group, max(9.0, group_width), plot.get("font_size") or 7)
-              + f"\nn = {summaries[group][3]}" + (f" {run_word}" if run_word else "") for group in order]
+    # The width each group's label has: the figure less the value axis and the run legend (as the panel is laid out).
+    legend_mm = 13 if by_run and (plot.get("style") or {}).get("show_legend", True) else 3
+    group_width = (fig.get_figwidth() / MM - 15 - legend_mm) / max(1, len(order))
+    names = [wrap_label(group, max(9.0, group_width), plot.get("font_size") or 7) for group in order]
+    depth = max(name.count("\n") for name in names) + 1
+    # Every group takes as many name lines as the longest, so the n row reads across at one height.
+    labels = [name + "\n" * (depth - name.count("\n")) + f"n = {summaries[group][3]}" + (f" {run_word}" if run_word else "")
+              for name, group in zip(names, order, strict=True)]
     ax.set_xticks(range(len(order)), labels)
     # The title runs along the value axis: about the figure's height less the group labels.
     ax.set_ylabel(plot.get("y_label") or fit_axis_title(_full_title(title, unit_note, ""),
@@ -382,10 +401,12 @@ def draw_comparison(fig, ax, canonical, plot, presentation, order) -> Drawn:
     bind_fonts(fig)
     fig.canvas.draw()
     fig.set_layout_engine("none")
-    # A one-panel figure at column width keeps the panel's proportions, centred in the width.
-    widest = (16 * len(order) + 8) * MM * fig.dpi
+    # A panel keeps its proportions; a column or custom width is the groups' (each mark keeps its printed size).
+    # A group whose name has a long word keeps the room the layout gave that word.
+    slot = group_slot(order, float(plot.get("font_size") or 7))
+    widest = ((16 + max(0.0, slot - 11)) * len(order) + 8) * MM * fig.dpi
     current = ax.get_window_extent()
-    if current.width > widest:
+    if presentation.get("size", "panel") == "panel" and current.width > widest:
         x0, y0, w, h = ax.get_position().bounds
         new_w = w * widest / current.width
         ax.set_position([x0 + (w - new_w) / 2, y0, new_w, h])
@@ -401,38 +422,81 @@ def draw_comparison(fig, ax, canonical, plot, presentation, order) -> Drawn:
     observation_size = min(observation_size, run_size / 3)
     obs_d = np.sqrt(observation_size)
     run_d = np.sqrt(run_size)
+    # Each mark keeps its printed size whatever the width of a group (a column-wide figure spaces the
+    # groups apart instead of stretching them): widths in data units, at most these millimetres.
+    mm = lambda value: to_dx(value / 25.4 * 72)  # noqa: E731
+    half_mean, half_swarm, half_runs = min(.27, mm(5.0)), min(.33, mm(9.0)), min(.18, mm(4.5))
+    half_shape, box_width, bar_width = min(.36, mm(6.0)), min(.5, mm(9.0)), min(.62, mm(11.0))
+    # The form names what the figure summarises: the observations (points, density, box), the runs (the bar, or a
+    # run-value box, violin or histogram at ten or more runs).
+    kind = plot.get("kind")
+    run_level = kind in ("box", "violin", "histogram", "paired")
+    shape = {"box": "box", "violin": "violin", "histogram": "histogram"}.get(kind) if run_level else presentation["observations"]
+    show_points = not run_level and presentation["observations"] != "none"
+    # A summary drawn over the observations makes them a faint background; a dense one leaves them out.
+    faint = shape in ("violin", "box") or bars
+    if (shape == "violin" and total > 300) or (bars and total > 150):
+        show_points = False
+    edges = None
+    if shape == "histogram":
+        every = np.array([u["value"] for u in units if u["condition"] in order], dtype=float)
+        edges = np.linspace(every.min(), every.max(), int(plot.get("histogram_bins") or 10) + 1) if np.ptp(every) > 0 else None
+    shapes_drawn: set[str] = set()
+    bin_rows: list[dict[str, Any]] = []
 
     for i, group in enumerate(order):
         mean, low, high, n_units, interval = summaries[group]
         group_rows = [r for r in rows if r["condition"] == group]
         values = np.array([r["value"] for r in group_rows], dtype=float)
-        if bars:
-            ax.bar(i, mean, width=.62, color=BAR_FILL, edgecolor=INK, linewidth=.5, zorder=.5)
-        if presentation["observations"] == "violin" and len(values) >= 3 and np.ptp(values) > 0:
-            grid = np.linspace(values.min(), values.max(), 120)
-            density = stats.gaussian_kde(values, bw_method="scott")(grid)
-            width = density / density.max() * .36
-            ax.fill_betweenx(grid, i - width, i + width, facecolor=DENSITY_FILL, edgecolor=DENSITY_EDGE,
-                             linewidth=.4, zorder=1)
-            drawn.description.setdefault("density", "Gaussian kernel density, Scott bandwidth, observed range")
-        elif presentation["observations"] == "box" and len(values) >= 3:
-            q1, median, q3 = np.quantile(values, [.25, .5, .75], method="linear")
-            inside = values[(values >= q1 - 1.5 * (q3 - q1)) & (values <= q3 + 1.5 * (q3 - q1))]
-            ax.bxp([{"med": median, "q1": q1, "q3": q3, "whislo": float(inside.min()), "whishi": float(inside.max())}],
-                   positions=[i], widths=.5, showfliers=False, manage_ticks=False, zorder=1,
-                   boxprops={"color": DENSITY_EDGE, "linewidth": .5}, medianprops={"color": DENSITY_EDGE, "linewidth": .7},
-                   whiskerprops={"color": DENSITY_EDGE, "linewidth": .5}, capprops={"linewidth": 0})
-        if presentation["observations"] != "none" and len(values):
-            offsets = beeswarm(values, dx=to_dx(obs_d * 1.05), dy=to_dy(obs_d * 1.05), half_width=.33)
-            colour = [colours[r.get("pair")] if by_run else colours[group] for r in group_rows]
-            collection = ax.scatter(i + offsets, values, s=observation_size, c=colour, alpha=.55, linewidths=0,
-                                    zorder=2, rasterized=False)
-            bind_points(collection, group_rows, keys=("field_id", "region_id", "nucleus_id"), focusable=False)
         group_units = [u for u in units if u["condition"] == group]
         unit_values = np.array([u["value"] for u in group_units], dtype=float)
-        unit_offsets = beeswarm(unit_values, dx=to_dx(run_d), dy=to_dy(run_d), half_width=.18)
+        summarised = unit_values if run_level else values
+        of = "run values" if run_level else "observations"
+        shown: dict[str, Any] = {}
+        if bars:
+            ax.bar(i, mean, width=bar_width, color=BAR_FILL, edgecolor=INK, linewidth=.5, zorder=.5)
+        if shape == "violin" and len(summarised) >= 3 and np.ptp(summarised) > 0:
+            grid = np.linspace(summarised.min(), summarised.max(), 120)
+            density = stats.gaussian_kde(summarised, bw_method="scott")(grid)
+            width = density / density.max() * half_shape
+            ax.fill_betweenx(grid, i - width, i + width, facecolor=DENSITY_FILL, edgecolor=SHAPE_EDGE,
+                             linewidth=.5, zorder=1)
+            drawn.description.setdefault("density", "Gaussian kernel density, Scott bandwidth, observed range")
+            shown = {"shape": "violin", "of": of, "kde": "Gaussian", "bandwidth": "Scott", "grid_points": 120,
+                     "min": float(summarised.min()), "max": float(summarised.max())}
+        elif shape == "box" and len(summarised) >= 3:
+            q1, median, q3 = np.quantile(summarised, [.25, .5, .75], method="linear")
+            inside = summarised[(summarised >= q1 - 1.5 * (q3 - q1)) & (summarised <= q3 + 1.5 * (q3 - q1))]
+            # Drawn over the observations, with a translucent face, so the box reads first.
+            ax.bxp([{"med": median, "q1": q1, "q3": q3, "whislo": float(inside.min()), "whishi": float(inside.max())}],
+                   positions=[i], widths=box_width, showfliers=False, manage_ticks=False, zorder=3.6, patch_artist=True,
+                   boxprops={"facecolor": (1, 1, 1, .55), "edgecolor": SHAPE_EDGE, "linewidth": .6},
+                   medianprops={"color": SHAPE_EDGE, "linewidth": .9},
+                   whiskerprops={"color": SHAPE_EDGE, "linewidth": .55}, capprops={"color": SHAPE_EDGE, "linewidth": .55})
+            shown = {"shape": "box", "of": of, "q1": float(q1), "median": float(median), "q3": float(q3),
+                     "whisker_low": float(inside.min()), "whisker_high": float(inside.max())}
+        elif shape == "histogram" and edges is not None and len(summarised):
+            heights, _ = np.histogram(summarised, bins=edges)
+            if heights.max() > 0:
+                # Only the bins that hold a value are drawn: an empty bin is no mark, not a line.
+                filled = heights > 0
+                lengths = heights / heights.max() * half_shape * 2
+                ax.barh(((edges[:-1] + edges[1:]) / 2)[filled], lengths[filled], height=(np.diff(edges) * .92)[filled],
+                        left=i - half_shape, color=DENSITY_FILL, edgecolor=SHAPE_EDGE, linewidth=.4, zorder=1)
+                drawn.description.setdefault("histogram", f"run values in {len(heights)} shared equal-width bins")
+                shown = {"shape": "histogram", "of": of, "bins": len(heights)}
+                bin_rows.extend({"condition": group, "bin_left": float(lo), "bin_right": float(hi), "count": int(n),
+                                 "last_bin_includes_right": j == len(heights) - 1}
+                                for j, (lo, hi, n) in enumerate(zip(edges[:-1], edges[1:], heights, strict=True)))
+        if show_points and len(values):
+            offsets = beeswarm(values, dx=to_dx(obs_d * 1.05), dy=to_dy(obs_d * 1.05), half_width=half_swarm)
+            colour = [colours[r.get("pair")] if by_run else colours[group] for r in group_rows]
+            collection = ax.scatter(i + offsets, values, s=observation_size, c=colour, alpha=.3 if faint and (shown or bars) else .55,
+                                    linewidths=0, zorder=2, rasterized=False)
+            bind_points(collection, group_rows, keys=("field_id", "region_id", "nucleus_id"), focusable=False)
+        unit_offsets = beeswarm(unit_values, dx=to_dx(run_d), dy=to_dy(run_d), half_width=half_runs)
         if not bars:
-            ax.hlines(mean, i - .27, i + .27, color=INK, linewidth=1.1, zorder=4.5)
+            ax.hlines(mean, i - half_mean, i + half_mean, color=INK, linewidth=1.1, zorder=4.5)
         if low is not None and high is not None:
             ax.errorbar(i, mean, yerr=[[mean - low], [high - mean]], fmt="none", ecolor=INK, elinewidth=.7,
                         capsize=2.2, capthick=.7, zorder=4.4)
@@ -444,8 +508,11 @@ def draw_comparison(fig, ax, canonical, plot, presentation, order) -> Drawn:
                                     edgecolor=INK, linewidth=.5, zorder=5)
             bind_points(collection, [unit])
             drawn.glyphs.append({**unit, "display_x": float(i + unit_offsets[j]), "display_y": unit["value"]})
+        if shown:
+            shapes_drawn.add(shown["shape"])
         drawn.summary.append({"condition": group, "mean": mean, "ci_low": low, "ci_high": high,
-                              "n_units": n_units, "observations": int(len(values)), "interval": interval})
+                              "n_units": n_units, "observations": int(len(values)), "interval": interval, **shown})
+    drawn.summary.extend(bin_rows)
     if paired:
         positions = {(g["condition"], g["experimental_unit"]): g["display_x"] for g in drawn.glyphs}
         for pair in canonical["pair_ledger"]:
@@ -457,9 +524,12 @@ def draw_comparison(fig, ax, canonical, plot, presentation, order) -> Drawn:
             if any(x is None or y is None for x, y in members):
                 continue
             ax.plot([x for x, _ in members], [y for _, y in members], color=colours.get(pair["pair"], MUTED) if by_run else MUTED,
-                    linewidth=.6, alpha=.9, zorder=3)
+                    linewidth=.6, alpha=.9, zorder=3.8)
     bind_fonts(fig)
     drawn.description.update(observation=noun, observations=nouns, paired=paired, by_run=by_run, bars=bars,
+                             points=show_points, shape=shape if shape in shapes_drawn else None,
+                             shape_in_every_group=len([row for row in drawn.summary if row.get("shape")]) == len(order),
+                             run_level=run_level,
                              counts=counts, runs=runs, title=title, unit=unit_note, scale=scale)
     if legend is not None:
         drawn.description["legend"] = "run colours"

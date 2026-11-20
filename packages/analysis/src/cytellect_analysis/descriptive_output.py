@@ -84,11 +84,11 @@ def _source_document(result, layout, font_metadata, csv_hashes, methods_template
     return {**_source(result), **methods_metadata(methods_template), "descriptive_figure_version": VERSION, "style": layout["style"],
             "field_labels": layout["labels"], "page_plan": layout["page_plan"],
             "y_limits": layout["y_limits"], "y_ticks": layout["y_ticks"],
-            "font_metadata": font_metadata, "jitter_seed": 0, "source_hashes": csv_hashes}
+            "font_metadata": font_metadata, "point_layout": "deterministic side-by-side (display only)", "source_hashes": csv_hashes}
 
 
 def _output_caption(result, layout, status, methods_template=None):
-    text = _caption(result, layout["labels"], methods_template)
+    text = _caption(result, layout["labels"], methods_template, paged=True)
     count, pages = result["counts"]["observations"], len(layout["page_plan"])
     if result["spec"]["plot"]["language"] == "ja":
         statement = (f"全{pages}ページに合計{count}観測を表示した。" if status == "ready" else

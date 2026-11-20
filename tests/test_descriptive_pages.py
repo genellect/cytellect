@@ -223,3 +223,53 @@ def test_later_page_failure_never_publishes_an_incomplete_figure_set(tmp_path, m
     assert not list(tmp_path.glob(".descriptive-pages-*"))
     assert result["counts"]["observations"] == 18
     validate_descriptive_output(result, tmp_path)
+
+
+# Independent review (2026-11-20) of render 2.1.0.
+def test_a_large_value_axis_keeps_its_decimals():
+    from cytellect_analysis.descriptive_pages import tick_label
+
+    ticks = [1000.0, 1000.2, 1000.4, 1002.0]
+    assert [tick_label(value, ticks) for value in ticks] == ["1,000.0", "1,000.2", "1,000.4", "1,002.0"]
+    assert tick_label(4000.0, [3000.0, 4000.0]) == "4,000" and tick_label(.25, [0, .25]) == "0.25"
+
+
+def test_many_conditions_wrap_their_legend_in_one_column_width(tmp_path):
+    names = ["Control siRNA", "NPM1 siRNA #1", "NPM1 siRNA #2", "Actinomycin D 5 nM"]
+    result, _, _ = description(8, preset="nature-single")
+    for index, row in enumerate(result["field_summary"]):
+        row["condition"] = names[index % len(names)]
+    figure = render_descriptive_output(result, tmp_path)
+    assert figure["status"] == "ready"
+    caption = (tmp_path / "figure-caption.md").read_text(encoding="utf-8")
+    # The legend draft says what 2.1.0 draws: lines, a deterministic layout and the condition colours.
+    assert "horizontal lines show the median" in caption and "their colour shows the field's condition" in caption
+    assert "squares" not in caption and "seed 0" not in caption
+
+
+# Codex review of the pull request (2026-11-20).
+def test_a_log_value_axis_checks_the_observations_it_draws(tmp_path):
+    # The observations were added after the axis controls, so a log axis saw none and refused positive values.
+    result, _, _ = description(2, axes={"version": "1.0.0", "y_scale": "log2"})
+    for row in result["plot_data"]:
+        row["value"] = abs(row["value"]) + 1
+    for row in result["field_summary"]:
+        values = sorted(r["value"] for r in result["plot_data"] if r["field_id"] == row["field_id"])
+        row["median"] = values[len(values) // 2]
+    figure = render_descriptive_output(result, tmp_path)
+    assert figure["status"] == "ready"
+
+
+def test_the_legend_shows_the_colours_chosen_for_fields(tmp_path):
+    result, _, _ = description(3, style={"version": "1.0.0", "series_colors": {"f001": "#D55E00", "f002": "#009E73", "f003": "#CC79A7"}})
+    for row, condition in zip(result["field_summary"], ["Control", "Treated", "Treated"], strict=True):
+        row["condition"] = condition
+    figure = render_descriptive_output(result, tmp_path)
+    assert figure["status"] == "ready"
+    svg = (tmp_path / figure["pages"][0]["files"]["svg"]).read_text(encoding="utf-8")
+    # The default condition colours are not in the figure: every key has a colour the points have.
+    assert "#0072b2" not in svg.lower() and "#e69f00" not in svg.lower()
+    # One condition in two colours: each key names the fields it marks.
+    assert "Treated (Field 2)" in svg and "Treated (Field 3)" in svg
+    caption = (tmp_path / "figure-caption.md").read_text(encoding="utf-8")
+    assert "their colours are named in the legend" in caption

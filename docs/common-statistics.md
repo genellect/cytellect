@@ -138,7 +138,7 @@ Methods are unchanged. Export and replay retain the saved renderer version;
 Figure renderer 2.0.0 (2026-11-19) draws `superplot`, `unit-mean-bar` and
 association scatter as publication figures ([figure export contract](figures.md#publication-figures-common-statistics-figure-200)):
 every observation, the runs, the mean of runs and the saved effect, at the printed
-panel size, with `figure-legend.md`. The other forms keep their 1.0.1 drawing.
+panel size, with `figure-legend.md`. Every other form the view offers is drawn as a publication figure too: an earlier form (box, violin, histogram, paired) asked with a presentation is drawn as a run-value form at ten or more runs, otherwise as the nearest form of the run hierarchy. A request without a presentation and a Japanese figure keep the 1.0.1 drawing.
 Values, tests and Methods are unchanged.
 
 Association scatter shows one matched independent-unit X/Y point, with no

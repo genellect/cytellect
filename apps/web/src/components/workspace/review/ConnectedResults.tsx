@@ -58,7 +58,10 @@ export interface ConnectedResultsProps {
   onEditExperiment?:()=>void;
 }
 interface SavedSource {field_id:string;region_set?:{region_set_id:string};metadata?:{condition?:string}}
-interface ResultPayload {stratum?:{label:string;levels:Array<{factor:string;level:string}>;declared_stratum_count?:number;field_ids:string[];analysed_field_ids:string[];excluded_fields:Array<{field_id:string;reason:string|null}>};selection?:{channel_gate?:{channel?:{channel_id:string;label?:string;stain?:string|null}}};revision_id:string;analysis_kind?:string;source_kind?:string;source_job_id?:string;source_fields?:SavedSource[];x_source?:{source_fields?:SavedSource[]};y_source?:{source_fields?:SavedSource[];metric?:string;channel?:{channel_id:string}|null;plot_data?:Record<string,unknown>[]};figure:{source_files:string[];status?:string;forms?:FigureForm[];presentation?:Presentation;legend_gaps?:string[];style?:{width_mm?:number};compositions?:Composition[]};metric?:string;channel?:{channel_id:string}|null;spec?:{plot?:Record<string,unknown>;conditions?:string[];test?:string;design?:{kind?:string};selection?:{metric:string;channel_id?:string|null;source?:string;region_set_id?:string;positivity?:{channel_id?:string;gfp_channel_id?:string}|null}};field_summary?:Record<string,unknown>[];comparisons?:Record<string,unknown>[];associations?:Record<string,unknown>[];counts?:unknown;omnibus?:Record<string,unknown>|null;warnings?:string[];plot_data?:Record<string,unknown>[];estimates?:ComparisonEstimates|null;unit?:string;source_field_ledger?:FieldLedgerRow[];compartment_missing?:MissingSummary|null;mask_corrections?:{fields:MaskCorrectionRow[]}|null}
+interface SavedChannel {channel_id:string;label?:string;stain?:string|null}
+interface SavedRegion {region_set_id?:string;label?:string}
+interface SavedSelection {metric?:string;channel_id?:string|null;source?:string;region_set_id?:string}
+interface ResultPayload {stratum?:{label:string;levels:Array<{factor:string;level:string}>;declared_stratum_count?:number;field_ids:string[];analysed_field_ids:string[];excluded_fields:Array<{field_id:string;reason:string|null}>};selection?:{channel_gate?:{channel?:{channel_id:string;label?:string;stain?:string|null}}};revision_id:string;analysis_kind?:string;source_kind?:string;source_job_id?:string;source_fields?:SavedSource[];x_source?:{source_fields?:SavedSource[];metric?:string;channel?:SavedChannel|null;region?:SavedRegion|null};y_source?:{source_fields?:SavedSource[];metric?:string;channel?:SavedChannel|null;region?:SavedRegion|null;plot_data?:Record<string,unknown>[]};figure:{source_files:string[];status?:string;forms?:FigureForm[];presentation?:Presentation;legend_gaps?:string[];style?:{width_mm?:number};compositions?:Composition[]};metric?:string;channel?:SavedChannel|null;region?:SavedRegion|null;spec?:{plot?:Record<string,unknown>;conditions?:string[];test?:string;design?:{kind?:string};selection?:{metric:string;channel_id?:string|null;source?:string;region_set_id?:string;positivity?:{channel_id?:string;gfp_channel_id?:string}|null};x_selection?:SavedSelection;y_selection?:SavedSelection};field_summary?:Record<string,unknown>[];comparisons?:Record<string,unknown>[];associations?:Record<string,unknown>[];counts?:unknown;omnibus?:Record<string,unknown>|null;warnings?:string[];plot_data?:Record<string,unknown>[];estimates?:ComparisonEstimates|null;unit?:string;source_field_ledger?:FieldLedgerRow[];compartment_missing?:MissingSummary|null;mask_corrections?:{fields:MaskCorrectionRow[]}|null}
 type MissingSummary=components["schemas"]["CompartmentMissingSummary"];
 /** A form the saved result supports (common-statistics figure 2.0.0), as the analysis package lists it (FQ-02). */
 interface FigureForm {id:string;kind:RenderPlot["kind"];observations?:Observations}
@@ -67,10 +70,10 @@ type FigureSize="panel"|"single-column"|"double-column"|"custom";
 type Composition="quantification"|"images-quantification";
 interface Presentation {version:"1.0.0";observations?:Observations|null;color_by?:"run"|"group"|null;annotation?:"value"|"stars"|"none";size?:FigureSize;composition?:Composition;image_fields?:Record<string,string>;outlines?:boolean}
 /** Field-standard names for the forms and sizes (UC-01). */
-const formNames:Record<string,string>={points:"全データ点",density:"全データ点と分布",box:"全データ点と箱ひげ",bar:"平均の棒",
+const formNames:Record<string,string>={points:"全データ点",density:"分布（バイオリン）",box:"箱ひげ",bar:"平均の棒",
   "run-box":"実験回の箱ひげ","run-violin":"実験回のバイオリン","run-histogram":"実験回のヒストグラム","run-paired":"実験回の対応",scatter:"散布図"};
 const sizeNames:Record<FigureSize,string>={panel:"パネル","single-column":"1段幅 · 89 mm","double-column":"2段幅 · 183 mm",custom:"カスタム"};
-interface Saved {job:string;revision:string;result:ResultPayload;identity:string;requestIdentity:string;plot:RenderPlot;figureJob:string;figure:ResultPayload["figure"];operation:ResultOperation;sources?:Array<{field:string;label:string}>;historical?:boolean;target?:ReviewTarget}
+interface Saved {job:string;revision:string;result:ResultPayload;identity:string;requestIdentity:string;plot:RenderPlot;figureJob:string;figure:ResultPayload["figure"];operation:ResultOperation;sources?:Array<{field:string;label:string}>;historical?:boolean;target?:ReviewTarget;created?:number}
 /** Saved units are the analysis package's (English, for figures); the result text names them in Japanese. */
 const unitLabels:Record<string,string>={"nuclei per field":"個／視野","nuclei per mm²":"個／mm²","positive nuclei per field":"個／視野","fraction of evaluable nuclei":"",dimensionless:""};
 const unitLabel=(unit?:string|null)=>unit?unitLabels[unit]??unit:"";
@@ -83,6 +86,28 @@ function regionLabel(metric:string,region:string|undefined){if(!region||!(region
 function savedRegion(result:ResultPayload):ReviewTarget|undefined{const id=result.spec?.selection?.region_set_id||resultSources(result)[0]?.region_set?.region_set_id||"";return id in regionNames?id as ReviewTarget:undefined;}
 /** A per-region metric names its region and channel (「核小体の平均輝度（eu5）」); summaries name their own. */
 function resultMetricLabel(result:ResultPayload,metric:string){const selection=result.spec?.selection,label=metricLabels[metric]||metric;if(metric.startsWith("positive_")){const judged=result.selection?.channel_gate?.channel;return `${label}${judged?`（${judged.stain||judged.label||judged.channel_id}）`:""}`;}if(selection?.source!=="region")return label;const region=regionNames[selection.region_set_id||""];return `${region?`${region}の`:""}${label}${selection.channel_id?`（${selection.channel_id}）`:""}`;}
+const analysisNames:Record<ResultOperation,string>={comparison:"群間比較",association:"相関",distribution:"分布"};
+/** A saved figure by what it shows (FU-09): the measure, the analysis, the form and when it was drawn. */
+/** A measure by its region and stain when it is measured per region (「核質の平均輝度（5-EU）」); a summary
+ *  (「核小体の離心率」, 核数) names itself, as resultMetricLabel does. */
+function measureName(selection:SavedSelection|undefined,channel:SavedChannel|null|undefined,metric:string){
+  const label=metricLabels[metric]||metric;
+  if(selection?.source!=="region")return label;
+  const region=regionNames[selection.region_set_id||""],stain=channel?.stain||channel?.label||channel?.channel_id||selection.channel_id;
+  return `${region?`${region}の`:""}${label}${stain?`（${stain}）`:""}`;
+}
+function savedFigureName(entry:Saved){
+  const metric=entry.result.spec?.selection?.metric??entry.result.estimates?.metric??entry.result.metric??"";
+  // Each measure by its region, metric and stain (the channel's stain, not its identifier).
+  const spec=entry.result.spec;
+  const axes:Array<[SavedSelection|undefined,{metric?:string;channel?:SavedChannel|null}|undefined]>=[[spec?.x_selection,entry.result.x_source],[spec?.y_selection,entry.result.y_source]];
+  const measure=entry.operation==="association"?axes.map(([selection,source])=>measureName(selection,source?.channel,selection?.metric??source?.metric??"")).join(" × ")
+    :metric.startsWith("positive_")?resultMetricLabel(entry.result,metric):measureName(spec?.selection,entry.result.channel,metric);
+  const observations=entry.plot.presentation?.observations??entry.figure.presentation?.observations??"points";
+  const form=(entry.figure.forms||[]).find(value=>value.kind===entry.plot.kind&&(value.kind!=="superplot"||(value.observations??"points")===observations));
+  const when=entry.created?new Date(entry.created*1000).toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}):"";
+  return [measure,analysisNames[entry.operation],form&&entry.operation==="comparison"?formNames[form.id]:"",when].filter(Boolean).join(" · ");
+}
 const resultSources=(result:ResultPayload):SavedSource[]=>result.source_fields||result.x_source?.source_fields||result.y_source?.source_fields||[];
 const fail=(error:unknown)=>error instanceof ApiError?errorMessage(error):error instanceof Error?errorCodeMessage(error.message):"処理を完了できませんでした。";
 
@@ -140,6 +165,8 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   const [figureKind,setFigureKind]=useState<RenderPlot["kind"]>("distribution");
   const [part,setPart]=useState<FigurePart>("figure"),[colors,setColors]=useState<Record<string,string>>({}),[legend,setLegend]=useState(true),[pointSize,setPointSize]=useState<number|null>(null),[order,setOrder]=useState<string[]>([]);
   const [history,setHistory]=useState<Saved[]>([]);
+  // One entry per saved result, with its latest figure: a setting redrawn on its own is not another saved figure.
+  const savedResults=history.filter((entry,index)=>history.findIndex(other=>other.job===entry.job)===index);
   const receivedSpec=useRef(""),savedDraft=useRef(""),skipOwnSpec=useRef(false);
   const [selectedSeries,setSelectedSeries]=useState("");
   const [pointSource,setPointSource]=useState<{job:string;source:FigureSource}|null>(null);
@@ -151,9 +178,14 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   const includeRaw=!!saved&&rawExport?.revision===saved.revision&&rawExport.included;
   const lock=useRef(false),renderCache=useRef(new Map<string,{job:string;figure:ResultPayload["figure"]}>()),renderIds=useRef(new Map<string,string>());
   useEffect(()=>{if(!workspace)return;let live=true;void request<Job[]>(`/v1/workspaces/${workspace}/jobs`).then(async jobs=>{
-    const completed=jobs.filter(job=>job.state==="succeeded"&&(job.kind==="statistics"||job.kind==="figure-render")).sort((a,b)=>b.created-a.created).slice(0,30);
-    const records=await Promise.all(completed.map(async job=>{try{const result=await request<ResultPayload>(`/v1/jobs/${job.id}/result`);if(result.source_kind!=="region-2d"||!result.figure)return null;const entry:Saved={job:result.source_job_id||job.id,revision:result.revision_id,result,identity:"history",requestIdentity:"history",plot:{...checkedPlot(183,100,7,"","","",""),...result.spec?.plot} as RenderPlot,figureJob:job.id,figure:result.figure,operation:result.analysis_kind==="region-comparison"?"comparison":result.analysis_kind==="region-association"?"association":"distribution",sources:resultSources(result).map(field=>({field:field.field_id,label:field.field_id})),historical:true,target:savedRegion(result)};return entry;}catch{return null;}}));
-    if(live)setHistory(previous=>[...previous,...records.filter((value):value is Saved=>!!value&&!previous.some(old=>old.figureJob===value.figureJob))]);
+    // Newest first, one entry per result: a result redrawn many times does not push the others out.
+    const completed=jobs.filter(job=>job.state==="succeeded"&&(job.kind==="statistics"||job.kind==="figure-render")).sort((a,b)=>b.created-a.created).slice(0,200);
+    const load=async(job:Job):Promise<Saved|null>=>{try{const result=await request<ResultPayload>(`/v1/jobs/${job.id}/result`);if(result.source_kind!=="region-2d"||!result.figure)return null;const entry:Saved={job:result.source_job_id||job.id,revision:result.revision_id,result,identity:"history",requestIdentity:"history",plot:{...checkedPlot(183,100,7,"","","",""),...result.spec?.plot} as RenderPlot,figureJob:job.id,figure:result.figure,operation:result.analysis_kind==="region-comparison"?"comparison":result.analysis_kind==="region-association"?"association":"distribution",sources:resultSources(result).map(field=>({field:field.field_id,label:field.field_id})),historical:true,target:savedRegion(result),created:job.created};return entry;}catch{return null;}};
+    const records:Saved[]=[];
+    for(let start=0;start<completed.length&&records.length<40&&live;start+=20){
+      for(const entry of await Promise.all(completed.slice(start,start+20).map(load)))if(entry&&records.length<40&&!records.some(value=>value.job===entry.job))records.push(entry);
+    }
+    if(live)setHistory(previous=>[...previous,...records.filter(value=>!previous.some(old=>old.figureJob===value.figureJob||old.job===value.job))]);
   }).catch(()=>undefined);return()=>{live=false;};},[workspace]);
   const sources:ComparisonSource[]=items.flatMap(item=>item.result&&!item.excluded?[{field:item.fieldId,revision:item.result.revision,label:item.label,result:item.result,metadata:derived[item.fieldId]??metadata[item.fieldId]??item.metadata??emptyMetadata}]:[]);
   const fields=Object.fromEntries(sources.map(source=>[source.field,source.metadata]));
@@ -350,7 +382,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
       if(observations&&!(result.figure.forms||[]).some(form=>form.observations===observations))setObservations(null);
       // A design, stratum or source changed while this ran: its result is not shown as current.
       if(requestedStratum&&scopedIdentity("",requestedStratum)!==scopedIdentity("",stratumRequestRef.current))throw new Error("層または実験デザインが計算中に変わりました。もう一度計算してください。");
-      const created:Saved={job:accepted.job_id,revision,result,identity:scopedIdentity(JSON.stringify([target,sources.map(source=>[source.field,source.revision]),fields,adopted]),requestedStratum),requestIdentity,plot:{...display,kind:chosenKind},figureJob:accepted.job_id,figure:result.figure,operation,sources:sources.map(source=>({field:source.field,label:source.label})),target:["nuclei","nucleoli","nucleoplasm","cell"].includes(regionSet)?regionSet as ReviewTarget:target};setSaved(created);setHistory(previous=>[created,...previous.filter(value=>value.job!==created.job)]);
+      const created:Saved={job:accepted.job_id,revision,result,identity:scopedIdentity(JSON.stringify([target,sources.map(source=>[source.field,source.revision]),fields,adopted]),requestedStratum),requestIdentity,plot:{...display,kind:chosenKind},figureJob:accepted.job_id,figure:result.figure,operation,sources:sources.map(source=>({field:source.field,label:source.label})),target:["nuclei","nucleoli","nucleoplasm","cell"].includes(regionSet)?regionSet as ReviewTarget:target,created:Date.now()/1000};setSaved(created);setHistory(previous=>[created,...previous.filter(value=>value.job!==created.job)]);
     }catch(cause){setError(fail(cause));}finally{lock.current=false;setBusy("");}
   }
   async function render(downloadZip=false){
@@ -361,7 +393,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
         const output=await request<{source_job_id:string;figure:ResultPayload["figure"]}>(`/v1/jobs/${accepted.job_id}/figure-render`);
         if(output.source_job_id!==saved.job)throw new Error("図の元データが一致しません。");rendered={job:accepted.job_id,figure:output.figure};renderCache.current.set(key,rendered);}
       baseline.current={job:rendered.job,signature:JSON.stringify(display)};failedSignature.current="";
-      const updated={...saved,plot:display,figureJob:rendered.job,figure:rendered.figure};setSaved(updated);setHistory(previous=>[updated,...previous.filter(value=>value.figureJob!==updated.figureJob)]);
+      const updated={...saved,plot:display,figureJob:rendered.job,figure:rendered.figure,created:Date.now()/1000};setSaved(updated);setHistory(previous=>[updated,...previous.filter(value=>value.figureJob!==updated.figureJob)]);
       if(downloadZip){setBusy("保存ファイルを作成中…");try{const exported=await post<{job_id:string}>(`/v1/revisions/${saved.revision}/export${includeRaw?"?include_raw=true":""}`,{});await waitJob(exported.job_id);const packaged=await post<{job_id:string}>(`/v1/jobs/${rendered.job}/publication-package`,{analysis_job_id:exported.job_id,request_id:crypto.randomUUID()});await waitJob(packaged.job_id);await download(`/v1/jobs/${packaged.job_id}/files/publication.zip`,"Cytellect-publication.zip");}catch(cause){
         // The public demo records the publication package for the guided result only; any other
         // result saves the figure it shows, which is recorded.
@@ -495,7 +527,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
       {saved&&<div className={styles.downloads}>{mode==="figure"&&<label className={styles.check}><input type="checkbox" checked={includeRaw} disabled={!!busy||stale} onChange={event=>setRawExport({revision:saved.revision,included:event.target.checked})}/>元画像を含める</label>}<button disabled={!!busy||stale} onClick={()=>void render(true)}>保存</button>{mode==="figure"&&saved.figure.source_files.includes("figure.png")&&<button disabled={!!busy} onClick={()=>void copyPng()}>PNG をコピー</button>}</div>}
     </div>
     <div className={styles.output} ref={outputRef}>
-      {mode==="figure"&&history.length>0&&<label className={styles.figureHistory}>保存した図<select value={saved?.figureJob||""} onChange={event=>{const selected=history.find(value=>value.figureJob===event.target.value);if(selected)restoreFigure(selected);}}><option value="" disabled>図を選択</option>{history.map((entry,index)=><option key={entry.figureJob} value={entry.figureJob}>{entry.operation==="distribution"?"分布":entry.operation==="comparison"?"群間比較":"相関"} · {history.length-index}</option>)}</select></label>}
+      {mode==="figure"&&savedResults.length>0&&<label className={styles.figureHistory}>保存した図<select value={saved?.job||""} onChange={event=>{const selected=savedResults.find(value=>value.job===event.target.value);if(selected)restoreFigure(selected);}}><option value="" disabled>結果を選ぶ</option>{savedResults.map(entry=><option key={entry.job} value={entry.job}>{savedFigureName(entry)}</option>)}</select></label>}
       {mode==="statistics"&&operation!=="distribution"&&(<details className={styles.metadata} open={!saved&&!experiment}><summary>実験情報</summary>{experiment&&<p className={styles.derivedNote}>群・試料・独立実験単位・撮影日・対応ペアは、実験デザインから決まります。{onEditExperiment&&<button type="button" onClick={onEditExperiment}>実験デザインを編集</button>}</p>}<div className={styles.tableScroll} tabIndex={0}><table><thead><tr><th>視野</th>{["群","試料","独立実験単位","撮影日",...(paired&&operation==="comparison"?["対応ペア"]:[])].map(value=><th key={value}>{value}</th>)}</tr></thead><tbody>{sources.map(source=><tr key={source.field}><th><button onClick={()=>onSource(source.field)}>{source.label}</button></th>{(["condition","sample","experimental_unit","acquisition_date",...(paired&&operation==="comparison"?["pair"]:[])] as Array<keyof Metadata>).map(key=><td key={key}><input maxLength={80} readOnly={demo||source.field in derived} aria-label={`${source.label} ${key}`} value={String(fields[source.field][key]??"")} onChange={event=>editMetadata(source.field,key,event.target.value)}/></td>)}</tr>)}</tbody></table></div></details>)}
       {saved?<>
         {saved.result.stratum&&<p className={styles.current}>層：{saved.result.stratum.label}（{saved.result.stratum.levels.map(value=>`${value.factor}：${value.level}`).join("、")}）· 割り当て {saved.result.stratum.field_ids.length} 視野のうち解析 {saved.result.stratum.analysed_field_ids.length}{saved.result.stratum.excluded_fields.length?`、除外 ${saved.result.stratum.excluded_fields.length}`:""}。ほかの層は含みません。{saved.result.stratum.declared_stratum_count&&saved.result.stratum.declared_stratum_count>1?`宣言した層：${saved.result.stratum.declared_stratum_count}。層ごとに検定し、層の数に対する多重性の補正はしていません。`:""}</p>}
