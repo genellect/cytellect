@@ -4,6 +4,8 @@ Windows 版のアプリ内更新は、オーナーの Ed25519 鍵で署名され
 
 ## 仕組み
 
+パッケージ作成の前に、配布するソースと同じ SHA で解析提案・考察のプロンプト版を検査する。配布用の `PROPOSAL_PREFLIGHT_URL` と `PROPOSAL_PREFLIGHT_TOKEN` は検査ジョブだけで使い、署名やパッケージのジョブへ渡さない。未設定・不一致は配布を止める。[設定と検査の手順](proposal-deployment.md#required-prompt-version-check-before-distribution)を先に満たす。
+
 - リリースごとに `Cytellect-update-<版>.json`（版、インストーラーのファイル名・SHA-256・大きさ、ソースのコミット、発行時刻）と、その署名 `Cytellect-update-<版>.json.sig` を添付する。
 - 署名は `.github/workflows/local-release.yml` の `draft` ジョブが行う。このジョブは environment `release` で動き、オーナーが承認するまで始まらない。secret `UPDATE_SIGNING_KEY` で `ssh-keygen -Y sign -n cytellect-update` を実行し、アプリと同じ検証（`scripts/update_manifest.py verify`）で確かめてから、タグと下書きのリリースを作る。secret がない場合や、組み込んだ公開鍵と合わない場合は、何も作らずに止まる。
 - インストール済みのアプリは、組み込んだ公開鍵（`services/api/src/cytellect_api/update_signature.py` の `UPDATE_PUBLIC_KEY`）で署名を確かめ、manifest の版と、インストーラーの SHA-256 と大きさが一致したときだけ実行する。リリースの `.sha256` と GitHub の digest は信頼の起点にしない。

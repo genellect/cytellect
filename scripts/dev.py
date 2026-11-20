@@ -7,7 +7,7 @@ Standard library only, so it runs before `uv sync` and on Windows:
     python3 scripts/dev.py changed [--base REF]
     python3 scripts/dev.py contracts
     python3 scripts/dev.py audit [--out DIR]
-    python3 scripts/dev.py doctor [--live]
+    python3 scripts/dev.py doctor [--live | --proposal-version]
     python3 scripts/dev.py serve [--data-dir DIR] [--skip-build]
     python3 scripts/dev.py public-inputs [DATASET ...] [--out DIR]
 
@@ -472,6 +472,14 @@ def tool_version(argv: tuple[str, ...]) -> str:
 
 
 def doctor(args: argparse.Namespace) -> None:
+    if getattr(args, "proposal_version", False):
+        from proposal_preflight import check_versions
+        results = check_versions(os.environ.get("CYTELLECT_PROPOSAL_URL", "").strip(), proposal_token(), probe)
+        for route, version, accepted, detail in results:
+            print(f"[{'ok' if accepted else 'NG'}] {route} {version}: {detail}")
+        if not all(item[2] for item in results):
+            sys.exit("AI prompt compatibility failed; do not distribute this client.")
+        return
     failed = False
     hint = f' (run `source "{DEV_RUNTIME / "env.sh"}"` first)' if (DEV_RUNTIME / "env.sh").exists() else ""
 
@@ -776,8 +784,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--out", type=Path, metavar="DIR", help="Report directory outside the checkout (default: temp)")
     p.set_defaults(func=audit)
     p = sub.add_parser("doctor", help="Report whether tools, Fiji, the cloud GPU and proposals are ready")
-    p.add_argument("--live", action="store_true",
+    live = p.add_mutually_exclusive_group()
+    live.add_argument("--live", action="store_true",
                    help="Also contact the configured cloud GPU and proposal service (no model call)")
+    live.add_argument("--proposal-version", action="store_true",
+                      help="Require both client prompt versions on the configured AI service; no GPU, model call or usage count")
     p.add_argument("--require-cloud", action="store_true",
                    help="Fail when the cloud GPU or proposals are not configured, misconfigured or unavailable")
     p.add_argument("--owner", action="store_true",

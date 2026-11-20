@@ -310,6 +310,14 @@ every proposal and discussion from the updated client would fail. Deploy the Wor
 distribute the client. The newer Worker keeps answering installed clients (up to 0.1.0-local.23) with their own prompt
 versions and OpenAI model.
 
+### Required prompt-version check before distribution
+
+Run `uv run python scripts/dev.py doctor --proposal-version` from the exact client commit to distribute, with `CYTELLECT_PROPOSAL_URL` and an operator-issued device token (`CYTELLECT_PROPOSAL_TOKEN` or `CYTELLECT_PROPOSAL_TOKEN_FILE`) configured privately. This mode checks only the AI service; it does not run the normal doctor checks or contact/start the GPU. It sends validated public protocol sentinels to both proposal and discussion routes with the client's actual prompt constants, **without Idempotency-Key**. Only HTTP 400 `request_id_required` passes: version and provider selection happened, but request admission, usage count, reservation and model calls did not. Unsupported versions, invalid context, unavailable service, authentication failures and unexpected successes fail closed. There is no retry or fallback to an older prompt.
+
+The Windows release workflow runs this check at its resolved source SHA before packaging. Configure the repository variable `PROPOSAL_PREFLIGHT_URL` and secret `PROPOSAL_PREFLIGHT_TOKEN` privately for an authorized active device. They are scoped to this separate job and never passed to packaging or bundled. Missing configuration stops release. This change provisions no credential and does not invoke the live check during a pull-request test. Docker/manual distribution follows the same command and requires both `[ok]` lines. Record the source SHA, UTC time, route, prompt version and pass/fail only; do not publish credentials, URLs with credentials, raw responses or workspace data.
+
+The protocol tests share the Python client's validated sentinel payloads with the actual Worker handler and prove that supported and unsupported versions never reach claim/count/reserve/model calls. This is a compatibility gate, not evidence of model quality or an actual production generation. The separately authorized live end-to-end verification remains outstanding.
+
 ## Production deployment record
 
 Record each production deployment here: the date, source commit, version ID,
