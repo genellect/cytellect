@@ -4,6 +4,10 @@
 
 ## 構成
 
+考察や図だけの更新では、初期状態と操作を記録した `generated_from_commit` を保持し、
+`manifest.json` の `derived_updates` に更新した段階とコミットを記録する。
+`examples` 段階の再実行は、文が同じ考察と記録済みの応答を保持する。
+
 ```
 本番の API とワーカー（実際の Fiji/StarDist・Cellpose）で公開画像を処理する
   └─ 検出の記録・初期状態（SQLite と全ファイル）・初期表示の GET 応答を書き出す（ビルド時、CPython）

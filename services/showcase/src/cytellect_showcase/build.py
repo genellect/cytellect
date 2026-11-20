@@ -1045,11 +1045,11 @@ def examples(seed_data: Path, recordings: Path, work: Path, out: Path, fiji: str
         for entry in recorded["entries"]:
             if entry["method"] == "GET" and entry["path"].startswith("/v1/jobs/") and entry["path"].endswith("/discussion"):
                 answer(entry["path"], entry)
-        index_path.write_text(json.dumps(index, indent=1) + "\n")
-        journal_path.write_text(json.dumps(recorded, indent=1, ensure_ascii=False) + "\n")
+        index_path.write_text(json.dumps(index, indent=1) + "\n", encoding="utf-8", newline="\n")
+        journal_path.write_text(json.dumps(recorded, indent=1, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
         named = {entry.get("file") for entry in [*index["entries"].values(), *recorded["entries"]]}
-        for name in replaced - named - {None}:
-            (target / name).unlink(missing_ok=True)
+        for replaced_name in replaced - named - {None}:
+            (target / replaced_name).unlink(missing_ok=True)
     finally:
         api.client.close()
     saved = work / "proposals.json"
@@ -2148,6 +2148,18 @@ def publish(args, manifests: list, state: dict, seed_data: Path, recordings: Pat
     write_manifest(args, manifests, state)
 
 
+def generation_provenance(previous: dict, stages: set[str], commit: str) -> dict:
+    """A derived-only update does not claim to have recorded the initial workspace and its walks."""
+    record: dict = {"generated_from_commit": commit}
+    if previous.get("generated_from_commit") and not stages.intersection({"prepare", "scenario", "publish", "snapshot", "journal"}):
+        record["generated_from_commit"] = previous["generated_from_commit"]
+    updates = {**previous.get("derived_updates", {}),
+               **{stage: commit for stage in sorted(stages.intersection({"examples", "figures", "refigure"}))}}
+    if updates:
+        record["derived_updates"] = updates
+    return record
+
+
 def write_manifest(args, manifests: list, state: dict) -> None:
     out = args.out
     files = {}
@@ -2185,11 +2197,13 @@ def write_manifest(args, manifests: list, state: dict) -> None:
             "scenario": {key: scenario_state.get(key) for key in ("timings", "statistics", "renders", "fragment_review")},
             "grid": {"options": scene.get("grid", {}).get("options"), "timings": scene.get("grid", {}).get("timings")},
         }
+    previous = out / "manifest.json"
+    published = json.loads(previous.read_text()) if previous.is_file() else {}
     record = {
         "schema": "cytellect-showcase-manifest/2",
         "scenes": [scene_record(manifest) for _, manifest in manifests],
         "seed": state.get("seed"),
-        "generated_from_commit": git_commit(),
+        **generation_provenance(published, set(args.stages.split(",")), git_commit()),
         "runtime": runtime_versions(args.fiji),
         "journal": state.get("journal"),
         "detections_recorded": len(json.loads((args.work / "recordings" / "index.json").read_text())["entries"])
@@ -2198,7 +2212,6 @@ def write_manifest(args, manifests: list, state: dict) -> None:
         "limitations": "Public example images; numbers illustrate the software and do not establish scientific "
                        "validity for any laboratory's images.",
     }
-    previous = out / "manifest.json"
     if previous.is_file():
         # Written by scripts/build_showcase_runtime.py for the runtime/ files.
         commit = json.loads(previous.read_text()).get("runtime_generated_from_commit")

@@ -817,6 +817,16 @@ test("the statistics view states the premise once, in the basis line, and opens 
     const discussion = results.getByRole("region", {name: "考察"});
     await expect(discussion, scene?.id).toContainText("デモ用サンプル（参考）", {timeout: live});
     await expect(discussion.getByRole("button", {name: "考察を生成"})).toHaveCount(0);
+    const recorded = results.getByRole("group", {name: "保存した比較"}).getByRole("button");
+    const shown = new Set<string>();
+    for (const name of await recorded.allTextContents()) {
+      await recorded.filter({hasText: name}).click();
+      await expect(recorded.filter({hasText: name}), scene?.id).toHaveAttribute("aria-pressed", "true");
+      await expect(discussion, `${scene?.id} ${name}`).toContainText("デモ用サンプル（参考）", {timeout: live});
+      shown.add((await discussion.getByRole("listitem").first().textContent()) ?? "");
+    }
+    // A scene with one comparison has no switcher; its opening sample was checked above.
+    expect(shown.size, scene?.id).toBe(await recorded.count());
   }
 });
 
