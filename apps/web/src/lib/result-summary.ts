@@ -79,7 +79,7 @@ const span = (values: number[], text: (value: number) => string) => {
  * punctuation (「PLK1 KO で」, 「Non-targeting より」). */
 export function tidy(text: string): string {
   return text
-    .replace(/([A-Za-z0-9µ%²³)）])(?=[\p{sc=Hiragana}\p{sc=Katakana}\p{sc=Han}])/gu, "$1 ")
+    .replace(/([A-Za-z0-9µ%²)）])(?=[\p{sc=Hiragana}\p{sc=Katakana}\p{sc=Han}])/gu, "$1 ")
     .replace(/([\p{sc=Hiragana}\p{sc=Katakana}\p{sc=Han}])(?=[A-Za-z0-9µ(])/gu, "$1 ")
     .replace(/ +/g, " ").replace(/ ([、。：）〜])/g, "$1").replace(/([（：〜、]) /g, "$1").trim();
 }
