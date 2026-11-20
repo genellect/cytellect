@@ -16,7 +16,7 @@ from .figure_sources import attach_svg_sources, bind_points
 from .figures import _validate_text_layout, apply_plot_controls, figure_settings, plt, select_font
 
 VERSION = "2.0.0"  # Saved pagination contract; independent of presentation fixes.
-RENDER_VERSION = "2.0.1"
+RENDER_VERSION = "2.1.0"
 PRESENTATION_ERRORS = frozenset({
     "figure_labels_overlap", "figure_text_outside_canvas", "japanese_font_not_installed",
     "sans_serif_font_not_installed", "figure_font_glyphs_unavailable",
@@ -117,8 +117,26 @@ def page_layout(result):
             "style": style, "plot": plot, "values": values, "jitter": jitter}
 
 
+def tick_label(value: float, ticks) -> str:
+    """A value-axis label: thousands separated, with as many decimals as the axis's ticks need (1,000.5 is not 1,001)."""
+    if abs(value) < 1000:
+        return f"{value:g}"
+    large = [float(tick) for tick in ticks if abs(tick) >= 1000] or [float(value)]
+    decimals = next((d for d in range(7) if all(abs(round(tick, d) - tick) <= 1e-9 * abs(tick) for tick in large)), 6)
+    return f"{value:,.{decimals}f}"
+
+
 def render_pages(result, output: Path, layout):
-    """Only presentation failures are recoverable; write errors propagate unchanged."""
+    """Only presentation failures are recoverable; write errors propagate unchanged.
+
+    Pages are drawn as publication figures (2026-11-19): the bundled typeface, each field's observations
+    placed by a deterministic beeswarm and coloured by the field's condition, the field median as a line,
+    and one value axis shared by every page."""
+    from matplotlib.ticker import FuncFormatter
+
+    from .figure_layout import beeswarm
+    from .figure_style import INK, OKABE_ITO, fit_axis_title, rc
+
     plot, style = layout["plot"], layout["style"]
     ja, size = plot["language"] == "ja", style["font_size_pt"]
     numeric = result["source_kind"] == "measured-numerical-assay"
@@ -126,59 +144,110 @@ def render_pages(result, output: Path, layout):
     xlabel = plot["x_label"] or (("測定グループ" if ja else "Measurement group") if numeric else "視野" if ja else "Field")
     median_label = ("測定群中央値" if ja else "Set median") if numeric else "視野中央値" if ja else "Field median"
     observation_label = "観測値" if ja else "Observation"
-    title = "測定値の分布" if ja else "Observed measurements"
-    all_text = " ".join([ylabel, xlabel, median_label, observation_label, title, *layout["labels"].values(),
-                         "観測" if ja else "obs.", "ページ" if ja else "Page", "·/"])
+    summaries = {row["field_id"]: row for row in result["field_summary"]}
+    # The experiment's groups colour the fields, in the order the fields are shown.
+    condition_of = {fid: summaries[fid].get("condition") for fid in layout["order"]}
+    conditions = list(dict.fromkeys(value for value in condition_of.values() if value))
+    palette = {condition: OKABE_ITO[index % len(OKABE_ITO)] for index, condition in enumerate(conditions)}
+    overrides = plot.get("style", {}).get("series_colors", {})
+    colour_of = lambda fid: overrides.get(fid) or palette.get(condition_of.get(fid)) or "#526b78"  # noqa: E731
+    all_text = " ".join([ylabel, xlabel, median_label, observation_label, *conditions, *layout["labels"].values(),
+                         "観測" if ja else "obs.", "·/,"])
     try:
         font = select_font(plot["language"], all_text)
     except ValueError as exc:
         if str(exc) not in PRESENTATION_ERRORS:
             raise
         raise DescriptivePresentationError(str(exc), None) from None
-    summaries = {row["field_id"]: row for row in result["field_summary"]}
-    with plt.rc_context({"font.size": size, "axes.titlesize": size, "axes.labelsize": size,
-                         "xtick.labelsize": size, "ytick.labelsize": size, "legend.fontsize": size,
-                         "font.weight": "normal", "axes.labelweight": "normal", "axes.titleweight": "normal",
-                         "svg.fonttype": "none", "pdf.fonttype": 42, "text.usetex": False,
-                         "text.parse_math": False, "axes.unicode_minus": False, "axes.linewidth": .6,
+    point_size = float(plot.get("point_size") or 9)
+    point_d = math.sqrt(point_size)
+    fields_only = result["observation_kind"] == "fields"
+
+    def bind_font(item):
+        properties = item.get_fontproperties().copy()
+        properties.set_file(str(font.path))
+        properties.set_family(font.family)
+        properties.set_weight(font.weight)
+        item.set_fontproperties(properties)
+    with plt.rc_context({**rc(size), "text.usetex": False, "text.parse_math": False, "axes.unicode_minus": False,
                          "svg.hashsalt": "cytellect-descriptive-figure-" + RENDER_VERSION}):
         for plan in layout["page_plan"]:
             page = plan["page_index"]
             figure, axes = plt.subplots(figsize=(style["width_inches"], style["height_inches"]), layout="constrained")
             try:
-                for index, fid in enumerate(plan["field_ids"]):
-                    values = layout["values"][fid]
-                    if values:
-                        color = plot.get("style", {}).get("series_colors", {}).get(fid, "#526b78")
-                        bind_points(axes.scatter(index + layout["jitter"][fid], values, s=plot.get("point_size", 9), color=color, alpha=.65, linewidths=0),
-                                    [row for row in result["plot_data"] if row["field_id"] == fid])
-                        if result["observation_kind"] != "fields":
-                            bind_points(axes.scatter(index + .23, summaries[fid]["median"], s=17, marker="s", facecolors="none",
-                                                    edgecolors="#17292f", linewidths=.7), [{"field_id": fid}])
                 ticks = [f"{layout['labels'][fid]}\n{len(layout['values'][fid])} " + ("観測" if ja else "obs.")
                          for fid in plan["field_ids"]]
                 axes.set_xticks(range(len(ticks)), ticks)
-                axes.set_xlim(-.5, len(ticks) - .5)
+                axes.set_xlim(-.6, len(ticks) - .4)
                 axes.set_yticks(layout["y_ticks"])
                 axes.set_ylim(layout["y_limits"])
                 axes.set_xlabel(xlabel)
-                axes.set_ylabel(ylabel)
-                axes.set_title(f"{title} · {'ページ' if ja else 'Page'} {page}/{len(layout['page_plan'])}", loc="left", pad=7)
-                axes.spines[["top", "right"]].set_visible(False)
+                axes.set_ylabel(fit_axis_title(ylabel, max(24.0, style["height_inches"] * 25.4 - 22), size))
+                axes.tick_params(axis="x", length=0, pad=3)
+                for item in figure.findobj(match=Text):
+                    bind_font(item)
                 # Legend keys describe the common marks; they are not dummy observations.
                 if plot.get("style", {}).get("show_legend", True):
-                    figure.legend(handles=[Line2D([], [], marker="o", linestyle="none", markersize=3,
-                                             color="#526b78", label=observation_label),
-                                       Line2D([], [], marker="s", linestyle="none", markersize=4,
-                                              markerfacecolor="none", color="#17292f", label=median_label)][:1 if result["observation_kind"] == "fields" else 2],
-                              loc="outside upper center", frameon=False, ncols=2, handletextpad=.4, columnspacing=1)
+                    # A key per colour the points have (a field colour chosen by the researcher included); when one
+                    # condition is shown in several colours, each key names the fields it marks.
+                    keyed: dict[tuple[str | None, str], list[str]] = {}
+                    for fid in sorted(plan["field_ids"], key=lambda fid: (conditions.index(condition_of[fid])
+                                                                        if condition_of.get(fid) in conditions else -1)):
+                        keyed.setdefault((condition_of.get(fid) if len(conditions) > 1 else None, colour_of(fid)), []).append(fid)
+                    split = len(keyed) > len({condition for condition, _ in keyed})
+                    handles = [Line2D([], [], marker="o", linestyle="none", markersize=3.2, markeredgewidth=0, color=colour,
+                                      label=(condition or observation_label)
+                                      + (f" ({', '.join(layout['labels'][fid] for fid in fids)})" if split else ""))
+                               for (condition, colour), fids in keyed.items()]
+                    if not fields_only:
+                        handles.append(Line2D([], [], color=INK, linewidth=1.1, label=median_label))
+                    # As many keys on a row as the page is wide: a narrow column wraps them.
+                    for columns in range(len(handles), 0, -1):
+                        legend = figure.legend(handles=handles, loc="outside upper center", frameon=False, ncols=columns,
+                                               handlelength=1.1, handletextpad=.4, columnspacing=1.2)
+                        for item in legend.get_texts():
+                            bind_font(item)
+                        figure.canvas.draw()
+                        if columns == 1 or legend.get_window_extent().width <= figure.bbox.width - 2:
+                            break
+                        legend.remove()
                 for item in figure.findobj(match=Text):
-                    properties = item.get_fontproperties().copy()
-                    properties.set_file(str(font.path))
-                    properties.set_family(font.family)
-                    properties.set_weight(font.weight)
-                    item.set_fontproperties(properties)
+                    bind_font(item)
+                # The observations are on the axis before its controls check them (a log axis needs positive values);
+                # they are spread side by side once the layout is fixed.
+                marks = {}
+                for index, fid in enumerate(plan["field_ids"]):
+                    values = np.asarray(layout["values"][fid], dtype=float)
+                    if len(values):
+                        marks[index] = values, axes.scatter(np.full(len(values), float(index)), values, s=point_size,
+                                                            color=colour_of(fid), alpha=.75, linewidths=0, zorder=2)
                 apply_plot_controls(axes, plot)
+                if plot.get("axes", {}).get("y_scale", "linear") == "linear":
+                    axes.yaxis.set_major_formatter(FuncFormatter(lambda value, _, axes=axes: tick_label(value, axes.get_yticks())))
+                # The layout is fixed before the marks are placed, so a point's printed size is known in data units.
+                figure.canvas.draw()
+                figure.set_layout_engine("none")
+                box = axes.get_window_extent()
+                xspan, yspan = np.diff(axes.get_xlim())[0], np.diff(axes.get_ylim())[0]
+                to_dx = lambda points: points / 72 * figure.dpi / box.width * xspan  # noqa: E731
+                to_dy = lambda points: points / 72 * figure.dpi / box.height * yspan  # noqa: E731
+                half_median = min(.3, to_dx(5 / 25.4 * 72))
+                log_y = axes.get_yscale() == "log"
+                for index, fid in enumerate(plan["field_ids"]):
+                    if index not in marks:
+                        continue
+                    values, collection = marks[index]
+                    # On a log axis the points are spread where they are drawn (display units), not in data units.
+                    heights = axes.transData.transform(np.column_stack([np.zeros(len(values)), values]))[:, 1] if log_y else values
+                    offsets = beeswarm(heights, dx=to_dx(point_d * 1.05),
+                                       dy=point_d * 1.05 / 72 * figure.dpi if log_y else to_dy(point_d * 1.05),
+                                       half_width=min(.32, to_dx(9 / 25.4 * 72)))
+                    collection.set_offsets(np.column_stack([index + offsets, values]))
+                    bind_points(collection, [row for row in result["plot_data"] if row["field_id"] == fid])
+                    if not fields_only:
+                        median = summaries[fid]["median"]
+                        axes.hlines(median, index - half_median, index + half_median, color=INK, linewidth=1.1, zorder=3)
+                        bind_points(axes.scatter([index], [median], s=0, marker="_", color=INK, zorder=3), [{"field_id": fid}])
                 try:
                     _validate_text_layout(figure, axes)
                 except ValueError as exc:

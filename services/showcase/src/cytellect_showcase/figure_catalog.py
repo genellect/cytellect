@@ -325,6 +325,13 @@ def build(api, target: Path, scratch: Path, shard: tuple[int, int] | None = None
     # Publication packages of the tour: the recorded analysis with the opening figure drawn anew.
     from cytellect_worker.figure_render import run_publication_package
 
+    # A catalogue drawn before took the tour's packages out of the journal: they are drawn again from
+    # its entries, whose package holds the recorded analysis export (``analysis.zip``) unchanged.
+    if not packages and (target / "figures.json").is_file():
+        packages = [{"source": entry["source"], "analysis": entry["analysis"], "workspace": sources[entry["source"]]["workspace"],
+                     "zip": target / entry["files"]["publication.zip"]}
+                    for entry in json.loads((target / "figures.json").read_text()).get("packages", [])
+                    if entry["source"] in sources]
     package_entries = []
     for index, package in enumerate(packages):
         source = sources.get(package["source"])

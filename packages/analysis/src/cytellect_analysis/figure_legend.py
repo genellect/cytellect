@@ -48,13 +48,28 @@ def comparison_legend(canonical, order, drawn, presentation, panels=None) -> tup
         marks.append("bars show the mean of runs")
     else:
         marks.append("horizontal lines show the mean of runs")
-    first = (f"Small dots show individual {nouns}" + (", coloured by run" if description.get("by_run") else "")
-             + f"; large symbols show the value of each run ({_aggregation(spec)})")
+    # What the figure draws: the observations (unless a summary of dense data leaves them out), each run, and
+    # the summary the chosen form adds.
+    parts = []
+    if description.get("points", True):
+        parts.append(f"small dots show individual {nouns}" + (", coloured by run" if description.get("by_run") else ""))
+    parts.append(f"large symbols show the value of each run ({_aggregation(spec)})")
     if paired:
-        first += "; lines join the same run"
-    sentence = first + "; " + "; ".join(marks)
-    if description.get("density"):
-        sentence += "; grey outlines show the distribution of " + nouns
+        parts.append("lines join the same run")
+    summarised = "run values" if description.get("run_level") else nouns
+    shape = description.get("shape") or ("violin" if description.get("density") else None)
+    if shape == "box":
+        parts.append(f"boxes show the median and interquartile range of {summarised}, whiskers the most extreme values "
+                     "within 1.5 × the interquartile range")
+    elif shape == "violin":
+        parts.append(f"grey outlines show the distribution of {summarised}")
+    elif shape == "histogram":
+        parts.append("grey bars show a histogram of run values")
+    if shape and not description.get("shape_in_every_group", True):
+        # A box or an outline needs at least three values (an outline, values that differ); a histogram, a value.
+        parts[-1] += " (where a group has enough values to summarise)"
+    sentence = "; ".join(parts + marks)
+    sentence = sentence[0].upper() + sentence[1:]
     if lines[-1] == "b,":
         lines[-1] = "b, " + sentence[0].lower() + sentence[1:] + "."
     else:

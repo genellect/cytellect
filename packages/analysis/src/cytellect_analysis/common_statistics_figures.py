@@ -306,6 +306,10 @@ def _hierarchy(ax, canonical, plot, order, glyphs, graphical_summary, bars):
         ax.plot(range(len(order)), values, color="#888888", linewidth=.5, zorder=3)
 
 
+# Earlier forms that draw run values (offered at ten or more runs), and the earlier default of a comparison.
+RUN_VALUE_KINDS = frozenset({"box", "violin", "histogram", "paired", "distribution"})
+
+
 def render_common_statistics(result, output: Path, *, methods_template=None, figure_version=FIGURE_VERSION,
                              images=None):
     """``images``: original channel arrays and saved labels of the fields a 2.0.0 figure may show
@@ -327,6 +331,17 @@ def render_common_statistics(result, output: Path, *, methods_template=None, fig
     ja = plot["language"] == "ja"
     # The publication figure names its axes in English (plan FS); a figure asked for in Japanese keeps
     # the earlier drawing, which labels in the language requested.
+    if figure_version == "2.0.0" and not ja and plot.get("presentation") and plot["kind"] in RUN_VALUE_KINDS:
+        from .figure_forms import figure_forms
+
+        # Every form the 「グラフ」 view asks for is a publication figure. A run-value form the result offers
+        # (ten or more runs) is drawn as such; one it does not (a figure saved before, with fewer runs) is drawn
+        # as the nearest form of the run hierarchy.
+        if plot["kind"] not in {form["kind"] for form in figure_forms(canonical)["forms"]}:
+            nearest = {"box": "box", "violin": "violin"}.get(plot["kind"], "points")
+            plot = canonical["spec"]["plot"] = {**plot, "kind": "superplot",
+                                                "presentation": {**plot["presentation"], "observations": nearest}}
+        return _render_publication(canonical, output, template, order, images)
     if figure_version == "2.0.0" and not ja and (association or plot["kind"] in ("superplot", "unit-mean-bar")):
         return _render_publication(canonical, output, template, order, images)
     if figure_version == "2.0.0" and plot.get("presentation"):
@@ -482,7 +497,7 @@ def render_common_statistics(result, output: Path, *, methods_template=None, fig
                 "common_statistics_methods": template.model_dump(mode="json"), "style": style,
                 "font": selected_font.family, "font_metadata": selected_font.metadata()}
     if figure_version == "2.0.0" and not association:
-        # A run-value form keeps its 1.0.1 drawing; the screen still offers every form of the result.
+        # Drawn the earlier way (in Japanese, or asked without a presentation): the screen still offers every form.
         from .figure_forms import figure_forms
         from .publication_figure import resolve_presentation
 
@@ -537,7 +552,7 @@ def _render_publication(canonical, output: Path, template, order, images=None):
 
         levels = len(comparison_annotations(canonical, order, presentation["annotation"]).brackets)
         paired_runs = spec["design"]["kind"] == "paired" and presentation["color_by"] == "run"
-        size = layout(plot, presentation, len(order), legend=paired_runs, bracket_levels=levels)
+        size = layout(plot, presentation, len(order), legend=paired_runs, bracket_levels=levels, names=order)
         if presentation.get("composition") == "images-quantification" and images:
             image_figure = build_panels(canonical, order, images, presentation.get("image_fields"))
         if image_figure is not None:
@@ -548,7 +563,7 @@ def _render_publication(canonical, output: Path, template, order, images=None):
                 size.width_mm += image_width + 3
             elif presentation["size"] == "custom":
                 # A custom width narrower than the images beside the panel is widened to the panel's layout.
-                panel = layout(plot, {**presentation, "size": "panel"}, len(order), legend=paired_runs,
+                panel = layout(plot, {**presentation, "size": "panel"}, len(order), legend=paired_runs, names=order,
                                bracket_levels=levels)
                 size.width_mm = max(size.width_mm, panel.width_mm + image_width + 3)
             size.height_mm = max(size.height_mm, len(image_figure.panels) * tile + 12)

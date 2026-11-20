@@ -131,7 +131,7 @@ export function DemoGuide({open, onClose, onStep, dataset}: {open: boolean; onCl
 const introKey = (scene: string) => `cytellect.demo.intro.closed.${scene}`;
 function introClosed(scene: string) {try {return window.localStorage.getItem(introKey(scene)) === "1";} catch {return false;}}
 /** The scene in brief for visitors who are not biologists (DM-11, UC-01–UC-07): conditions, display, result. It
- * stays closed once closed for this scene (per browser); 「場面の概要」 opens it again. On a short screen it starts
+ * stays closed once closed for this scene (per browser); 「場面の説明」 opens it again. On a short screen it starts
  * closed, so the images and their tables keep their rows (N-08). */
 export interface SceneIntroState {open: boolean; close: () => void; reopen: () => void}
 export function useSceneIntro(scene: string | undefined): SceneIntroState {
@@ -143,23 +143,27 @@ export function useSceneIntro(scene: string | undefined): SceneIntroState {
     reopen: () => {setOpen(true); if (scene) try {window.localStorage.removeItem(introKey(scene));} catch {/* Opening still works for this page. */}},
   };
 }
-/** 「場面の概要」 while the overview is closed: a small mark next to the scene in the header, so it takes no row. */
+/** 「場面の説明」 next to the scene in the header: it opens and closes the scene in brief, and stays where it is,
+ * so a visitor finds it again after closing (the overview itself takes the row below the header). */
 export function SceneIntroButton({intro, dataset}: {intro: SceneIntroState; dataset: ShowcaseDataset | null}) {
-  if (intro.open || !dataset?.explainer) return null;
-  return <button type="button" className={styles.introButton} aria-label="場面の概要" title="場面の概要" onClick={intro.reopen}>i</button>;
+  if (!dataset?.explainer) return null;
+  return <button type="button" className={styles.introButton} aria-expanded={intro.open} aria-controls="scene-intro"
+    title={intro.open ? "場面の説明を閉じる" : "この場面の条件・表示・結果を開く"} onClick={intro.open ? intro.close : intro.reopen}>
+    <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.6" fill="none" stroke="currentColor" strokeWidth="1.3"/><path d="M8 7.2v4.1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><circle cx="8" cy="4.9" r=".95" fill="currentColor"/></svg>
+    <span>場面の説明</span></button>;
 }
 export function SceneIntro({intro, dataset}: {intro: SceneIntroState; dataset: ShowcaseDataset | null}) {
   const explainer = dataset?.explainer;
   if (!explainer || !intro.open) return null;
   const terms = explainer.terms.filter(term => TERMS[term]);
-  return <section className={styles.intro} aria-label="場面の概要">
+  return <section id="scene-intro" className={styles.intro} aria-label="場面の説明">
     <dl>
       <div><dt>条件</dt><dd>{explainer.what}</dd></div>
       <div><dt>表示</dt><dd>{explainer.colors}</dd></div>
       <div><dt>結果</dt><dd>{explainer.finding}</dd></div>
     </dl>
     {terms.length > 0 && <details><summary>用語</summary><dl className={styles.terms}>{terms.map(term => <div key={term}><dt>{term}</dt><dd>{TERMS[term]}</dd></div>)}</dl></details>}
-    <button type="button" className={styles.introClose} aria-label="場面の概要を閉じる" onClick={intro.close}>閉じる</button>
+    <button type="button" className={styles.introClose} aria-label="場面の説明を閉じる" onClick={intro.close}>閉じる</button>
   </section>;
 }
 

@@ -54,8 +54,8 @@ def test_publication_figure_from_a_saved_demo_comparison(tmp_path):
     manifest = render_common_statistics(result, tmp_path)
     assert manifest["common_statistics_figure_version"] == FIGURE_VERSION == "2.0.0"
     assert manifest["font"] == "Liberation Sans"
-    # A two-group panel is drawn at its printed size, not two columns wide.
-    assert 36 <= manifest["style"]["width_mm"] <= 60
+    # A two-group panel is drawn at its printed size (each group as wide as its longest word), not a column wide.
+    assert 36 <= manifest["style"]["width_mm"] <= 70
     svg = (tmp_path / "figure.svg").read_text(encoding="utf-8")
     assert "Liberation Sans', Arial, Helvetica" in svg and "<text" in svg
     assert "Higher in 2 of 3 runs" in svg and "n = 3 runs" in svg
@@ -241,3 +241,164 @@ def test_representative_images_share_one_display_range(tmp_path):
     first = record["fields"][0]
     y0, y1, x0, x1 = first["crop_yx"]
     assert np.array_equal(saved["0-npm1"], images[first["field_id"]]["channels"]["npm1"][y0:y1, x0:x1])
+
+
+def drawn(result, tmp_path, name, **plot):
+    """Draw the saved demo comparison with one setting changed, as the 「グラフ」 view asks for it."""
+    result = copy.deepcopy(result)
+    presentation = {**OPENING, **plot.pop("presentation", {})}
+    result["spec"]["plot"].update({"kind": "superplot", **plot, "presentation": presentation})
+    out = tmp_path / name
+    manifest = render_common_statistics(result, out)
+    return manifest, (out / "figure.svg").read_text(encoding="utf-8"), (out / "figure-legend.md").read_text(encoding="utf-8")
+
+
+def test_every_form_is_a_publication_figure_that_says_what_it_summarises(tmp_path):
+    # Each form the view offers reads as its summary, and the legend names it (2026-11-19, owner: only the
+    # default figure was a publication figure; the box hid under the points).
+    result = demo_comparison()
+    box, _, box_legend = drawn(result, tmp_path, "box", presentation={"observations": "box"})
+    assert box["common_statistics_figure_version"] == "2.0.0"
+    assert "boxes show the median and interquartile range" in box_legend
+    _, _, density_legend = drawn(result, tmp_path, "density", presentation={"observations": "violin"})
+    assert "grey outlines show the distribution" in density_legend
+    _, _, bar_legend = drawn(result, tmp_path, "bar", kind="unit-mean-bar", presentation={"observations": "points"})
+    assert "bars show the mean of runs" in bar_legend
+    selected = [row["condition"] for row in result["plot_data"] if row["selection_status"] == "selected"]
+    largest = max(selected.count(condition) for condition in set(selected))
+    # A bar over more than 150 observations in a group leaves them out; the legend then does not mention them.
+    assert ("small dots" in bar_legend.lower()) == (largest <= 150)
+
+
+def test_a_column_width_is_used_by_the_groups_not_left_blank(tmp_path):
+    import xml.etree.ElementTree as ET
+
+    result = demo_comparison()
+    manifest, svg, _ = drawn(result, tmp_path, "double", presentation={"size": "double-column"})
+    assert manifest["style"]["width_mm"] == pytest.approx(183)
+    root = ET.fromstring(svg)
+    # The axes patch spans most of the width (it was a 40 mm panel centred in 183 mm).
+    patch = next(element for element in root.iter() if element.get("id") == "patch_2")
+    path = next(child for child in patch.iter() if child.tag.endswith("path"))
+    xs = [float(value) for value in path.get("d").replace("M", " ").replace("L", " ").replace("z", " ").split()[::2]]
+    width_pt = float(root.get("width").removesuffix("pt"))
+    assert (max(xs) - min(xs)) / width_pt > .6
+
+
+def test_group_names_take_the_same_rows_so_n_reads_across(tmp_path):
+    import matplotlib.pyplot as plt
+    from cytellect_analysis import publication_figure
+
+    result = demo_comparison()
+    captured = {}
+    original = publication_figure.draw_comparison
+
+    def record(fig, ax, *args, **kwargs):
+        value = original(fig, ax, *args, **kwargs)
+        captured["labels"] = [label.get_text() for label in ax.get_xticklabels()]
+        return value
+
+    publication_figure.draw_comparison = record
+    try:
+        drawn(result, tmp_path, "labels")
+    finally:
+        publication_figure.draw_comparison = original
+        plt.close("all")
+    lines = {label.count("\n") for label in captured["labels"]}
+    assert len(lines) == 1 and all(label.split("\n")[-1].startswith("n = ") for label in captured["labels"])
+
+
+@pytest.mark.parametrize("kind,observations", [("box", "box"), ("violin", "violin"), ("paired", "points"), ("histogram", "points")])
+def test_a_form_saved_before_is_drawn_as_its_nearest_publication_form(tmp_path, kind, observations):
+    # Three runs offer no run-value form; a figure saved with one is drawn as the run hierarchy.
+    result = demo_comparison()
+    result["spec"]["plot"].update(kind=kind, presentation=OPENING)
+    manifest = render_common_statistics(result, tmp_path)
+    assert manifest["common_statistics_figure_version"] == "2.0.0"
+    assert manifest["presentation"]["observations"] == observations
+
+
+# Independent review (2026-11-20): what each form draws, and that its legend draft says no more.
+TWELVE_RUNS = (("A", [1, 3, 6, 2, 8, 5, 4, 7, 9, 3, 6, 5]), ("B", [2, 5, 10, 7, 9, 11, 6, 8, 12, 4, 10, 9]))
+
+
+def captured_axes(monkeypatch):
+    """The axes each comparison is drawn on, kept open for inspection."""
+    from cytellect_analysis import publication_figure
+
+    axes = []
+    original = publication_figure.draw_comparison
+
+    def record(fig, ax, *args, **kwargs):
+        value = original(fig, ax, *args, **kwargs)
+        axes.append(ax)
+        return value
+
+    monkeypatch.setattr(publication_figure, "draw_comparison", record)
+    return axes
+
+
+def test_a_long_group_name_keeps_the_width_the_layout_gave_it(tmp_path):
+    # The panel widened for a long word but the axis was shrunk back to the short-name width,
+    # so the names overlapped and the default figure was refused.
+    report, config = comparison_fixture((("A", [1, 3, 6]), ("B", [2, 5, 10])))
+    result = analyze_region_comparison(report, config, request_v2(test="welch-t"))
+    result = json.loads(json.dumps(result).replace('"A"', '"Cycloheximide-treated"').replace('"B"', '"Actinomycin-treated"'))
+    result["spec"]["plot"].update(kind="superplot", presentation=OPENING)
+    manifest = render_common_statistics(result, tmp_path)
+    assert manifest["style"]["width_mm"] > 70
+
+
+def test_a_run_histogram_draws_the_saved_bins_that_hold_a_value(tmp_path, monkeypatch):
+    from matplotlib.axes import Axes
+
+    report, config = comparison_fixture(TWELVE_RUNS)
+    result = analyze_region_comparison(report, config, request_v2(test="welch-t"))
+    result["spec"]["plot"].update(kind="histogram", histogram_bins=6, presentation=OPENING)
+    lengths = []
+    original = Axes.barh
+
+    def record(self, y, width, *args, **kwargs):
+        lengths.extend(np.atleast_1d(width).tolist())
+        return original(self, y, width, *args, **kwargs)
+
+    monkeypatch.setattr(Axes, "barh", record)
+    render_common_statistics(result, tmp_path)
+    data = json.loads((tmp_path / "figure-data.json").read_text(encoding="utf-8"))
+    bins = [row for row in data["graphical_summary"] if "bin_left" in row]
+    assert {row["condition"] for row in bins} == {"A", "B"} and len(bins) == 12
+    assert all(sum(row["count"] for row in bins if row["condition"] == group) == 12 for group in ("A", "B"))
+    # An empty bin is no mark (it drew as a line that read as data).
+    assert lengths and all(length > 0 for length in lengths)
+    assert len(lengths) == sum(row["count"] > 0 for row in bins)
+    assert "grey bars show a histogram of run values" in (tmp_path / "figure-legend.md").read_text(encoding="utf-8")
+
+
+def test_a_summary_that_cannot_be_drawn_is_not_in_the_legend(tmp_path):
+    report, config = comparison_fixture((("A", [5] * 12), ("B", [8] * 12)))
+    result = analyze_region_comparison(report, config, request_v2(test="none"))
+    result["spec"]["plot"].update(kind="violin", presentation=OPENING)
+    render_common_statistics(result, tmp_path)
+    legend = (tmp_path / "figure-legend.md").read_text(encoding="utf-8")
+    data = json.loads((tmp_path / "figure-data.json").read_text(encoding="utf-8"))
+    assert "grey outlines" not in legend
+    assert not any(row.get("shape") for row in data["graphical_summary"])
+
+
+def test_a_box_records_its_quartiles_and_a_run_line_stays_over_it(tmp_path, monkeypatch):
+    from cytellect_analysis.publication_figure import natural_order
+
+    report, config = comparison_fixture(TWELVE_RUNS)
+    result = analyze_region_comparison(report, config, request_v2(paired=True, test="paired-t"))
+    result["spec"]["plot"].update(kind="box", presentation=OPENING)
+    axes = captured_axes(monkeypatch)
+    render_common_statistics(result, tmp_path)
+    data = json.loads((tmp_path / "figure-data.json").read_text(encoding="utf-8"))
+    rows = [row for row in data["graphical_summary"] if row.get("shape") == "box"]
+    assert len(rows) == 2 and all(row["q1"] <= row["median"] <= row["q3"] and row["of"] == "run values" for row in rows)
+    box_face = max(patch.get_zorder() for patch in axes[0].patches)
+    # A run's line joins its two groups; a whisker or a median stays within one.
+    run_lines = [line for line in axes[0].lines if np.ptp(np.asarray(line.get_xdata(), dtype=float)) > .5]
+    assert run_lines and min(line.get_zorder() for line in run_lines) > box_face
+    # Runs read in order: p2 before p10.
+    assert natural_order(["p10", "p2", "p1"]) == ["p1", "p2", "p10"]
