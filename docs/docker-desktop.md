@@ -152,9 +152,14 @@ uv run python scripts/verify_docker_regions.py --docker docker --container cytel
 
 この検査は Docker の招待認証を使い、Windows 版のインストール確認には数えない。生物学的な妥当性を確認するものでもない。
 
-### 解析提案の中継
+### 解析提案と考察の有効化
 
-運用者は `-ProposalConfig` で、承認済みの解析提案の中継を有効にできる。設定ファイルの形式と制約は[ローカル版の説明](local.md#workspace-entry-and-desktop-acceptance-2026-10-06)を参照する。
+解析提案と考察には、オーナーによる AI 利用の招待と、この端末の認証情報が必要。
+
+1. 運用者はオーナーに利用を申請し、承認済みの接続先と招待を受け取る。招待を 1 回だけ引き換え、端末トークンを得る（[発行と引換の手順](proposal-service.md#operator-deployment-not-performed-by-these-prs)の 6）。この下の Docker ワークスペース用の招待コードとは別のもの。
+2. トークンをリポジトリ外の本人だけが読めるファイルへ保存する。設定 JSON もリポジトリ外に置き、`url` に承認済みの HTTPS の接続先、`tokenFile` にそのファイルの絶対パスを書く。形式は[設定の説明](local.md#workspace-entry-and-desktop-acceptance-2026-10-06)を参照する。トークンを JSON・チャット・共有ログに書かない。
+3. `.\scripts\docker-desktop.ps1 Start -ProposalConfig <設定 JSON の絶対パス>` で設定を反映する。Compose はトークンを `/run/secrets/proposal_device_token` のファイルとして API だけに渡す。ワーカーと Web には渡さない。
+4. 画面の「AI の設定」で「利用状態を確認」を選ぶ。「サービスの対応を確認」は、モデルを呼ばずに認証と版・依頼形式を確認する。未対応の案内が出た場合は、運用者がサービスの更新を確認する。設定済みの表示だけでは接続や版の一致を保証しない。
 
 ### 招待コード
 

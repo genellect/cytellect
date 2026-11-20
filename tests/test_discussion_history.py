@@ -2,6 +2,7 @@
 import copy
 import json
 
+import pytest
 from cytellect_analysis.discussion_contracts import DISCUSSION_PROMPT_VERSION
 from cytellect_api import discussions
 from cytellect_api.app import create_app
@@ -9,6 +10,7 @@ from cytellect_api.config import Settings
 from cytellect_api.db import jobs
 from cytellect_api.storage import write_json
 from fastapi.testclient import TestClient
+from test_api_worker import HEADERS
 from test_result_discussion_api import DRAFT, MODEL, client_for, post, saved_job
 
 
@@ -27,6 +29,17 @@ def next_result(store, source, jid, *, metric=None, kind="statistics"):
             kind=kind, state="succeeded", created=original["created"] + 1,
             result_dir=str(path.relative_to(store.root)), payload={"mode": "region-experimental-unit", "version": "2.0.0"}))
     return jid
+
+
+@pytest.mark.parametrize("kind,mode,version", [("statistics", "region-experimental-unit", "1.0.0"),
+    ("statistics", "descriptive", "1.0.0"), ("export", "export", "1.0.0")])
+def test_other_saved_results_have_no_comparison_history_instead_of_an_artifact_error(tmp_path, kind, mode, version):
+    client, app = client_for(tmp_path)
+    job, store = saved_job(client, app)
+    with store.transaction() as connection:
+        connection.execute(jobs.update().where(jobs.c.id == job).values(kind=kind,payload={"mode":mode,"version":version}))
+    response = client.get(f"/v1/jobs/{job}/discussion-history", headers=HEADERS)
+    assert response.status_code == 200 and response.json() == {"current":None,"previous":None}
 
 
 def test_previous_discussion_is_separate_from_the_current_result_and_persists(tmp_path, monkeypatch):

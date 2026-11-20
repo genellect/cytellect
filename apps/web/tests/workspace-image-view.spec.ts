@@ -7,8 +7,9 @@ import {expect,test,type BrowserContext,type Page} from "@playwright/test";
  * NPM1, with adopted nuclei and nucleoli; optionally a two-group design (`pair`), two saved comparisons
  * (`saved`) and image intake. Transport and display only; the fixed records and display pixels are not
  * microscopy acceptance. */
-async function imageWorkspace(context:BrowserContext,page:Page,options:{pair?:boolean;saved?:boolean;aiState?:"unconfigured";previous?:boolean}={}){
+async function imageWorkspace(context:BrowserContext,page:Page,options:{pair?:boolean;saved?:boolean;aiState?:"unconfigured";previous?:boolean;serviceCheck?:"compatible"|"incompatible"}={}){
   const unexpected:string[]=[],uploads:string[][]=[],discussions:Record<string,unknown>[]=[];
+  const checks:Record<string,unknown>[]=[];
   const fieldIds=["f1","f2"];
   const channels=[{channel_id:"c1",label:"DAPI",stain:"DAPI"},{channel_id:"c2",label:"NPM1",stain:"NPM1"}];
   const fields=fieldIds.map((id,index)=>({id,workspace_id:"w",metadata:{display_name:`視野 ${index+1}`},image_info:{shape:[32,32],channels}}));
@@ -40,6 +41,7 @@ async function imageWorkspace(context:BrowserContext,page:Page,options:{pair?:bo
     const headers={"Access-Control-Allow-Origin":new URL(page.url()).origin,"Access-Control-Allow-Credentials":"true","Access-Control-Allow-Headers":"content-type,x-cytellect-request","Access-Control-Allow-Methods":"GET,POST,PUT,DELETE,OPTIONS"};
     const json=(body:unknown,status=200)=>route.fulfill({status,headers,contentType:"application/json",body:JSON.stringify(body)});
     if(method==="OPTIONS")return route.fulfill({status:204,headers});
+    if(path==="/v1/ai/check"&&method==="POST"){checks.push(req.postDataJSON());return json({state:options.serviceCheck??"compatible"});}
     if(path==="/v1/ai/status"&&options.aiState)return json({state:options.aiState,source:"none"});
     if(path.endsWith("/discussion-history")&&options.previous)return json({current:null,previous:{job_id:"previous-mean",created:1,
       discussion:{protocol:"result-discussion/1.1.0",origin:"model",context_sha256:"a".repeat(64),prompt_version:"2026-11-16.1",model:"stand-in-model",
@@ -79,7 +81,7 @@ async function imageWorkspace(context:BrowserContext,page:Page,options:{pair?:bo
     const record=revisions.find(value=>path.endsWith(`/revisions/${value.id}`));if(record)return json(record);
     unexpected.push(`${method} ${path}${url.search}`);return json({detail:"unexpected_transport_route"},404);
   });
-  return {unexpected,uploads,discussions};
+  return {unexpected,uploads,discussions,checks};
 }
 
 test("a failed AI instruction can be resent explicitly, with one confirmation and no automatic retry",async({context,page})=>{
@@ -322,5 +324,23 @@ test("a recalculated comparison keeps the previous discussion separate and gener
   await current.getByRole("button",{name:"考察を生成"}).click();
   await expect(current).toContainText("検定は行っていないため");
   expect(fixture.discussions).toHaveLength(1);
+  expect(fixture.unexpected).toEqual([]);
+});
+
+test("service compatibility is checked only on request and an incompatible service disables sending",async({page,context})=>{
+  const fixture=await imageWorkspace(context,page,{saved:true,serviceCheck:"incompatible"});
+  await page.goto("/workspace?id=w&step=statistics");
+  const instruction=page.getByRole("textbox",{name:"AIへの指示"});
+  await expect(instruction).toBeEnabled();
+  await instruction.click();
+  const settings=page.getByRole("complementary",{name:"AI",exact:true}).locator("details").filter({has:page.locator("summary").filter({hasText:/^AI の設定$/})});
+  await settings.getByText("AI の設定",{exact:true}).click();
+  expect(fixture.checks).toEqual([]);
+  await settings.getByRole("button",{name:"サービスの対応を確認"}).click();
+  await expect(settings).toContainText("このアプリに対応していません");
+  await expect(instruction).toBeDisabled();
+  await expect(page.getByRole("region",{name:"考察",exact:true}).getByRole("button",{name:"考察を生成"})).toBeDisabled();
+  expect(fixture.checks).toEqual([{}]);
+  expect(fixture.discussions).toEqual([]);
   expect(fixture.unexpected).toEqual([]);
 });
