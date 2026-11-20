@@ -1,3 +1,4 @@
+import {aiReadFixture} from "./ai-read-fixture";
 import {expect,test,type BrowserContext,type Page} from "@playwright/test";
 import type {WorkspaceSelection} from "../src/lib/workspace/api-adapter";
 import {nucleusTableFixture} from "./nucleus-table-fixture";
@@ -26,6 +27,8 @@ async function nucleolarWorkspace(context:BrowserContext,page:Page){
           {condition:"B",experimental_unit:"unit-1",run:null,fields:1,nuclei:2,resolved:2,missing:0,excluded:0,reasons:{}}],
     warnings:[{run:null,difference_points:33.3,fractions:{A:0.3333,B:0}}]};
   await context.route("**/v1/**",async route=>{
+    if(await aiReadFixture(route))return;
+
     const req=route.request(),url=new URL(req.url()),path=url.pathname,method=req.method();
     const headers={"Access-Control-Allow-Origin":new URL(page.url()).origin,"Access-Control-Allow-Credentials":"true","Access-Control-Allow-Headers":"content-type,x-cytellect-request","Access-Control-Allow-Methods":"GET,POST,PUT,DELETE,OPTIONS"};
     const json=(body:unknown,status=200)=>route.fulfill({status,headers,contentType:"application/json",body:JSON.stringify(body)});

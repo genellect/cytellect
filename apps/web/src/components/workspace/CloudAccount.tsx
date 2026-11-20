@@ -4,7 +4,7 @@
  * and the update notice. Rendered only inside CloudAccountProvider (local mode); elsewhere
  * every component here renders nothing, so the hosted workspace and the demo are unchanged.
  */
-import {createContext, useCallback, useContext, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode} from "react";
+import {createContext, useCallback, useContext, useEffect, useId, useRef, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode} from "react";
 import {
   AccountRequestError, accountApi, accountErrorText, accountLabel, restartGpuAfterSignIn, gpuQuotaReached, gpuQuotaText, accountNotice, errorDetail, formatDate, gpuNotice, inferencePhase,
   followUpdate, normalizeEmail, pendingNotice, plausibleCode, plausibleEmail, resendWait, safeNotesUrl, updateNotice, usageText,
@@ -13,7 +13,7 @@ import {
   GPU_POLL_MS, GPU_TIME_NOTE, PENDING_POLL_MS, type Account, type GpuState, type Notice, type UpdateInfo,
 } from "@/lib/cloud-account";
 import {CLOUD_NETWORK_HINT} from "@/lib/api";
-import {includePreviews, setIncludePreviews} from "@/lib/workspace/ai-settings";
+import {AI_SCOPE, DISCUSSION_SCOPE, includePreviews, setIncludePreviews, subscribeAiSettings} from "@/lib/workspace/ai-settings";
 import styles from "./cloud-account.module.css";
 
 export const PRACTICE_IMAGES_URL = "https://github.com/genellect/cytellect/releases/download/v0.1.0-local.11/Cytellect-BBBC013-practice-v1.zip";
@@ -121,7 +121,7 @@ export function AccountIndicator() {
       <summary><span>{label}</span>{detail && <small>{detail}</small>}</summary>
       <div className={styles.accountPanel}>
         <p className={styles.accountEmail}>{account.email}</p>
-        <p>{account.state === "allowed" ? "GPU による検出・解析提案：利用可" : `クラウドに接続できません。${CLOUD_NETWORK_HINT}このPCでの解析は続けて使えます。`}</p>
+        <p>{account.state === "allowed" ? "GPU による検出・解析提案・考察：利用可" : `クラウドに接続できません。${CLOUD_NETWORK_HINT}このPCでの解析は続けて使えます。`}</p>
         {gpuQuotaReached(account) && <p role="status">{gpuQuotaText(account)}</p>}
         {usage && <p className={styles.small}>今月の利用：{usage}{resets ? `（${resets}にリセット）` : ""}</p>}
         <p className={styles.small}>{GPU_TIME_NOTE}</p>
@@ -389,7 +389,7 @@ function LoginDialog() {
       </>)}
       {step === "revoked" && <p>このメールアドレスのクラウド機能は停止されています。オーナーにお問い合わせください。このPCでの解析は続けて使えます。</p>}
       {step === "done" && <>
-        <p>{cloud.account?.email || email} でログインしました。GPU による検出と解析提案が使えます。</p>
+        <p>{cloud.account?.email || email} でログインしました。GPU による検出と解析提案・考察が使えます。</p>
         {cloud.account && usageText(cloud.account) && <p className={styles.small}>今月の利用：{usageText(cloud.account)}</p>}
       </>}
       {error !== null && <div role="alert" className={styles.error}><p>{invalidEmail ? "メールアドレスの形式を確認してください。" : accountErrorText(error)}</p><Details error={error}/></div>}
@@ -411,7 +411,7 @@ export function FirstRun({busy, error, onChoose}: {busy: boolean; error: string;
         <b>このPCで解析を開始</b><span>公開の練習画像で、核の検出から図までを試せます。ログイン不要。</span>
       </button>
       <button className={styles.choice} disabled={busy} onClick={() => onChoose("cloud")}>
-        <b>クラウド機能を有効化</b><span>メールアドレスでログインします。クラウドの GPU による核小体・細胞の検出と、AI による解析提案を使えます。</span>
+        <b>クラウド機能を有効化</b><span>メールアドレスでログインします。クラウドの GPU による核小体・細胞の検出と、AI による解析提案・考察を使えます。</span>
       </button>
     </div>
     {error && <p role="alert" className={styles.error}>{error}</p>}
@@ -419,15 +419,15 @@ export function FirstRun({busy, error, onChoose}: {busy: boolean; error: string;
 }
 
 /** What AI requests send; shown before sign-in, in the settings, and once before the first proposal after the scope widened. */
-export const AI_SCOPE = "AI への相談では、書いた目的、チャンネル名、視野の名前と記録、代表的な視野の縮小画像（設定で止められます）を送ります。";
+export {AI_SCOPE} from "@/lib/workspace/ai-settings";
 
 /** Whether AI analysis proposals also send display-scaled previews of one representative field (default on). */
 function AiPreviewSetting() {
-  const [on, setOn] = useState(includePreviews);
+  const on = useSyncExternalStore(subscribeAiSettings, includePreviews, () => true);
   return <>
-  <p className={styles.small}>{AI_SCOPE}</p>
+  <p className={styles.small}>{AI_SCOPE}</p><p className={styles.small}>{DISCUSSION_SCOPE}</p>
   <label className={styles.small}>
-    <input type="checkbox" checked={on} onChange={event => {setIncludePreviews(event.target.checked); setOn(event.target.checked);}}/>
+    <input type="checkbox" checked={on} onChange={event => setIncludePreviews(event.target.checked)}/>
     {" "}AI への相談で、代表的な視野の縮小画像（チャンネルごと、512 px 以下）も送る
   </label>
   </>;

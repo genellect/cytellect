@@ -1,3 +1,4 @@
+import {aiReadFixture} from "./ai-read-fixture";
 import {expect,test} from "@playwright/test";
 import type {ImportedField,WorkspaceSelection} from "../src/lib/workspace/api-adapter";
 import type {ExperimentDesign} from "../src/lib/workspace/experiment-design";
@@ -13,6 +14,8 @@ test("images added before the form wait for it and go to the chosen group of two
   const unexpected:string[]=[],pageErrors:string[]=[];
   page.on("pageerror",error=>pageErrors.push(error.message));
   await context.route("**/v1/**",async route=>{
+    if(await aiReadFixture(route))return;
+
     const request=route.request(),path=new URL(request.url()).pathname,method=request.method();
     const headers={"Access-Control-Allow-Origin":new URL(page.url()).origin,"Access-Control-Allow-Credentials":"true","Access-Control-Allow-Headers":"content-type,x-cytellect-request","Access-Control-Allow-Methods":"GET,POST,PUT,DELETE,OPTIONS"};
     const json=(body:unknown,status=200)=>route.fulfill({status,headers,contentType:"application/json",body:JSON.stringify(body)});

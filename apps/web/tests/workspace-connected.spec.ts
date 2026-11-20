@@ -1,3 +1,4 @@
+import {aiReadFixture} from "./ai-read-fixture";
 import {nucleusTableFixture} from "./nucleus-table-fixture";
 import {mkdir} from "node:fs/promises";
 import {expect, test} from "@playwright/test";
@@ -26,6 +27,8 @@ for (const viewport of [{width:1920,height:1080},{width:1440,height:900},{width:
   const recipe: Recipe = {id: "region-2d", version: "1.7.0", source: "stardist_nuclear", region_set_id: "nuclei", label: "核", defining_channel_id: "c1", nuclear_role_source: "user_selected_role"};
   const revision = () => ({id: "synthetic-revision", state: "succeeded", created: 2, config: {recipe, field_ids: ["synthetic-field"], measurement: {version: "1.1.0", mode: "raw_intensity"}, backgrounds: {}, channel_assignments: assignments}});
   await context.route("**/v1/**", async route => {
+    if(await aiReadFixture(route))return;
+
     const request = route.request();
     const path = new URL(request.url()).pathname;
     const method = request.method();
