@@ -105,7 +105,7 @@ M2 は元画像での解像・対象同定・校正を開始条件とする。M3
 
 ### LLM による解析支援の見直し
 
-[#249](https://github.com/genellect/cytellect/issues/249) の LP-01 の配布前検査を `ci/proposal-version-gate` で実装する（[#250](https://github.com/genellect/cytellect/pull/250) の単位6）。`doctor --proposal-version` は GPU を起動せず、Idempotency-Key のない依頼で解析提案・考察の版を検査する。Windows 配布の前に同じ SHA で実行し、Docker／手動配布も同じ手順に従う。本番の検査・Worker デプロイは未実施。配布用の変数・秘密の登録と、配布の実行はオーナーの別の指示から。
+[#249](https://github.com/genellect/cytellect/issues/249) の LP-01 の配布前検査は [#256](https://github.com/genellect/cytellect/pull/256) に記録する。`doctor --proposal-version` は GPU を起動せず、Idempotency-Key のない依頼で解析提案・考察の版を検査する。インストーラー・Store の作成と Store の定期提出に、同じ SHA と組み込む接続先での検査を必須とする。検査用資格情報はオーナーの承認付き environment に置く。Docker／手動配布も実際の設定で同じ手順に従う。本番の検査・Worker デプロイ・配布用設定は未実施。
 
 2026-11-16 にオーナーが「LLM に研究データを示すのは自然なことで、保守的な設計そのものが品質を下げている」と指示し、[見直し案](drafts/llm-assistant/plan.md)を採用した。段階 0（方針と開示の文書の改訂）と段階 1（今の構成のまま入力を増やし、出力の制限を緩める）を genellect/cytellect#231 で実装する。
 
