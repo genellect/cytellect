@@ -193,10 +193,14 @@ def association_legend(canonical, order, drawn) -> tuple[str, list[str]]:
     x_title, _ = axis_title(canonical["x_source"])
     y_title, _ = axis_title(canonical["y_source"])
     counts = {row["condition"]: row for row in canonical.get("counts") or []}
-    n = _join([f"{counts[c].get('experimental_units', '?')} ({c})" for c in order if c in counts])
+    n = _join([f"{counts[c].get('matched_units', counts[c].get('experimental_units', '?'))} ({c})" for c in order if c in counts])
+    method = (canonical.get("spec") or {}).get("method", "")
+    method_name = {"pearson": "Pearson", "spearman": "Spearman"}.get(method, method)
+    scope = "across the explicitly pooled conditions" if (canonical.get("spec") or {}).get("scope") == "pooled" else "within each condition"
     body = [_opening(f"{y_title} against {x_title}"),
             "Each point is one independent experimental unit (the mean of its samples, each sample the mean of its "
             f"fields, each field summarised by its median); n = {n}.",
+            *([f"{method_name} correlation was calculated {scope}."] if method_name else []),
             *[line + "." for line in drawn.annotations.legend],
             "No line is fitted and no confidence band is shown; an association does not establish causation."]
     return f"**{y_title} against {x_title}.**\n\n" + " ".join(body) + "\n", list(GAPS)

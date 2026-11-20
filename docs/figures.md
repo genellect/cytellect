@@ -37,6 +37,13 @@ Each figure also writes `figure-legend.md`, an English figure legend draft built
 
 Sources checked 2026-10-02: [Nature figure guide](https://research-figure-guide.nature.com/figures/building-and-exporting-figure-panels/) and [SuperPlots](https://pubmed.ncbi.nlm.nih.gov/32346721/).
 
+The Japanese summary and English legend title are checked against the same saved-estimate shapes in
+`fixtures/result-summary-cases.json` (synthetic numeric inputs for text rules only). These cover paired and
+independent comparisons, descriptive agreement and disagreement, intervals crossing zero, percentage points,
+log2, fold changes and rank-test directions. Legend tests also render tested comparisons, planned three-group
+contrasts and associations. Researcher evaluation is recorded separately and is not a merge condition for
+the implementation of [#249](https://github.com/genellect/cytellect/issues/249) (owner instruction, 2026-11-20).
+
 New descriptive requests may explicitly use figure policy 2.0.0, documented in
 [descriptive output](descriptive.md). It divides fields into pages while retaining
 one saved vertical scale and all source observations. Historical descriptive
