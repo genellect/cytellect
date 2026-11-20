@@ -18,6 +18,15 @@ def test_a_new_recording_sets_a_new_capture_commit():
         "generated_from_commit": "new"}
 
 
+def test_a_workspace_recorded_anew_drops_the_earlier_derived_updates():
+    previous = {"generated_from_commit": "old", "derived_updates": {"examples": "a", "figures": "b"}}
+    stages = {"prepare", "scenario", "grid", "proposals", "publish", "snapshot", "journal", "qa"}
+    assert generation_provenance(previous, stages, "new") == {"generated_from_commit": "new"}
+    # Walks recorded again on the reseeded workspace keep the examples stored in it.
+    assert generation_provenance(previous, {"reseed", "snapshot", "journal", "figures"}, "new") == {
+        "generated_from_commit": "new", "derived_updates": {"examples": "a", "figures": "new"}}
+
+
 def test_derived_manifest_preserves_the_capture_environment(tmp_path, monkeypatch):
     manifest = Path(__file__).resolve().parents[1] / "services/showcase/datasets/zenodo-6643470-oxaliplatin.json"
     (tmp_path / "manifest.json").write_text(json.dumps({"generated_from_commit": "capture", "runtime": {"python": "original"},

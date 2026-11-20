@@ -1486,6 +1486,15 @@ def journal(work: Path, origin_port: int, out: Path, scenes: list[dict], keep: s
     the walks that draw no figure (deleting and restoring an outline, the AI examples on each field)
     stay as published, with their files.
     """
+    reused_from_commit = None
+    if keep and previous is not None:
+        # Read before the walk: a previous snapshot without its manifest must not cost the recording.
+        earlier_manifest = previous.parent / "manifest.json"
+        if earlier_manifest.is_file():
+            reused_from_commit = json.loads(earlier_manifest.read_text(encoding="utf-8")).get("generated_from_commit")
+        if not reused_from_commit:
+            raise SystemExit("journal: keeping walks needs the previous manifest.json, with generated_from_commit, "
+                             "beside the previous snapshot directory")
     origin = f"http://127.0.0.1:{origin_port}"
     web = REPO / "apps" / "web"
     preserved = {name: (web / name).read_bytes() for name in ("next-env.d.ts", "tsconfig.json")}
@@ -1559,8 +1568,7 @@ def journal(work: Path, origin_port: int, out: Path, scenes: list[dict], keep: s
         recorded["entries"] = [*recorded["entries"], *kept]
         report["entries"] = len(recorded["entries"])
         report["kept_scenes"] = sorted({entry["scene"] for entry in kept})
-        earlier_manifest = json.loads((previous.parent / "manifest.json").read_text(encoding="utf-8"))
-        report["reused_from_commit"] = earlier_manifest["generated_from_commit"]
+        report["reused_from_commit"] = reused_from_commit
     (target / "journal.json").write_text(json.dumps(recorded, indent=1, ensure_ascii=False) + "\n")
     # The previous recording's answers that this one no longer names are not published.
     named = {entry["file"] for entry in json.loads((target / "index.json").read_text())["entries"].values() if entry.get("file")}
@@ -2171,12 +2179,18 @@ def publish(args, manifests: list, state: dict, seed_data: Path, recordings: Pat
     write_manifest(args, manifests, state)
 
 
+# The stages that build the workspace from the images again. ``snapshot`` and ``journal`` alone record the walks
+# on a seed that ``reseed`` brought back, so its earlier derived updates (the examples) still apply.
+RECORDED_ANEW = frozenset({"prepare", "scenario"})
+
+
 def generation_provenance(previous: dict, stages: set[str], commit: str) -> dict:
     """A derived-only update does not claim to have recorded the initial workspace and its walks."""
     record: dict = {"generated_from_commit": commit}
     if previous.get("generated_from_commit") and not stages.intersection({"prepare", "scenario", "publish", "snapshot", "journal"}):
         record["generated_from_commit"] = previous["generated_from_commit"]
-    updates = {**previous.get("derived_updates", {}),
+    # A workspace recorded anew holds none of the earlier derived updates.
+    updates = {**({} if stages.intersection(RECORDED_ANEW) else previous.get("derived_updates", {})),
                **{stage: commit for stage in sorted(stages.intersection({"examples", "figures", "refigure"}))}}
     if updates:
         record["derived_updates"] = updates
@@ -2241,7 +2255,7 @@ def write_manifest(args, manifests: list, state: dict) -> None:
         "limitations": "Public example images; numbers illustrate the software and do not establish scientific "
                        "validity for any laboratory's images.",
     }
-    environments = dict(published.get("derived_update_environments", {}))
+    environments = {} if stages.intersection(RECORDED_ANEW) else dict(published.get("derived_update_environments", {}))
     environments.update({stage: current_runtime for stage in sorted(stages.intersection({"examples", "figures", "refigure"}))})
     if environments:
         record["derived_update_environments"] = environments
