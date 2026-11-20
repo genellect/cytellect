@@ -443,7 +443,7 @@
       "label": "陽性率",
       "unit": "",
       "expected_ja": "Drug で、陽性率が約 15 ポイント上昇",
-      "expected_en": "Positive nuclei increased by about 15 percentage points with Drug"
+      "expected_en": "The proportion of positive nuclei increased by about 15 percentage points with Drug"
     },
     {
       "id": "log2",
@@ -918,8 +918,454 @@
       "comparison": {},
       "label": "核の面積",
       "unit": "µm²",
-      "expected_ja": "Drug で、核の面積が縮小",
-      "expected_en": "Region area decreased with Drug"
+      "expected_ja": "核の面積の平均：Control 100 µm²、Drug 80 µm²",
+      "expected_en": "Mean region area was 100 µm² in Control and 80 µm² in Drug"
+    },
+    {
+      "id": "round-half",
+      "estimates": {
+        "protocol": "comparison-estimates/1.0.0",
+        "direction": "treatment_minus_control",
+        "control": "Control",
+        "treatment": "Drug",
+        "design": "paired",
+        "test": "paired-t",
+        "metric": "area_um2",
+        "scale": "ratio",
+        "n_control": 3,
+        "n_treatment": 3,
+        "n_pairs": 3,
+        "difference": {
+          "estimate": 12.5,
+          "ci_low": 6.25,
+          "ci_high": 25.0,
+          "confidence_level": 0.95,
+          "basis": "saved estimate",
+          "unavailable_reason": null
+        },
+        "ratio": {
+          "estimate": null,
+          "ci_low": 0.7,
+          "ci_high": 0.92,
+          "confidence_level": 0.95,
+          "basis": "saved estimate",
+          "unavailable_reason": null
+        },
+        "groups": [
+          {
+            "condition": "Control",
+            "n": 3,
+            "mean": 100,
+            "sd": 5,
+            "ci_low": null,
+            "ci_high": null,
+            "unavailable_reason": null
+          },
+          {
+            "condition": "Drug",
+            "n": 3,
+            "mean": 80,
+            "sd": 5,
+            "ci_low": null,
+            "ci_high": null,
+            "unavailable_reason": null
+          }
+        ],
+        "runs": [
+          {
+            "pair": "r1",
+            "control": 100,
+            "treatment": 80.0,
+            "difference": -19.999999999999996,
+            "ratio": 0.8
+          },
+          {
+            "pair": "r2",
+            "control": 100,
+            "treatment": 78.0,
+            "difference": -21.999999999999996,
+            "ratio": 0.78
+          },
+          {
+            "pair": "r3",
+            "control": 100,
+            "treatment": 82.0,
+            "difference": -18.000000000000004,
+            "ratio": 0.82
+          }
+        ]
+      },
+      "comparison": {},
+      "label": "核の面積",
+      "unit": "µm²",
+      "expected_ja": "Drug で、核の面積が約 13 µm² 拡大",
+      "expected_en": "Region area increased by about 13 µm² with Drug"
+    },
+    {
+      "id": "round-decimal",
+      "estimates": {
+        "protocol": "comparison-estimates/1.0.0",
+        "direction": "treatment_minus_control",
+        "control": "Control",
+        "treatment": "Drug",
+        "design": "paired",
+        "test": "paired-t",
+        "metric": "area_um2",
+        "scale": "ratio",
+        "n_control": 3,
+        "n_treatment": 3,
+        "n_pairs": 3,
+        "difference": {
+          "estimate": 2.55,
+          "ci_low": 1.275,
+          "ci_high": 5.1,
+          "confidence_level": 0.95,
+          "basis": "saved estimate",
+          "unavailable_reason": null
+        },
+        "ratio": {
+          "estimate": null,
+          "ci_low": 0.7,
+          "ci_high": 0.92,
+          "confidence_level": 0.95,
+          "basis": "saved estimate",
+          "unavailable_reason": null
+        },
+        "groups": [
+          {
+            "condition": "Control",
+            "n": 3,
+            "mean": 100,
+            "sd": 5,
+            "ci_low": null,
+            "ci_high": null,
+            "unavailable_reason": null
+          },
+          {
+            "condition": "Drug",
+            "n": 3,
+            "mean": 80,
+            "sd": 5,
+            "ci_low": null,
+            "ci_high": null,
+            "unavailable_reason": null
+          }
+        ],
+        "runs": [
+          {
+            "pair": "r1",
+            "control": 100,
+            "treatment": 80.0,
+            "difference": -19.999999999999996,
+            "ratio": 0.8
+          },
+          {
+            "pair": "r2",
+            "control": 100,
+            "treatment": 78.0,
+            "difference": -21.999999999999996,
+            "ratio": 0.78
+          },
+          {
+            "pair": "r3",
+            "control": 100,
+            "treatment": 82.0,
+            "difference": -18.000000000000004,
+            "ratio": 0.82
+          }
+        ]
+      },
+      "comparison": {},
+      "label": "核の面積",
+      "unit": "µm²",
+      "expected_ja": "Drug で、核の面積が約 2.6 µm² 拡大",
+      "expected_en": "Region area increased by about 2.6 µm² with Drug"
+    },
+    {
+      "id": "round-small",
+      "estimates": {
+        "protocol": "comparison-estimates/1.0.0",
+        "direction": "treatment_minus_control",
+        "control": "Control",
+        "treatment": "Drug",
+        "design": "paired",
+        "test": "paired-t",
+        "metric": "area_um2",
+        "scale": "ratio",
+        "n_control": 3,
+        "n_treatment": 3,
+        "n_pairs": 3,
+        "difference": {
+          "estimate": 0.125,
+          "ci_low": 0.0625,
+          "ci_high": 0.25,
+          "confidence_level": 0.95,
+          "basis": "saved estimate",
+          "unavailable_reason": null
+        },
+        "ratio": {
+          "estimate": null,
+          "ci_low": 0.7,
+          "ci_high": 0.92,
+          "confidence_level": 0.95,
+          "basis": "saved estimate",
+          "unavailable_reason": null
+        },
+        "groups": [
+          {
+            "condition": "Control",
+            "n": 3,
+            "mean": 100,
+            "sd": 5,
+            "ci_low": null,
+            "ci_high": null,
+            "unavailable_reason": null
+          },
+          {
+            "condition": "Drug",
+            "n": 3,
+            "mean": 80,
+            "sd": 5,
+            "ci_low": null,
+            "ci_high": null,
+            "unavailable_reason": null
+          }
+        ],
+        "runs": [
+          {
+            "pair": "r1",
+            "control": 100,
+            "treatment": 80.0,
+            "difference": -19.999999999999996,
+            "ratio": 0.8
+          },
+          {
+            "pair": "r2",
+            "control": 100,
+            "treatment": 78.0,
+            "difference": -21.999999999999996,
+            "ratio": 0.78
+          },
+          {
+            "pair": "r3",
+            "control": 100,
+            "treatment": 82.0,
+            "difference": -18.000000000000004,
+            "ratio": 0.82
+          }
+        ]
+      },
+      "comparison": {},
+      "label": "核の面積",
+      "unit": "µm²",
+      "expected_ja": "Drug で、核の面積が約 0.13 µm² 拡大",
+      "expected_en": "Region area increased by about 0.13 µm² with Drug"
+    },
+    {
+      "id": "large-corrected-intensity",
+      "estimates": {
+        "protocol": "comparison-estimates/1.0.0",
+        "direction": "treatment_minus_control",
+        "control": "Control",
+        "treatment": "Drug",
+        "design": "paired",
+        "test": "none",
+        "metric": "integrated_corrected",
+        "scale": "ratio",
+        "n_control": 3,
+        "n_treatment": 3,
+        "n_pairs": 3,
+        "difference": {
+          "estimate": null,
+          "ci_low": null,
+          "ci_high": null,
+          "confidence_level": 0.95,
+          "basis": "saved estimate",
+          "unavailable_reason": "inference_not_requested"
+        },
+        "ratio": {
+          "estimate": null,
+          "ci_low": null,
+          "ci_high": null,
+          "confidence_level": 0.95,
+          "basis": "saved estimate",
+          "unavailable_reason": "inference_not_requested"
+        },
+        "groups": [
+          {
+            "condition": "Control",
+            "n": 3,
+            "mean": 100,
+            "sd": 5,
+            "ci_low": null,
+            "ci_high": null,
+            "unavailable_reason": null
+          },
+          {
+            "condition": "Drug",
+            "n": 3,
+            "mean": 80,
+            "sd": 5,
+            "ci_low": null,
+            "ci_high": null,
+            "unavailable_reason": null
+          }
+        ],
+        "runs": [
+          {
+            "pair": "r1",
+            "control": 100,
+            "treatment": 80.0,
+            "difference": 180000,
+            "ratio": null
+          },
+          {
+            "pair": "r2",
+            "control": 100,
+            "treatment": 78.0,
+            "difference": 2900000,
+            "ratio": null
+          },
+          {
+            "pair": "r3",
+            "control": 100,
+            "treatment": 82.0,
+            "difference": 1250000,
+            "ratio": null
+          }
+        ]
+      },
+      "comparison": {},
+      "label": "NPM1 の積算輝度",
+      "unit": "a.u. × pixel",
+      "expected_ja": "Drug で、NPM1 の積算輝度が 180000〜2900000 a.u. × pixel 上昇",
+      "expected_en": "Nucleoplasmic NPM1 integrated intensity increased by 180000–2900000 a.u. × pixel with Drug",
+      "source": {
+        "region": {
+          "region_set_id": "nucleoplasm"
+        },
+        "channel": {
+          "channel_id": "npm1",
+          "label": "NPM1",
+          "stain": null
+        }
+      }
+    },
+    {
+      "id": "small-independent-difference",
+      "estimates": {
+        "protocol": "comparison-estimates/1.0.0",
+        "direction": "treatment_minus_control",
+        "control": "Control",
+        "treatment": "Drug",
+        "design": "independent",
+        "test": "none",
+        "metric": "area_um2",
+        "scale": "ratio",
+        "n_control": 3,
+        "n_treatment": 3,
+        "n_pairs": null,
+        "difference": {
+          "estimate": null,
+          "ci_low": null,
+          "ci_high": null,
+          "confidence_level": 0.95,
+          "basis": "saved estimate",
+          "unavailable_reason": "inference_not_requested"
+        },
+        "ratio": {
+          "estimate": null,
+          "ci_low": null,
+          "ci_high": null,
+          "confidence_level": 0.95,
+          "basis": "saved estimate",
+          "unavailable_reason": "inference_not_requested"
+        },
+        "groups": [
+          {
+            "condition": "Control",
+            "n": 3,
+            "mean": 11,
+            "sd": 5,
+            "ci_low": null,
+            "ci_high": null,
+            "unavailable_reason": null
+          },
+          {
+            "condition": "Drug",
+            "n": 3,
+            "mean": 10.68,
+            "sd": 5,
+            "ci_low": null,
+            "ci_high": null,
+            "unavailable_reason": null
+          }
+        ],
+        "runs": []
+      },
+      "comparison": {},
+      "label": "核の面積",
+      "unit": "µm²",
+      "expected_ja": "核の面積の平均：Control 11 µm²、Drug 10.7 µm²",
+      "expected_en": "Mean region area was 11 µm² in Control and 10.7 µm² in Drug"
+    },
+    {
+      "id": "equal-independent-means",
+      "estimates": {
+        "protocol": "comparison-estimates/1.0.0",
+        "direction": "treatment_minus_control",
+        "control": "Control",
+        "treatment": "Drug",
+        "design": "independent",
+        "test": "none",
+        "metric": "area_um2",
+        "scale": "ratio",
+        "n_control": 3,
+        "n_treatment": 3,
+        "n_pairs": null,
+        "difference": {
+          "estimate": null,
+          "ci_low": null,
+          "ci_high": null,
+          "confidence_level": 0.95,
+          "basis": "saved estimate",
+          "unavailable_reason": "inference_not_requested"
+        },
+        "ratio": {
+          "estimate": null,
+          "ci_low": null,
+          "ci_high": null,
+          "confidence_level": 0.95,
+          "basis": "saved estimate",
+          "unavailable_reason": "inference_not_requested"
+        },
+        "groups": [
+          {
+            "condition": "Control",
+            "n": 3,
+            "mean": 11,
+            "sd": 5,
+            "ci_low": null,
+            "ci_high": null,
+            "unavailable_reason": null
+          },
+          {
+            "condition": "Drug",
+            "n": 3,
+            "mean": 11,
+            "sd": 5,
+            "ci_low": null,
+            "ci_high": null,
+            "unavailable_reason": null
+          }
+        ],
+        "runs": []
+      },
+      "comparison": {},
+      "label": "核の面積",
+      "unit": "µm²",
+      "expected_ja": "核の面積の平均：Control 11 µm²、Drug 11 µm²",
+      "expected_en": "Mean region area was 11 µm² in Control and 11 µm² in Drug"
     }
   ]
 }

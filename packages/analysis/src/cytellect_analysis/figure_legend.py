@@ -6,6 +6,8 @@ time, antibodies or dyes) are left as bracketed gaps for the researcher to fill;
 """
 from __future__ import annotations
 
+from decimal import ROUND_HALF_UP, Decimal
+
 from .publication_figure import axis_title
 
 GAPS = ("[Cell line]", "[treatment and duration]", "[antibody or dye for each stain]")
@@ -17,7 +19,16 @@ def _join(items: list[str]) -> str:
 
 def _rough(value: float) -> str:
     """Two significant digits, as the summary heading states a size (result-summary.ts `rough`)."""
-    return f"{float(f'{abs(value):.2g}'):g}"
+    return _decimal_number(abs(value))
+
+
+def _decimal_number(value: float, precision: int = 2) -> str:
+    number = Decimal(str(value))
+    if not number:
+        return "0"
+    rounded = number.quantize(Decimal(1).scaleb(number.adjusted() - precision + 1), rounding=ROUND_HALF_UP)
+    text = format(rounded, "f")
+    return (text.rstrip("0").rstrip(".") if "." in text else text).replace("-", "−")
 
 
 def _span(values: list[float]) -> str:
@@ -29,9 +40,16 @@ def _sign(value: float) -> int:
     return (value > 0) - (value < 0)
 
 
+def _outcome_title(canonical) -> str:
+    title, _ = axis_title(canonical)
+    return ("The proportion of " + title.replace("Positive nuclei", "positive nuclei")
+            if canonical.get("metric") == "positive_fraction" else title)
+
+
 def _title(canonical, order) -> str:
     """One sentence for what the figure shows: the heading of the result summary (FL-03, RS-02)."""
-    title, unit = axis_title(canonical)
+    title = _outcome_title(canonical)
+    unit = canonical.get("unit") or ""
     estimates = canonical.get("estimates")
     if not estimates or len(order) != 2:
         return f"{title} in {_join(list(order))}"
@@ -52,10 +70,16 @@ def _title(canonical, order) -> str:
             shown = _sign(means[treatment] - means[control])
         else:
             shown = 0
-        if not shown or (runs and sum(_sign(run["difference"]) == shown for run in runs) < len(runs)):
-            return f"{title} did not change consistently with {treatment}" if runs else unclear
         if not runs:
-            return moved(shown)
+            if means.get(control) is None or means.get(treatment) is None:
+                return unclear
+            def mean_text(group):
+                value = _decimal_number(means[group] * (100 if scale == "fraction" else 1), 3)
+                return f"{value}%" if scale == "fraction" else f"{value}{suffix}"
+            noun = title.removeprefix("The ")
+            return f"Mean {noun[0].lower() + noun[1:]} was {mean_text(control)} in {control} and {mean_text(treatment)} in {treatment}"
+        if not shown or sum(_sign(run["difference"]) == shown for run in runs) < len(runs):
+            return f"{title} did not change consistently with {treatment}"
         ratios = [run["ratio"] for run in runs] if all((run.get("ratio") or 0) > 0 for run in runs) else None
         if ratios and all(value >= 2 for value in ratios):
             return f"{title} increased {_span(ratios)}-fold with {treatment}"
@@ -129,14 +153,34 @@ def _counts(counts, order, nouns: str, unit_word: str) -> str:
 
 def _opening(title: str, corrected: bool = False) -> str:
     note = " (background-subtracted)" if corrected else ""
-    return f"{title}{note} in {GAPS[0]} cells ({GAPS[1]}) labelled with {GAPS[2]}."
+    return f"We quantified {title[0].lower() + title[1:]}{note} in {GAPS[0]} cells ({GAPS[1]}) labelled with {GAPS[2]}."
+
+
+def _selection_sentence(canonical) -> list[str]:
+    selection = canonical.get("selection") or {}
+    record = selection.get("channel_gate") or selection.get("gfp_gate")
+    if not record:
+        return []
+    gate = record["filter"]
+    channel = record.get("channel") or record.get("gfp_channel") or {}
+    label = channel.get("stain") or channel.get("label") or gate.get("channel_id") or gate.get("gfp_channel_id") or "GFP"
+    method = gate.get("method", "negative_control")
+    classification = ("a threshold derived from designated negative-control nuclei" if method == "negative_control"
+                      else "a researcher-specified threshold" if method == "manual"
+                      else "Otsu thresholding per acquisition date")
+    objects = "cell ROIs" if gate.get("unit") == "cell_roi" else "nuclei"
+    subset = (f"Only {label}-{gate['keep']} {objects} were analysed. "
+              if record.get("purpose") != "field_positivity" else
+              "Positive fractions used all evaluable positive and negative nuclei as the denominator. ")
+    return [subset + f"Classification used {classification} of mean {label} intensities; a value strictly above the "
+            "threshold was positive and equality was negative. Unclassified objects were not selected."]
 
 
 def comparison_legend(canonical, order, drawn, presentation, panels=None) -> tuple[str, list[str]]:
     """The legend text and the list of gaps left for the researcher."""
     spec = canonical["spec"]
     description = drawn.description
-    title, _ = axis_title(canonical)
+    title = _outcome_title(canonical)
     counts = {row["condition"]: row for row in canonical.get("counts") or []}
     nouns = description.get("observations", "observations")
     paired = description.get("paired")
@@ -172,6 +216,7 @@ def comparison_legend(canonical, order, drawn, presentation, panels=None) -> tup
     n = _counts(counts, order, nouns, unit_word)
     if n:
         lines.append(n)
+    lines.extend(_selection_sentence(canonical))
     groups = drawn.summary
     if groups and any(g.get("ci_low") is not None for g in groups):
         lines.append(f"Error bars show the 95% confidence interval of the mean of {unit_word}.")

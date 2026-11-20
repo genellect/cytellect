@@ -115,7 +115,8 @@ def _runs(estimates) -> tuple[str | None, str | None]:
     if ratio_scale:
         return text, (f"Per-run {_plural('change', total)} of {estimates['treatment']} relative to "
                       f"{estimates['control']}: {listing}")
-    return text, f"Per-run {_plural('difference', total)} ({estimates['treatment']} − {estimates['control']}): {listing}"
+    scale_note = " in log2 units" if estimates["scale"] == "log2" else ""
+    return text, f"Per-run {_plural('difference', total)}{scale_note} ({estimates['treatment']} − {estimates['control']}): {listing}"
 
 
 def comparison_annotations(result, order, mode: str = "value") -> Annotations:

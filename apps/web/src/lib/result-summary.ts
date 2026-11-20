@@ -55,7 +55,19 @@ function nouns(metric: string): [string, string] {
 }
 
 /** Two significant digits: the heading states a size in plain words, the points give the saved values. */
-const rough = (value: number) => String(Number(Math.abs(value).toPrecision(2)));
+const decimalNumber = (value: number, precision = 2) => {
+  if (!value) return "0";
+  // Round the shortest decimal representation half up, identically to figure_legend.py.
+  const [mantissa, exponent] = Math.abs(value).toExponential().split("e");
+  const digits = mantissa.replace(".", "");
+  const rounded = String(Number(digits.slice(0, precision).padEnd(precision, "0")) + (Number(digits[precision] ?? "0") >= 5 ? 1 : 0));
+  const power = Number(exponent) - precision + 1;
+  const text = power >= 0 ? rounded + "0".repeat(power)
+    : rounded.length + power > 0 ? rounded.slice(0, power) + "." + rounded.slice(power)
+    : "0." + "0".repeat(-power - rounded.length) + rounded;
+  return (value < 0 ? "−" : "") + (text.includes(".") ? text.replace(/0+$/, "").replace(/\.$/, "") : text);
+};
+const rough = (value: number) => decimalNumber(Math.abs(value));
 const signed = (value: number, text: (value: number) => string = formatNumber) => `${value > 0 ? "+" : value < 0 ? "−" : ""}${text(Math.abs(value))}`;
 const signedPercent = (ratio: number) => `${signed((ratio - 1) * 100)}%`;
 const span = (values: number[], text: (value: number) => string) => {
@@ -67,7 +79,7 @@ const span = (values: number[], text: (value: number) => string) => {
  * punctuation (「PLK1 KO で」, 「Non-targeting より」). */
 export function tidy(text: string): string {
   return text
-    .replace(/([A-Za-z0-9µ%)）])(?=[\p{sc=Hiragana}\p{sc=Katakana}\p{sc=Han}])/gu, "$1 ")
+    .replace(/([A-Za-z0-9µ%²³)）])(?=[\p{sc=Hiragana}\p{sc=Katakana}\p{sc=Han}])/gu, "$1 ")
     .replace(/([\p{sc=Hiragana}\p{sc=Katakana}\p{sc=Han}])(?=[A-Za-z0-9µ(])/gu, "$1 ")
     .replace(/ +/g, " ").replace(/ ([、。：）〜])/g, "$1").replace(/([（：〜、]) /g, "$1").trim();
 }
@@ -97,8 +109,10 @@ export function summarize(estimates: ComparisonEstimates, comparison: SavedCompa
   const unclear = `${treatment}による${metricLabel}の違いは不明確`;
   let heading: string, isUnclear = false;
   if (descriptive) {
-    if (!shown || (runs.length && count(shown) < runs.length)) heading = runs.length ? `${treatment}による${metricLabel}の変化は、実験回で不一致` : unclear;
-    else if (!runs.length) heading = moved(shown, "");
+    if (!runs.length && means[control] != null && means[treatment] != null) {
+      const mean = (group: string) => fraction ? `${decimalNumber(means[group]! * 100, 3)}%` : withUnit(decimalNumber(means[group]!, 3));
+      heading = `${metricLabel}の平均：${control} ${mean(control)}、${treatment} ${mean(treatment)}`;
+    } else if (!shown || count(shown) < runs.length) heading = runs.length ? `${treatment}による${metricLabel}の変化は、実験回で不一致` : unclear;
     else if (ratios?.every(value => value >= 2)) heading = `${treatment}で、${metricLabel}が ${span(ratios, rough)} 倍に${noun(shown)}`;
     else if (ratios) heading = moved(shown, `${span(ratios.map(value => Math.abs(value - 1) * 100), rough)}%`);
     else heading = moved(shown, `${span(runs.map(run => Math.abs(run.difference)), rough)}${suffix}`);
