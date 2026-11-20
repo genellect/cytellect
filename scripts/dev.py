@@ -101,6 +101,7 @@ CHECKS: dict[str, tuple[tuple[str, ...], ...]] = {
         ("uv", "run", "python", "scripts/check_local_web_bundle.py"),
     ),
 }
+RELATED_PYTEST = ("uv", "run", "pytest")
 FIJI_CHECK = ("uv", "run", "pytest", "-m", "fiji")
 # The landing-page job without its browser tests, which stay in CI (tests/test_dev_commands.py compares both).
 LP_CHECKS: tuple[tuple[str, ...], ...] = (WEB_CHECK, ("pnpm", "test"), ("pnpm", "build"))
@@ -111,13 +112,13 @@ DOC_CHECKS: tuple[tuple[str, ...], ...] = (
 )
 
 
-def run(argv: tuple[str, ...] | list[str], env: dict[str, str] | None = None) -> None:
+def run(argv: tuple[str, ...] | list[str], env: dict[str, str] | None = None, ok: tuple[int, ...] = (0,)) -> None:
     print("$ " + shlex.join(argv), flush=True)
     executable = shutil.which(argv[0])
     if executable is None:
         sys.exit(f"{argv[0]} is not installed; see CONTRIBUTING.md for the required tools")
     result = subprocess.run([executable, *argv[1:]], cwd=ROOT, env=env)
-    if result.returncode:
+    if result.returncode not in ok:
         sys.exit(f"Failed ({result.returncode}): {shlex.join(argv)}")
 
 
@@ -221,7 +222,7 @@ def related_commands(paths: list[str], selected: frozenset[str],
     if tests is None:
         commands.append(PYTEST)
     elif tests:
-        commands.append(("uv", "run", "pytest", *tests, "-m", "not fiji"))
+        commands.append((*RELATED_PYTEST, *tests, "-m", "not fiji"))
     if "web" in selected and under("services/api/", "packages/analysis/", "packages/contracts/"):
         commands += CONTRACT_CHECKS
     web, worker = under("apps/web/"), under("services/proposal-worker/")
@@ -242,6 +243,8 @@ def check(args: argparse.Namespace) -> None:
     extra: tuple[tuple[str, ...], ...] = ()
     if sum((bool(args.areas), args.changed, args.related)) > 1:
         sys.exit("Give areas, --changed or --related: only one of them")
+    if args.base != "origin/main" and not (args.changed or args.related):
+        sys.exit("--base needs --related or --changed")
     if args.related:
         paths = changed_paths(args.base)
         selected = changed_areas(paths, args.base)
@@ -276,7 +279,8 @@ def check(args: argparse.Namespace) -> None:
             for argv in CHECKS[area]:
                 run(argv, env)
         for argv in extra:
-            run(argv, env)
+            # Related modules whose tests all need Fiji leave nothing to run (pytest exit 5): not a failure.
+            run(argv, env, ok=(0, 5) if args.related and argv[:3] == RELATED_PYTEST else (0,))
         if args.fiji:
             run(FIJI_CHECK, env)
     print("All selected checks passed.")

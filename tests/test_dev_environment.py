@@ -342,7 +342,7 @@ def test_check_changed_runs_only_the_selected_local_areas(monkeypatch, capsys):
     import pytest
 
     calls: list[tuple[str, ...]] = []
-    monkeypatch.setattr(dev, "run", lambda argv, env=None: calls.append(tuple(argv)))
+    monkeypatch.setattr(dev, "run", lambda argv, env=None, **_: calls.append(tuple(argv)))
     monkeypatch.setattr(dev, "ensure_figure_font", lambda: None)
 
     monkeypatch.setattr(dev, "changed_paths", lambda base: ["docs/methods.md"])
@@ -388,7 +388,7 @@ def test_the_base_ref_reaches_both_the_file_list_and_the_area_rules(monkeypatch,
     monkeypatch.setattr(dev, "changed_paths", lambda base: seen.append(("paths", base)) or ["docs/methods.md"])
     monkeypatch.setattr(dev, "changed_areas", lambda paths, base="origin/main": seen.append(("areas", base)) or frozenset())
     monkeypatch.setattr(dev, "related_tests", lambda root, paths: [])
-    monkeypatch.setattr(dev, "run", lambda argv, env=None: None)
+    monkeypatch.setattr(dev, "run", lambda argv, env=None, **_: None)
     dev.changed(argparse.Namespace(base="origin/release"))
     _check(dev, changed=True, base="origin/release")
     _check(dev, related=True, base="origin/release")
@@ -423,7 +423,7 @@ def test_check_related_runs_the_short_loop_and_names_what_ci_keeps(monkeypatch, 
     import dev
 
     calls: list[tuple[str, ...]] = []
-    monkeypatch.setattr(dev, "run", lambda argv, env=None: calls.append(tuple(argv)))
+    monkeypatch.setattr(dev, "run", lambda argv, env=None, **_: calls.append(tuple(argv)))
     monkeypatch.setattr(dev, "changed_paths", lambda base: ["scripts/ci_changes.py"])
     monkeypatch.setattr(dev, "related_tests", lambda root, paths: ["tests/test_ci_changes.py"])
     _check(dev, related=True)
@@ -433,6 +433,20 @@ def test_check_related_runs_the_short_loop_and_names_what_ci_keeps(monkeypatch, 
     assert "Left to pull-request CI: the full suites of python, fiji, windows" in output
 
 
+def test_related_tests_that_all_need_fiji_are_not_a_failure(monkeypatch):
+    import dev
+    import pytest
+
+    accepted: list[tuple[int, ...]] = []
+    monkeypatch.setattr(dev, "run", lambda argv, env=None, ok=(0,): accepted.append(ok))
+    monkeypatch.setattr(dev, "changed_paths", lambda base: ["engines/fiji/CytellectEngine.java"])
+    monkeypatch.setattr(dev, "related_tests", lambda root, paths: ["tests/test_fiji_engine.py"])
+    _check(dev, related=True)
+    assert accepted == [(0,), (0, 5), (0,), (0,)]  # lint, the related tests, then the two document checks
+    with pytest.raises(SystemExit, match="--base needs"):
+        _check(dev, base="origin/release")
+
+
 def test_public_inputs_offers_only_registered_datasets(monkeypatch, tmp_path, capsys):
     import argparse
 
@@ -440,7 +454,7 @@ def test_public_inputs_offers_only_registered_datasets(monkeypatch, tmp_path, ca
     import pytest
 
     calls: list[tuple[str, ...]] = []
-    monkeypatch.setattr(dev, "run", lambda argv, env=None: calls.append(tuple(argv)))
+    monkeypatch.setattr(dev, "run", lambda argv, env=None, **_: calls.append(tuple(argv)))
     with pytest.raises(SystemExit, match="Unknown dataset: private"):
         dev.public_inputs(argparse.Namespace(datasets=["private"], out=tmp_path))
     dev.public_inputs(argparse.Namespace(datasets=["bbbc013"], out=tmp_path))

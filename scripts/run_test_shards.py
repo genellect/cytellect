@@ -37,6 +37,16 @@ def shard_command(pytest_args: list[str], index: int, count: int, work: Path) ->
             f"--scientific-collection={work / 'collection.json'}"]
 
 
+def warnings_summary(output: str) -> str:
+    """pytest's warnings section, without the test progress around it."""
+    lines = output.splitlines(keepends=True)
+    start = next((i for i, line in enumerate(lines) if "warnings summary" in line and line.startswith("=")), None)
+    if start is None:
+        return ""
+    end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith(("=", "-- Docs:"))), len(lines))
+    return "".join(lines[start:end])
+
+
 def run_shards(pytest_args: list[str], count: int, scratch: Path) -> list[int]:
     """Start every shard at once; report each as it ends and print the output of the failed ones."""
     started, running = time.monotonic(), {}
@@ -48,20 +58,30 @@ def run_shards(pytest_args: list[str], count: int, scratch: Path) -> list[int]:
         running[index] = (subprocess.Popen(shard_command(pytest_args, index, count, work), env=env,
                                            stdout=log, stderr=subprocess.STDOUT), log)
     codes = [0] * count
-    while running:
-        time.sleep(0.5)
-        for index in [index for index, (process, _) in running.items() if process.poll() is not None]:
-            process, log = running.pop(index)
+    try:
+        while running:
+            time.sleep(0.5)
+            for index in [index for index, (process, _) in running.items() if process.poll() is not None]:
+                process, log = running.pop(index)
+                log.close()
+                codes[index] = process.returncode
+                output = (scratch / str(index) / "log.txt").read_text(encoding="utf-8", errors="replace")
+                summary = output.strip().splitlines()[-1] if output.strip() else ""
+                print(f"shard {index}/{count} exit {codes[index]} after {time.monotonic() - started:.0f} s: {summary}",
+                      flush=True)
+                # A failed shard prints everything; a passing one keeps its warnings in the log.
+                print(output if codes[index] else warnings_summary(output), end="", flush=True)
+                if codes[index] == 5:  # pytest: no tests collected
+                    print(f"shard {index}/{count} received no test: select more modules or pass fewer --shards", flush=True)
+    finally:  # an interrupt or error must not leave shards running in a scratch directory that is being removed
+        for process, log in running.values():
+            process.terminate()
+        for process, log in running.values():
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                process.kill()
             log.close()
-            codes[index] = process.returncode
-            output = (scratch / str(index) / "log.txt").read_text(encoding="utf-8", errors="replace")
-            summary = output.strip().splitlines()[-1] if output.strip() else ""
-            print(f"shard {index}/{count} exit {codes[index]} after {time.monotonic() - started:.0f} s: {summary}",
-                  flush=True)
-            if codes[index]:
-                print(output, flush=True)
-            if codes[index] == 5:  # pytest: no tests collected
-                print(f"shard {index}/{count} received no test: select more modules or pass fewer --shards", flush=True)
     return codes
 
 
