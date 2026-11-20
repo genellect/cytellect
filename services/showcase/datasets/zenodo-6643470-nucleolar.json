@@ -811,7 +811,21 @@
     "target": "nucleoplasm",
     "metric": "nucleolar_eccentricity",
     "channel": null,
-    "design": "paired"
+    "design": "paired",
+    "discussion_example": {
+     "implications": [
+      "核小体の離心率が全実験回で低下しており、ActD による核小体の球状化と整合する。",
+      "転写の阻害に伴う核小体の成分の再配置を反映する可能性がある。"
+     ],
+     "alternatives": [
+      "小さい物体ほど離心率が低く出る系統的な偏りがあり、核小体の縮小が離心率の低下を説明する可能性がある。",
+      "実験回の独立性が未確認で、低下の大きさは確定できない。"
+     ],
+     "next_steps": [
+      "核小体の面積と数を併せて比べ、形の変化と大きさの変化を分ける。",
+      "同じ細胞株が発現する FBL-sfGFP の画像を追加し、NPM1 と合わせて核小体キャップの形成を確かめる。"
+     ]
+    }
    }
   ],
   "direction_checks": [
