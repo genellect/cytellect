@@ -52,6 +52,7 @@ jobs:
           echo "CYTELLECT_CHROMIUM_EXECUTABLE=$task_browser" >> "$GITHUB_ENV"
       - name: Re-record presentation from the published seed
         run: |
+          cp -a apps/web/public/showcase/snapshot /tmp/cytellect-published-drawings
           uv run python -m cytellect_showcase.build \
             services/showcase/datasets/zenodo-6643470-oxaliplatin.json \
             services/showcase/datasets/zenodo-6643470-cisplatin.json \
@@ -69,7 +70,7 @@ jobs:
           name: showcase-presentation
           path: /tmp/showcase-presentation.tar.gz
           retention-days: 7
-      - name: Regenerate the figure catalogue from the completed recording
+      - name: Update figure prose with unchanged published drawings
         if: inputs.showcase_figures
         run: |
           uv run python -m cytellect_showcase.build \
@@ -78,7 +79,8 @@ jobs:
             services/showcase/datasets/zenodo-6643470-nucleolar.json \
             services/showcase/datasets/cpg0016-jump-source13-plk1.json \
             --work /tmp/cytellect-showcase-presentation --cache /tmp/cytellect-showcase-cache \
-            --fiji /tmp/recordings-only-no-fiji --stages figures
+            --fiji /tmp/recordings-only-no-fiji --stages figures \
+            --figure-drawings /tmp/cytellect-published-drawings
       - name: Pack completed figures
         if: inputs.showcase_figures
         run: tar -czf /tmp/showcase-presentation-complete.tar.gz apps/web/public/showcase fixtures/public/allowlist.json

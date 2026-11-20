@@ -204,7 +204,7 @@ def opening_figure(result: dict, plot: dict, out: Path) -> dict:
 
 
 def build(api, target: Path, scratch: Path, shard: tuple[int, int] | None = None,
-          parts: list[Path] | None = None) -> dict:
+          parts: list[Path] | None = None, drawings: Path | None = None) -> dict:
     """Write ``figures.json`` for the tour in ``target`` and drop the tour's own figure answers.
 
     ``shard`` ``(i, n)`` draws only every n-th group of results, from the i-th, into
@@ -213,6 +213,7 @@ def build(api, target: Path, scratch: Path, shard: tuple[int, int] | None = None
     from cytellect_api.db import jobs
 
     catalog = Catalog(api, target)
+    previous = json.loads((drawings / "figures.json").read_text(encoding="utf-8")) if drawings else None
     journal = json.loads((target / "journal.json").read_text())
     entries = journal["entries"]
     read = lambda entry: json.loads((target / entry["file"]).read_text())  # noqa: E731
@@ -283,6 +284,33 @@ def build(api, target: Path, scratch: Path, shard: tuple[int, int] | None = None
     for count, (identity, group) in enumerate(sorted(groups.items())):
         if identity in written or (shard is not None and count % shard[1] != shard[0]):
             continue
+        if previous is not None and drawings is not None:
+            from cytellect_api.figure_render import validated_plot
+
+            from .figure_text import reuse_item
+
+            if identity not in previous["groups"]:
+                raise ValueError(f"no identical published result for {identity}; a new drawing requires a normal figures build")
+            old = previous["groups"][identity]
+            if group["seed"]:
+                row = seed[group["seed"]]
+                result = json.loads((catalog.store.safe_path(row["result_dir"]) / "result.json").read_text())
+                requested = {**result["spec"]["plot"], **({"kind": "superplot", "presentation": DEFAULT_PRESENTATION}
+                                                       if _comparison(result) else {})}
+            else:
+                value = calculated[group["members"][0]]
+                result = value["result"]
+                requested = {**value["plot"], **({"kind": "superplot", "presentation": DEFAULT_PRESENTATION}
+                                                if value["kind"] == "common-statistics" else {})}
+            plot = validated_plot(result, requested)
+            if plot != old["opening"]["plot"] or variants(result, old["opening"]["figure"], plot, bool(group["seed"])) != [
+                    item["plot"] for item in old["figures"]]:
+                raise ValueError(f"published figure settings changed for {identity}")
+            written[identity] = {"observations": old["observations"],
+                                 "opening": reuse_item(catalog, drawings, result, old["opening"]),
+                                 "figures": [reuse_item(catalog, drawings, result, item) for item in old["figures"]]}
+            print(f"figure text {count + 1}/{len(groups)}; drawings unchanged", flush=True)
+            continue
         if group["seed"]:
             # A saved result of the seed is drawn anew too: every figure of the demo comes from this stage.
             representative = group["seed"]
@@ -348,6 +376,10 @@ def build(api, target: Path, scratch: Path, shard: tuple[int, int] | None = None
         result = calculated[package["source"]]["result"] if package["source"] in calculated else None
         if result is None:
             continue
+        if previous is not None and drawings is not None:
+            from .figure_text import package_root
+
+            figure["root"] = package_root(drawings, previous, source["group"], figure, target, scratch / f"reused-{index}")
         figure_job = str(uuid.uuid4())
         rendered = copy.deepcopy(result)
         rendered.pop("figure", None)
@@ -377,6 +409,16 @@ def build(api, target: Path, scratch: Path, shard: tuple[int, int] | None = None
             continue
         # Shown as the 「グラフ」 view opens a comparison (plan G7), in the form it was saved with.
         plot = {**recorded["spec"]["plot"], **({"presentation": DEFAULT_PRESENTATION} if _comparison(recorded) else {})}
+        if previous is not None and drawings is not None:
+            from cytellect_api.figure_render import validated_plot
+
+            from .figure_text import reuse_item
+
+            old = previous["saved"].get(row["id"])
+            if old is None or old["source"] != source or old["plot"] != validated_plot(recorded, plot):
+                raise ValueError(f"published saved figure settings changed: {row['id']}")
+            saved_figures[row["id"]] = reuse_item(catalog, drawings, recorded, old)
+            continue
         drawn, folder = catalog.render(source, row["workspace_id"], plot)
         saved_figures[row["id"]] = {"source": source, "figure": drawn["figure"], "plot": drawn["spec"]["plot"],
                                     "files": catalog.save_files(folder, drawn["figure"]["source_files"], False)}
