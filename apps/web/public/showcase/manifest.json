@@ -86,7 +86,7 @@
       "discussion_example": {
        "implications": [
         "核あたりの核小体の総面積が全実験回で縮小しており、核小体の構造が処理に応答した可能性がある。",
-        "離心率の向きがそろわない条件でも面積は縮小しており、形より先に大きさが変わる可能性がある。"
+        "離心率の向きはそろわず、面積と形の記述は一致しない。この1時点の比較から、変化の順序は判断できない。"
        ],
        "alternatives": [
         "NPM1 が核質へ分散すると輪郭が小さく検出され、見かけ上の縮小となる可能性がある。",
@@ -107,7 +107,7 @@
       "discussion_example": {
        "implications": [
         "核小体の 5-EU 平均は実験回で増減が一致せず、本条件では新生 RNA 量の変化を判断できない。",
-        "明確な増減がみられない点は、未処理と同程度とする出典の報告と矛盾しない。"
+        "ActD の同じ指標も実験回で向きがそろわず、この測定から転写低下の有無や出典との一致は判断できない。"
        ],
        "alternatives": [
         "核小体の輪郭が処理で変わると、平均輝度は測る領域の違いを反映しうる。",
@@ -1979,7 +1979,7 @@
        ],
        "next_steps": [
         "視野数と独立した実験回を増やし、差の向きの一致を確かめる。",
-        "核小体の面積あたりの 5-EU でも比べ、出典の定義に合わせて確かめる。"
+        "出典の 5-EU/NPM1 の正規化と核小体ごとの集計単位に合わせ、背景補正の有無も区別して比べる。"
        ]
       }
      }
@@ -3809,12 +3809,12 @@
         "転写の阻害に伴う核小体の成分の再配置を反映する可能性がある。"
        ],
        "alternatives": [
-        "核小体が小さくなると輪郭の画素数が減り、離心率の推定が不安定になりうる。",
+        "小さい物体ほど離心率が低く出る系統的な偏りがあり、核小体の縮小が離心率の低下を説明する可能性がある。",
         "実験回の独立性が未確認で、低下の大きさは確定できない。"
        ],
        "next_steps": [
         "核小体の面積と数を併せて比べ、形の変化と大きさの変化を分ける。",
-        "FBL など別の成分を染め、核小体キャップの形成を確かめる。"
+        "同じ細胞株が発現する FBL-sfGFP の画像を追加し、NPM1 と合わせて核小体キャップの形成を確かめる。"
        ]
       }
      }
@@ -6565,13 +6565,13 @@
  ],
  "seed": {
   "entries": 3023,
-  "bytes": 96046013,
+  "bytes": 96046149,
   "regenerated_on_boot": 601,
   "regenerated_bytes": 719032190
  },
  "generated_from_commit": "964193f0da3a12aaa7fa0bc62047f1de2ecec93e",
  "derived_updates": {
-  "examples": "e31afa1b703147f1fd05993fadb297355c78268d"
+  "examples": "5d132a38aec8f65d2e24c8ff0e6eee78db4e51d5"
  },
  "runtime": {
   "fiji": {
@@ -6652,7 +6652,7 @@
    "runner_sha256": "a3739e14463084d067dc056254af8740cbdd72d4b195c22afef50216063cbd45",
    "requirements_sha256": "caab4cdefcd21b8afe25451a76e0ed0ecaa698180df8c2570ddccc387fc49b39"
   },
-  "python": "3.12.13"
+  "python": "3.12.3"
  },
  "journal": null,
  "detections_recorded": 486,
@@ -6726,8 +6726,8 @@
    "bytes": 45571
   },
   "seed.zip": {
-   "sha256": "c3f348d1cebb1059d4c63920f98bdf6a6f8e7ed22fda1fc676531ac4d7a3be4c",
-   "bytes": 96046013
+   "sha256": "73ee7ae31522a64088e949082eb7b1177a31762c32b78bf055343a527d38949a",
+   "bytes": 96046149
   },
   "snapshot/0006c98ea370d0a605b826ed.svg": {
    "sha256": "0006c98ea370d0a605b826eded9efd339e837aa831fd1813cdf9f86431f34575",
@@ -14745,10 +14745,6 @@
    "sha256": "3406ac5acc3527e1dfba7faa57b759d93933831647ef8b15c12d65ce7255b8d2",
    "bytes": 851
   },
-  "snapshot/340af69fb6a1581b5955b234.json": {
-   "sha256": "340af69fb6a1581b5955b2343e5066527aef0e7bfa6a36d9731b2486556caf72",
-   "bytes": 964
-  },
   "snapshot/340b12a62c698d2599312973.json": {
    "sha256": "340b12a62c698d25993129731c6af2d739db2bc2ae8ccc84c483aca5f117d06a",
    "bytes": 8367
@@ -15868,10 +15864,6 @@
   "snapshot/3bb801aa665d72a172089da2.md": {
    "sha256": "3bb801aa665d72a172089da2964f4742878a2af60fd9e31a4a15eb4c857b76a5",
    "bytes": 828
-  },
-  "snapshot/3bc4a013effd1b52b311935c.json": {
-   "sha256": "3bc4a013effd1b52b311935c3e27f7e6336bc1d0fd4b765ebd86151322877d08",
-   "bytes": 1053
   },
   "snapshot/3bc6a216ab92ab24dd6228fb.json": {
    "sha256": "3bc6a216ab92ab24dd6228fb7691648e8aa1be701991490e0ed810e088fdb7cb",
@@ -22629,6 +22621,10 @@
    "sha256": "67da6ce8b9c25f1f7a5bd4cf1855422df60e6e97394e79e03642e78cb8d84ab3",
    "bytes": 302
   },
+  "snapshot/67dddcd35746ad7ab9aea403.json": {
+   "sha256": "67dddcd35746ad7ab9aea40385aa9edf37724695de11f41110ee7e63fbb8cdca",
+   "bytes": 982
+  },
   "snapshot/67e5e51e8fe69d324639d6ab.svg": {
    "sha256": "67e5e51e8fe69d324639d6ab4d55e09142a3f908bdbb6baaa37e50bae09e93ba",
    "bytes": 140753
@@ -23380,6 +23376,10 @@
   "snapshot/6cc2977435c33fce2848a0d7.csv": {
    "sha256": "6cc2977435c33fce2848a0d7e842b5b6f6529125ef3e437e916b610f7bbbe2e9",
    "bytes": 49695
+  },
+  "snapshot/6cca09bc075f72c2470d043e.json": {
+   "sha256": "6cca09bc075f72c2470d043e7b5601288756c9a0e3d2b53e84f19bf3f6645ffc",
+   "bytes": 1145
   },
   "snapshot/6cd1caf89f5893855a2f5434.json": {
    "sha256": "6cd1caf89f5893855a2f5434d27f30cff5cb1dcf05785b91cc5ee5fc98788620",
@@ -30773,10 +30773,6 @@
    "sha256": "9da415c8e8659f879a3c5649a55517c9e8e16ad44775a48fac346a13f6153c99",
    "bytes": 42768
   },
-  "snapshot/9da58a13170c77102462294e.json": {
-   "sha256": "9da58a13170c77102462294e302901a529306c4fa29fc2d534133a1b30f10389",
-   "bytes": 1131
-  },
   "snapshot/9da6d83b95197d52f688961f.svg": {
    "sha256": "9da6d83b95197d52f688961fa4752adb176e69d67d71d81ef60f373bec4b290e",
    "bytes": 19505
@@ -31004,6 +31000,10 @@
   "snapshot/9f3d1be33e26c0be28264022.svg": {
    "sha256": "9f3d1be33e26c0be28264022092559780e910c13abb3c366a75192da7e979d1b",
    "bytes": 19022
+  },
+  "snapshot/9f42eb81e9e292bde07698a3.json": {
+   "sha256": "9f42eb81e9e292bde07698a3070c934423751621f7bec8ce53943ea0c051e1c9",
+   "bytes": 1089
   },
   "snapshot/9f46601ecd064855a02be7d7.json": {
    "sha256": "9f46601ecd064855a02be7d7e5e6d64d32d163992a5a36d0fd658f7a94889ac1",
@@ -31828,10 +31828,6 @@
   "snapshot/a4bce10792c012a1c109d4fb.json": {
    "sha256": "a4bce10792c012a1c109d4fbc216ca08bf5be7e05a37493504e49436009625ac",
    "bytes": 8599
-  },
-  "snapshot/a4d7bb88c4b55d08f455fc8f.json": {
-   "sha256": "a4d7bb88c4b55d08f455fc8ff624e7e2aaf353a2d0777bf149b9719e1bbeee74",
-   "bytes": 951
   },
   "snapshot/a4db73dc1f8a748671cbd10d.json": {
    "sha256": "a4db73dc1f8a748671cbd10db71bef717fcf59d184dba25a3d4c2ed99c6bfedb",
@@ -41777,6 +41773,10 @@
    "sha256": "e45762a089735fb78c4f58149ca1e9dc1915259a11c9c3cc9c751f78ff518618",
    "bytes": 614
   },
+  "snapshot/e45e73b87fa31d65d7a53c86.json": {
+   "sha256": "e45e73b87fa31d65d7a53c860ced697739f3417381511179db6b48ae3d66f939",
+   "bytes": 1056
+  },
   "snapshot/e461b1b88b64a658870d23a9.json": {
    "sha256": "e461b1b88b64a658870d23a9cfd8fe45577db2761cc8f7672a8cd29c11d551b7",
    "bytes": 16953
@@ -46230,11 +46230,11 @@
    "bytes": 4385196
   },
   "snapshot/index.json": {
-   "sha256": "d967565d73e28eb66acbf11737567fe87faa0659753696ae2a9bd341ea26510b",
+   "sha256": "da7589b155d740114ce6c9c99a436377b55665ae06ba52d63d6d23a0b7f0efa0",
    "bytes": 629918
   },
   "snapshot/journal.json": {
-   "sha256": "77393a17c96284030c5fcfdc474500f640619ec1c528520863ac06d8d6c9de0e",
+   "sha256": "ee79db8f9852607e3ccc3a2306fc880ae85c3b62de553e1fe8c32ea08cddbf10",
    "bytes": 59009201
   },
   "snapshot/proposal-examples.json": {
@@ -46251,5 +46251,88 @@
   }
  },
  "limitations": "Public example images; numbers illustrate the software and do not establish scientific validity for any laboratory's images.",
+ "derived_update_environments": {
+  "examples": {
+   "fiji": {
+    "distribution": {
+     "url": "https://downloads.imagej.net/fiji/archive/latest/20260929-1417/fiji-latest-linux64-jdk.zip",
+     "sha256": "0b2197f45a0c0a5d54f4479518dc3fdbd79b4e1c76bd7d2b4fc30e95ef68d44c"
+    },
+    "plugins": [
+     {
+      "path": "jars/Clipper-6.4.2.jar",
+      "sha256": "df1020524cc2cad78d57a6928cf94d00e8558397ccf8d227d2c8f4af1023b970"
+     },
+     {
+      "path": "plugins/StarDist_-0.3.0.jar",
+      "sha256": "fff483154961e60cb6305e4ef73ef9e662298e1e65a077858e018717eb30d2bd"
+     },
+     {
+      "path": "jars/libtensorflow-1.15.0.jar",
+      "sha256": "9c51d1b825f189f60836e4ce75484106e7b13eca589f3db932725223f28c2d63"
+     },
+     {
+      "path": "jars/libtensorflow_jni-1.15.0.jar",
+      "sha256": "f08ce6e684b50eb57e7b3c98347c3597433f945b17f0d1937517ef49ab47d047"
+     },
+     {
+      "path": "jars/proto-1.15.0.jar",
+      "sha256": "bc97062b6a89cf80ac6165e0085eb5c44f48d879a8679346ce31acfd16c17cb6"
+     },
+     {
+      "path": "jars/tensorflow-1.15.0.jar",
+      "sha256": "8ce4b87401fc04936834c5167c41d828407028f2c17455300044577f9db6b4cd"
+     },
+     {
+      "path": "jars/csbdeep-0.6.0.jar",
+      "sha256": "13bfb85d179bedf1d5e6542b0e200cb250ab8e030e88d5e645e6e6b486b22894"
+     },
+     {
+      "path": "jars/imagej-tensorflow-1.1.9.jar",
+      "sha256": "6a706ad629dd5cf037f1a6b19dc69ca5dd53a5c02449f680cb6885ed485933da"
+     },
+     {
+      "path": "plugins/MorphoLibJ_-1.6.5.jar",
+      "sha256": "086c4661ccdd8c2787a6433468955df7646589b16cbae5c97607c18d8fe2af59"
+     },
+     {
+      "path": "jars/protobuf-java-3.25.8.jar",
+      "sha256": "72bdb32eb38cafb7dcd288262c29a34d57cba2e19101af9685155ba8c0a56008"
+     }
+    ],
+    "model": {
+     "container": "plugins/StarDist_-0.3.0.jar",
+     "member": "models/2D/dsb2018_heavy_augment.zip",
+     "sha256": "b0eb820e455db0ec8326d3b6f456a1b2d4aff8d7dd818a71481f8041958309e3",
+     "name": "Versatile (fluorescent nuclei)",
+     "license": "BSD-3-Clause",
+     "source": "https://github.com/stardist/stardist-models"
+    },
+    "installed_lock_sha256": null
+   },
+   "cellpose": {
+    "packages": {
+     "cellpose": "4.2.1.1",
+     "torch": "2.8.0+cpu",
+     "torchvision": "0.23.0+cpu",
+     "numpy": "2.2.6",
+     "scipy": "1.16.2",
+     "segment-anything": "1.0",
+     "packaging": "26.3"
+    },
+    "model": {
+     "id": "cpsam_v2",
+     "revision": "7c61431b5fbb078f3296754bd15d9f51b320f837",
+     "url": "https://huggingface.co/mouseland/cellpose-sam/resolve/7c61431b5fbb078f3296754bd15d9f51b320f837/cpsam_v2",
+     "sha256": "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667",
+     "size": 1233586851,
+     "license": "BSD-3-Clause"
+    },
+    "runner_sha256": "a3739e14463084d067dc056254af8740cbdd72d4b195c22afef50216063cbd45",
+    "requirements_sha256": "caab4cdefcd21b8afe25451a76e0ed0ecaa698180df8c2570ddccc387fc49b39"
+   },
+   "python": "3.12.13"
+  }
+ },
  "runtime_generated_from_commit": "964193f0da3a12aaa7fa0bc62047f1de2ecec93e+uncommitted"
 }
