@@ -1855,8 +1855,9 @@ def main(argv: list[str] | None = None) -> None:
 
             original = args.figure_drawings.parent
             state["seed"] = preserve_seed(original / "seed.zip", args.out / "seed.zip")
-            state["seed_science_from_commit"] = json.loads((original / "manifest.json").read_text(encoding="utf-8")).get(
-                "generated_from_commit")
+            # A seed kept through several prose updates still comes from the commit that first recorded it.
+            earlier = json.loads((original / "manifest.json").read_text(encoding="utf-8"))
+            state["seed_science_from_commit"] = earlier.get("seed_science_from_commit") or earlier.get("generated_from_commit")
         reseed(args.out, work, manifests, state)
         save()
     if "proposals" in stages:
