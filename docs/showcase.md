@@ -164,6 +164,10 @@ Pyodide の CDN から読み込むパッケージ（再配布しない）:
 ### ビルドと検査
 
 `#249` の凡例の語句は、4 場面の `dataset.scope` にある細胞株・処理と時間・染色だけを `scenario.proposals.presets[].draft.figure_presentation.legend_terms` に記す。画像の配置は `quantification` を保ち、測定や検定の条件を変えない。同じ指示文が別の場面にもあるため、用意した案のフォールバックは記録した群名も照合し、別の処理の語句を混ぜない。
+ノックインの FBL-sfGFP・NPM1-mTagRFP は細胞株の性質に記し、FBL を表示チャンネルや染色とはしない。
+染色には Hoechst と、Alexa Fluor 647 azide で標識した 5-EU を記す。
+薬剤濃度は元ファイル名の Ox10・Cis10・ActD1 から推定した公称値と明記する。
+JUMP の C01 はチャンネル番号なので、染色名には含めない。
 
 この語句を変えたときは `--stages reseed,proposals,publish,snapshot,journal,figures` を実行する。`reseed` を先に行い、`proposals` は保存済みの検出の再生だけを許す。未記録の検出は失敗し、Fiji・Cellpose や LLM を起動しない。解析案の送信・採用を画面から記録し直すので、前の案を含む文脈のハッシュも更新される。公開済みの Pyodide wheel は作り直さない。
 
