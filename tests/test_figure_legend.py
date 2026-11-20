@@ -6,7 +6,7 @@ import pytest
 from cytellect_analysis.common_statistics import analyze_region_association, analyze_region_comparison
 from cytellect_analysis.common_statistics_figures import render_common_statistics
 from cytellect_analysis.figure_annotations import EXPLORATORY_WARNING, comparison_annotations
-from cytellect_analysis.figure_legend import _counts, _selection_sentence, _title
+from cytellect_analysis.figure_legend import _counts, _opening, _selection_sentence, _title
 from test_common_statistics import association_request, request_v2
 from test_region_comparison import comparison_fixture
 
@@ -18,7 +18,9 @@ PLOT = {"preset": "nature-double", "language": "en", "kind": "superplot",
 @pytest.mark.parametrize("row", CASES, ids=lambda row: row["id"])
 def test_legend_and_japanese_summary_share_saved_cases(row):
     estimates = row["estimates"]
-    canonical = {**row.get("source", {}), "metric": estimates["metric"], "unit": row["unit"], "estimates": estimates,
+    canonical = {**row.get("source", {}), "metric": estimates["metric"],
+                 # `saved_unit`: the unit as saved; `unit` is what the screen passes the summary after its own labels.
+                 "unit": row.get("saved_unit", row["unit"]), "estimates": estimates,
                  "comparisons": [row["comparison"]]}
     assert _title(canonical, [estimates["control"], estimates["treatment"]]) == row["expected_en"]
 
@@ -84,6 +86,22 @@ def test_legend_names_the_intensity_defined_subset_before_its_threshold_warning(
         "Only 5-EU-positive nuclei were analysed. Classification used Otsu thresholding per acquisition date "
         "of mean 5-EU intensities; a value strictly above the threshold was positive and equality was negative. "
         "Unclassified objects were not selected."]
+
+
+def test_opening_keeps_the_capitals_of_a_stain_name():
+    assert _opening("NPM1 nucleoplasm/nucleolus ratio").startswith("We quantified NPM1 nucleoplasm/nucleolus ratio in ")
+    assert _opening("EdU-positive nuclei per field").startswith("We quantified EdU-positive nuclei per field in ")
+    assert _opening("Nuclear NPM1 mean intensity").startswith("We quantified nuclear NPM1 mean intensity in ")
+
+
+def test_a_positive_count_is_not_described_with_a_denominator():
+    # Contract-only wording fixture; no generated image or biological claim.
+    record = {"purpose": "field_positivity", "filter": {"keep": "positive", "method": "batch_otsu", "channel_id": "eu5"},
+              "channel": {"label": "5-EU"}}
+    count = _selection_sentence({"metric": "positive_count", "selection": {"channel_gate": record}})[0]
+    fraction = _selection_sentence({"metric": "positive_fraction", "selection": {"channel_gate": record}})[0]
+    assert count.startswith("5-EU-positive nuclei were counted in each field. Classification used Otsu")
+    assert "denominator" not in count and fraction.startswith("Positive fractions used all evaluable")
 
 
 def test_log2_run_differences_name_their_scale():
