@@ -212,6 +212,8 @@ Windows に録画用 Chromium がない場合は、既存の Verify workflow の
 
 ### 既知の制約
 
+録画と図の再生成を別の環境で行う場合は、手動 workflow の `showcase_figures: false` で完了した録画の artifact を受け取り、その出力に `--stages reseed,figures` を実行する。図を含む全段階が成功するまでは完成したデモとして扱わない。既定の `true` は両方を順に実行し、録画の artifact も図の前に残す。
+
 - ブラウザのメインスレッドではなく Web Worker で動かす前提です。ジョブの計算中は、その Worker は次の要求に応答しません。
 - ジョブの取り消しは、実行中の計算を止めません（公開されないだけです）。
 

@@ -9,6 +9,10 @@ on:
         description: "Regenerate the four public demo scenes from their recorded seed, without detectors or model calls"
         type: boolean
         default: false
+      showcase_figures:
+        description: "Also regenerate figure catalogue (false exports the completed recording for a separate figures stage)"
+        type: boolean
+        default: true
 permissions:
   contents: read
 # A release requires every check on the exact main commit it ships (local-release.yml), so a run
@@ -55,7 +59,7 @@ jobs:
             services/showcase/datasets/cpg0016-jump-source13-plk1.json \
             --work /tmp/cytellect-showcase-presentation --cache /tmp/cytellect-showcase-cache \
             --fiji /tmp/recordings-only-no-fiji \
-            --stages reseed,proposals,publish,snapshot,journal,figures
+            --stages reseed,proposals,publish,snapshot,journal
       - name: Check the generated public tree
         run: uv run python scripts/check_public_tree.py
       - name: Pack generated public assets
@@ -64,6 +68,25 @@ jobs:
         with:
           name: showcase-presentation
           path: /tmp/showcase-presentation.tar.gz
+          retention-days: 7
+      - name: Regenerate the figure catalogue from the completed recording
+        if: inputs.showcase_figures
+        run: |
+          uv run python -m cytellect_showcase.build \
+            services/showcase/datasets/zenodo-6643470-oxaliplatin.json \
+            services/showcase/datasets/zenodo-6643470-cisplatin.json \
+            services/showcase/datasets/zenodo-6643470-nucleolar.json \
+            services/showcase/datasets/cpg0016-jump-source13-plk1.json \
+            --work /tmp/cytellect-showcase-presentation --cache /tmp/cytellect-showcase-cache \
+            --fiji /tmp/recordings-only-no-fiji --stages figures
+      - name: Pack completed figures
+        if: inputs.showcase_figures
+        run: tar -czf /tmp/showcase-presentation-complete.tar.gz apps/web/public/showcase fixtures/public/allowlist.json
+      - uses: actions/upload-artifact@v6
+        if: inputs.showcase_figures
+        with:
+          name: showcase-presentation-complete
+          path: /tmp/showcase-presentation-complete.tar.gz
           retention-days: 7
   changes:
     runs-on: ubuntu-latest
