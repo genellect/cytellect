@@ -1037,7 +1037,9 @@ each saved nuclear label. Pixel values are not changed. No nucleolar boundary is
   The mean and SD are returned with it. A nucleus whose mean is not positive has no CV (`nonpositive_mean`). CV depends
   on staining, exposure and focus: compare it within the same acquisition settings.
 - Positive-area fraction: pixels at or above a threshold divided by the nucleus's pixels (0–1; shown as %). The threshold
-  is a recorded value (`manual`) or Otsu's threshold of all non-excluded nuclear pixels of the field (`field_otsu`). The
+  is a recorded value (`manual`) or Otsu's threshold of all non-excluded nuclear pixels of the field (`field_otsu`:
+  scikit-image `threshold_otsu` on float values with 256 equal-width bins between their minimum and maximum, the
+  threshold being a bin centre, as the GFP gate). The
   method, value basis, value and the unit it was applied to (`field`) are returned. Without a threshold the fraction is
   missing (`threshold_not_set`); pooled pixels of one value give no Otsu threshold (`threshold_not_established`).
   Exposure and overall brightness also move this fraction; report the nuclear mean beside it. Thresholds from other
@@ -1125,4 +1127,10 @@ images in the demo seed (29 fields, adopted nuclear masks; Hoechst, NPM1 and 5-E
 population SD, CV and positive-area fraction of every nucleus agreed with an independent calculation (scipy.ndimage
 per-label mean and variance; positive pixels counted with numpy at the same recorded field threshold): 654 nucleus ×
 channel pairs, largest relative difference 7.8 × 10⁻¹⁴, no nucleus missing in one and not the other. NCL is not among
-the registered channels, so the NCL area fraction itself still needs another public source (#257 F-6).
+the registered channels, so the NCL area fraction was checked on another public source (#257 F-6):
+`scripts/check_ncl_area_public.py` reads OpenCell's NCL field FID00034252 (CZ Biohub, CC BY-SA 4.0; used for this
+check only, not redistributed) by its SHA-256, makes a nuclear mask from the Hoechst channel (Otsu, holes filled,
+≥ 200 px; its only role is to be the same for both calculations), and compares region features with numpy. For its
+20 nuclei the recorded field threshold equals Otsu's threshold written out from the definition above, and every
+nucleus's NCL positive-area fraction equals the independent count at that threshold (2026-11-21). This checks the
+calculation on real NCL pixels; it is not a biological validation of NCL redistribution.

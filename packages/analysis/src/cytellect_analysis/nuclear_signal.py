@@ -59,12 +59,17 @@ class NuclearSignal(TypedDict):
     rows: list[NuclearSignalRow]
 
 
+OTSU_BINS = 256
+
+
 def _otsu(values: np.ndarray) -> float | None:
-    """Otsu's threshold of the pooled nuclear pixels; None when they are all equal (no split exists)."""
+    """Otsu's threshold of the pooled nuclear pixels: scikit-image ``threshold_otsu`` on float values with 256
+    equal-width bins between their minimum and maximum, the threshold being a bin centre (as the GFP gate). None when
+    they are all equal (no split exists)."""
     if values.size < 2 or float(values.min()) == float(values.max()):
         return None
     from skimage.filters import threshold_otsu
-    return float(threshold_otsu(values))
+    return float(threshold_otsu(values.astype(np.float64), nbins=OTSU_BINS))
 
 
 def nuclear_signal(nuclei: np.ndarray, image: np.ndarray, *, values: Values = "raw", background: float | None = None,
