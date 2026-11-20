@@ -3,6 +3,7 @@
 import {useEffect,useEffectEvent,useLayoutEffect,useMemo,useRef,useState,type ReactNode} from "react";
 import {ApiError,download,errorCodeMessage,errorMessage,fetchBlob,post,request} from "@/lib/api";
 import {formatValue,type Job} from "@/lib/types";
+import {plainFigureLegend} from "@/lib/figure-legend";
 import {usePrivateImage} from "@/lib/usePrivateImage";
 import {comparisonWarnings} from "@/lib/region-comparison-view";
 import {commonWarnings} from "@/lib/common-statistics";
@@ -584,7 +585,7 @@ function FigureLegend({path,gaps,terms}:{path:string;gaps:string[];terms?:Legend
   const edited=useRef(false),taken=useRef(""),[pending,setPending]=useState<{draft:string;used:string[]}|null>(null);
   function take(draft:string,used:string[]){taken.current=draft;edited.current=false;setText(draft);setFilled(used);setPending(null);}
   const proposed=JSON.stringify(terms??null);
-  useEffect(()=>{let live=true;void fetchBlob(path).then(blob=>blob.text()).then(value=>{if(!live)return;let draft=value.trim().replaceAll("**","");const used:string[]=[];
+  useEffect(()=>{let live=true;void fetchBlob(path).then(blob=>blob.text()).then(value=>{if(!live)return;let draft=plainFigureLegend(value);const used:string[]=[];
     for(const [key,gap] of termGaps){const term=terms?.[key];if(term&&draft.includes(gap)){draft=draft.replaceAll(gap,term);used.push(gapNames[gap]);}}
     if(edited.current)setPending(draft===taken.current?null:{draft,used});else take(draft,used);}).catch(()=>{if(live&&!edited.current)setText("");});return()=>{live=false;};},[path,proposed]);// eslint-disable-line react-hooks/exhaustive-deps -- terms is read by its content
   if(!text)return null;
