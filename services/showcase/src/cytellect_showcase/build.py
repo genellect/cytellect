@@ -2213,12 +2213,16 @@ def write_manifest(args, manifests: list, state: dict) -> None:
         }
     previous = out / "manifest.json"
     published = json.loads(previous.read_text()) if previous.is_file() else {}
+    stages = set(args.stages.split(","))
+    derived_only = bool(published.get("generated_from_commit")) and not stages.intersection(
+        {"prepare", "scenario", "publish", "snapshot", "journal"})
+    current_runtime = runtime_versions(args.fiji)
     record = {
         "schema": "cytellect-showcase-manifest/2",
         "scenes": [scene_record(manifest) for _, manifest in manifests],
         "seed": state.get("seed"),
         **generation_provenance(published, set(args.stages.split(",")), git_commit()),
-        "runtime": runtime_versions(args.fiji),
+        "runtime": published.get("runtime") if derived_only else current_runtime,
         "journal": state.get("journal"),
         "detections_recorded": len(json.loads((args.work / "recordings" / "index.json").read_text())["entries"])
         if (args.work / "recordings" / "index.json").is_file() else 0,
@@ -2226,6 +2230,10 @@ def write_manifest(args, manifests: list, state: dict) -> None:
         "limitations": "Public example images; numbers illustrate the software and do not establish scientific "
                        "validity for any laboratory's images.",
     }
+    environments = dict(published.get("derived_update_environments", {}))
+    environments.update({stage: current_runtime for stage in sorted(stages.intersection({"examples", "figures", "refigure"}))})
+    if environments:
+        record["derived_update_environments"] = environments
     if previous.is_file():
         # Written by scripts/build_showcase_runtime.py for the runtime/ files.
         commit = json.loads(previous.read_text()).get("runtime_generated_from_commit")
