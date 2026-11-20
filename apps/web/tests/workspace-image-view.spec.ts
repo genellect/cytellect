@@ -91,7 +91,7 @@ test("a failed AI instruction can be resent explicitly, with one confirmation an
   await page.goto("/workspace?id=w");
   await page.getByRole("textbox",{name:"AIへの指示"}).fill("same instruction");
   const send=page.getByRole("button",{name:"AIへ送信",exact:true});
-  await send.click();await expect(page.getByText("AI のサービスに接続できません。接続状態を確認してください。",{exact:true}).first()).toBeVisible();
+  await send.click();await expect(appAlerts(page)).toContainText("AI のサービスに接続できません。接続状態を確認してください。");
   expect(requests).toHaveLength(1);
   await send.click();
   const confirm=page.getByRole("group",{name:"AIへの再送の確認"});
