@@ -18,9 +18,19 @@ def test_a_new_recording_sets_a_new_capture_commit():
         "generated_from_commit": "new"}
 
 
+def test_a_workspace_recorded_anew_drops_the_earlier_derived_updates():
+    previous = {"generated_from_commit": "old", "derived_updates": {"examples": "a", "figures": "b"}}
+    stages = {"prepare", "scenario", "grid", "proposals", "publish", "snapshot", "journal", "qa"}
+    assert generation_provenance(previous, stages, "new") == {"generated_from_commit": "new"}
+    # Walks recorded again on the reseeded workspace keep the examples stored in it.
+    assert generation_provenance(previous, {"reseed", "snapshot", "journal", "figures"}, "new") == {
+        "generated_from_commit": "new", "derived_updates": {"examples": "a", "figures": "new"}}
+
+
 def test_derived_manifest_preserves_the_capture_environment(tmp_path, monkeypatch):
     manifest = Path(__file__).resolve().parents[1] / "services/showcase/datasets/zenodo-6643470-oxaliplatin.json"
-    (tmp_path / "manifest.json").write_text(json.dumps({"generated_from_commit": "capture", "runtime": {"python": "original"}}))
+    (tmp_path / "manifest.json").write_text(json.dumps({"generated_from_commit": "capture", "runtime": {"python": "original"},
+                                                       "journal": {"kept_scenes": ["public:tour"], "reused_from_commit": "earlier"}}))
     monkeypatch.setattr(build, "runtime_versions", lambda fiji: {"python": "update"})
     monkeypatch.setattr(build, "git_commit", lambda: "derived")
     args = SimpleNamespace(out=tmp_path, work=tmp_path / "work", stages="reseed,examples", fiji="not-invoked")
@@ -28,4 +38,5 @@ def test_derived_manifest_preserves_the_capture_environment(tmp_path, monkeypatc
     record = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))
     assert record["generated_from_commit"] == "capture"
     assert record["runtime"] == {"python": "original"}
+    assert record["journal"] == {"kept_scenes": ["public:tour"], "reused_from_commit": "earlier"}
     assert record["derived_update_environments"] == {"examples": {"python": "update"}}

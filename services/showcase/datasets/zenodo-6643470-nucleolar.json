@@ -891,7 +891,7 @@
    "presets": [
     {
      "label": "核の 5-EU の分布",
-     "instruction": "核の5-EU（新しく合成されたRNA）の分布を視野ごとに確認したい",
+     "instruction": "ActDの場面で、核の5-EU（新しく合成されたRNA）の分布を視野ごとに確認したい",
      "draft": {
       "recipe": "nuclear-intensity",
       "channels": [
@@ -963,12 +963,20 @@
        "cells": null
       },
       "background": null,
-      "gfp_selection": null
+      "gfp_selection": null,
+      "figure_presentation": {
+       "composition": "quantification",
+       "legend_terms": {
+        "cell_line": "U2OS with endogenous FBL-sfGFP and NPM1-mTagRFP knock-ins",
+        "treatment": "1 h untreated or 1 µM actinomycin D (nominal concentration inferred from the source filename label ActD1), then a 30 min 5-EU pulse",
+        "stains": "Hoechst and 5-EU labelled with Alexa Fluor 647 azide"
+       }
+      }
      }
     },
     {
      "label": "NPM1 の核内輝度の分布",
-     "instruction": "NPM1の核内平均輝度を視野ごとに確認したい",
+     "instruction": "ActDの場面で、NPM1の核内平均輝度を視野ごとに確認したい",
      "draft": {
       "recipe": "nuclear-intensity",
       "channels": [
@@ -1040,12 +1048,20 @@
        "cells": null
       },
       "background": null,
-      "gfp_selection": null
+      "gfp_selection": null,
+      "figure_presentation": {
+       "composition": "quantification",
+       "legend_terms": {
+        "cell_line": "U2OS with endogenous FBL-sfGFP and NPM1-mTagRFP knock-ins",
+        "treatment": "1 h untreated or 1 µM actinomycin D (nominal concentration inferred from the source filename label ActD1), then a 30 min 5-EU pulse",
+        "stains": "Hoechst and 5-EU labelled with Alexa Fluor 647 azide"
+       }
+      }
      }
     },
     {
      "label": "核の 5-EU を未処理と ActD で比較",
-     "instruction": "核の5-EU（新しく合成されたRNA）を未処理とActDで比べたい",
+     "instruction": "ActDの場面で、核の5-EU（新しく合成されたRNA）を未処理とActDで比べたい",
      "draft": {
       "recipe": "nuclear-intensity",
       "channels": [
@@ -1117,7 +1133,15 @@
        "cells": null
       },
       "background": null,
-      "gfp_selection": null
+      "gfp_selection": null,
+      "figure_presentation": {
+       "composition": "quantification",
+       "legend_terms": {
+        "cell_line": "U2OS with endogenous FBL-sfGFP and NPM1-mTagRFP knock-ins",
+        "treatment": "1 h untreated or 1 µM actinomycin D (nominal concentration inferred from the source filename label ActD1), then a 30 min 5-EU pulse",
+        "stains": "Hoechst and 5-EU labelled with Alexa Fluor 647 azide"
+       }
+      }
      }
     }
    ]

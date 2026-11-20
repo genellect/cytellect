@@ -7,7 +7,28 @@
 考察や図だけの更新では、初期状態と操作を記録した `generated_from_commit` を保持し、
 `manifest.json` の `derived_updates` に更新した段階とコミットを記録する。
 元の記録環境 `runtime` も保持し、更新を実行した環境は `derived_update_environments` に段階ごとに記録する。
+`prepare`・`scenario` から記録し直したときは、前の `derived_updates` と `derived_update_environments` を引き継がない。
 `examples` 段階の再実行は、文が同じ考察と記録済みの応答を保持する。
+
+手動の再生成は [`showcase-recording.yml`](../.github/workflows/showcase-recording.yml) で実行する。
+通常の Verify から分離し、再生成で飛ばした手順を必須の Python・Web 試験の成功として記録しない。
+凡例語句だけの更新は AI・順位検定の操作を再記録し、無変更の操作は
+`--journal-keep`・`--journal-previous` で保持する。保持した操作と元コミットを manifest の
+`journal.kept_scenes`・`journal.reused_from_commit` に記録する。
+`--journal-previous` の snapshot の隣には、`generated_from_commit` のある `manifest.json` が必要。ない場合は、操作の記録を始める前に止まる。
+
+Figure legend の文章だけを変更するときは、再記録の前に公開済みの `snapshot/` を作業用の別ディレクトリへコピーし、
+`figures` に `--figure-drawings <コピーした snapshot>` を渡す。保存結果と図の要求が一致する場合だけ、
+既存の SVG・PNG と論文用 ZIP の PDF・CSV・画像をバイト単位で保持し、共通の解析実装から凡例文を更新する。
+`reseed,figures` では、再録画前の `seed.zip` の入力・データベース・解析値が一致することも確かめ、
+保存した図を含む元の seed を保持する。差し替えるのは `proposals.json` の文だけで、
+seed の解析を記録したコミットは `seed_science_from_commit` に残す。
+一致する結果・設定・論文用パッケージがない場合、または公開ファイルの SHA-256 が違う場合は失敗する。
+描画器や図の設定の変更には使わず、通常の `figures` で描画とレイアウト検査を実行する。
+凡例文用の一時キャンバスは画像として出力せず、公開済みの図の再検証に代えるものではない。
+完成した生成物は `scripts/verify_showcase_update.py --before <更新前の公開ディレクトリ> --after <更新後>`
+で照合する。全結果の値は丸めずに比較し、元画像・マスク・測定 CSV・図と論文用 ZIP の画像・元データを
+バイト単位で比較する。不一致では生成物を採用しない。
 
 ```
 本番の API とワーカー（実際の Fiji/StarDist・Cellpose）で公開画像を処理する
@@ -147,6 +168,16 @@ Pyodide の CDN から読み込むパッケージ（再配布しない）:
 
 ### ビルドと検査
 
+`#249` の凡例の語句は、4 場面の `dataset.scope` にある細胞株・処理と時間・染色だけを `scenario.proposals.presets[].draft.figure_presentation.legend_terms` に記す。画像の配置は `quantification` を保ち、測定や検定の条件を変えない。同じ指示文が別の場面にもあるため、用意した案のフォールバックは記録した群名も照合し、別の処理の語句を混ぜない。
+ノックインの FBL-sfGFP・NPM1-mTagRFP は細胞株の性質に記し、FBL を表示チャンネルや染色とはしない。
+染色には Hoechst と、Alexa Fluor 647 azide で標識した 5-EU を記す。
+薬剤濃度は元ファイル名の Ox10・Cis10・ActD1 から推定した公称値と明記する。
+JUMP の C01 はチャンネル番号なので、染色名には含めない。
+
+この語句を変えたときは `--stages reseed,proposals,publish,snapshot,journal,figures` を実行する。`reseed` を先に行い、`proposals` は保存済みの検出の再生だけを許す。未記録の検出は失敗し、Fiji・Cellpose や LLM を起動しない。解析案の送信・採用を画面から記録し直すので、前の案を含む文脈のハッシュも更新される。公開済みの Pyodide wheel は作り直さない。
+
+Windows に録画用 Chromium がない場合は、専用の `showcase-recording.yml` を作業ブランチで手動実行する。この実行は公開素材の再生成だけを行い、通常の統合試験を起動せず、資格情報を受け取らず、コミットや公開も行わない。出力 artifact を照合して PR の公開ファイルへ反映し、その head の通常の CI を別に通す。
+
 `uv run python scripts/build_showcase_runtime.py --cache <チェックアウト外>` が、Cytellect のホイール（`SOURCE_DATE_EPOCH` 固定で再現可能）、上記のホイール、フォント、`THIRD_PARTY_NOTICES.txt`、`runtime-config.json`、`fixtures/public/allowlist.json` の登録を書き出し、`manifest.json` の `files` のうち `runtime/` の項目と、作り直しに使ったコミット（`runtime_generated_from_commit`）を更新します。`generated_from_commit` は初期状態と記録を作ったコミットです。Python のソースを変えたら作り直します。`--check` は作り直した結果と、コミット済みのファイル・設定・登録・`manifest.json` の一覧を照合し、古い場合は失敗します。CI は `main` への push で `--check` を実行し、ずれていれば警告を示します。PR では作り直しを求めません（[CI の構成](ci.md)）。
 
 公開デモの作り直し（`services/showcase/src/cytellect_showcase/build.py`）は、`publish` → `snapshot` → `journal` → `figures` の順に実行します。図の描画器や図の画面だけを変えた場合は、記録を作り直さず、`--stages figures` だけを実行します（2026-11-19、オーナーの指示：画像・数値・考察の揃った記録は変えず、図だけを差し替える）。`figures` は、公開済みの初期状態の写しに本番の API を開き、記録した計算の結果と初期状態の保存した結果から、各結果の図と図の選択肢を 1 つずつ変えた図を、初期状態の保存した図はその設定のまま描き直して `snapshot/figures.json` に書き、記録と初期表示（`index.json`）にある図の答えを外します。デモのすべての図がこの段階から出ます。同じ値の結果は 1 度だけ描きます。公開済みの出力に何度でも実行し直せます：記録から外した論文用パッケージは、前回の `figures.json` の項目と、そのパッケージに入っている記録した解析の書き出しから作り直します。考察のモックだけを変えた場合は、`--stages reseed,examples` を実行する：公開済みの初期状態の写しにモックを保存し直し（文が変わっていないモックは記録を保つ）、記録にある考察の取得（`GET /v1/jobs/<id>/discussion`）を答え直し、`seed.zip` を書き出し直す。操作の記録・数値・図は変えない。画面の操作を変えた場合は、`--stages reseed,publish,snapshot,journal,figures` で、公開済みの `seed.zip` と `manifest.json` から作業用のデータ・検出の記録・場面の情報を戻して始められます（`reseed`。画像の取得と検出をしないので、Fiji と Cellpose は動かない。`--fiji` には存在しないパスを渡してよい）。`journal` は、公開ビルドと同じ `/demo` をブラウザ内の API で開き、次の操作を初期状態から 1 場面ずつ実行して記録します。警告や想定外のエラーが 1 件でも出れば失敗します。
@@ -206,6 +237,10 @@ Pyodide の CDN から読み込むパッケージ（再配布しない）:
 - メモリ: 以前の公開デモ（Zenodo 6643470）と同じ大きさ（1536×1536 uint16 の 2 チャンネル × 6 視野、展開後のデータ約 170 MB）で、領域の削除・コホート・記述統計・共通統計・出力・図の再描画・論文用パッケージまで実行した後の WebAssembly ヒープが約 410 MB、Node のプロセス全体が約 1.6 GB。一連の操作は約 40 秒。
 
 ### 既知の制約
+
+現在公開している wheel は用意した案のフォールバックを指示文で選ぶ。この wheel でも別の処理の語句を取り違えないよう、4 場面の指示文を場面名で区別し、全 11 件の一意性を試験で固定する。表示する指示の短い見出しは保つ。
+
+録画と図の再生成を別の環境で行う場合は、手動 workflow の `showcase_figures: false` で完了した録画の artifact を受け取り、その出力に `--stages reseed,figures` を実行する。図を含む全段階が成功するまでは完成したデモとして扱わない。既定の `true` は両方を順に実行し、録画の artifact も図の前に残す。
 
 - ブラウザのメインスレッドではなく Web Worker で動かす前提です。ジョブの計算中は、その Worker は次の要求に応答しません。
 - ジョブの取り消しは、実行中の計算を止めません（公開されないだけです）。

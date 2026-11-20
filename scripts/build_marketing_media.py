@@ -73,6 +73,9 @@ def main() -> None:
                             *root.glob("services/showcase/datasets/*.json")]))
     if any(not path.resolve().is_relative_to(root) for path in source_paths):
         raise SystemExit("Font text inputs must remain inside the checkout")
+    # Path ordering is case-insensitive on Windows and case-sensitive on Linux.
+    # Record the same slash-separated source order on both platforms.
+    source_paths.sort(key=lambda path: path.relative_to(root).as_posix())
     codepoints = set(range(32, 127)) | set(range(0x2000, 0x2070))
     for path in source_paths:
         codepoints.update(map(ord, path.read_text(encoding="utf-8")))
