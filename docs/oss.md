@@ -102,7 +102,7 @@ CI でインストーラーを試すだけのビルド（`ci.yml` の `windows-i
 |---|---|---|
 | Cellpose 4.2.1.1 | PyPI の公式 wheel の `cellpose-4.2.1.1.dist-info/licenses/LICENSE` に、HHMI の著作権表示と BSD-3-Clause の 3 条件がある。wheel の SHA-256 は `6c5c5159fd459115bee390ffb01d94d5e1006b97c211bf3c1a7b37d5395a1a13`（[PyPI の記録](https://pypi.org/pypi/cellpose/4.2.1.1/json)と一致） | 著作権表示・条件・免責を保持し、名前を推奨に使わない条項を守る。パッケージの分類子や README のバッジより、配布物の本文を優先する |
 | `cpsam_v2`（公式の重み） | 固定したリビジョンの[モデルカード](https://huggingface.co/mouseland/cellpose-sam/blob/7c61431b5fbb078f3296754bd15d9f51b320f837/README.md)が `bsd-3-clause` を宣言する。[実行環境の記録](../engines/cellpose/runtime.lock.json)でリビジョン・サイズ・SHA-256 を固定 | ソフトウェアのライセンスとは別に記録する。CPU と GPU で同じ重みを使う |
-| 追加学習した NCL 用の重み | [Genellect/Cytellect のリビジョン 7670daa1](https://huggingface.co/Genellect/Cytellect/tree/7670daa1edbfcb3d4611c9e053766d91f6125e74) で、375 回・750 回更新の重み、来歴の JSON、BSD-3-Clause のモデルカード、`LICENSE.cellpose`、`NOTICE.md` を公開 | 上流の表示と、追加学習で重みを変更した旨を保持する。重みごとにハッシュ・データの許可・評価の記録を結び付ける。製品の既定の解析にはまだ組み込んでいない |
+| 追加学習した NCL 用の重み | [Genellect/Cytellect のリビジョン 7670daa1](https://huggingface.co/Genellect/Cytellect/tree/7670daa1edbfcb3d4611c9e053766d91f6125e74) で、375 回・750 回更新の重み、来歴の JSON、BSD-3-Clause のモデルカード、`LICENSE.cellpose`、`NOTICE.md` を公開 | 上流の表示と、追加学習で重みを変更した旨を保持する。重みごとにハッシュ・データの許可・評価の記録を結び付ける。プロダクトの既定の解析にはまだ組み込んでいない |
 | SAM と推論の依存 | SAM ViT-L は [Cellpose のモデル文書](https://cellpose.readthedocs.io/en/latest/models.html)が示す。[CPU](../engines/cellpose/requirements.lock) と [GPU](../engines/cellpose/requirements-cuda.lock) の依存はロックファイルで固定 | Segment Anything（Apache-2.0）や PyTorch を含む依存の表示を、組み立てた実行環境ごとに保持する |
 | 上流の学習データ | [Cellpose の README（コミット a54cb488）](https://github.com/MouseLand/cellpose/blob/a54cb48849b7e225a81e8e43dcb042d42427f543/README.md)が、モデルを CC BY-NC のデータで学習したと記す | 重みの宣言と並べて記録する。データの条件と重みに付与されたライセンスは別の問題として扱い、SaaS の権利確認で選んだ重みとの関係を整理する |
 | Cytellect の学習・評価データ | 公開画像は[登録簿](../fixtures/public/allowlist.json)で管理する。研究室のデータは[チーム開発ルール](team-development.md#6-研究データの扱い)に従う | 評価・学習・共有・公開の許可を別々に記録する。研究画像を利用できることは、学習や公開の許可を意味しない |
@@ -141,7 +141,7 @@ CI でインストーラーを試すだけのビルド（`ci.yml` の `windows-i
 | Cellpose の商用 SaaS での権利 | ソフトウェアと重みの BSD-3-Clause の宣言と、上流の学習データについての CC BY-NC の記述をどちらも記録済み | 有償の推論、重みの再配布、追加学習した派生物について、権利者の説明または法的な評価を得て記録する。この評価はまだ完了していない |
 | 分離した Cellpose の実行環境 | CPU・CUDA の依存のロックファイルと成果物のハッシュを固定 | リリースの SBOM と表示の収集を、分離した Cellpose の環境と重みにも広げる。現在の Python の一覧は、CI で動く環境だけを対象にする |
 | 拡張の候補 | 上の表の公式の機能とソフトウェアのライセンス | 重みを特定し、重み・基盤・データの条件を記録し、独立した実験回で評価してから採用を判断する |
-| Cytellect の追加学習 | NCL の重みと来歴・表示のファイルを、上記のリビジョンで公開済み | 製品のリリースに組み込むときに、それらの記録と、データの利用・公開の許可、オーナーのリリースの判断を合わせて保管する。以後の追加学習も同じ構成で記録する |
+| Cytellect の追加学習 | NCL の重みと来歴・表示のファイルを、上記のリビジョンで公開済み | プロダクトのリリースに組み込むときに、それらの記録と、データの利用・公開の許可、オーナーのリリースの判断を合わせて保管する。以後の追加学習も同じ構成で記録する |
 
 ### CI での確認
 
@@ -167,7 +167,7 @@ CI でインストーラーを試すだけのビルド（`ci.yml` の `windows-i
 
 | Cytellect のファイル | COMPASS の元のファイル | 改変の内容 |
 |---|---|---|
-| `ProductMenu.tsx` | `founder/MobileExternalMenu.tsx` | 外側のクリック、Escape、フォーカスの復元。製品のナビゲーション |
+| `ProductMenu.tsx` | `founder/MobileExternalMenu.tsx` | 外側のクリック、Escape、フォーカスの復元。プロダクトのナビゲーション |
 | `OpticalHero.tsx`、`optical-scene-engine.ts` | `founder/ProductSculpture.tsx`、`founder/product-sculpture-engine.ts` | 表示時の WebGL の初期化、世代の確認、照明の環境、描画資源の明示的な解放。Cytellect の Blender の光学背景 |
 | `product.module.css` | `founder/founder.module.css` | ヘッダー、ナビゲーション、本文の組版を Cytellect の構成に合わせた |
 
