@@ -1239,7 +1239,7 @@
       "label": "NPM1 の積算輝度",
       "unit": "a.u. × pixel",
       "expected_ja": "Drug で、NPM1 の積算輝度が 180000〜2900000 a.u. × pixel 上昇",
-      "expected_en": "Nucleoplasmic NPM1 integrated intensity increased by 180000–2900000 a.u. × pixel with Drug",
+      "expected_en": "Nucleoplasmic NPM1 integrated intensity increased by 180,000–2,900,000 a.u. × pixel with Drug",
       "source": {
         "region": {
           "region_set_id": "nucleoplasm"
@@ -1366,6 +1366,167 @@
       "unit": "µm²",
       "expected_ja": "核の面積の平均：Control 11 µm²、Drug 11 µm²",
       "expected_en": "Mean region area was 11 µm² in Control and 11 µm² in Drug"
+    },
+    {
+      "id": "same-rounded-range",
+      "estimates": {
+        "protocol": "comparison-estimates/1.0.0",
+        "direction": "treatment_minus_control",
+        "control": "Control",
+        "treatment": "Drug",
+        "design": "paired",
+        "test": "none",
+        "metric": "area_um2",
+        "scale": "ratio",
+        "n_control": 3,
+        "n_treatment": 3,
+        "n_pairs": 3,
+        "difference": {
+          "estimate": null,
+          "ci_low": null,
+          "ci_high": null,
+          "confidence_level": 0.95,
+          "basis": "saved estimate",
+          "unavailable_reason": "inference_not_requested"
+        },
+        "ratio": {
+          "estimate": null,
+          "ci_low": null,
+          "ci_high": null,
+          "confidence_level": 0.95,
+          "basis": "saved estimate",
+          "unavailable_reason": "inference_not_requested"
+        },
+        "groups": [
+          {
+            "condition": "Control",
+            "n": 3,
+            "mean": 100,
+            "sd": 5,
+            "ci_low": null,
+            "ci_high": null,
+            "unavailable_reason": null
+          },
+          {
+            "condition": "Drug",
+            "n": 3,
+            "mean": 112.3,
+            "sd": 5,
+            "ci_low": null,
+            "ci_high": null,
+            "unavailable_reason": null
+          }
+        ],
+        "runs": [
+          {
+            "pair": "r1",
+            "control": 100,
+            "treatment": 112.1,
+            "difference": 12.1,
+            "ratio": 1.121
+          },
+          {
+            "pair": "r2",
+            "control": 100,
+            "treatment": 112.4,
+            "difference": 12.4,
+            "ratio": 1.124
+          },
+          {
+            "pair": "r3",
+            "control": 100,
+            "treatment": 112.3,
+            "difference": 12.3,
+            "ratio": 1.123
+          }
+        ]
+      },
+      "comparison": {},
+      "label": "核の面積",
+      "unit": "µm²",
+      "expected_ja": "Drug で、核の面積が 12% 拡大",
+      "expected_en": "Region area increased by 12% with Drug"
+    },
+    {
+      "id": "unitless-difference",
+      "estimates": {
+        "protocol": "comparison-estimates/1.0.0",
+        "direction": "treatment_minus_control",
+        "control": "Control",
+        "treatment": "Drug",
+        "design": "paired",
+        "test": "none",
+        "metric": "nucleolar_eccentricity",
+        "scale": "difference",
+        "n_control": 3,
+        "n_treatment": 3,
+        "n_pairs": 3,
+        "difference": {
+          "estimate": null,
+          "ci_low": null,
+          "ci_high": null,
+          "confidence_level": 0.95,
+          "basis": "saved estimate",
+          "unavailable_reason": "inference_not_requested"
+        },
+        "ratio": {
+          "estimate": null,
+          "ci_low": null,
+          "ci_high": null,
+          "confidence_level": 0.95,
+          "basis": "saved estimate",
+          "unavailable_reason": "inference_not_requested"
+        },
+        "groups": [
+          {
+            "condition": "Control",
+            "n": 3,
+            "mean": 0.75,
+            "sd": 0.05,
+            "ci_low": null,
+            "ci_high": null,
+            "unavailable_reason": null
+          },
+          {
+            "condition": "Drug",
+            "n": 3,
+            "mean": 0.49,
+            "sd": 0.05,
+            "ci_low": null,
+            "ci_high": null,
+            "unavailable_reason": null
+          }
+        ],
+        "runs": [
+          {
+            "pair": "r1",
+            "control": 0.7,
+            "treatment": 0.55,
+            "difference": -0.15,
+            "ratio": null
+          },
+          {
+            "pair": "r2",
+            "control": 0.8,
+            "treatment": 0.43,
+            "difference": -0.37,
+            "ratio": null
+          },
+          {
+            "pair": "r3",
+            "control": 0.75,
+            "treatment": 0.5,
+            "difference": -0.25,
+            "ratio": null
+          }
+        ]
+      },
+      "comparison": {},
+      "label": "核小体の離心率",
+      "unit": "",
+      "expected_ja": "Drug で、核小体の離心率が 0.15〜0.37 低下",
+      "expected_en": "Nucleolar eccentricity decreased by 0.15–0.37 with Drug",
+      "saved_unit": "dimensionless"
     }
   ]
 }
