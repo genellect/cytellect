@@ -928,6 +928,11 @@ def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
                 renders.append(timed(f"render-{kind}", lambda kind=kind: space.render(saved["comparison"], kind)))
     directions = direction_checks(plan.get("direction_checks", []), saved)
     example = example_discussion(api, space.wid, plan.get("discussion_example"), saved.get("comparison"))
+    # The other recorded comparisons carry their own example, so the frame stays when a visitor switches (AC-08).
+    companion_examples = {
+        key: example_discussion(api, space.wid, companion.get("discussion_example"), saved[key])
+        for companion in plan.get("companions", [])
+        if companion.get("discussion_example") and (key := f"companion-{companion['metric']}")}
     # Leave the saved settings on the region the opening comparison measures (scenario.final_target, the
     # nucleus view by default), so the images open on the outlines that are compared. Nuclei and nucleoli
     # can be edited there; nucleoplasm masks are derived and not editable.
@@ -938,15 +943,15 @@ def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
     owner = api.app.state.store.one(workspaces, id=space.wid)["owner"]
     return {"workspace_id": space.wid, "owner": owner, "fields": space.fields, "timings": timings, "fragment_review": removed,
             "statistics": {name: {"job": value["job"], "revision": value["revision"]} for name, value in saved.items()},
-            "direction_checks": directions, "discussion_example": example,
+            "direction_checks": directions, "discussion_example": example, "companion_examples": companion_examples,
             "renders": renders, "spec_version": space.spec["version"], "space": space}
 
 
 def example_discussion(api: Api, workspace: str, example: dict | None, comparison: dict | None) -> dict | None:
-    """The demo's discussion of its opening comparison (requirements AC-08): written for the scene, never by a model.
+    """The demo's discussion of one saved comparison (requirements AC-08): written for the scene, never by a model.
 
     It is read with the production structure check and stored as `origin: "example"`, which the page shows as
-    the demo's example.
+    the demo's example. An earlier example of the same comparison is replaced; an unchanged one is kept as it is.
     """
     if not example:
         return None
@@ -964,12 +969,94 @@ def example_discussion(api: Api, workspace: str, example: dict | None, compariso
         validated = validate_discussion(example, context, model="demo-example", prompt_version="example", origin="example")
     except DiscussionRejected as error:
         raise ApiError(f"discussion_example rejected: {error.codes}") from None
+    stored = validated.model_dump(mode="json")
+    key = f"example:{comparison['job']}"
     with api.app.state.store.transaction() as conn:
-        conn.execute(result_discussions.insert().values(
-            id=str(uuid.uuid4()), workspace_id=workspace, job_id=comparison["job"], cache_key=f"example:{comparison['job']}",
-            request_id=str(uuid.uuid4()), state="complete", created=time.time(), lease_until=0.0,
-            discussion=validated.model_dump(mode="json")))
-    return {"job": comparison["job"], "context_sha256": validated.context_sha256}
+        earlier = conn.execute(result_discussions.select().where(result_discussions.c.cache_key == key)).mappings().all()
+        # The texts decide: an example recorded under an earlier protocol version stays as it was approved.
+        texts = lambda value: [value["draft"].get(key) or [] for key in ("implications", "alternatives", "next_steps")]  # noqa: E731
+        changed = [texts(row["discussion"]) for row in earlier] != [texts(stored)]
+        if changed:
+            conn.execute(result_discussions.delete().where(result_discussions.c.cache_key == key))
+            conn.execute(result_discussions.insert().values(
+                id=str(uuid.uuid4()), workspace_id=workspace, job_id=comparison["job"], cache_key=key,
+                request_id=str(uuid.uuid4()), state="complete", created=time.time(), lease_until=0.0,
+                discussion=stored))
+    return {"job": comparison["job"], "context_sha256": validated.context_sha256, "changed": changed}
+
+
+def examples(seed_data: Path, recordings: Path, work: Path, out: Path, fiji: str, manifests: list, state: dict) -> dict:
+    """Store the manifests' example discussions on the published demo (stage ``examples``, after ``reseed``).
+
+    For a change of the examples only (AC-08): no operation is recorded again and no number changes. Each
+    scene's examples (its opening comparison's and its companions') are stored on the working copy of the
+    published seed, every recorded read of a discussion is asked again, and the seed is exported anew.
+    """
+    from cytellect_api.db import jobs
+
+    scenes = state["scenes"]
+    first = scenes[manifests[0][1]["id"]]["scenario"]
+    api = open_api(seed_data, "http://127.0.0.1", fiji, first["owner"])
+    store = api.app.state.store
+    report: dict = {"stored": 0, "unchanged": 0, "answers": 0}
+    try:
+        for _, manifest in manifests:
+            scenario_state, plan = scenes[manifest["id"]]["scenario"], manifest["scenario"]
+            planned = [("comparison", plan.get("discussion_example")),
+                       *((f"companion-{companion['metric']}", companion.get("discussion_example"))
+                         for companion in plan.get("companions", []))]
+            for name, example in planned:
+                if not example:
+                    continue
+                job = scenario_state["statistics"][name]["job"]
+                result = json.loads(store.safe_path(store.one(jobs, id=job)["result_dir"], "result.json").read_text(encoding="utf-8"))
+                stored = example_discussion(api, scenario_state["workspace_id"], example,
+                                            {"job": job, "operation": "comparison", "result": result})
+                report["stored" if stored and stored["changed"] else "unchanged"] += 1
+        target = out / "snapshot"
+        index_path, journal_path = target / "index.json", target / "journal.json"
+        index, recorded = json.loads(index_path.read_text()), json.loads(journal_path.read_text())
+        # A figure drawn during a walk is not in the seed; its discussion is its source comparison's.
+        sources = {}
+        for entry in recorded["entries"]:
+            if entry["method"] == "GET" and entry["path"].endswith("/figure-render") and entry.get("file"):
+                source = json.loads((target / entry["file"]).read_text()).get("source_job_id")
+                if source:
+                    sources[entry["path"].split("/")[3]] = source
+        replaced = set()
+
+        def answer(path: str, entry: dict) -> None:
+            job = path.split("/")[3]
+            response = api.client.get(path)
+            if response.status_code == 404 and job in sources:
+                response = api.client.get(f"/v1/jobs/{sources[job]}/discussion")
+            if response.status_code != 200:
+                return  # a result calculated during a walk: it has no discussion (AC-06)
+            name = f"{hashlib.sha256(response.content).hexdigest()[:24]}.json"
+            if entry.get("file") != name:
+                (target / name).write_bytes(response.content)
+                replaced.add(entry.get("file"))
+                entry["file"] = name
+                report["answers"] += 1
+
+        for key, entry in index["entries"].items():
+            if key.startswith("GET /v1/jobs/") and key.endswith("/discussion"):
+                answer(key.removeprefix("GET "), entry)
+        for entry in recorded["entries"]:
+            if entry["method"] == "GET" and entry["path"].startswith("/v1/jobs/") and entry["path"].endswith("/discussion"):
+                answer(entry["path"], entry)
+        index_path.write_text(json.dumps(index, indent=1) + "\n")
+        journal_path.write_text(json.dumps(recorded, indent=1, ensure_ascii=False) + "\n")
+        named = {entry.get("file") for entry in [*index["entries"].values(), *recorded["entries"]]}
+        for name in replaced - named - {None}:
+            (target / name).unlink(missing_ok=True)
+    finally:
+        api.client.close()
+    saved = work / "proposals.json"
+    state["seed"] = export_seed(seed_data, recordings, json.loads(saved.read_text()) if saved.is_file() else {},
+                                seed_description(manifests, scenes), out / "seed.zip")
+    log("examples", json.dumps(report))
+    return report
 
 
 def direction_checks(checks: list[dict], saved: dict) -> list[dict]:
@@ -1762,6 +1849,10 @@ def main(argv: list[str] | None = None) -> None:
         save()
     if "publish" in stages:
         publish(args, manifests, state, seed_data, recordings, started)
+    if "examples" in stages:
+        state["examples"] = examples(seed_data, recordings, work, args.out, args.fiji, manifests, state)
+        save()
+        write_manifest(args, manifests, state)
     if "refigure" in stages:
         first = scenes[manifests[0][1]["id"]]["scenario"]
         state["refigure"] = refigure(seed_data, args.out, args.fiji, first["owner"])
@@ -2008,6 +2099,15 @@ def scene_note(manifest: dict, scene: dict, examples: list[dict]) -> dict:
                        for index, item in enumerate(scene.get("prepared", []))]}
 
 
+def seed_description(manifests: list, scenes: dict) -> dict:
+    """What the seed says of itself (`showcase.json`): the scene the demo opens, its owner and every scene."""
+    first = scenes[manifests[0][1]["id"]]["scenario"]
+    return {"version": 1, "workspace_id": first["workspace_id"], "owner": first["owner"],
+            "dataset": manifests[0][1]["id"],
+            "scenes": [scenes[manifest["id"]]["scenario"]["workspace_id"] for _, manifest in manifests],
+            "retention_seconds": RETENTION_SECONDS}
+
+
 def publish(args, manifests: list, state: dict, seed_data: Path, recordings: Path, started: float) -> None:
     out = args.out
     (out / "snapshot").mkdir(parents=True, exist_ok=True)
@@ -2038,10 +2138,7 @@ def publish(args, manifests: list, state: dict, seed_data: Path, recordings: Pat
     (out / "snapshot" / "proposal-examples.json").write_text(json.dumps(notes[0]["examples"], ensure_ascii=False, indent=1) + "\n")
     (out / "snapshot" / "dataset.json").write_text(json.dumps(notes[0], ensure_ascii=False, indent=1) + "\n")
     (out / "snapshot" / "scenes.json").write_text(json.dumps({"version": 1, "scenes": notes}, ensure_ascii=False, indent=1) + "\n")
-    first = scenes[manifests[0][1]["id"]]["scenario"]
-    showcase = {"version": 1, "workspace_id": first["workspace_id"], "owner": first["owner"],
-                "dataset": manifests[0][1]["id"], "scenes": [note["workspaceId"] for note in notes],
-                "retention_seconds": RETENTION_SECONDS}
+    showcase = seed_description(manifests, scenes)
     state["seed"] = export_seed(seed_data, recordings, proposals, showcase, out / "seed.zip")
     # A visitor's publication package recomputes these in the browser and requires them unchanged.
     state["rederive"] = rederive_in_browser(out / "seed.zip", seed_data, args.work)

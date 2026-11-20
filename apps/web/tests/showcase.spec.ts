@@ -817,6 +817,31 @@ test("the statistics view states the premise once, in the basis line, and opens 
     const discussion = results.getByRole("region", {name: "考察"});
     await expect(discussion, scene?.id).toContainText("デモ用サンプル（参考）", {timeout: live});
     await expect(discussion.getByRole("button", {name: "考察を生成"})).toHaveCount(0);
+    // Every saved comparison of the scene carries its own example, so the frame stays when a visitor switches (AC-08).
+    const recorded = results.getByRole("group", {name: "保存した比較"}).getByRole("button");
+    const shown = new Set<string>();
+    for (const name of await recorded.allTextContents()) {
+      await recorded.filter({hasText: name}).click();
+      await expect(recorded.filter({hasText: name}), scene?.id).toHaveAttribute("aria-pressed", "true");
+      await expect(discussion, `${scene?.id} ${name}`).toContainText("デモ用サンプル（参考）", {timeout: live});
+      shown.add((await discussion.getByRole("listitem").first().textContent()) ?? "");
+    }
+    // Each comparison's example is its own text.
+    expect(shown.size, scene?.id).toBe(Math.max(1, await recorded.count()));
+  }
+});
+
+test("the figure legend draft reads as a paper's legend: a title stating the result, plain text to copy (FL-03, FU-07)", async ({page}) => {
+  for (const scene of SCENES.length ? SCENES : [undefined]) {
+    await openDemo(page, sceneUrl(scene, "step=figure"));
+    const legend = page.getByRole("region", {name: "Figure legend の下書き"});
+    await expect(legend.getByText("Figure legend", {exact: true}), scene?.id).toBeVisible({timeout: live});
+    const text = await legend.getByRole("textbox", {name: "Figure legend"}).inputValue();
+    const [title, body] = text.split("\n\n");
+    // The title is one sentence stating the result, as the summary heading does; no Markdown reaches the manuscript.
+    expect(title, scene?.id).toMatch(/ (decreased|increased|did not change consistently|did not differ clearly|differed) .*\.$/);
+    expect(text, scene?.id).not.toMatch(/\*\*|→|Excluded runs: 0|[Ff]ields and fields/);
+    expect(body, scene?.id).toMatch(/n = \d+ runs per condition/);
   }
 });
 

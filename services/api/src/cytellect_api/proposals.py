@@ -150,6 +150,16 @@ def post_to_service(settings, path: str, content: dict, request_id: str | None =
                     code = "proposal_access_revoked"
             except (ValueError, OSError, AttributeError):
                 pass
+        if error.code == 400:
+            # The service does not know this client's prompt version yet (it is deployed before a release that
+            # sends a new one): a version mismatch, not a connection problem.
+            try:
+                data = error.read(2049)
+                failure = json.loads(data) if len(data) <= 2048 else None
+                if isinstance(failure, dict) and failure.get("code") == "prompt_version_unsupported":
+                    code, status = "proposal_service_version_mismatch", 502
+            except (ValueError, OSError, AttributeError):
+                pass
         if error.code in (502, 503):
             try:
                 data = error.read(2049)
