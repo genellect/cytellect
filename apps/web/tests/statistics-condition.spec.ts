@@ -33,8 +33,9 @@ async function open(page: Page) {
   await expect(results.getByRole("region", {name: "結果のまとめ"})).toBeVisible({timeout: live});
   const side = page.getByRole("complementary", {name: "解析対象"});
   const choose = async (metric: string, region?: string, stain?: string) => {
+    // The subject first, then its metric and stain (B-1).
+    if (region) await side.getByRole("combobox", {name: "対象", exact: true}).selectOption(region);
     await side.getByRole("combobox", {name: "指標", exact: true}).selectOption(metric);
-    if (region) await side.getByRole("combobox", {name: "領域", exact: true}).selectOption(region);
     if (stain) await side.getByRole("combobox", {name: "染色", exact: true}).selectOption(stain);
   };
   return {results, side, choose, errors};
@@ -105,5 +106,30 @@ test("an analysis the measure cannot have is changed with its reason, and the fi
   await expect(figure.getByRole("status").filter({hasText: "選択中の「核小体の面積（px²）」の図はまだありません。"})).toBeVisible({timeout: live});
   await figure.getByRole("button", {name: "統計で計算", exact: true}).click();
   await expect(page.getByRole("region", {name: "測定結果の統計解析"}).getByRole("region", {name: "選択中の条件"})).toContainText("核小体の面積（px²）");
+  expect(errors).toEqual([]);
+});
+
+test("the subject comes first: only its metrics are listed, by what one observation is, and one sentence states both", async ({page}) => {
+  test.setTimeout(300_000);
+  const {side, errors} = await open(page);
+  const subject = side.getByRole("combobox", {name: "対象", exact: true});
+  const metric = side.getByRole("combobox", {name: "指標", exact: true});
+  // SL-01 on the nucleoli: per-nucleolus measures, the per-nucleus summaries and the partition; no nucleus counts.
+  await subject.selectOption("nucleoli");
+  await expect(metric.locator("optgroup")).toHaveCount(3);
+  await expect(metric.locator("optgroup").first()).toHaveAttribute("label", "核小体ごと");
+  await expect(metric.locator("option[value=nucleolar_eccentricity]")).toHaveCount(1);
+  await expect(metric.locator("option[value=nucleus_count]")).toHaveCount(0);
+  await metric.selectOption("nucleolar_eccentricity");
+  await expect(side.getByTestId("metric-definition")).toContainText("対象：核小体。観測の単位：核ごと（その核の核小体をまとめた値）。");
+  // On the nuclei a metric of another subject is replaced by the first of the nuclei, which the sentence names.
+  await subject.selectOption("nuclei");
+  await expect(metric.locator("option[value=nucleolar_eccentricity]")).toHaveCount(0);
+  await expect(side.getByTestId("metric-definition")).toContainText("対象：核。観測の単位：");
+  // A per-region metric stays when the subject changes; its observation follows the subject.
+  await metric.selectOption("mean");
+  await subject.selectOption("nucleoli");
+  await expect(metric).toHaveValue("mean");
+  await expect(side.getByTestId("metric-definition")).toContainText("観測の単位：核小体ごと。");
   expect(errors).toEqual([]);
 });

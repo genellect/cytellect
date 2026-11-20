@@ -51,3 +51,5 @@
 /* The colour mode keeps its natural width; below 1200 px the layout buttons show their icons only (names stay). */
 .channelBar .inline{flex:none}.channelBar .inline select{width:auto;max-width:12em}
 @media(max-width:1200px){.workspace .arrange span{display:none}}
+/* One sentence of the subject and of one observation above the definition (B-2, SL-01). */
+.metricSentence{display:block;margin-bottom:2px;color:#1d2b45}

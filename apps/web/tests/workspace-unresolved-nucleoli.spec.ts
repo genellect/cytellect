@@ -67,7 +67,7 @@ test("unresolved nucleoli are confirmed by group, unit and reason, then kept as 
   const navigation=page.getByRole("navigation",{name:"作業の切替"});
   await navigation.getByRole("button",{name:"統計",exact:true}).click();
   const side=page.getByRole("complementary",{name:"解析対象"});
-  await side.getByRole("combobox",{name:"領域",exact:true}).selectOption("nucleoli");
+  await side.getByRole("combobox",{name:"対象",exact:true}).selectOption("nucleoli");
   await side.getByRole("combobox",{name:"指標",exact:true}).selectOption("area_px");
   const panel=page.getByRole("region",{name:"測定結果の統計解析"});
   // The settings saved by choosing the region and metric come back and set the analysis they hold;

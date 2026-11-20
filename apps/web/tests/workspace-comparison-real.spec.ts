@@ -59,7 +59,7 @@ test("synthetic fields reach real independent-unit comparison and editable expor
   await page.getByRole("navigation", {name:"作業の切替"}).getByRole("button", {name:"統計", exact:true}).click();
   const panel = page.getByRole("region", {name:"測定結果の統計解析"});
   const options=page.getByRole("complementary", {name:"解析対象"});
-  await options.getByRole("combobox", {name:"領域",exact:true}).selectOption("nuclei");
+  await options.getByRole("combobox", {name:"対象",exact:true}).selectOption("nuclei");
   await options.getByRole("combobox", {name:"指標",exact:true}).selectOption("mean");
   await options.getByRole("combobox", {name:"染色",exact:true}).selectOption("c2");
   await panel.getByRole("combobox", {name:"解析",exact:true}).selectOption("comparison");

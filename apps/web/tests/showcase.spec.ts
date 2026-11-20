@@ -462,9 +462,8 @@ async function openSettings(page: Page) {
 /** A metric of a fixed region (such as nucleolar count) hides the region choice; area brings it back. */
 async function chooseMetric(page: Page, region: string, metric: string, channel: string | null) {
   const side = page.getByRole("complementary", {name: "解析対象"});
-  const choice = side.getByRole("combobox", {name: "領域", exact: true});
-  if (!await choice.count()) await side.getByRole("combobox", {name: "指標", exact: true}).selectOption("area_px");
-  await choice.selectOption(region);
+  // The subject first, then its metric and stain (B-1).
+  await side.getByRole("combobox", {name: "対象", exact: true}).selectOption(region);
   await side.getByRole("combobox", {name: "指標", exact: true}).selectOption(metric);
   if (channel) await side.getByRole("combobox", {name: "染色", exact: true}).selectOption(channel);
 }
@@ -687,7 +686,7 @@ test("measuring again with another background correction is answered from the re
   await expect(notRecorded(page)).toHaveCount(0);
   // The statistics view then compares the new measurement: the opening result's region is for the first look only.
   await page.locator("header").getByRole("button", {name: "統計", exact: true}).click();
-  await expect(page.getByRole("complementary", {name: "解析対象"}).getByRole("combobox", {name: "領域", exact: true})).toHaveValue("nuclei");
+  await expect(page.getByRole("complementary", {name: "解析対象"}).getByRole("combobox", {name: "対象", exact: true})).toHaveValue("nuclei");
   await expect(notRecorded(page)).toHaveCount(0);
   await noErrors(page, watch);
 });
@@ -772,8 +771,8 @@ test("statistics of nucleoli, nucleoplasm and nucleolar measures show results, d
   const operation = results.getByRole("combobox", {name: "解析", exact: true});
   const cases: Array<[string, string, string | null, string]> = [
     ["nucleoli", "area_px", null, "distribution"], ["nucleoli", "mean", "npm1", "comparison"],
-    ["nucleoplasm", "mean", "npm1", "distribution"], ["nuclei", "nucleolar_count", null, "comparison"],
-    ["nuclei", "nucleolar_area_fraction", null, "distribution"], ["nuclei", "log2_nucleoplasm_over_nucleolus", "npm1", "comparison"],
+    ["nucleoplasm", "mean", "npm1", "distribution"], ["nucleoli", "nucleolar_count", null, "comparison"],
+    ["nucleoli", "nucleolar_area_fraction", null, "distribution"], ["nucleoplasm", "log2_nucleoplasm_over_nucleolus", "npm1", "comparison"],
     ["nucleoli", "mean", "eu5", "comparison"],
   ];
   for (const [region, metric, channel, kind] of cases) {
@@ -844,7 +843,8 @@ test("a per-nucleus nucleolar result is read and checked on the nucleoli, and un
   }
   // The eccentricity comes from the per-nucleus summary but is a shape of the nucleoli, and reads so everywhere.
   await expect(results.locator("[class*=current]")).toContainText("計算する条件：核小体の離心率");
-  await expect(page.getByRole("complementary", {name: "解析対象"})).toContainText("領域：核小体（核ごとの値）");
+  await expect(page.getByRole("complementary", {name: "解析対象"}).getByRole("combobox", {name: "対象", exact: true})).toHaveValue("nucleoli");
+  await expect(page.getByRole("complementary", {name: "解析対象"})).toContainText("対象：核小体。観測の単位：核ごと（その核の核小体をまとめた値）。");
   await expect(results.getByRole("status").filter({hasText: /前の結果|記録した結果/})).toHaveCount(0);
   await header.getByRole("button", {name: "画像", exact: true}).click();
   await expect(page.locator("[class*=fieldCard] small").first()).toHaveText(/^核小体 \d+/, {timeout: live});
