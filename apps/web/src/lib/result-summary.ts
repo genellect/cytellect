@@ -71,8 +71,9 @@ const rough = (value: number) => decimalNumber(Math.abs(value));
 const signed = (value: number, text: (value: number) => string = formatNumber) => `${value > 0 ? "+" : value < 0 ? "−" : ""}${text(Math.abs(value))}`;
 const signedPercent = (ratio: number) => `${signed((ratio - 1) * 100)}%`;
 const span = (values: number[], text: (value: number) => string) => {
-  const [low, high] = [Math.min(...values), Math.max(...values)];
-  return low === high ? text(low) : `${text(low)}〜${text(high)}`;
+  // Compared as written: values that round to the same text are one value, as in figure_legend.py.
+  const [low, high] = [text(Math.min(...values)), text(Math.max(...values))];
+  return low === high ? low : `${low}〜${high}`;
 };
 
 /** Japanese with names in Latin script: a space between a name and the Japanese around it, none before
