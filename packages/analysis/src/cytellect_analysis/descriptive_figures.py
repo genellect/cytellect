@@ -79,6 +79,8 @@ def _caption(result, labels, methods_template=None, *, paged=False):
                    "observations": ("observations", "観測値"), "fields": ("fields", "視野")}[result["observation_kind"]][ja]
     counts, selection = result["counts"], result["selection"]
     coloured = len({row.get("condition") for row in result["field_summary"] if row.get("condition")}) > 1
+    # Colours the researcher chose for fields are named by the legend, not by the condition.
+    chosen = bool((result["spec"]["plot"].get("style") or {}).get("series_colors"))
     channel = _selected_channel(result)
     selected_identity = (f"channel_id={channel['channel_id']}; label={channel['label']}; "
                          f"stain={channel.get('stain') or 'not recorded'}") if channel else None
@@ -95,7 +97,8 @@ def _caption(result, labels, methods_template=None, *, paged=False):
                  "検定、回帰、標準誤差、信頼区間は計算していない。撮影条件の比較可能性は確認していない。",
                  "四分位数は観測分布の記述であり信頼区間ではない。隣接順位間の線形補間 h=(n−1)p を使用した。",
                  selection_line,
-                 ("点は重ならないよう決定的に横へ並べた（表示のみ）" + ("。点の色は視野の条件を示す" if coloured else "")
+                 ("点は重ならないよう決定的に横へ並べた（表示のみ）"
+                  + ("。点の色は凡例に示す" if chosen else "。点の色は視野の条件を示す" if coloured else "")
                   + "。値・選別は変更していない。") if paged else
                  "点の横方向の配置にのみ固定乱数 seed=0 を使用した。値・選別は変更していない。"]
     else:
@@ -110,7 +113,8 @@ def _caption(result, labels, methods_template=None, *, paged=False):
                  "Quartiles describe the observed distribution, not uncertainty; linear interpolation uses h=(n−1)p.",
                  selection_line,
                  ("Points are placed side by side by a deterministic layout (display only)"
-                  + ("; their colour shows the field's condition" if coloured else "") + "; values and selection are unchanged.")
+                  + ("; their colours are named in the legend" if chosen else "; their colour shows the field's condition" if coloured else "")
+                  + "; values and selection are unchanged.")
                  if paged else "Horizontal jitter affects display only (seed 0); values and selection are unchanged."]
     if result["observation_kind"] == "fields":
         lines[3] = ("1 視野 1 点。点は視野の値で、核ごとの分布ではない。視野内中央値の重複表示は行わない。"

@@ -188,12 +188,17 @@ def render_pages(result, output: Path, layout):
                     bind_font(item)
                 # Legend keys describe the common marks; they are not dummy observations.
                 if plot.get("style", {}).get("show_legend", True):
-                    on_page = {condition_of.get(fid) for fid in plan["field_ids"]}
-                    handles = ([Line2D([], [], marker="o", linestyle="none", markersize=3.2, markeredgewidth=0,
-                                       color=palette[condition], label=condition) for condition in conditions if condition in on_page]
-                               if len(conditions) > 1 else
-                               [Line2D([], [], marker="o", linestyle="none", markersize=3.2, markeredgewidth=0,
-                                       color=colour_of(plan["field_ids"][0]), label=observation_label)])
+                    # A key per colour the points have (a field colour chosen by the researcher included); when one
+                    # condition is shown in several colours, each key names the fields it marks.
+                    keyed: dict[tuple[str | None, str], list[str]] = {}
+                    for fid in sorted(plan["field_ids"], key=lambda fid: (conditions.index(condition_of[fid])
+                                                                        if condition_of.get(fid) in conditions else -1)):
+                        keyed.setdefault((condition_of.get(fid) if len(conditions) > 1 else None, colour_of(fid)), []).append(fid)
+                    split = len(keyed) > len({condition for condition, _ in keyed})
+                    handles = [Line2D([], [], marker="o", linestyle="none", markersize=3.2, markeredgewidth=0, color=colour,
+                                      label=(condition or observation_label)
+                                      + (f" ({', '.join(layout['labels'][fid] for fid in fids)})" if split else ""))
+                               for (condition, colour), fids in keyed.items()]
                     if not fields_only:
                         handles.append(Line2D([], [], color=INK, linewidth=1.1, label=median_label))
                     # As many keys on a row as the page is wide: a narrow column wraps them.
@@ -208,6 +213,14 @@ def render_pages(result, output: Path, layout):
                         legend.remove()
                 for item in figure.findobj(match=Text):
                     bind_font(item)
+                # The observations are on the axis before its controls check them (a log axis needs positive values);
+                # they are spread side by side once the layout is fixed.
+                marks = {}
+                for index, fid in enumerate(plan["field_ids"]):
+                    values = np.asarray(layout["values"][fid], dtype=float)
+                    if len(values):
+                        marks[index] = values, axes.scatter(np.full(len(values), float(index)), values, s=point_size,
+                                                            color=colour_of(fid), alpha=.75, linewidths=0, zorder=2)
                 apply_plot_controls(axes, plot)
                 if plot.get("axes", {}).get("y_scale", "linear") == "linear":
                     axes.yaxis.set_major_formatter(FuncFormatter(lambda value, _, axes=axes: tick_label(value, axes.get_yticks())))
@@ -219,15 +232,18 @@ def render_pages(result, output: Path, layout):
                 to_dx = lambda points: points / 72 * figure.dpi / box.width * xspan  # noqa: E731
                 to_dy = lambda points: points / 72 * figure.dpi / box.height * yspan  # noqa: E731
                 half_median = min(.3, to_dx(5 / 25.4 * 72))
+                log_y = axes.get_yscale() == "log"
                 for index, fid in enumerate(plan["field_ids"]):
-                    values = np.asarray(layout["values"][fid], dtype=float)
-                    if not len(values):
+                    if index not in marks:
                         continue
-                    offsets = beeswarm(values, dx=to_dx(point_d * 1.05), dy=to_dy(point_d * 1.05),
+                    values, collection = marks[index]
+                    # On a log axis the points are spread where they are drawn (display units), not in data units.
+                    heights = axes.transData.transform(np.column_stack([np.zeros(len(values)), values]))[:, 1] if log_y else values
+                    offsets = beeswarm(heights, dx=to_dx(point_d * 1.05),
+                                       dy=point_d * 1.05 / 72 * figure.dpi if log_y else to_dy(point_d * 1.05),
                                        half_width=min(.32, to_dx(9 / 25.4 * 72)))
-                    bind_points(axes.scatter(index + offsets, values, s=point_size, color=colour_of(fid), alpha=.75,
-                                             linewidths=0, zorder=2),
-                                [row for row in result["plot_data"] if row["field_id"] == fid])
+                    collection.set_offsets(np.column_stack([index + offsets, values]))
+                    bind_points(collection, [row for row in result["plot_data"] if row["field_id"] == fid])
                     if not fields_only:
                         median = summaries[fid]["median"]
                         axes.hlines(median, index - half_median, index + half_median, color=INK, linewidth=1.1, zorder=3)
