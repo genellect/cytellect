@@ -35,7 +35,7 @@
 
 PR では、`scripts/ci_changes.py` が、`main` との差分のファイルからジョブを選ぶ。規則の正本はこのスクリプトで、試験は `tests/test_ci_changes.py` にある。
 
-- 文書だけの変更（`docs/**`、ルートの Markdown、PR・Issue のテンプレート、`LICENSE`、`NOTICE`）では、重いジョブを実行しない。
+- 文書だけの変更（`docs/**`、ルートの Markdown、PR・Issue のテンプレート、Claude Code のスキル（`.claude/skills` の Markdown）、`LICENSE`、`NOTICE`）では、重いジョブを実行しない。
 - LP だけの変更では `lp` だけを実行する。LP の素材は Windows 版にも含まれるため、`python` も実行する。
 - workflow、lockfile、パッケージの定義、規則にないパスでは、すべてのジョブを実行する。トップレベルのディレクトリを追加するときは、規則と試験も更新する。
 
