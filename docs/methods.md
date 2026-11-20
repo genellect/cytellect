@@ -1020,3 +1020,60 @@ native pixel arithmetic and JSON/CSV agreement without running a model or
 changing scientific review decisions. It is not an independent detector benchmark
 or evidence of biological validity, experimental independence or researcher task
 completion time.
+
+## Per-nucleus signal heterogeneity and positive area 1.0.0 (2026-11-20)
+
+`nuclear-signal/1.0.0` (`nuclear_signal.py`, genellect/cytellect#257 E-7) measures one channel's original pixels inside
+each saved nuclear label. Pixel values are not changed. No nucleolar boundary is needed.
+
+- Value basis: raw, or corrected by subtracting the confirmed background median `b` of that channel (`I − b`). A
+  corrected request without `b` is refused; there is no raw fallback, epsilon, clipping or smoothing.
+- Coefficient of variation: `CV = SD / mean` of the nucleus's pixels, with the population standard deviation (`ddof = 0`).
+  The mean and SD are returned with it. A nucleus whose mean is not positive has no CV (`nonpositive_mean`). CV depends
+  on staining, exposure and focus: compare it within the same acquisition settings.
+- Positive-area fraction: pixels at or above a threshold divided by the nucleus's pixels (0–1; shown as %). The threshold
+  is a recorded value (`manual`) or Otsu's threshold of all non-excluded nuclear pixels of the field (`field_otsu`). The
+  method, value basis, value and the unit it was applied to (`field`) are returned. Without a threshold the fraction is
+  missing (`threshold_not_set`); pooled pixels of one value give no Otsu threshold (`threshold_not_established`).
+  Exposure and overall brightness also move this fraction; report the nuclear mean beside it. Thresholds from other
+  images or publications are not reused.
+- Excluded nuclei keep their row with every value missing (`nucleus_excluded`) and do not enter the field's Otsu
+  threshold.
+
+Status: calculation and numeric tests (`tests/test_nuclear_signal_and_shape.py`) only. The values are not yet saved,
+exported, compared or shown; their observation source, comparison contract and demo recording follow in later changes.
+
+## Region shape 1.0.0 (2026-11-20)
+
+`region-shape/1.0.0` (`region_shape.py`, genellect/cytellect#257 E-1) reads saved original-coordinate labels of nuclei
+or nucleoli. For each object: area `A` (pixels); perimeter `P` by the Crofton estimate with 4 directions on the object's
+binary image (scikit-image `perimeter_crofton`, `directions=4`; the estimator is fixed with the version); circularity
+`4πA/P²`; solidity `A / convex-hull pixel area`; axis ratio `major / minor` of the ellipse with the same second moments;
+eccentricity `sqrt(1 − λmin/λmax)` of the same covariance (equal to the nucleolar eccentricity of compartment-summary
+selection 1.1.0).
+
+An object that touches the image border, is smaller than the recorded minimum area, or has a zero perimeter or minor axis
+has no shape values (`touches_border`, `below_minimum_area`, `degenerate`), never zero. It still counts in numbers and
+areas. The minimum area is an explicit argument recorded with the result: its value is to be fixed from the error measured
+on public real images (owner decision 5 of #257, requirement RP-02). 2D values are not volumes or sphericities, and
+values are in pixels until a confirmed square pixel size is applied.
+
+Public-image check of the digitisation error (2026-11-20, `scripts/evaluate_shape_minimum_area.py`, requirement
+RP-02). Adopted nuclear masks of the public demo were measured at full resolution (nuclei of at least 400 px away from
+the border) and again on the same mask sampled every k-th pixel (k = 2–20). The tolerance was fixed before reading the
+data: 90th percentile |Δ circularity| ≤ 0.05, |Δ solidity| ≤ 0.05 and |Δ axis ratio| / axis ratio ≤ 0.10 in an area bin
+and every larger bin. The minimum area was chosen on JUMP cpg0016 (PLK1 scene, 18 masks) and checked unchanged on DS6a
+(29 masks):
+
+| Data | Role | First area bin within tolerance | Circularity p90 at 96–128 px | Solidity p90 at 96–128 px | Axis-ratio p90 at 96–128 px |
+|---|---|---|---|---|---|
+| JUMP cpg0016 nuclei | choose | 96 px | 0.048 | 0.037 | 0.035 |
+| DS6a nuclei | check | none (circularity) | 0.208 | 0.035 | 0.036 |
+
+Solidity and axis ratio met the tolerance from 96 px on both sets. Circularity did not on DS6a at any size (p90
+0.18–0.21 even above 256 px): its outlines are rough at the pixel scale, sampling smooths them and shortens the Crofton
+perimeter, so circularity depends on the pixel size itself. This measures the formulas on pixel grids only, not the
+segmentation error of small, dim objects (NS-03). No minimum area is fixed from it; the choice (and whether circularity is
+offered, and only between images of the same pixel size) is owner decision 5 of #257.
+
+Status: calculation and numeric tests only, as above.
