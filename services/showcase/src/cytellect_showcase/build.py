@@ -1866,11 +1866,6 @@ def main(argv: list[str] | None = None) -> None:
         first = scenes[manifests[0][1]["id"]]["scenario"]
         state["refigure"] = refigure(seed_data, args.out, args.fiji, first["owner"])
         save()
-    if "figures" in stages:
-        first = scenes[manifests[0][1]["id"]]["scenario"]
-        state["figures"] = figures(seed_data, work, args.out, args.fiji, first["owner"], reuse=args.figures_reuse)
-        save()
-        write_manifest(args, manifests, state)
     if "snapshot" in stages:
         for index, (_, manifest) in enumerate(manifests):
             scenario_state = scenes[manifest["id"]]["scenario"]
@@ -1888,6 +1883,11 @@ def main(argv: list[str] | None = None) -> None:
              "gateChannels": manifest["scenario"].get("gate_channels", []),
              "scope": journal_scope(manifest), "story": story_metrics(manifest)} for _, manifest in manifests],
             keep=args.journal_keep, previous=args.journal_previous)
+        save()
+        write_manifest(args, manifests, state)
+    if "figures" in stages:
+        first = scenes[manifests[0][1]["id"]]["scenario"]
+        state["figures"] = figures(seed_data, work, args.out, args.fiji, first["owner"], reuse=args.figures_reuse)
         save()
         write_manifest(args, manifests, state)
     if "manifest" in stages:
