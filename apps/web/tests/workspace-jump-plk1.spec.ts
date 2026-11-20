@@ -295,6 +295,29 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
     scope: "Goals C1 on the unconfirmed design (E-05): descriptive comparison, figure and Methods; workflow acceptance only, not detection accuracy or biological validation",
     workspace, job: describedJob, sentence: descriptiveSentence, estimates: describedResult.estimates}, null, 2));
 
+  // SR-06 (#257): on this real workspace the statistics follow the side panel, as on the demo (SR-01–SR-04).
+  const pendingCondition = panel.getByRole("region", {name: "選択中の条件"});
+  await options.getByRole("combobox", {name: "対象", exact: true}).selectOption("nuclei");
+  await options.getByRole("combobox", {name: "指標", exact: true}).selectOption("area_px");
+  // SR-02: no other condition's result or graph stays; the chosen condition is named where its result will appear.
+  await expect(pendingCondition.getByRole("heading", {level: 3})).toHaveText("核の面積（px²）");
+  await expect(descriptive).toHaveCount(0);
+  await expect(pendingCondition.getByRole("img")).toHaveCount(0);
+  await expect(pendingCondition.getByRole("button", {name: "計算", exact: true})).toBeVisible();
+  // SR-03: the design's confirmation is not undone by another metric.
+  await expect(pendingCondition.getByLabel("実験回の定義、撮影・画素条件、採否と欠測の扱いを確認済み", {exact: true})).toBeChecked();
+  // SR-04: the figure view says that its figure is another condition's, and leads back to statistics.
+  await page.getByRole("navigation", {name: "作業の切替"}).getByRole("button", {name: "グラフ", exact: true}).click();
+  const figureView = page.getByRole("region", {name: "図の作成・保存"});
+  await expect(figureView.getByRole("status").filter({hasText: "選択中の「核の面積（px²）」の図はまだありません。"})).toBeVisible({timeout: 120_000});
+  await figureView.getByRole("button", {name: "統計で計算", exact: true}).click();
+  await expect(pendingCondition).toContainText("核の面積（px²）");
+  // SR-01: back on the nucleus count, its saved result opens without 計算.
+  await options.getByRole("combobox", {name: "指標", exact: true}).selectOption("nucleus_count");
+  await expect(descriptiveBasis).toBeVisible({timeout: 60_000});
+  await expect(pendingCondition).toHaveCount(0);
+  await page.screenshot({path: path.join(output, "statistics-follows-choice.png")});
+
   // A separate path: after the researcher confirms independence, the declared paired t test is offered.
   // This checks the inferential route only; the JUMP source does not state that the runs are independent.
   await descriptiveBasis.click();
