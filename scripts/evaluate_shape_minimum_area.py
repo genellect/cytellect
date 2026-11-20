@@ -24,8 +24,8 @@ import zipfile
 from pathlib import Path
 
 import numpy as np
-from scipy.ndimage import label
 from cytellect_analysis.region_shape import region_shapes
+from scipy.ndimage import label
 
 TOLERANCE = {"circularity": 0.05, "solidity": 0.05, "axis_ratio_relative": 0.10}
 QUANTILE = 0.90
