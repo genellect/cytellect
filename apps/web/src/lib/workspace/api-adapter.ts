@@ -394,6 +394,9 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
     async discussion(job: string): Promise<DiscussionView | null> {
       return client.request<DiscussionView | null>(`/v1/jobs/${job}/discussion`);
     },
+    async discussionHistory(job: string): Promise<components["schemas"]["DiscussionHistory"]> {
+      return client.request<components["schemas"]["DiscussionHistory"]>(`/v1/jobs/${job}/discussion-history`);
+    },
     /** Sends the saved result with the summary the screen shows above it (never images, file names or paths), after
      * the researcher confirmed it (AC-02, AC-03). */
     async draftDiscussion(job: string, experiment: ExperimentNote, retryFailed = false, summary?: ShownSummary): Promise<DiscussionView> {

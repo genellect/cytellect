@@ -16,7 +16,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
-from typing import Annotated
+from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
 import numpy as np
@@ -82,10 +82,11 @@ _OPENER = _LazyOpener()
 
 
 class ProposalServiceError(Exception):
-    def __init__(self, status: int, code: str):
+    def __init__(self, status: int, code: str, *, may_have_charged: bool = True):
         super().__init__(code)
         self.status = status
         self.code = code
+        self.may_have_charged = may_have_charged
 
 
 def service_url(settings) -> str | None:
@@ -126,9 +127,12 @@ def request_draft(settings, context: ProposalContext, request_id: str | None = N
 
 def post_to_service(settings, path: str, content: dict, request_id: str | None = None) -> dict:
     """One POST to the proposal service; the same credential, limits and failure codes for every route."""
-    url = service_url(settings)
+    try:
+        url = service_url(settings)
+    except ValueError:
+        raise ProposalServiceError(503, "proposal_service_misconfigured", may_have_charged=False) from None
     if url is None:
-        raise ProposalServiceError(503, "proposal_service_disabled")
+        raise ProposalServiceError(503, "proposal_service_disabled", may_have_charged=False)
     body = json.dumps(content).encode("utf-8")
     request = urllib.request.Request(f"{url}{path}", data=body, method="POST", headers={
         "authorization": f"Bearer {settings.proposal_token}", "content-type": "application/json",
@@ -138,6 +142,7 @@ def post_to_service(settings, path: str, content: dict, request_id: str | None =
         with _OPENER.open(request, timeout=settings.proposal_timeout_seconds) as response:
             data = response.read(MAX_RESPONSE_BYTES + 1)
     except urllib.error.HTTPError as error:
+        unbilled = error.code in (401, 403, 429)
         code = {401: "proposal_service_unauthorized", 403: "proposal_service_unauthorized",
                 409: "proposal_request_already_sent", 429: "proposal_quota_exhausted"}.get(error.code, "proposal_service_unavailable")
         status = error.code if error.code in (409, 429) else 503
@@ -150,6 +155,19 @@ def post_to_service(settings, path: str, content: dict, request_id: str | None =
                     code = "proposal_access_revoked"
             except (ValueError, OSError, AttributeError):
                 pass
+        if error.code == 400:
+            # The service does not know this client's prompt version yet (it is deployed before a release that
+            # sends a new one): a version mismatch, not a connection problem.
+            try:
+                data = error.read(2049)
+                failure = json.loads(data) if len(data) <= 2048 else None
+                if isinstance(failure, dict) and failure.get("code") == "prompt_version_unsupported":
+                    code, status = "proposal_service_version_mismatch", 502
+                    unbilled = True
+                elif isinstance(failure, dict) and failure.get("code") in ("request_invalid", "request_id_required"):
+                    code, status, unbilled = "proposal_service_request_incompatible", 502, True
+            except (ValueError, OSError, AttributeError):
+                pass
         if error.code in (502, 503):
             try:
                 data = error.read(2049)
@@ -159,6 +177,8 @@ def post_to_service(settings, path: str, content: dict, request_id: str | None =
                     code, status = f"proposal_{reason}", 502
                 elif error.code == 503 and reason in ("proposal_service_disabled", "budget_reconciliation_required", "model_unavailable"):
                     code = reason if reason == "proposal_service_disabled" else f"proposal_{reason}"
+                    if reason == "proposal_service_disabled":
+                        unbilled = True
                     if reason == "model_unavailable" and isinstance(failure, dict):
                         provider_code = failure.get("provider_error_code")
                         provider_status = failure.get("provider_http_status")
@@ -168,7 +188,7 @@ def post_to_service(settings, path: str, content: dict, request_id: str | None =
                             code = f"proposal_provider_http_{provider_status}"
             except (ValueError, OSError, AttributeError):
                 pass
-        raise ProposalServiceError(status, code) from None
+        raise ProposalServiceError(status, code, may_have_charged=not unbilled) from None
     except (urllib.error.URLError, TimeoutError, OSError):
         raise ProposalServiceError(503, "proposal_service_unavailable") from None
     if len(data) > MAX_RESPONSE_BYTES:
@@ -210,6 +230,16 @@ class ProposalChannelLink(BaseModel):
 class ProposalDraftResponse(BaseModel):
     proposal: ValidatedProposal
     channels: list[ProposalChannelLink]
+
+
+class AiStatus(BaseModel):
+    """Local configuration only: no provider call, credential, service URL or research data."""
+    state: Literal["available", "sign_in_required", "unconfigured", "misconfigured"]
+    source: Literal["operator", "account", "none"]
+
+
+class AiCompatibility(BaseModel):
+    state: Literal["compatible", "unconfigured", "misconfigured", "unavailable", "unauthorized", "incompatible"]
 
 
 LEGACY_STAINS = {"ncl": ("NCL", "measure"), "gfp": ("GFP", "measure"), "dapi": (None, "nuclear")}
@@ -498,6 +528,49 @@ def _continuation_context(context: ProposalContext, links: list[ProposalChannelL
 def register_proposal_routes(api, store, settings, owner, workspace, credentials=None):
     Owner = Annotated[str, Depends(owner)]
 
+    @api.get("/v1/ai/status", response_model=AiStatus)
+    def ai_status(who: Owner):
+        explicit = bool(settings.proposal_url or settings.proposal_token)
+        source: Literal["operator", "account", "none"] = "operator" if explicit else "account" if credentials is not None else "none"
+        try:
+            configured = service_url(effective_settings(settings, credentials))
+        except (ValueError, OSError):
+            return AiStatus(state="misconfigured", source=source)
+        if configured:
+            return AiStatus(state="available", source=source)
+        if explicit:
+            return AiStatus(state="misconfigured", source=source)
+        return AiStatus(state="sign_in_required" if credentials is not None else "unconfigured", source=source)
+
+    @api.post("/v1/ai/check", response_model=AiCompatibility)
+    def ai_check(who: Owner):
+        """An explicit, protocol-only check. Never accept a URL/token or send an idempotency key."""
+        from .proposal_preflight import check_versions, probe_status
+
+        service = effective_settings(settings, credentials)
+        try:
+            if service_url(service) is None:
+                return AiCompatibility(state="unconfigured")
+        except ValueError:
+            return AiCompatibility(state="misconfigured")
+        responses = []
+        def probe(request, timeout):
+            response = probe_status(request, timeout=min(timeout, 15))
+            responses.append(response)
+            return response
+        checks = check_versions(service.proposal_url or "", service.proposal_token or "", probe,
+            proposal_prompt=service.proposal_prompt_version, discussion_prompt=service.discussion_prompt_version,
+            allow_loopback=True)
+        if all(check[2] for check in checks):
+            return AiCompatibility(state="compatible")
+        if not responses:
+            return AiCompatibility(state="misconfigured")
+        if any(status in (401, 403) for status, _ in responses):
+            return AiCompatibility(state="unauthorized")
+        if any(status == 400 and code in ("request_invalid", "prompt_version_unsupported") for status, code in responses):
+            return AiCompatibility(state="incompatible")
+        return AiCompatibility(state="unavailable")
+
     @api.post("/v1/workspaces/{wid}/proposal-drafts", response_model=ProposalDraftResponse)
     def draft_proposal(wid: str, body: ProposalDraftRequest, who: Owner):
         workspace(wid, who)
@@ -528,7 +601,7 @@ def register_proposal_routes(api, store, settings, owner, workspace, credentials
             if cached:
                 if cached["state"] == "pending" and cached["lease_until"] > now:
                     raise HTTPException(409, "proposal_request_in_progress")
-                if not body.retry_failed:
+                if not body.retry_failed and cached["state"] != "unbilled":
                     # A timeout may already have incurred cost; never silently pay again.
                     raise HTTPException(409, "proposal_explicit_retry_required")
                 conn.execute(update(proposal_drafts).where(proposal_drafts.c.id == cached["id"]).values(
@@ -538,6 +611,7 @@ def register_proposal_routes(api, store, settings, owner, workspace, credentials
                     request_id=request_id, state="pending", created=now,
                     lease_until=now + settings.proposal_timeout_seconds + 30))
         proposal = None
+        unbilled = False
         try:
             try:
                 previews = representative_previews(store, wid, links, body.field_id) if body.include_previews else []
@@ -550,6 +624,7 @@ def register_proposal_routes(api, store, settings, owner, workspace, credentials
             proposal = validate_draft(context, payload.get("draft"), model=payload["model"],
                                       prompt_version=payload["prompt_version"])
         except ProposalServiceError as error:
+            unbilled = not error.may_have_charged
             raise HTTPException(error.status, error.code) from None
         except ProposalRejected as error:
             # Codes only: the draft text itself is never echoed into logs.
@@ -563,7 +638,7 @@ def register_proposal_routes(api, store, settings, owner, workspace, credentials
                 with store.transaction() as conn:
                     conn.execute(update(proposal_drafts).where(proposal_drafts.c.workspace_id == wid,
                         proposal_drafts.c.cache_key == key, proposal_drafts.c.request_id == request_id,
-                        proposal_drafts.c.state == "pending").values(state="failed"))
+                        proposal_drafts.c.state == "pending").values(state="unbilled" if unbilled else "failed"))
         workspace(wid, who)  # Revocation/expiry during the external call blocks publication.
         try:
             refreshed, refreshed_links = build_context(store, wid, body.goal, body.field_id)

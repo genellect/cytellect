@@ -55,3 +55,6 @@
 .metricSentence{display:block;margin-bottom:2px;color:#1d2b45}
 /* Shape and pixel-signal columns of the image table are loaded on request (#257 A-4). */
 .linkButton{margin-top:6px;border:0;background:none;color:#2164cf;text-decoration:underline;padding:0;cursor:pointer;font-size:13px}
+
+.composer{flex-wrap:wrap}
+@media(min-width:621px){.workspace:has(.composer [role=status]){grid-template-rows:52px minmax(0,1fr) auto}} @media(max-width:1050px){.inspector{position:relative;grid-area:body;align-self:stretch;justify-self:end;top:auto;right:auto;bottom:auto;max-height:100%}} @media(max-width:620px){.inspector{align-self:end;height:min(60dvh,100%);max-height:100%}}

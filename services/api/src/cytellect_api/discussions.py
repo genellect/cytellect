@@ -21,7 +21,7 @@ from fastapi import Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, ValidationError
 from sqlalchemy import select, update
 
-from .db import result_discussions, workspaces
+from .db import jobs, result_discussions, workspaces
 from .proposals import ProposalServiceError, effective_settings, post_to_service, service_url
 
 
@@ -47,6 +47,21 @@ class DiscussionView(BaseModel):
     # When the discussion was stored (seconds since the epoch), shown with the model's name (AC-06).
     created: float
     discussion: ValidatedDiscussion
+
+
+class DiscussionHistory(BaseModel):
+    current: DiscussionView | None = None
+    previous: DiscussionView | None = None
+
+
+def _comparison_identity(result: dict) -> dict:
+    """The same measure and groups across recalculations, not its revision, values or figure settings."""
+    spec = result.get("spec") or {}
+    selection = spec.get("selection") or {}
+    positivity = selection.get("positivity") or {}
+    return {"selection": {key: selection.get(key) for key in ("source", "region_set_id", "metric", "channel_id")},
+            "positive_channel": positivity.get("channel_id") or positivity.get("gfp_channel_id"),
+            "conditions": spec.get("conditions"), "stratum": (result.get("stratum") or {}).get("levels")}
 
 
 def _saved_result(store, job) -> dict:
@@ -88,6 +103,38 @@ def register_discussion_routes(api, store, settings, owner, job_record, credenti
             return None
         return DiscussionView(job_id=jid, created=row["created"], discussion=ValidatedDiscussion.model_validate(row["discussion"]))
 
+    @api.get("/v1/jobs/{jid}/discussion-history", response_model=DiscussionHistory)
+    def discussion_history(jid: str, who: Owner):
+        jid, job = result_job(jid, who)
+        current = saved_discussion(jid, who)
+        try:
+            identity = _comparison_identity(_saved_result(store, job))
+        except HTTPException as error:
+            if error.status_code == 404 and error.detail == "artifact_not_found":
+                return DiscussionHistory(current=current)
+            raise
+        except (FileNotFoundError, ValueError):
+            return DiscussionHistory(current=current)
+        with store.engine.connect() as conn:
+            previous = conn.execute(select(result_discussions, jobs.c.result_dir.label("source_dir"),
+                                           jobs.c.payload.label("source_payload"), jobs.c.kind.label("source_kind"),
+                                           jobs.c.state.label("source_state")).join(
+                jobs, jobs.c.id == result_discussions.c.job_id).where(
+                result_discussions.c.workspace_id == job["workspace_id"], jobs.c.workspace_id == job["workspace_id"],
+                result_discussions.c.job_id != jid, result_discussions.c.state == "complete",
+                jobs.c.created <= job["created"]).order_by(jobs.c.created.desc(), result_discussions.c.created.desc())).mappings().all()
+        for row in previous:
+            try:
+                source = {"kind": row["source_kind"], "payload": row["source_payload"],
+                          "state": row["source_state"], "result_dir": row["source_dir"]}
+                if _comparison_identity(_saved_result(store, source)) != identity:
+                    continue
+            except (HTTPException, OSError, ValueError):
+                continue
+            return DiscussionHistory(current=current, previous=DiscussionView(job_id=row["job_id"], created=row["created"],
+                discussion=ValidatedDiscussion.model_validate(row["discussion"])))
+        return DiscussionHistory(current=current)
+
     @api.post("/v1/jobs/{jid}/discussion", response_model=DiscussionView)
     def draft_discussion(jid: str, body: DiscussionRequest, who: Owner):
         jid, job = result_job(jid, who)
@@ -120,7 +167,7 @@ def register_discussion_routes(api, store, settings, owner, job_record, credenti
             if cached:
                 if cached["state"] == "pending" and cached["lease_until"] > now:
                     raise HTTPException(409, "proposal_request_in_progress")
-                if not body.retry_failed:
+                if not body.retry_failed and cached["state"] != "unbilled":
                     # A timeout may already have incurred cost; never silently pay again.
                     raise HTTPException(409, "proposal_explicit_retry_required")
                 conn.execute(update(result_discussions).where(result_discussions.c.id == cached["id"]).values(
@@ -130,6 +177,7 @@ def register_discussion_routes(api, store, settings, owner, job_record, credenti
                     id=str(uuid.uuid4()), workspace_id=wid, job_id=jid, cache_key=key, request_id=request_id,
                     state="pending", created=now, lease_until=lease))
         discussion = None
+        unbilled = False
         try:
             payload = post_to_service(service, "/v1/discussions", {
                 "context": context.model_dump(mode="json"), "prompt_version": settings.discussion_prompt_version}, request_id)
@@ -138,6 +186,7 @@ def register_discussion_routes(api, store, settings, owner, job_record, credenti
             discussion = validate_discussion(payload.get("draft"), context, model=payload["model"],
                                              prompt_version=payload["prompt_version"])
         except ProposalServiceError as error:
+            unbilled = not error.may_have_charged
             raise HTTPException(error.status, error.code) from None
         except DiscussionRejected as error:
             # Only an answer without the three headings; codes only, the text is never echoed into logs.
@@ -150,7 +199,7 @@ def register_discussion_routes(api, store, settings, owner, job_record, credenti
                     conn.execute(update(result_discussions).where(
                         result_discussions.c.workspace_id == wid, result_discussions.c.cache_key == key,
                         result_discussions.c.request_id == request_id, result_discussions.c.state == "pending"
-                    ).values(state="failed"))
+                    ).values(state="unbilled" if unbilled else "failed"))
         job_record(jid, who)  # Revocation or expiry during the external call blocks publication.
         with store.transaction() as conn:
             stored = conn.execute(update(result_discussions).where(

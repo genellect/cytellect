@@ -208,6 +208,17 @@ def test_route_needs_images_is_disabled_without_configuration_and_checks_ownersh
     assert other.post("/v1/workspaces/missing/proposal-drafts", json={"transmission_confirmed": True}, headers=HEADERS).status_code == 404
 
 
+def test_a_prompt_version_the_service_does_not_know_is_a_version_mismatch(tmp_path, monkeypatch):
+    # The service is deployed before a release that sends a new prompt version; until then it answers 400. The page
+    # then says the service is behind the app, not that the connection failed.
+    def fail(request):
+        raise urllib.error.HTTPError(request.full_url, 400, "bad request", {}, io.BytesIO(b'{"code": "prompt_version_unsupported"}'))
+    client, wid, calls = configured(tmp_path, monkeypatch, fail)
+    response = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"transmission_confirmed": True}, headers=HEADERS)
+    assert (response.status_code, response.json()) == (502, {"detail": "proposal_service_version_mismatch"})
+    assert len(calls) == 1
+
+
 @pytest.mark.parametrize(("failure", "expected"), [
     ({"code": "proposal_service_disabled"}, "proposal_service_disabled"),
     ({"code": "budget_reconciliation_required"}, "proposal_budget_reconciliation_required"),

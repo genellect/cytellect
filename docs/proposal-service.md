@@ -27,6 +27,16 @@ Browser → local API POST /v1/workspaces/{id}/proposal-drafts   {"goal": "…"}
 
 The researcher is never asked to fill in this context. The local API builds the `ProposalContext` (1.2.0, [LLM assistance redesign](drafts/llm-assistant/plan.md)) sent to the service from the workspace: goal (≤2,000 characters), channel tokens with their labels and recorded stains (roles only where a recipe records them), every field's name and records (condition, experimental unit, pair, acquisition date; up to 200 fields), field count, condition count and whether units, pairing, supplied regions, a measured table and an established background exist. Paths, measurements and masks are not part of the contract (extra fields are rejected). With each request it also sends up to six display-scaled PNG previews (`previews`, ≤512 px, one per channel) of the selected or first native field, unless the researcher turned previews off in the account settings (`include_previews`). A label suggests a stain only; a stain is established by the recorded stain. Prompt `2026-11-16.1` keeps the latest rules and schema and adds how to read these records and previews; prompt `2026-11-19.1` (the local API's default since 2026-11-19) adds `figure_presentation`, the main figure's composition and the legend facts the workspace does not record (cell line, treatment, stains), with its own schema (`figure_draft_schema`); the workspace offers them for adoption and never takes a number from them ([publication figures](drafts/publication-figures/plan.md) FM). The service must be deployed with `2026-11-19.1` before a release that sends it; the service sends it to Claude when Claude is configured (`CLAUDE_PROMPT_VERSIONS`) and to the OpenAI model otherwise. Installed clients' prompt versions stay on the OpenAI model, and the local API accepts any model in `PROPOSAL_MODELS` and stores the one that answered.
 
+## Availability and settings in the workspace
+
+The authenticated `GET /v1/ai/status` reads only local configuration and the installed account credential. It returns `state` (`available`, `sign_in_required`, `unconfigured`, or `misconfigured`) and `source` (`operator`, `account`, or `none`), never a token or service URL. It makes no service or model request and does not verify provider uptime, quotas, or prompt compatibility. Explicit operator configuration takes precedence over an installed account. The Windows account's sign-in/approval state also controls whether the screen enables sending.
+
+The AI panel's **AI の設定** is available in Windows, Docker, and development. It repeats both transmission scopes and offers the representative-preview setting. Windows users follow sign-in. Docker operators first obtain an owner-issued invitation and redeem it once for a device token (steps 6–7 under [operator deployment](#operator-deployment-not-performed-by-these-prs)); they keep the token in a file outside the repository and use `docker-desktop.ps1 Start -ProposalConfig` ([Docker setup](docker-desktop.md#解析提案と考察の有効化)). Compose passes it as `CYTELLECT_PROPOSAL_TOKEN_FILE=/run/secrets/proposal_device_token`, not as a plaintext token environment variable. Development operators use their private environment's URL and token/token-file settings. After restart, refresh local availability. Credentials are not entered into browser settings; this does not add e-mail login to Docker.
+
+The optional **サービスの対応を確認** action calls authenticated `POST /v1/ai/check`. It sends public protocol sentinels to the configured service without Idempotency-Key and accepts only the stop before request admission. It checks both the configured prompt versions, distinguishes incompatible requests and authentication from unavailable service, and returns only a fixed state. It sends no workspace data and never runs from a status read or page load. The same implementation is used by the distribution check. A failed explicit check disables sending until the setting is refreshed or the check succeeds; refresh clears a stale check. It does not test model output quality or guarantee later service uptime.
+
+Discussion scope and optional purpose are shown before the single **考察を生成** action, including first use. Opening a result never generates automatically. The authenticated `GET /v1/jobs/{job}/discussion-history` returns `current` separately from the most recent earlier stored discussion of the same workspace, measure/channel, groups and stratum. Recalculation shows **前の結果の考察** and offers generation for the new result. A redrawn figure uses its source comparison. These reads work with AI disabled and make no model request.
+
 ## Protocol 1.1 and durable local reuse
 
 The Sol integration uses protocol `1.1.0`, model `gpt-6.1-sol` and prompt
@@ -37,6 +47,18 @@ analyses. These remain drafts, not executable statistical confirmations. Native
 NCL compartment ratios require a confirmed background; the measurement engine
 still separately checks positive corrected means. Multi-condition paired designs
 are rejected until an explicit supported contrast is selected. No equation changes.
+
+A service that does not accept the client's prompt version is reported as
+`proposal_service_version_mismatch`. A failed or timed-out instruction is not sent again automatically:
+an older service rejecting the current request schema reports `proposal_service_request_incompatible`,
+with the same service-update guidance. Known rejections before a model call (disabled or invalid local
+configuration, authentication, quota admission, unsupported prompt, invalid request schema) are stored
+as `unbilled`; a later user-initiated send after the cause is fixed does not require a paid retry.
+An unknown failure, timeout, malformed answer, or mismatched answer version remains potentially billed:
+the researcher may send the same instruction, read the cost notice, and explicitly choose to resend it
+with `retry_failed: true`. Cancelling sends nothing. The confirmation appears once, without a second copy
+in the workspace error banner. Error messages cover both proposals and discussions and do not name a
+particular model provider. These behaviours implement LP-02–LP-04 of [#249](https://github.com/genellect/cytellect/issues/249).
 
 The context uses opaque channel tokens rather than research-defined IDs, includes
 anonymous independent-unit counts per condition and complete-pair counts, and
@@ -243,7 +265,7 @@ Requires the operator's Cloudflare account and a model-provider account (Anthrop
 
 Local `CYTELLECT_PROPOSAL_MODEL` and `CYTELLECT_PROPOSAL_PROMPT_VERSION` default
 to the selected Sol model and `PROPOSAL_PROMPT_VERSION` in `proposal_contracts.py`
-(`2026-10-09.1`), and must match the deployed Worker.
+(`2026-11-19.1`), and must match the deployed Worker.
 `CYTELLECT_PROPOSAL_TIMEOUT_SECONDS` defaults to 300: this is an upper deadline,
 not a predicted wait, and covers at most two 120-second provider requests. An
 incomplete model answer is classified separately and never automatically repeated
@@ -276,12 +298,11 @@ is enrolled like any installation, with its own device token:
 2. The operator stores `CYTELLECT_PROPOSAL_URL` and `CYTELLECT_PROPOSAL_TOKEN` in the
    environment's secret settings (for Claude Code cloud sessions: the environment's
    variables, read by new sessions). `serve` passes them to the local API unchanged.
-3. `python3 scripts/dev.py doctor --live` sends an authenticated empty request.
-   The Worker rejects its body (`400 request_invalid`) after checking the device,
-   the configuration and the budget hold, so the check makes no model call and adds
-   no reservation. `401` means the device token is not active; `503` names the
-   disabled or budget-blocked state. Python's default user agent is refused by
-   Cloudflare (`403`, error 1010); the local API and `doctor` send their own.
+3. Open **AI の設定** and choose **サービスの対応を確認**. This checks the device and
+   the actual prompt/request format without model admission or a reservation.
+   The normal status refresh checks configuration only. `doctor --live` remains
+   an authenticated empty-request check; `400 request_invalid` there does not prove
+   prompt compatibility.
 
 Each development environment counts against the same monthly budget and its own
 `DEVICE_MONTHLY_REQUESTS`. Test proposals use registered public images only. To

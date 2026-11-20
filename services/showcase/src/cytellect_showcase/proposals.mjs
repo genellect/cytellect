@@ -39,6 +39,8 @@ await settle();
 for (const instruction of config.instructions) {
   await page.getByLabel("AIへの指示").fill(instruction);
   await page.getByRole("button", {name: "AIへ送信"}).click();
+  const consent=page.getByRole("group",{name:"AIに送る内容の確認"});
+  if(await consent.isVisible())await consent.getByRole("button",{name:"確認して送信",exact:true}).click();
   await page.waitForTimeout(500);
   await settle();
   const alerts = (await page.getByRole("alert").allTextContents()).map(text => text.trim()).filter(Boolean);

@@ -1,3 +1,4 @@
+import {aiReadFixture} from "./ai-read-fixture";
 import {appAlerts} from "./app-alerts";
 import {nucleusTableFixture} from "./nucleus-table-fixture";
 import {expect,test,type BrowserContext,type Page} from "@playwright/test";
@@ -6,8 +7,9 @@ import {expect,test,type BrowserContext,type Page} from "@playwright/test";
  * NPM1, with adopted nuclei and nucleoli; optionally a two-group design (`pair`), two saved comparisons
  * (`saved`) and image intake. Transport and display only; the fixed records and display pixels are not
  * microscopy acceptance. */
-async function imageWorkspace(context:BrowserContext,page:Page,options:{pair?:boolean;saved?:boolean}={}){
+async function imageWorkspace(context:BrowserContext,page:Page,options:{pair?:boolean;saved?:boolean;aiState?:"unconfigured";previous?:boolean;serviceCheck?:"compatible"|"incompatible"}={}){
   const unexpected:string[]=[],uploads:string[][]=[],discussions:Record<string,unknown>[]=[];
+  const checks:Record<string,unknown>[]=[];
   const fieldIds=["f1","f2"];
   const channels=[{channel_id:"c1",label:"DAPI",stain:"DAPI"},{channel_id:"c2",label:"NPM1",stain:"NPM1"}];
   const fields=fieldIds.map((id,index)=>({id,workspace_id:"w",metadata:{display_name:`視野 ${index+1}`},image_info:{shape:[32,32],channels}}));
@@ -39,6 +41,12 @@ async function imageWorkspace(context:BrowserContext,page:Page,options:{pair?:bo
     const headers={"Access-Control-Allow-Origin":new URL(page.url()).origin,"Access-Control-Allow-Credentials":"true","Access-Control-Allow-Headers":"content-type,x-cytellect-request","Access-Control-Allow-Methods":"GET,POST,PUT,DELETE,OPTIONS"};
     const json=(body:unknown,status=200)=>route.fulfill({status,headers,contentType:"application/json",body:JSON.stringify(body)});
     if(method==="OPTIONS")return route.fulfill({status:204,headers});
+    if(path==="/v1/ai/check"&&method==="POST"){checks.push(req.postDataJSON());return json({state:options.serviceCheck??"compatible"});}
+    if(path==="/v1/ai/status"&&options.aiState)return json({state:options.aiState,source:"none"});
+    if(path.endsWith("/discussion-history")&&options.previous)return json({current:null,previous:{job_id:"previous-mean",created:1,
+      discussion:{protocol:"result-discussion/1.1.0",origin:"model",context_sha256:"a".repeat(64),prompt_version:"2026-11-16.1",model:"stand-in-model",
+        draft:{protocol:"result-discussion/1.1.0",implications:["前回の結果に対する解釈。"],alternatives:[],next_steps:[]}}}});
+    if(await aiReadFixture(route))return;
     if(method==="POST"&&path==="/v1/workspaces/w/selection"){selection={...req.postDataJSON(),version:selection.version+1};return json(selection);}
     // A new field from added images; its stains come from the existing assignment.
     if(method==="POST"&&path==="/v1/workspaces/w/region-fields"){uploads.push([...req.postDataBuffer()!.toString("latin1").matchAll(/filename="([^"]+)"/g)].map(match=>match[1]));
@@ -73,8 +81,39 @@ async function imageWorkspace(context:BrowserContext,page:Page,options:{pair?:bo
     const record=revisions.find(value=>path.endsWith(`/revisions/${value.id}`));if(record)return json(record);
     unexpected.push(`${method} ${path}${url.search}`);return json({detail:"unexpected_transport_route"},404);
   });
-  return {unexpected,uploads,discussions};
+  return {unexpected,uploads,discussions,checks};
 }
+
+test("a failed AI instruction can be resent explicitly, with one confirmation and no automatic retry",async({context,page})=>{
+  await context.addInitScript(()=>localStorage.setItem("cytellect.ai.proposal-scope-seen.v2","1"));
+  const requests:Array<{goal:string;retry_failed?:boolean}>=[];
+  await page.route("**/v1/workspaces/w/proposal-drafts",async route=>{
+    const headers={"Access-Control-Allow-Origin":new URL(page.url()).origin,"Access-Control-Allow-Credentials":"true",
+      "Access-Control-Allow-Headers":"content-type,x-cytellect-request","Access-Control-Allow-Methods":"POST,OPTIONS"};
+    if(route.request().method()==="OPTIONS")return route.fulfill({status:204,headers});
+    const body=route.request().postDataJSON();requests.push(body);
+    const code=requests.length===1||body.retry_failed?"proposal_service_unavailable":"proposal_explicit_retry_required";
+    await route.fulfill({status:code==="proposal_explicit_retry_required"?409:503,headers,contentType:"application/json",body:JSON.stringify({detail:code})});
+  });
+  await imageWorkspace(context,page);
+  await page.goto("/workspace?id=w");
+  await page.getByRole("textbox",{name:"AIへの指示"}).fill("same instruction");
+  const send=page.getByRole("button",{name:"AIへ送信",exact:true});
+  await send.click();await expect(appAlerts(page)).toContainText("AI のサービスに接続できません。接続状態を確認してください。");
+  expect(requests).toHaveLength(1);
+  await send.click();
+  const confirm=page.getByRole("group",{name:"AIへの再送の確認"});
+  await expect(confirm).toBeVisible();
+  await expect(page.getByText("前回の依頼が未完了です。再送には課金される場合があります。",{exact:true})).toHaveCount(1);
+  await confirm.getByRole("button",{name:"キャンセル"}).click();
+  expect(requests).toHaveLength(2);
+  await send.click();await expect(confirm).toBeVisible();
+  await confirm.getByRole("button",{name:"再送",exact:true}).click();
+  await expect(confirm).toHaveCount(0);await expect(send).toBeEnabled();
+  expect(requests).toHaveLength(4);
+  expect(requests.map(value=>value.goal)).toEqual(Array(4).fill("same instruction"));
+  expect(requests.map(value=>value.retry_failed)).toEqual([undefined,undefined,undefined,true]);
+});
 
 test("the table beside one image names what it lists, its stain and the field of its rows, also when a comparison shows another plane",async({page,context})=>{
   const fixture=await imageWorkspace(context,page);
@@ -243,9 +282,8 @@ test("a discussion is sent the summary the screen shows and starts from the goal
   const results=page.getByRole("region",{name:"測定結果の統計解析"});
   const heading=await results.getByRole("region",{name:"結果のまとめ"}).getByRole("heading",{level:3}).innerText();
   const panel=results.getByRole("region",{name:"考察"});
-  await panel.getByRole("button",{name:"考察を生成"}).click();
   await expect(panel.getByRole("textbox",{name:"実験の目的（任意）"})).toHaveValue("NPM1 の核小体への局在が処理で変わるかを確かめる");
-  await panel.getByRole("button",{name:"送信して生成"}).click();
+  await panel.getByRole("button",{name:"考察を生成"}).click();
   // The draft is shown as written, with no note added to it (plan §8).
   await expect(panel).toContainText("検定は行っていないため、有意差の有無はこの結果からは言えない。");
   expect(fixture.discussions).toHaveLength(1);
@@ -253,5 +291,56 @@ test("a discussion is sent the summary the screen shows and starts from the goal
   expect(sent.summary.heading).toBe(heading);
   expect(sent.summary.points.length).toBeGreaterThan(0);
   expect(sent.experiment.purpose).toBe("NPM1 の核小体への局在が処理で変わるかを確かめる");
+  expect(fixture.unexpected).toEqual([]);
+});
+
+test("unconfigured AI explains setup beside disabled actions without sending a request",async({page,context})=>{
+  const fixture=await imageWorkspace(context,page,{saved:true,aiState:"unconfigured"});
+  await page.goto("/workspace?id=w&step=statistics");
+  const panel=page.getByRole("region",{name:"考察",exact:true});
+  await expect(panel).toContainText("AI は未設定");
+  await expect(panel.getByRole("button",{name:"考察を生成"})).toBeDisabled();
+  await expect(page.getByRole("textbox",{name:"AIへの指示"})).toBeDisabled();
+  await page.getByRole("button",{name:"AI の設定",exact:true}).click();
+  const settings=page.getByRole("complementary",{name:"AI",exact:true}).locator("details").filter({has:page.locator("summary").filter({hasText:/^AI の設定$/})});
+  await settings.getByText("AI の設定",{exact:true}).click();
+  await expect(settings).toContainText("Docker・開発環境");
+  await expect(settings).toContainText("送信内容：保存済みの結果");
+  await expect(settings.getByRole("checkbox")).toBeChecked();
+  await settings.getByRole("checkbox").uncheck();
+  expect(await page.evaluate(()=>localStorage.getItem("cytellect.ai.include-previews"))).toBe("0");
+  expect(fixture.discussions).toHaveLength(0);
+  expect(fixture.unexpected).toEqual([]);
+});
+
+test("a recalculated comparison keeps the previous discussion separate and generates once on request",async({page,context})=>{
+  const fixture=await imageWorkspace(context,page,{saved:true,previous:true});
+  await page.goto("/workspace?id=w&step=statistics");
+  const previous=page.getByRole("region",{name:"前の結果の考察",exact:true});
+  const current=page.getByRole("region",{name:"考察",exact:true});
+  await expect(previous).toContainText("前回の結果に対する解釈。");
+  await expect(current.getByRole("button",{name:"考察を生成"})).toBeEnabled();
+  expect(fixture.discussions).toHaveLength(0);
+  await current.getByRole("button",{name:"考察を生成"}).click();
+  await expect(current).toContainText("検定は行っていないため");
+  expect(fixture.discussions).toHaveLength(1);
+  expect(fixture.unexpected).toEqual([]);
+});
+
+test("service compatibility is checked only on request and an incompatible service disables sending",async({page,context})=>{
+  const fixture=await imageWorkspace(context,page,{saved:true,serviceCheck:"incompatible"});
+  await page.goto("/workspace?id=w&step=statistics");
+  const instruction=page.getByRole("textbox",{name:"AIへの指示"});
+  await expect(instruction).toBeEnabled();
+  await instruction.click();
+  const settings=page.getByRole("complementary",{name:"AI",exact:true}).locator("details").filter({has:page.locator("summary").filter({hasText:/^AI の設定$/})});
+  await settings.getByText("AI の設定",{exact:true}).click();
+  expect(fixture.checks).toEqual([]);
+  await settings.getByRole("button",{name:"サービスの対応を確認"}).click();
+  await expect(settings).toContainText("このアプリに対応していません");
+  await expect(instruction).toBeDisabled();
+  await expect(page.getByRole("region",{name:"考察",exact:true}).getByRole("button",{name:"考察を生成"})).toBeDisabled();
+  expect(fixture.checks).toEqual([{}]);
+  expect(fixture.discussions).toEqual([]);
   expect(fixture.unexpected).toEqual([]);
 });
