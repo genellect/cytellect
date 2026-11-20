@@ -233,7 +233,7 @@ def _ylabel(result, ja):
     channel = _selected_channel(result)
     if channel:
         label = label.replace("Region ", channel["label"] + " ").replace("領域の", channel["label"] + "の")
-        if metric.startswith("positive_"):
+        if metric in ("positive_count", "positive_fraction"):
             label = f"{channel['label']}: {label}"
     correction = ("背景補正" if ja else "background corrected") if metric.endswith("_corrected") else ""
     suffix = ", ".join(item for item in (correction, unit) if item)

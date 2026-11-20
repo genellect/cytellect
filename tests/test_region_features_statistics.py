@@ -193,3 +193,13 @@ def test_image_table_shows_the_values_statistics_use(tmp_path):
                       params={"field_id": fids[0], "channel_id": "absent"}).status_code == 404
     client.close()
     app.state.store.engine.dispose()
+
+
+def test_one_list_of_feature_metrics():
+    from typing import get_args
+
+    from cytellect_analysis.descriptive_contracts import RegionMetric
+    from cytellect_analysis.region_shape import OFFERED_METRICS
+
+    assert SHAPE_METRICS == OFFERED_METRICS
+    assert set(FEATURE_METRICS) <= set(get_args(RegionMetric))

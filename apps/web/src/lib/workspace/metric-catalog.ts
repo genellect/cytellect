@@ -91,6 +91,9 @@ export function metricLabel(id: string): string {return choices.get(id)?.label ?
 export function metricTarget(id: string, chosen: ReviewTarget): ReviewTarget {return choices.get(id)?.target ?? chosen;}
 /** The structure a metric's values are checked on in the image (V-04, X-01). */
 export function metricStructure(id: string, chosen: ReviewTarget): ReviewTarget {return choices.get(id)?.structure ?? metricTarget(id, chosen);}
+/** The positive count and fraction of nuclei (field summary), judged by a recorded classification of a channel. Not the
+ * positive-area fraction, which is a pixel measure of a region (region-features/1.0.0). */
+export function nucleusPositivity(id: string): boolean {return id === "positive_count" || id === "positive_fraction";}
 export function metricUsesChannel(id: string): boolean {return !id.startsWith("area_") && (choices.get(id)?.channel ?? true);}
 
 const SUBJECTS: ReviewTarget[] = ["nuclei", "nucleoli", "nucleoplasm", "cell"];
@@ -123,7 +126,7 @@ export function perRegionMetric(id: string): boolean {return PER_REGION.has(id);
 export function measureLabel(metric: string, regionSet: string | null | undefined, stain: string | null | undefined): string {
   const label = metricLabel(metric);
   const region = PER_REGION.has(metric) && regionSet ? SUBJECT_NAMES[regionSet as ReviewTarget] : undefined;
-  const named = !!stain && (metric.startsWith("positive_") || metricUsesChannel(metric));
+  const named = !!stain && (nucleusPositivity(metric) || metricUsesChannel(metric));
   // A label that already ends in a parenthesis (「積算輝度（背景補正）」) takes the stain inside it.
   const text = named && label.endsWith("）") ? `${label.slice(0, -1)}、${stain}）` : named ? `${label}（${stain}）` : label;
   return `${region ? `${region}の` : ""}${text}`;

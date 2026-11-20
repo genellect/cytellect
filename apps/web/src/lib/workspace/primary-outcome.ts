@@ -1,4 +1,4 @@
-import {measureLabel, metricTarget, metricUsesChannel} from "./metric-catalog";
+import {measureLabel, metricTarget, metricUsesChannel, nucleusPositivity} from "./metric-catalog";
 import type {ReviewTarget} from "./review-preview";
 
 /** The measure declared primary before results are read (#257 RP-04, analysis spec `primary_outcome` 1.0.0).
@@ -8,7 +8,7 @@ export interface PrimaryOutcome {version?: "1.0.0"; metric: string; region_set_i
 /** The declaration for a metric chosen on a subject: the region set the values come from, and the stain only where the
  * metric reads one. */
 export function primaryOutcome(metric: string, subject: ReviewTarget, channel: string | null): PrimaryOutcome {
-  return {version: "1.0.0", metric, region_set_id: metricTarget(metric, subject), channel_id: metricUsesChannel(metric) || metric.startsWith("positive_") ? channel : null};
+  return {version: "1.0.0", metric, region_set_id: metricTarget(metric, subject), channel_id: metricUsesChannel(metric) || nucleusPositivity(metric) ? channel : null};
 }
 
 /** How a result relates to the declaration: the primary measure, a primary measure computed before it was declared,

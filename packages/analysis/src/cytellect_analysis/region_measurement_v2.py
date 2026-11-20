@@ -354,7 +354,7 @@ def require_region_metric(measurement: MeasurementPolicy | None, metric: str) ->
             raise ValueError("region_metric_not_measured")
         return
     measurement = MEASUREMENT_POLICY.validate_python(measurement)
-    shape = ("solidity", "axis_ratio", "eccentricity")
+    from .region_shape import OFFERED_METRICS as shape
     allowed = {
         "area_only": ("area_px", "area_um2", *shape),
         "raw_intensity": ("area_px", "area_um2", "mean", "median", "integrated", *shape, "cv", "positive_area_fraction"),

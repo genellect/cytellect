@@ -12,7 +12,7 @@ import {descriptiveWarning} from "@/lib/descriptive-view";
 import {createComparisonAdapter,descriptiveSupported,MISSING_POLICY,type CohortStratum,type CompartmentLedgerEntry,type Metadata,type ComparisonSource,type GfpSelectionChoice} from "@/lib/workspace/comparison-adapter";
 import type {ApiAdapter,SavedResult,WorkspaceSelection} from "@/lib/workspace/api-adapter";
 import type {ReviewTarget} from "@/lib/workspace/review-preview";
-import {metricLabel,metricStructure,metricUsesChannel} from "@/lib/workspace/metric-catalog";
+import {metricLabel,metricStructure,metricUsesChannel,nucleusPositivity} from "@/lib/workspace/metric-catalog";
 import {associationAxes,associationSupported,checkedPlot,comparisonKind,exploratoryPositivity,saturatedGroups,emptyMetadata,metadataMissing,restoredMetric,resultRequest,resultSeries,runTable,seriesOrder,withMaskCorrections,type MaskCorrectionRow,type ResultDesign,type ResultOperation,type RenderPlot} from "./connected-results-model";
 import styles from "./connected-results.module.css";
 import {ErrorText,useShowcaseUi} from "./showcase-ui";
@@ -82,7 +82,9 @@ interface Presentation {version:"1.0.0";observations?:Observations|null;color_by
 const formNames:Record<string,string>={points:"全データ点",density:"分布（バイオリン）",box:"箱ひげ",bar:"平均の棒",
   "run-box":"実験回の箱ひげ","run-violin":"実験回のバイオリン","run-histogram":"実験回のヒストグラム","run-paired":"実験回の対応",scatter:"散布図"};
 const sizeNames:Record<FigureSize,string>={panel:"パネル","single-column":"1段幅 · 89 mm","double-column":"2段幅 · 183 mm",custom:"カスタム"};
-interface Saved {job:string;revision:string;result:ResultPayload;identity:string;requestIdentity:string;plot:RenderPlot;figureJob:string;figure:ResultPayload["figure"];operation:ResultOperation;sources?:Array<{field:string;label:string}>;historical?:boolean;target?:ReviewTarget;created?:number}
+interface Saved {job:string;revision:string;result:ResultPayload;identity:string;requestIdentity:string;plot:RenderPlot;figureJob:string;figure:ResultPayload["figure"];operation:ResultOperation;sources?:Array<{field:string;label:string}>;historical?:boolean;target?:ReviewTarget;created?:number;
+  /** The primary declaration in force when this session calculated the result (server time; none for history). */
+  declaredAt?:number|null}
 /** Saved units are the analysis package's (English, for figures); the result text names them in Japanese. */
 const unitLabels:Record<string,string>={"nuclei per field":"個／視野","nuclei per mm²":"個／mm²","positive nuclei per field":"個／視野","fraction of evaluable nuclei":"",dimensionless:"",count:""};
 const unitLabel=(unit?:string|null)=>unit?unitLabels[unit]??unit:"";
@@ -201,7 +203,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   const gateCurrent=useRef(gateIdentity);
   useLayoutEffect(()=>{gateCurrent.current=gateIdentity;return()=>{gateCurrent.current="";};},[gateIdentity]);
   const currentGate=recordedGate?.identity===gateIdentity?recordedGate:null;
-  const positivityMissing=metric.startsWith("positive_")&&!channelGate;
+  const positivityMissing=nucleusPositivity(metric)&&!channelGate;
   // Nuclei whose nucleolus could not be established (Q-05): listed by group, run and reason before the
   // calculation; once confirmed they stay as missing instead of stopping the statistics.
   const compartment=regionSet==="nucleoli"||regionSet==="nucleoplasm";
@@ -362,7 +364,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   // so a later change of the experiment or exclusions never judges again unasked.
   useEffect(()=>{
     if(!pendingReclassify.current)return;
-    if(mode!=="statistics"||!metric.startsWith("positive_")||!channelGate){pendingReclassify.current=0;return;}
+    if(mode!=="statistics"||!nucleusPositivity(metric)||!channelGate){pendingReclassify.current=0;return;}
     if(busy||disabled||!sources.length||missing||!ledgerReady)return;
     if(currentGate){pendingReclassify.current=0;return;}
     runPendingReclassify();
@@ -402,7 +404,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
       if(observations&&!(result.figure.forms||[]).some(form=>form.observations===observations))setObservations(null);
       // A design, stratum or source changed while this ran: its result is not shown as current.
       if(requestedStratum&&scopedIdentity("",requestedStratum)!==scopedIdentity("",stratumRequestRef.current))throw new Error("層または実験デザインが計算中に変わりました。もう一度計算してください。");
-      const created:Saved={job:accepted.job_id,revision,result,identity:scopedIdentity(JSON.stringify([target,sources.map(source=>[source.field,source.revision]),fields,adopted]),requestedStratum),requestIdentity,plot:{...display,kind:chosenKind},figureJob:accepted.job_id,figure:result.figure,operation,sources:sources.map(source=>({field:source.field,label:source.label})),target:["nuclei","nucleoli","nucleoplasm","cell"].includes(regionSet)?regionSet as ReviewTarget:target,created:Date.now()/1000};setSaved(created);setHistory(previous=>[created,...previous.filter(value=>value.job!==created.job)]);
+      const created:Saved={job:accepted.job_id,revision,result,identity:scopedIdentity(JSON.stringify([target,sources.map(source=>[source.field,source.revision]),fields,adopted]),requestedStratum),requestIdentity,plot:{...display,kind:chosenKind},figureJob:accepted.job_id,figure:result.figure,operation,sources:sources.map(source=>({field:source.field,label:source.label})),target:["nuclei","nucleoli","nucleoplasm","cell"].includes(regionSet)?regionSet as ReviewTarget:target,created:Date.now()/1000,declaredAt:primary?.declared_at??null};setSaved(created);setHistory(previous=>[created,...previous.filter(value=>value.job!==created.job)]);
     }catch(cause){setError(fail(cause));}finally{lock.current=false;setBusy("");}
   }
   async function render(downloadZip=false){
@@ -486,7 +488,9 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   const shownLabel=saved?savedMeasureLabel(saved.operation,saved.result):"";
   // Primary or exploratory (RP-04): the shown result by its saved condition and time, the chosen condition before it is calculated.
   const primaryLabel=primaryName(primary,stainName);
-  const shownRole=outcomeRole(primary,shownCondition,saved?.created);
+  // History carries the server's job time; a result calculated here is after the declaration if that declaration was in force.
+  const shownTime=!saved||!primary?.declared_at?undefined:saved.historical?saved.created:saved.declaredAt===primary.declared_at?undefined:primary.declared_at-1;
+  const shownRole=outcomeRole(primary,shownCondition,shownTime);
   const choiceRole=outcomeRole(primary,{metric,regionSet,channel:condition.channel});
   // A newly chosen condition opens its saved result at once (D-1); nothing is calculated without 計算.
   const appliedChoice=useRef("");

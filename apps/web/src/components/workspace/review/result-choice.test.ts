@@ -34,6 +34,12 @@ describe("result conditions (SR-01, SR-02)",()=>{
     expect(choiceFilter("mean",{channel:"gfp"},null)).toBe("gfp:gfp");
     expect(choiceFilter("mean",{gfp_channel_id:"gfp"},null)).toBe(savedCondition("distribution",{spec:{selection:{region_set_id:"nuclei",metric:"mean",channel_id:"npm1",gfp_gate:{gfp_channel_id:"gfp"}}}})?.filter);
   });
+  it("keeps the measured stain of a positive-area fraction, which is a pixel measure, not nucleus positivity (#257 E-7)",()=>{
+    const area:SavedResultLike={channel:npm1,spec:{selection:{source:"region",region_set_id:"nuclei",metric:"positive_area_fraction",channel_id:"npm1"}}};
+    expect(savedCondition("comparison",area)).toEqual(choice({regionSet:"nuclei",metric:"positive_area_fraction",channel:"npm1"}));
+    expect(conditionChannel("positive_area_fraction","npm1","gfp")).toBe("npm1");
+    expect(savedMeasureLabel("comparison",area)).toBe("核の陽性面積率（NPM1）");
+  });
   it("reads both axes of an association",()=>{
     const association:SavedResultLike={spec:{x_selection:{source:"region",region_set_id:"nuclei",metric:"area_px",channel_id:null},y_selection:{source:"region",region_set_id:"nuclei",metric:"mean",channel_id:"npm1"}}};
     expect(savedCondition("association",association)).toEqual(choice({operation:"association",regionSet:"nuclei",x:{metric:"area_px",channel:null}}));

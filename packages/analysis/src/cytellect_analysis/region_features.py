@@ -24,11 +24,11 @@ import numpy as np
 from .masks import validate_label_array
 from .nuclear_signal import PROTOCOL as SIGNAL_PROTOCOL
 from .nuclear_signal import nuclear_signal
-from .region_shape import MINIMUM_AREA_PX, PERIMETER_ESTIMATOR, region_shapes
+from .region_shape import MINIMUM_AREA_PX, OFFERED_METRICS, PERIMETER_ESTIMATOR, region_shapes
 from .region_shape import PROTOCOL as SHAPE_PROTOCOL
 
 PROTOCOL: Literal["region-features/1.0.0"] = "region-features/1.0.0"
-SHAPE_METRICS = ("solidity", "axis_ratio", "eccentricity")
+SHAPE_METRICS = OFFERED_METRICS
 SIGNAL_METRICS = ("cv", "cv_corrected", "positive_area_fraction")
 FEATURE_METRICS = (*SHAPE_METRICS, *SIGNAL_METRICS)
 UNITS = {metric: "dimensionless" for metric in FEATURE_METRICS}

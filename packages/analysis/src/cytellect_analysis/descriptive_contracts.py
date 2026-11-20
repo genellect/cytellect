@@ -18,6 +18,7 @@ from pydantic.json_schema import SkipJsonSchema
 from .channel_gate_contracts import ChannelGateFilter
 from .contracts import PlotSpec, StrictModel
 from .experiment_strata import StratumRecord
+from .region_shape import OFFERED_METRICS
 from .regions import Id
 from .statistical_methods import StatisticalMethodsTemplate
 
@@ -40,7 +41,7 @@ RegionMetric = Literal[
     # region-features/1.0.0 (region_features.py): shape reads no stain, the pixel CV and positive area read one.
     "solidity", "axis_ratio", "eccentricity", "cv", "cv_corrected", "positive_area_fraction",
 ]
-SHAPE_METRICS = ("solidity", "axis_ratio", "eccentricity")
+SHAPE_METRICS = OFFERED_METRICS
 
 
 class GfpGateFilter(StrictModel):

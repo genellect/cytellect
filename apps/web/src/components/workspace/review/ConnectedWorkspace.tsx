@@ -9,7 +9,7 @@ import {Suspense,useEffect,useEffectEvent,useMemo,useReducer,useRef,useState,typ
 import {useSearchParams} from "next/navigation";
 import {useWorkspaceRuntime,type RuntimeSettings} from "@/lib/workspace/use-workspace-runtime";
 import type {ReviewField,ReviewTarget} from "@/lib/workspace/review-preview";
-import {metricChoice,metricSentence,metricsForSubject,metricStructure,metricSubjects,metricTarget,metricUsesChannel} from "@/lib/workspace/metric-catalog";
+import {metricChoice,metricSentence,metricsForSubject,metricStructure,metricSubjects,metricTarget,metricUsesChannel,nucleusPositivity} from "@/lib/workspace/metric-catalog";
 import {MetricSelect} from "./MetricSelect";
 import type {ChannelAssignment,MeasurementRow,GfpGateResult,Recipe,SavedResult,RevisionRecord,RegionFeatureTable} from "@/lib/workspace/api-adapter";
 import {API_CONFIGURED,ApiError,errorCodeMessage,errorMessage,request} from "@/lib/api";
@@ -148,7 +148,7 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
     nuclearRevision:nuclearResult.revision,nucleolarRevision:r.currentResult(field.id,"nucleoli")?.revision,channels:field.channels}:undefined;
   // The image table's shape and pixel-signal columns (region-features/1.0.0, A-4), computed by the API from the saved
   // regions with the statistics' implementation. The demo recording has none, so the demo shows the measured columns only.
-  const [featureTable,setFeatureTable]=useState<{key:string;value:RegionFeatureTable|null}>();
+  const [featureTable,setFeatureTable]=useState<{key:string;value:RegionFeatureTable|null;error?:string}>();
   const [featuresWanted,setFeaturesWanted]=useState(false);
   const featureChannel=rows.some(row=>row.mean!=null)?actualChannel:null;
   const featureRevision=!demo&&!historicResult&&!candidate&&field?result?.revision:undefined;
@@ -157,11 +157,14 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
     // Asked for once, the columns follow the field, stain and revision in view.
     if(!featuresWanted||!featureRevision||!field)return;
     let live=true;
-    r.adapter.regionFeatures(featureRevision,field.id,featureChannel).then(value=>{if(live)setFeatureTable({key:featureKey,value});},()=>{if(live)setFeatureTable({key:featureKey,value:null});});
+    r.adapter.regionFeatures(featureRevision,field.id,featureChannel).then(value=>{if(live)setFeatureTable({key:featureKey,value});},error=>{
+      // The reason is shown beside the table, and the button comes back to try again.
+      if(!live)return;setFeatureTable({key:featureKey,value:null,error:error instanceof ApiError?errorMessage(error):error instanceof Error?errorCodeMessage(error.message):"形と信号の値を読み込めませんでした。"});setFeaturesWanted(false);});
     return()=>{live=false;};
   },[featuresWanted,featureKey,featureRevision,field,featureChannel,r.adapter]);
   const features=featureTable?.key===featureKey?featureTable.value:null;
-  const showFeatures=featureRevision&&!featuresWanted?()=>setFeaturesWanted(true):undefined;
+  const showFeatures=featureRevision&&!featuresWanted?()=>{setFeatureTable(undefined);setFeaturesWanted(true);}:undefined;
+  const featureError=featureTable?.key===featureKey?featureTable.error:undefined;
   const planes=fields.flatMap(value=>value.channels.map(ch=>({field:value,channel:ch,key:`${value.id}:${ch.id}`})));
   const visible=compare?planes.filter(value=>picked.includes(value.key)):planes.filter(value=>value.field.id===field?.id&&value.channel.id===actualChannel);
   // The table beside one image lists `rows` (the selected field in the selected channel), which a comparison may not show:
@@ -365,7 +368,7 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
   // A scene that names none (or could not be read) classifies by no stain, and its metrics leave positivity out.
   const sceneGate=demo?showcase.dataset?.gateChannels??[]:null;
   const gateChannels=(field?.channels||data?.channels||[]).filter(value=>!sceneGate||sceneGate.includes(value.id));
-  const metricOfferedFor=(id:string,subject:ReviewTarget)=>regionOffered(metricTarget(id,subject))&&(!id.startsWith("positive_")||!sceneGate||sceneGate.length>0);
+  const metricOfferedFor=(id:string,subject:ReviewTarget)=>regionOffered(metricTarget(id,subject))&&(!nucleusPositivity(id)||!sceneGate||sceneGate.length>0);
   // The side panel chooses the subject first, then its metric, then the stain (B-1). A metric listed under the chosen
   // subject keeps it; a metric of another subject (opened from a saved result) shows the subject it is checked on.
   const subject=metricSubjects(metric).includes(target)?target:checkedTarget;
@@ -462,7 +465,7 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
   const declaredPrimary=(storedSpec?.primary_outcome??null) as PrimaryOutcome|null;
   const stainChoices=[...new Map(fields.flatMap(value=>value.channels).map(ch=>[ch.id,{id:ch.id,name:ch.stain||ch.id}])).values()];
   const declarePrimary=(value:PrimaryOutcome|null)=>explained(async()=>{if(!r.workspaceId)await r.ensureWorkspace();await r.savePrimaryOutcome(value);});
-  const primarySetup=<><PrimaryOutcomeSetup declared={declaredPrimary} stains={stainChoices} readOnly={demo} busy={r.busy||!transportAvailable} onDeclare={declarePrimary}/>
+  const primarySetup=<><PrimaryOutcomeSetup declared={declaredPrimary} stains={stainChoices} readOnly={demo} busy={r.busy||!transportAvailable} onDeclare={declarePrimary} offered={metricOfferedFor} calibrated={calibrated}/>
     <ResearchTheme stains={stainChoices} readOnly={demo} busy={r.busy||!transportAvailable}
       onView={(subject,ch)=>{setTarget(subject);if(ch)setChannel(ch);setRegion(undefined);changeMode("image");}}
       onDeclare={(metricId,subject,ch)=>void declarePrimary(primaryOutcome(metricId,subject,ch))}/></>;
@@ -519,10 +522,10 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
           {assignments&&<AssignmentEditor key={field.id} field={field} runtime={r} onDone={()=>{setAssignments(false);queuePreview("nuclei");}} onError={setLocalError}/>}
           {picker&&<div className={styles.comparisonPicker}>{planes.map(value=><label key={value.key}><input type="checkbox" checked={picked.includes(value.key)} onChange={e=>setPicked(previous=>e.target.checked?[...previous,value.key]:previous.filter(key=>key!==value.key))}/>{value.field.label} · {value.channel.stain||value.channel.id}</label>)}<button className={styles.icon} aria-label="比較対象を閉じる" onClick={()=>setPicker(false)}><Icon name="close"/></button></div>}
           {pairActive?<PairStage nucleusView={nucleusView} onNucleusView={setNucleusView} design={experiment!} fields={fields} runtime={r} target={target} channel={actualChannel} selectedField={field.id} region={region} historical={historical} onSelect={(id,ch,n)=>{setSelected(id);setChannel(ch);setRegion(n);}} onEditing={setEditing} runId={pairRunId} linked={pairLinked} tables={pairTables} onDisplay={setPairDisplay}
-            colorBy={colorShown} states={regionStates} legend={legendFor} fills={fillsFor} gateTable={gateTableFor} heading={headingFor} next={nextAction} partition={partitionFor}/>:<ImageStage planes={visible} target={target} fieldId={field.id} region={region} rows={rows} onRegion={setRegion} onSelect={(id,ch,n)=>{setSelected(id);setChannel(ch);setRegion(n);}} onOpen={openField} runtime={r} editing={editing} onEditing={setEditing} colorBy={colorShown} states={regionStates} legend={legendFor} fills={fillsFor} gateTable={gateTableFor} heading={headingFor} next={nextAction} partition={colorShown==="compartments"?partitionFor(field):undefined} historical={historical} backgrounds={backgrounds} backgroundDraw={backgroundDraw?{field:backgroundDraw.field,requestId:backgroundDraw.id,onSave:saveBackground,onCancel:()=>setBackgroundDraw(null)}:undefined} viewport={viewport} onViewport={(fid,value)=>setViewport(previous=>({...previous,[fid]:value}))} composite={merged} demo={demo} rowsField={rowsField} nucleusTable={nucleusTableSource} features={features} onShowFeatures={showFeatures} sideTable={!table} onSideTable={setSideRoom}/>}
+            colorBy={colorShown} states={regionStates} legend={legendFor} fills={fillsFor} gateTable={gateTableFor} heading={headingFor} next={nextAction} partition={partitionFor}/>:<ImageStage planes={visible} target={target} fieldId={field.id} region={region} rows={rows} onRegion={setRegion} onSelect={(id,ch,n)=>{setSelected(id);setChannel(ch);setRegion(n);}} onOpen={openField} runtime={r} editing={editing} onEditing={setEditing} colorBy={colorShown} states={regionStates} legend={legendFor} fills={fillsFor} gateTable={gateTableFor} heading={headingFor} next={nextAction} partition={colorShown==="compartments"?partitionFor(field):undefined} historical={historical} backgrounds={backgrounds} backgroundDraw={backgroundDraw?{field:backgroundDraw.field,requestId:backgroundDraw.id,onSave:saveBackground,onCancel:()=>setBackgroundDraw(null)}:undefined} viewport={viewport} onViewport={(fid,value)=>setViewport(previous=>({...previous,[fid]:value}))} composite={merged} demo={demo} rowsField={rowsField} nucleusTable={nucleusTableSource} features={features} onShowFeatures={showFeatures} featureError={featureError} sideTable={!table} onSideTable={setSideRoom}/>}
           {/* Side by side, each pane lists its own measurements; this row then only carries the selected field's actions. */}
           {(!pairActive||!!candidate||!!field.exclusionReason||!!field.error)&&<div className={styles.measureToggle}>{pairActive?<strong>{field.label}</strong>:<button aria-expanded={table} aria-label={sideRoom?`測定値${rows.length?` · ${rows.length}`:""}（${table?"画像の横に戻す":"画像の下に広げる"}）`:undefined} title={sideRoom?(table?"測定値を画像の横に戻します":"測定値を画像の下に広げます"):undefined} onClick={()=>setTable(!table)}>測定値{rows.length?` · ${rows.length}`:""}</button>}<span>{targets[target]}{historicResult?" · 図の保存時の版":candidate?" · 検出候補":result?"":" · 未測定"}</span>{candidate&&<button disabled={busy} onClick={()=>void act(()=>r.acceptCandidates(field.id,target))}>候補を採用</button>}{field.exclusionReason?<button onClick={()=>void act(()=>r.excludeField(field.id,null))}>解析対象に戻す</button>:field.error?<button onClick={()=>void act(()=>r.excludeField(field.id,"利用者が解析対象から除外"))}>この視野を除外</button>:null}</div>}
-          {table&&!pairActive&&<div className={styles.tableDrawer}><MeasurementsPanel target={target} heading={headingFor(!!nucleusTableSource?.shown,rows)} rowsField={rowsField} mode={colorShown} gate={field?gateTableFor(field.id):undefined} next={nextAction} partition={colorShown==="compartments"?partitionFor(field):undefined} rows={rows} features={features} onShowFeatures={showFeatures} region={region} onRegion={setRegion} editing={editing} nucleusTable={nucleusTableSource}/></div>}
+          {table&&!pairActive&&<div className={styles.tableDrawer}><MeasurementsPanel target={target} heading={headingFor(!!nucleusTableSource?.shown,rows)} rowsField={rowsField} mode={colorShown} gate={field?gateTableFor(field.id):undefined} next={nextAction} partition={colorShown==="compartments"?partitionFor(field):undefined} rows={rows} features={features} onShowFeatures={showFeatures} featureError={featureError} region={region} onRegion={setRegion} editing={editing} nucleusTable={nucleusTableSource}/></div>}
 
         </>}
       </section>
@@ -634,7 +637,7 @@ function AssignmentEditor({field,runtime:r,onDone,onError}:{field:ReviewField;ru
   return <div className={styles.assignments}>{draft.map((ch,index)=><label key={ch.channel_id}>{field.previews[ch.channel_id]&&<img src={field.previews[ch.channel_id]} alt={ch.channel_id}/>}<strong>{ch.channel_id}</strong><input aria-label={`${ch.channel_id}の染色名`} placeholder="染色名" value={ch.stain||""} onChange={e=>setDraft(previous=>previous.map((item,i)=>i===index?{...item,stain:e.target.value||null}:item))}/>{ch.stain&&fromFilename.get(ch.channel_id)===ch.stain&&<small className={styles.stainHint}>ファイル名から読み取った名前です。撮影記録の染色名と照合してください。</small>}<select aria-label={`${ch.channel_id}の役割`} value={ch.role} onChange={e=>setDraft(previous=>previous.map((item,i)=>({...item,role:i===index?e.target.value as ChannelAssignment["role"]:e.target.value==="nuclear"&&item.role==="nuclear"?"measure":item.role})))}><option value="nuclear">核検出</option><option value="measure">測定</option><option value="unused">使用しない</option></select></label>)}<button disabled={r.busy} className={styles.primary} onClick={()=>{void r.saveAssignments(draft,field.id).then(onDone).catch(e=>onError(e instanceof Error?e.message:"保存できませんでした。"));}}>保存</button></div>;
 }
 
-function ImageStage({planes,target,fieldId,region,rows,rowsField,onRegion,onSelect,onOpen,runtime:r,editing,onEditing,colorBy,states,legend,fills,gateTable,heading,next,partition,historical,backgrounds,backgroundDraw,viewport,onViewport,composite=false,demo=false,nucleusTable,features,onShowFeatures,sideTable=true,onSideTable}:ColorView&{features?:RegionFeatureTable|null;onShowFeatures?:()=>void;partition?:ReactNode;composite?:boolean;demo?:boolean;sideTable?:boolean;onSideTable?:(shown:boolean)=>void;rowsField:string;nucleusTable?:NucleusTableSource;planes:Array<{field:ReviewField;channel:{id:string;stain:string|null};key:string}>;target:ReviewTarget;fieldId:string;region?:number;rows:MeasurementRow[];onRegion:(n:number)=>void;onSelect:(field:string,ch:string,n:number)=>void;onOpen:(field:string,ch:string)=>void;runtime:Runtime;editing:boolean;onEditing:(v:boolean)=>void;historical:Historical|null;backgrounds:WorkspaceBackgrounds;backgroundDraw?:{field:string;requestId:string;onSave:(polygon:Point[])=>Promise<void>;onCancel:()=>void};viewport:Record<string,ReviewImageViewport|null>;onViewport:(fid:string,value:ReviewImageViewport|null)=>void}){
+function ImageStage({planes,target,fieldId,region,rows,rowsField,onRegion,onSelect,onOpen,runtime:r,editing,onEditing,colorBy,states,legend,fills,gateTable,heading,next,partition,historical,backgrounds,backgroundDraw,viewport,onViewport,composite=false,demo=false,nucleusTable,features,onShowFeatures,featureError,sideTable=true,onSideTable}:ColorView&{features?:RegionFeatureTable|null;onShowFeatures?:()=>void;featureError?:string;partition?:ReactNode;composite?:boolean;demo?:boolean;sideTable?:boolean;onSideTable?:(shown:boolean)=>void;rowsField:string;nucleusTable?:NucleusTableSource;planes:Array<{field:ReviewField;channel:{id:string;stain:string|null};key:string}>;target:ReviewTarget;fieldId:string;region?:number;rows:MeasurementRow[];onRegion:(n:number)=>void;onSelect:(field:string,ch:string,n:number)=>void;onOpen:(field:string,ch:string)=>void;runtime:Runtime;editing:boolean;onEditing:(v:boolean)=>void;historical:Historical|null;backgrounds:WorkspaceBackgrounds;backgroundDraw?:{field:string;requestId:string;onSave:(polygon:Point[])=>Promise<void>;onCancel:()=>void};viewport:Record<string,ReviewImageViewport|null>;onViewport:(fid:string,value:ReviewImageViewport|null)=>void}){
   const ref=useRef<HTMLDivElement>(null),[size,setSize]=useState({width:800,height:600});
   useEffect(()=>{const node=ref.current;if(!node)return;const observer=new ResizeObserver(entries=>{const {width,height}=entries[0].contentRect;setSize({width,height});});observer.observe(node);return()=>observer.disconnect();},[]);
   const single=planes.length===1;const layout=imageStageLayout(planes.map(plane=>plane.field),size);
@@ -669,13 +672,13 @@ function ImageStage({planes,target,fieldId,region,rows,rowsField,onRegion,onSele
           initialZoom={demo&&single?1.8:undefined} initialFocus={demo&&single?nucleus?centre(nucleus.points):densestPoint(r.currentResult(plane.field.id,"nuclei")?.masks.regions||[],plane.field.width/4):undefined}/>:<p>画像を読み込み中…</p>}
       </div>;
     })}
-    {showTable&&<div className={styles.sideMeasurements}><MeasurementsPanel target={target} heading={heading(!!nucleusTable?.shown,rows)} rowsField={rowsField} mode={colorBy} gate={gateTable(fieldId)} next={next} partition={partition} rows={rows} features={features} onShowFeatures={onShowFeatures} region={region} onRegion={onRegion} editing={editing} nucleusTable={nucleusTable}/></div>}
+    {showTable&&<div className={styles.sideMeasurements}><MeasurementsPanel target={target} heading={heading(!!nucleusTable?.shown,rows)} rowsField={rowsField} mode={colorBy} gate={gateTable(fieldId)} next={next} partition={partition} rows={rows} features={features} onShowFeatures={onShowFeatures} featureError={featureError} region={region} onRegion={onRegion} editing={editing} nucleusTable={nucleusTable}/></div>}
   </div>;
 }
 
 /** The table of what the image shows (MV-06, MV-07): its heading names per what, which stain and which values; the
  * colour mode decides the rows. Values come from the API. Shown once, beside the image or below it, with the next step. */
-function MeasurementsPanel({heading,mode,gate,next,rows,rowsField,region,onRegion,editing,nucleusTable,partition,features,onShowFeatures,target="nuclei"}:{heading:string;mode:ColorBy;gate?:NucleusTableGate;next?:NextAction|null;target?:ReviewTarget;features?:RegionFeatureTable|null;onShowFeatures?:()=>void;
+function MeasurementsPanel({heading,mode,gate,next,rows,rowsField,region,onRegion,editing,nucleusTable,partition,features,onShowFeatures,featureError,target="nuclei"}:{heading:string;mode:ColorBy;gate?:NucleusTableGate;next?:NextAction|null;target?:ReviewTarget;features?:RegionFeatureTable|null;onShowFeatures?:()=>void;featureError?:string;
   rows:MeasurementRow[];rowsField:string;region?:number;onRegion:(n:number)=>void;editing:boolean;nucleusTable?:NucleusTableSource;partition?:ReactNode}){
   // In a comparison of images the table may list another field than the one in view: its heading names it.
   const field=rowsField?`${rowsField} · `:"";
@@ -689,6 +692,7 @@ function MeasurementsPanel({heading,mode,gate,next,rows,rowsField,region,onRegio
     {nucleusRows&&nucleusTable?<ConnectedNucleusTable load={nucleusTable.load} save={nucleusTable.save} field={nucleusTable.field} nuclearRevision={nucleusTable.nuclearRevision} nucleolarRevision={nucleusTable.nucleolarRevision} channels={nucleusTable.channels} exclusion={nucleusTable.exclusion} gate={mode==="positivity"?gate:undefined} selected={region} onSelect={onRegion} aside={next?<NextStep next={next}/>:undefined}/>
     :mode==="positivity"?<p>核ごとの判定には、核の検出と採用が必要です。</p>
     :rows.length?<><MeasurementTable rows={rows} selected={region} onSelect={onRegion} features={features}/>
+      {featureError&&<p role="alert">形と信号の値を読み込めませんでした：{featureError}</p>}
       {onShowFeatures&&<button type="button" className={styles.linkButton} onClick={onShowFeatures}>形と信号の値を表示</button>}</>:<p>測定値なし</p>}</>}
     {editing&&<p>描画を保存するか、取り消してください。</p>}
   </>;

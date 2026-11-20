@@ -1,5 +1,5 @@
 import {comparisonRequest, comparisonSelection, FIELD_SUMMARY_METRICS, type ComparisonChoices, type ComparisonMetric, type Metadata, type GfpSelectionChoice} from "../../../lib/workspace/comparison-adapter";
-import {metricUsesChannel} from "../../../lib/workspace/metric-catalog";
+import {metricUsesChannel,nucleusPositivity} from "../../../lib/workspace/metric-catalog";
 import {defaultFigureEdits} from "../../../lib/figure-controls";
 import type {AssociationRequest} from "../../../lib/common-statistics";
 import type {MeasurementRow} from "../../../lib/workspace/api-adapter";
@@ -103,7 +103,7 @@ export function metadataMissing(design: Pick<ResultDesign,"operation"|"metric"|"
   if (design.operation === "distribution") return null;
   const compared=Object.entries(fields).filter(([fid])=>!(design.channelGate?.control_field_ids??[]).includes(fid)).map(([,value])=>value);
   return compared.some(value=>!value.condition?.trim() || !value.sample?.trim() || !value.experimental_unit?.trim()
-    || ((metricUsesChannel(design.metric) || design.metric.startsWith("positive_") || (design.operation === "association" && metricUsesChannel(design.xMetric))) && !value.acquisition_date?.trim())
+    || ((metricUsesChannel(design.metric) || nucleusPositivity(design.metric) || (design.operation === "association" && metricUsesChannel(design.xMetric))) && !value.acquisition_date?.trim())
     || (design.operation === "comparison" && design.paired && !value.pair?.trim())) ? "視野の群・試料・実験回と、必要な撮影日・対応ペアの入力" : null;
 }
 export function resultRequest(design: ResultDesign, fields: Record<string, Metadata>, plot: RenderPlot) {
@@ -156,5 +156,5 @@ export function runTable(design:{groups:Array<{id:string;label:string}>;control_
 /** A positive count or fraction judged by a threshold that no negative control fixed (manual, Otsu) is
  * exploratory: it is described (test "none"), never tested. The API refuses a test for it. */
 export function exploratoryPositivity(metric:string,gate:{method:string}|null|undefined){
-  return metric.startsWith("positive_")&&!!gate&&gate.method!=="negative_control";
+  return nucleusPositivity(metric)&&!!gate&&gate.method!=="negative_control";
 }

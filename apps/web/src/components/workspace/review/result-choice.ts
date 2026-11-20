@@ -1,4 +1,4 @@
-import {measureLabel,metricLabel,metricUsesChannel} from "../../../lib/workspace/metric-catalog";
+import {measureLabel,metricLabel,metricUsesChannel,nucleusPositivity} from "../../../lib/workspace/metric-catalog";
 import type {ResultOperation} from "./connected-results-model";
 
 /** What a result answers, in the terms the side panel chooses (requirements SR-01, SR-02): the analysis,
@@ -38,7 +38,7 @@ export interface SavedResultLike {
     measurement_protocol?: string; measurement?: {mode?: string} | null}>;
 }
 
-const positive = (metric: string) => metric.startsWith("positive_");
+const positive = nucleusPositivity;
 /** The stain channel a metric reads, as the side panel holds it. */
 export function conditionChannel(metric: string, channel: string | null, gateChannel: string | null): string | null {
   return positive(metric) ? gateChannel : metricUsesChannel(metric) ? channel : null;
