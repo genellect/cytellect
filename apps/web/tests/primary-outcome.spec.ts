@@ -1,3 +1,4 @@
+import {aiReadFixture} from "./ai-read-fixture";
 import {nucleusTableFixture} from "./nucleus-table-fixture";
 import {expect,test,type BrowserContext,type Page} from "@playwright/test";
 
@@ -17,6 +18,7 @@ async function workspace(context:BrowserContext,page:Page){
   const recipe={id:"region-2d",version:"1.7.0",source:"stardist_nuclear",region_set_id:"nuclei",label:"核",defining_channel_id:"c1",nuclear_role_source:"recorded_stain"};
   const revision={id:"r1",state:"succeeded",created:1,config:{recipe,field_ids:["f1"],measurement:{version:"1.1.0",mode:"raw_intensity"},backgrounds:{}}};
   await context.route("**/v1/**",async route=>{
+    if(await aiReadFixture(route))return;
     const req=route.request(),url=new URL(req.url()),path=url.pathname,method=req.method();
     const headers={"Access-Control-Allow-Origin":new URL(page.url()).origin,"Access-Control-Allow-Credentials":"true","Access-Control-Allow-Headers":"content-type,x-cytellect-request","Access-Control-Allow-Methods":"GET,POST,PUT,DELETE,OPTIONS"};
     const json=(body:unknown,status=200)=>route.fulfill({status,headers,contentType:"application/json",body:JSON.stringify(body)});
