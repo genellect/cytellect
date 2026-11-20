@@ -23,10 +23,10 @@ PR の CI と同じ規則で、変更したファイルから検証を選んで�
 |---|---|
 | `python` | `python3 scripts/dev.py check python` |
 | `web` | `python3 scripts/dev.py check web` |
-| 解析エンジン（`engines/fiji`、`packages/analysis` の測定）を変えた | `python3 scripts/dev.py check --fiji` も |
+| 解析エンジンを変えた | `python3 scripts/dev.py check --fiji` も |
 | API を変えた | `python3 scripts/dev.py contracts`。生成した OpenAPI・既定レシピ・TypeScript の型を同じコミットに入れる |
 | 依存パッケージ・lockfile を変えた | `python3 scripts/dev.py audit`。結果は checkout の外に出る。秘密情報の走査は件数だけを報告し、内容を貼らない |
-| 文書だけ（`[]`） | `python3 scripts/check_docs.py` |
+| 文書だけ（`[]`） | `python3 scripts/check_docs.py` と `uv run python scripts/check_public_tree.py`（CI はどの変更でも実行する） |
 | `fiji`、`lp`、`windows`、ブラウザの E2E、コンテナ | CI が担う。手元で再現する場合は `CONTRIBUTING.md` の手順に従う |
 
 - 時間のかかる検証は `run_in_background` で実行し、完了の通知を待つ。
