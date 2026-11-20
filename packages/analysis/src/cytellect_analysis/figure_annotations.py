@@ -6,9 +6,12 @@ Every number comes from the saved statistics (``estimates``, ``comparisons``,
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, field
 
 from .figure_style import p_stars, p_text, signed
+
+EXPLORATORY_WARNING = "channel_gate_exploratory_threshold_without_negative_control"
 
 
 @dataclass
@@ -35,6 +38,12 @@ def _number(value: float) -> str:
     return f"{value:.{digits}f}".replace("-", "−")
 
 
+def _grouped(text: str) -> str:
+    """Thousands separators for the written legend (`+2,682,377`); the figure's own text stays as drawn."""
+    whole, dot, rest = text.partition(".")
+    return re.sub(r"\d{4,}", lambda match: f"{int(match.group()):,}", whole) + dot + rest
+
+
 def _signed_number(value: float) -> str:
     text = _number(value)
     return text if text.startswith("−") or text == "0" else "+" + text
@@ -45,19 +54,31 @@ def _percent(ratio: float) -> str:
     return signed(change, 0 if abs(change) >= 10 else 1) + "%"
 
 
+def _basis(text: str) -> str:
+    """The saved basis without its direction note: "mean of per-run differences"."""
+    return text.split(" (")[0]
+
+
 def _effect(estimates) -> tuple[str | None, str | None]:
     """The figure text and the legend sentence of a tested two-group estimate."""
     ratio, difference = estimates["ratio"], estimates["difference"]
     if estimates["scale"] == "ratio" and ratio["estimate"] is not None:
         text = (f"{_percent(ratio['estimate'])} (95% CI {_percent(ratio['ci_low'])} to "
                 f"{_percent(ratio['ci_high'])})")
-        return text, f"{ratio['basis']}, {text}"
+        return text, (f"change of {_percent(ratio['estimate'])} (95% CI {_percent(ratio['ci_low'])} to "
+                      f"{_percent(ratio['ci_high'])}; {_basis(ratio['basis'])})")
     if difference["estimate"] is not None:
         unit = " pp" if estimates["scale"] == "fraction" else ""
         text = (f"Δ = {_signed_number(difference['estimate'])}{unit} (95% CI "
                 f"{_signed_number(difference['ci_low'])} to {_signed_number(difference['ci_high'])}{unit})")
-        return text, f"{difference['basis']}, {text}"
+        words = " percentage points" if estimates["scale"] == "fraction" else ""
+        estimate, low, high = (_grouped(_signed_number(difference[key])) for key in ("estimate", "ci_low", "ci_high"))
+        return text, f"difference of {estimate}{words} (95% CI {low} to {high}{words}; {_basis(difference['basis'])})"
     return None, None
+
+
+def _plural(word: str, count: int) -> str:
+    return word if count == 1 else word + "s"
 
 
 def _runs(estimates) -> tuple[str | None, str | None]:
@@ -76,7 +97,8 @@ def _runs(estimates) -> tuple[str | None, str | None]:
     higher = sum(change > 0 for change in changes)
     lower = sum(change < 0 for change in changes)
     total = len(changes)
-    listing = ", ".join(f"{run['pair']} {text}" for run, text in zip(runs, shown, strict=True))
+    named = [f"{_grouped(text)} ({run['pair']})" for run, text in zip(runs, shown, strict=True)]
+    listing = named[0] if total == 1 else ", ".join(named[:-1]) + " and " + named[-1]
     if higher == total or lower == total:
         order = sorted(range(total), key=lambda index: abs(changes[index]))
         first, last = shown[order[0]], shown[order[-1]]
@@ -91,8 +113,10 @@ def _runs(estimates) -> tuple[str | None, str | None]:
     else:
         text = f"Lower in {lower} of {total} runs"
     if ratio_scale:
-        return text, f"Per-run change of {estimates['treatment']} relative to {estimates['control']}: {listing}"
-    return text, f"Per-run difference ({estimates['treatment']} − {estimates['control']}): {listing}"
+        return text, (f"Per-run {_plural('change', total)} of {estimates['treatment']} relative to "
+                      f"{estimates['control']}: {listing}")
+    scale_note = " in log2 units" if estimates["scale"] == "log2" else ""
+    return text, f"Per-run {_plural('difference', total)}{scale_note} ({estimates['treatment']} − {estimates['control']}): {listing}"
 
 
 def comparison_annotations(result, order, mode: str = "value") -> Annotations:
@@ -108,8 +132,10 @@ def comparison_annotations(result, order, mode: str = "value") -> Annotations:
             if text:
                 notes.brackets.append(Bracket(estimates["control"], estimates["treatment"], [text], sentence or ""))
                 notes.legend.append(sentence or text)
-        notes.legend.append("Descriptive comparison: run independence was not confirmed, so no hypothesis test "
-                            "or confidence interval was calculated.")
+        # Why nothing was tested (the summary's basis line states the same reason, NT-01).
+        why = ("the positivity threshold was not set from a negative control"
+               if EXPLORATORY_WARNING in (result.get("warnings") or []) else "the independence of the runs was not confirmed")
+        notes.legend.append(f"No hypothesis test or confidence interval was calculated because {why}.")
         return notes
     rows = result.get("comparisons") or []
     adjusted = len(rows) > 1
@@ -129,7 +155,7 @@ def comparison_annotations(result, order, mode: str = "value") -> Annotations:
         if p_line:
             lines.append(p_line)
         test = row.get("method", "test")
-        p_sentence = (f"{test}, {'Holm-adjusted ' if adjusted else ''}{p_text(p) or 'P not available'}"
+        p_sentence = (f"{'Holm-adjusted ' if adjusted else ''}{p_text(p) or 'P not available'}, {test}"
                       if p is not None else f"{test}")
         legend = f"{right} versus {left}: " + "; ".join(part for part in (sentence, p_sentence) if part)
         notes.brackets.append(Bracket(left, right, lines, legend))
