@@ -55,7 +55,7 @@ test("images added before the form wait for it and go to the chosen group of two
   // Nothing is registered until the form is chosen.
   await expect(page.getByRole("status").filter({hasText:"受け取った画像：2 件。"})).toBeVisible();
   expect(uploads).toBe(0);
-  await page.getByRole("button",{name:/^2 画面/}).click();
+  await page.getByRole("button",{name:/^対照と処理を比べる/}).click();
   const place=page.getByRole("region",{name:"受け取った画像の追加先"});
   await expect(place).toBeVisible();
   expect(uploads).toBe(0);
