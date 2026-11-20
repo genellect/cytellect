@@ -190,16 +190,26 @@ fi
 `check` は、PR の CI と同じ検査を手元で再現する。変更の内容に応じて、次のコマンドを実行する。
 
 ```bash
-python3 scripts/dev.py changed           # 変更したファイルと、PR の CI が実行する対象を示す
-python3 scripts/dev.py check --changed   # 変更に応じて python・web を選んで実行する（文書だけならリンクと公開ツリーの検査）
+python3 scripts/dev.py changed           # 変更したファイル、PR の CI が実行する対象、関係する試験を示す
+python3 scripts/dev.py check --related   # 手元の短い確認：lint、型、変更したファイルを読み込む・名指しする試験だけ
+python3 scripts/dev.py check --changed   # 変更に応じて python・web の全体を実行する
 python3 scripts/dev.py check             # python と web のすべて（python や web に絞ることもできる）
 python3 scripts/dev.py check --fiji      # 解析エンジンを変えたとき、実際の Fiji での試験も
 python3 scripts/dev.py contracts         # API を変えたとき（OpenAPI、既定レシピ、TypeScript の型を一緒にコミット）
 python3 scripts/dev.py audit             # 依存パッケージを変えたとき（結果は checkout の外に保存）
 ```
 
-`python` の全体は 20 分ほどかかる。PR の CI が同じ検査を実行するため、手元では変更に関係する試験だけを実行し、全体は CI に任せてもよい。
+作業中は `check --related` で確かめ、全体は PR の CI に任せてよい。`--related` は、変更したファイルをほかのモジュール経由でだけ使う試験を選ばない（[scripts/related_tests.py](scripts/related_tests.py)）。Python の試験の全体は、CPU の数（最大 4）に分けて並列に実行する（[scripts/run_test_shards.py](scripts/run_test_shards.py)）。
 
 ブラウザ、コンテナ、Windows の統合試験は CI が担う（[CI の構成](docs/ci.md)）。コンテナの試験は、クラウド環境でも `dockerd` を起動すれば手元で行える。ブラウザの試験を手元で行うときは、`python3 scripts/dev.py public-inputs` で登録済みの公開画像を準備する（既定 `~/cytellect-public-inputs/workspace-inputs`）。そのうえで `serve` を起動したまま、CI の `browser-e2e` ジョブ（[ci.yml](.github/workflows/ci.yml)）と同じ環境変数で `pnpm test:e2e` を実行する。`CYTELLECT_REAL_INPUTS` には準備した画像の場所を、`CYTELLECT_TEST_DATA_DIR` には `serve` の作業データの場所を指定する。PR の説明は、[PR テンプレート](.github/pull_request_template.md)のすべての項目を書く。
 
-Claude Code では、検証（`cytellect-verify`）、画面の確認（`cytellect-screen-check`）、PR の作成（`cytellect-pr`）の手順をスキルにしている（[.claude/skills](.claude/skills)、使い分けは [CLAUDE.md](CLAUDE.md#目的別のスキル)）。
+画面を手で確かめるための公開画像は、`public-inputs` にデータセットの名前を渡して取得する。出典とライセンスは [fixtures/public](fixtures/public) にある。
+
+| 名前 | 内容 | 確かめられること |
+|---|---|---|
+| `bbbc007`（既定） | DNA とアクチン、1 視野 | 核の検出、測定、修正 |
+| `bbbc013` | DRAQ と FKHR-EGFP、3 視野（リポジトリにあり、場所を示すだけ） | チャンネルの陽性判定と陽性率、面積だけの測定 |
+| `jump-plk1` | PLK1 ノックアウトと対照、実験回 3（約 400 MB） | 群間比較 |
+| `nucleolar` | DAPI と NCL の原画像 | 核小体（[公開画像での検証](docs/public-nucleolar-validation.md)） |
+
+Claude Code 向けの手順は [.claude/skills](.claude/skills) にあり、使い分けは [CLAUDE.md](CLAUDE.md#目的別のスキル)にある。

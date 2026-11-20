@@ -29,7 +29,9 @@
 | `windows-msix` | 現行の Windows ZIP から作った MSIX を開発用の署名で入れ、公開実画像の解析・保存・削除・再導入を確認する。[MSIX の受入](windows-msix.md#受入) | 関連ファイルの PR と手動実行 |
 | `CodeQL`（`codeql.yml`） | GitHub Actions、JavaScript・TypeScript、Python の静的解析。結果は Security タブの Code scanning に出る。週 1 回の定期実行もある | 常に |
 
-ジョブは並行して走り、PR の待ちは最も長いジョブで決まる。Windows のテスト一式は 1 つのジョブで約 34 分かかっていたため、テストのモジュール単位で 4 つに分けた。分けた結果は `scripts/merge_test_shards.py` が、同じ収集のすべての分割がそろい、合わせて全テストになることを確かめてから 1 回の実行にまとめ、科学的な回帰試験のレシートを作る（[独立した確認](scientific-review.md)）。分け方は、Windows の CI で測ったモジュールごとの所要時間（`tests/shard_weights.json`）で均す。記録にない新しいモジュールは、1 テストあたりの平均で見積もる。偏りが出たら、`scripts/merge_test_shards.py weights` で記録を作り直す。
+ジョブは並行して走り、PR の待ちは最も長いジョブで決まる。Windows のテスト一式は 1 つのジョブで約 34 分かかっていたため、テストのモジュール単位で 4 つに分けた。分けた結果は `scripts/merge_test_shards.py` が、同じ収集のすべての分割がそろい、合わせて全テストになることを確かめてから 1 回の実行にまとめ、科学的な回帰試験のレシートを作る（[独立した確認](scientific-review.md)）。分け方は、モジュールごとの所要時間の記録（`tests/shard_weights.json`）で均す。記録にない新しいモジュールは、1 テストあたりの平均で見積もる。偏りが出たら、`scripts/merge_test_shards.py weights` で記録を作り直す。今の記録は、2026-11-20 に Linux の開発環境で 4 つの分割を同時に実行して測った（196 モジュール）。それまでの記録は 166 モジュール分で、Windows の分割のジョブの所要が 7〜18 分に偏っていた。
+
+Linux の `python` ジョブは、同じ分割を 1 つのランナーの中で並列に実行する（`scripts/run_test_shards.py`、CPU の数、最大 4）。分割ごとに一時ディレクトリと作業データの場所を分け、結果は同じ `merge` で 1 回の実行にまとめる。ジョブの名前と必須チェックは変わらない。`dev.py check python` も同じコマンドを使う。
 
 ## ジョブの選び方
 
