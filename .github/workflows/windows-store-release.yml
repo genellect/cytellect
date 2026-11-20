@@ -25,7 +25,7 @@ jobs:
       - name: Require the Store client's service and both prompt versions
         env:
           CYTELLECT_PROPOSAL_URL: ${{ vars.PROPOSAL_PREFLIGHT_URL }}
-          CYTELLECT_PROPOSAL_TOKEN: ${{ secrets.PROPOSAL_PREFLIGHT_TOKEN }}
+          CYTELLECT_PROPOSAL_TOKEN: ${{ secrets.PROPOSAL_PREFLIGHT_DEVICE_TOKEN }}
         run: uv run python scripts/dev.py doctor --proposal-version --packaged-client
   package:
     needs: proposal-compatibility

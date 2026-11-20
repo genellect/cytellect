@@ -26,6 +26,7 @@ def test_only_the_pre_admission_stop_proves_compatibility(response, accepted):
         requests.append(request)
         assert timeout == 30 and not request.has_header("Idempotency-key")
         assert request.get_header("Authorization") == "Bearer test-only-token"
+        assert request.get_header("User-agent") == "Cytellect/0.1"
         return response
     result = check_versions("https://service.example", "test-only-token", probe)
     assert len(requests) == len(result) == 2  # No retry.
@@ -88,5 +89,5 @@ def test_both_distribution_paths_require_the_protected_gate():
         gate = mapping["proposal-compatibility"]
         assert "environment: proposal-preflight" in gate
         assert "doctor --proposal-version --packaged-client" in gate
-        assert [name for name, body in mapping.items() if "PROPOSAL_PREFLIGHT_TOKEN" in body] == ["proposal-compatibility"]
+        assert [name for name, body in mapping.items() if "PROPOSAL_PREFLIGHT_DEVICE_TOKEN" in body] == ["proposal-compatibility"]
     assert "needs.proposal-compatibility.result == 'success'" in jobs("windows-store-release.yml")["submit"]
