@@ -96,6 +96,9 @@ class PublishedDrawings:
 def legend(result: dict, item: dict) -> tuple[str, list[str]] | None:
     if item["figure"].get("common_statistics_figure_version") != "2.0.0":
         return None
+    import matplotlib
+
+    matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     from cytellect_analysis.common_statistics_contracts import CommonStatisticsResult
     from cytellect_analysis.figure_images import image_channels, recorded_legend_sentence
