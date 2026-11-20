@@ -40,6 +40,11 @@ are rejected until an explicit supported contrast is selected. No equation chang
 
 A service that does not accept the client's prompt version is reported as
 `proposal_service_version_mismatch`. A failed or timed-out instruction is not sent again automatically:
+an older service rejecting the current request schema reports `proposal_service_request_incompatible`,
+with the same service-update guidance. Known rejections before a model call (disabled or invalid local
+configuration, authentication, quota admission, unsupported prompt, invalid request schema) are stored
+as `unbilled`; a later user-initiated send after the cause is fixed does not require a paid retry.
+An unknown failure, timeout, malformed answer, or mismatched answer version remains potentially billed:
 the researcher may send the same instruction, read the cost notice, and explicitly choose to resend it
 with `retry_failed: true`. Cancelling sends nothing. The confirmation appears once, without a second copy
 in the workspace error banner. Error messages cover both proposals and discussions and do not name a

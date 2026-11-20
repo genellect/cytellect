@@ -22,6 +22,8 @@ it("has a readable message for every proposal/discussion service failure (LP-04)
  const handler=proposals.slice(proposals.indexOf("def post_to_service("),proposals.indexOf("class ProposalDraftRequest"));
  const codes=new Set([...handler.matchAll(/["'](proposal_[a-z_]+)["']/g)].map(match=>match[1]).filter(code=>!code.endsWith("_")));
  for(const apiSource of [proposals,discussions])for(const match of apiSource.matchAll(/(?:HTTPException|ProposalServiceError)\(\s*[^,\n]+,\s*["']((?:proposal|discussion)_[a-z_]+)["']/g))codes.add(match[1]);
+ for(const apiSource of [proposals,discussions])for(const match of apiSource.matchAll(/["']code["']\s*:\s*["']((?:proposal|discussion)_[a-z_]+)["']/g))codes.add(match[1]);
+ for(const code of ["proposal_rejected","discussion_rejected","artifact_not_found"])codes.add(code);
  for(const match of handler.matchAll(/["'](model_[a-z_]+)["']/g))codes.add(`proposal_${match[1]}`);
  const providers=proposals.match(/PROVIDER_ERROR_CODES = frozenset\(\{([\s\S]*?)\}\)/)?.[1]||"";
  for(const match of providers.matchAll(/["']([a-z_]+)["']/g))codes.add(`proposal_provider_${match[1]}`);
