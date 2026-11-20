@@ -333,7 +333,7 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
       await act(()=>r.requestProposal(example.instruction,field?.id));return;
     }
     await act(()=>r.requestProposal(value,field?.id,retry).catch(error=>{
-      if(error instanceof ApiError&&error.code==="proposal_explicit_retry_required"){setRetryPending(value);return;}
+      if(error instanceof ApiError&&error.code==="proposal_explicit_retry_required"){r.dismissError();setRetryPending(value);return;}
       throw error;}));
   }
   // The 画像 and フォルダ buttons and a drop of files or folders add images the same way. A chosen list is read at once

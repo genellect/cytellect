@@ -30,6 +30,17 @@ function fixture(withResult=true,initialSpecification:import("./use-workspace-ru
   return {runtime,adapter,adopted,recipe,revisions,assignments,loadPreview,writeSpecification};
 }
 describe("functional workspace runtime",()=>{
+  it("resends a failed proposal only after an explicit retry, with the same instruction",async()=>{
+    const {runtime,adapter}=fixture();await runtime.load("w");
+    adapter.draft.mockRejectedValueOnce(new ApiError("proposal_explicit_retry_required",409));
+    await expect(runtime.requestProposal("same instruction","f1")).rejects.toMatchObject({code:"proposal_explicit_retry_required"});
+    expect(adapter.draft).toHaveBeenCalledTimes(1);
+    runtime.dismissError();
+    expect(runtime.getSnapshot().error).toBe("");
+    await runtime.requestProposal("same instruction","f1",true);
+    expect(adapter.draft).toHaveBeenCalledTimes(2);
+    expect(adapter.draft).toHaveBeenLastCalledWith("w","same instruction",true,expect.anything());
+  });
   it("shows the first field before loading the others, and loads a single field once",async()=>{
     const calls=(mock:ReturnType<typeof fixture>["loadPreview"])=>mock.mock.calls as unknown as Array<[string|undefined,string[]|undefined,{limit?:number;reuse?:ReviewData|null}|undefined]>;
     const stages=(mock:ReturnType<typeof fixture>["loadPreview"])=>calls(mock).map(([id,fields,options])=>[id,fields,options?.limit]);

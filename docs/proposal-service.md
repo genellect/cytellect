@@ -38,6 +38,13 @@ NCL compartment ratios require a confirmed background; the measurement engine
 still separately checks positive corrected means. Multi-condition paired designs
 are rejected until an explicit supported contrast is selected. No equation changes.
 
+A service that does not accept the client's prompt version is reported as
+`proposal_service_version_mismatch`. A failed or timed-out instruction is not sent again automatically:
+the researcher may send the same instruction, read the cost notice, and explicitly choose to resend it
+with `retry_failed: true`. Cancelling sends nothing. The confirmation appears once, without a second copy
+in the workspace error banner. Error messages cover both proposals and discussions and do not name a
+particular model provider. These behaviours implement LP-02–LP-04 of [#249](https://github.com/genellect/cytellect/issues/249).
+
 The context uses opaque channel tokens rather than research-defined IDs, includes
 anonymous independent-unit counts per condition and complete-pair counts, and
 checks the whole image cohort. Unknown stain identity does not prevent generic
