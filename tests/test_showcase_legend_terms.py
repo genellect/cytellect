@@ -12,6 +12,13 @@ ROOT = Path(__file__).resolve().parents[1]
 SCENES = ["zenodo-6643470-oxaliplatin", "zenodo-6643470-cisplatin", "zenodo-6643470-nucleolar", "cpg0016-jump-source13-plk1"]
 
 
+def test_presets_are_unambiguous_also_in_the_existing_public_wheel():
+    # The already-published wheel falls back by goal only. It must never choose another treatment's terms.
+    goals = [preset["instruction"] for scene in SCENES
+             for preset in json.loads((ROOT / f"services/showcase/datasets/{scene}.json").read_text(encoding="utf-8"))["scenario"]["proposals"]["presets"]]
+    assert len(goals) == len(set(goals)) == 11
+
+
 @pytest.mark.parametrize("scene", SCENES)
 def test_every_public_preset_has_only_its_recorded_legend_facts(scene):
     data = json.loads((ROOT / f"services/showcase/datasets/{scene}.json").read_text(encoding="utf-8"))

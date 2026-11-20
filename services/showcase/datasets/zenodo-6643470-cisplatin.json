@@ -896,7 +896,7 @@
    "presets": [
     {
      "label": "核の 5-EU の分布",
-     "instruction": "核の5-EU（新しく合成されたRNA）の分布を視野ごとに確認したい",
+     "instruction": "シスプラチンの場面で、核の5-EU（新しく合成されたRNA）の分布を視野ごとに確認したい",
      "draft": {
       "recipe": "nuclear-intensity",
       "channels": [
@@ -981,7 +981,7 @@
     },
     {
      "label": "NPM1 の核内輝度の分布",
-     "instruction": "NPM1の核内平均輝度を視野ごとに確認したい",
+     "instruction": "シスプラチンの場面で、NPM1の核内平均輝度を視野ごとに確認したい",
      "draft": {
       "recipe": "nuclear-intensity",
       "channels": [
@@ -1066,7 +1066,7 @@
     },
     {
      "label": "核の 5-EU を未処理とシスプラチンで比較",
-     "instruction": "核の5-EU（新しく合成されたRNA）を未処理とシスプラチンで比べたい",
+     "instruction": "シスプラチンの場面で、核の5-EU（新しく合成されたRNA）を未処理とシスプラチンで比べたい",
      "draft": {
       "recipe": "nuclear-intensity",
       "channels": [

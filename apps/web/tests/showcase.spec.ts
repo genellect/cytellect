@@ -990,6 +990,17 @@ for (const scene of SCENES.length ? SCENES : [undefined]) test(`each preset AI i
     if (await adopt.isVisible()) {await adopt.click(); await idle(page);}
     expect(await alerts(page)).toEqual([]);
   }
+  // The figure keeps the preset's recorded facts; a template's numerical text stays computed (FL-15).
+  if(scene){
+    const manifest=JSON.parse(fs.readFileSync(path.resolve(`../../services/showcase/datasets/${scene.id}.json`),"utf8"));
+    const expected=manifest.scenario.proposals.presets.at(-1).draft.figure_presentation.legend_terms;
+    await header.getByRole("button",{name:"グラフ",exact:true}).click();
+    await renderFigure(page);
+    const legend=page.getByRole("region",{name:"Figure legend の下書き",exact:true});
+    await expect(legend).toContainText("AI の提案から記入：細胞株、処理と時間、抗体・色素");
+    for(const term of Object.values(expected) as string[])await expect(legend.getByRole("textbox",{name:"Figure legend",exact:true})).toHaveValue(new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")));
+    await expect(legend.getByRole("textbox",{name:"Figure legend",exact:true})).not.toHaveValue(/\[Cell line\]|\[treatment and duration\]|\[antibody or dye for each stain\]/);
+  }
   // Free text this dataset cannot answer is told what it can, without a notice or an error.
   await header.getByRole("button", {name: "画像", exact: true}).click();
   await composer.fill("ミトコンドリアを数えたい");
