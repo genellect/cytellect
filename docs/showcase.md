@@ -7,6 +7,7 @@
 考察や図だけの更新では、初期状態と操作を記録した `generated_from_commit` を保持し、
 `manifest.json` の `derived_updates` に更新した段階とコミットを記録する。
 元の記録環境 `runtime` も保持し、更新を実行した環境は `derived_update_environments` に段階ごとに記録する。
+`prepare`・`scenario` から記録し直したときは、前の `derived_updates` と `derived_update_environments` を引き継がない。
 `examples` 段階の再実行は、文が同じ考察と記録済みの応答を保持する。
 
 手動の再生成は [`showcase-recording.yml`](../.github/workflows/showcase-recording.yml) で実行する。
@@ -14,6 +15,7 @@
 凡例語句だけの更新は AI・順位検定の操作を再記録し、無変更の操作は
 `--journal-keep`・`--journal-previous` で保持する。保持した操作と元コミットを manifest の
 `journal.kept_scenes`・`journal.reused_from_commit` に記録する。
+`--journal-previous` の snapshot の隣には、`generated_from_commit` のある `manifest.json` が必要。ない場合は、操作の記録を始める前に止まる。
 
 Figure legend の文章だけを変更するときは、再記録の前に公開済みの `snapshot/` を作業用の別ディレクトリへコピーし、
 `figures` に `--figure-drawings <コピーした snapshot>` を渡す。保存結果と図の要求が一致する場合だけ、
