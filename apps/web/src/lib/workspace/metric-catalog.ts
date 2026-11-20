@@ -33,7 +33,7 @@ export const METRIC_QUESTIONS: MetricQuestion[] = [
   ]},
   {question: "量（輝度）の変化", metrics: [
     {id: "mean", label: "平均輝度", channel: true, definition: "選んだ領域の中で、選んだ染色の画素値を平均した値（原値）。観測は領域ごとです。"},
-    {id: "median", label: "中央値", channel: true, definition: "選んだ領域の中の、選んだ染色の画素値の中央値（原値）。観測は領域ごとです。"},
+    {id: "median", label: "輝度の中央値", channel: true, definition: "選んだ領域の中の、選んだ染色の画素値の中央値（原値）。観測は領域ごとです。"},
     {id: "integrated", label: "積算輝度", channel: true, definition: "選んだ領域の中の、選んだ染色の画素値の合計（原値）。領域の大きさにも左右されます。"},
     {id: "mean_corrected", label: "平均輝度（背景補正）", channel: true, definition: "背景を差し引いた平均輝度。背景の決め方は測定の設定に記録されます。"},
     {id: "integrated_corrected", label: "積算輝度（背景補正）", channel: true, definition: "背景を差し引いた積算輝度。領域の大きさにも左右されます。"},
@@ -63,7 +63,7 @@ export const METRIC_QUESTIONS: MetricQuestion[] = [
 ];
 
 const choices = new Map(METRIC_QUESTIONS.flatMap(group => group.metrics.map(metric => [metric.id, metric] as const)));
-const extraLabels: Record<string, string> = {median_corrected: "中央値（背景補正）"};
+const extraLabels: Record<string, string> = {median_corrected: "輝度の中央値（背景補正）"};
 
 export function metricChoice(id: string): MetricChoice | undefined {return choices.get(id);}
 export function metricLabel(id: string): string {return choices.get(id)?.label ?? extraLabels[id] ?? id;}

@@ -90,7 +90,11 @@ review route `/workspace-review` (the workspace without its session gate) redire
   open on the nucleolar marker with the adopted nuclei outlined faintly; side by side (2 画面) each
   pane has the outline tools of one field; focusing the AI composer opens the AI panel;
   `?step=image|statistics|figure` opens that tab; statistics and figures open on the latest saved
-  result, and saved comparisons switch with one click (保存した比較); the settings panel starts
+  result, and saved comparisons switch with one click (保存した比較). Choosing another analysis, region,
+  metric or stain shows that condition's saved result at once, or, where the result appears, its name, what
+  the calculation still needs and 計算 (requirements S-09–S-12); confirmations stay through other metrics
+  and regions, an analysis the view changes states why, and measures are named by region and stain
+  (「核小体の平均輝度（5-EU）」), not channel identifiers; the settings panel starts
   closed and opens with 設定. In production a drop of files or folders adds images as the 画像 and
   フォルダ buttons do; the first images of a workspace without a form wait for the choice of the form
   (1 画面 takes them, 2 画面 asks which run and group, 実験デザインなしで登録 keeps typing groups per field

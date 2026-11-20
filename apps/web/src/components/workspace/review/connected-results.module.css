@@ -57,3 +57,11 @@
 .legendDraft{max-width:760px;margin:0 0 18px;display:grid;gap:6px}
 .legendHead{display:flex;align-items:center;gap:10px}.legendHead button{font-size:14px;padding:4px 12px}.legendHead span{font-size:12px;color:#66717f}
 .legendDraft textarea{width:100%;font:13px/1.5 ui-sans-serif,system-ui,sans-serif;padding:8px;border:1px solid #d5dbe3;border-radius:4px;resize:vertical;box-sizing:border-box}
+
+/* Where the chosen condition's result will appear once it is calculated (SR-02): a dashed outline, not a result. */
+.pending{border:1px dashed #9fb6dc;border-radius:8px;background:#fff;padding:14px 16px;margin:0 0 12px;max-width:680px;display:flex;flex-direction:column;gap:10px;font-size:15px}
+.pending h3{margin:0;font-size:17px;font-weight:600;line-height:1.45;color:#1d2b45}
+.pending>p{margin:0}
+.calculation{display:flex;flex-direction:column;gap:12px}
+.calculation .primary{align-self:flex-start;min-width:120px}
+.needs{margin:0;font-size:13px;line-height:1.5;color:#4b5563}

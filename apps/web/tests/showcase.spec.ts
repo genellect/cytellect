@@ -287,7 +287,9 @@ test("demo: image, outline, measurement, statistics and figure features run with
   // Statistics: the opening result and its group comparison, then their figures.
   await header.getByRole("button", {name: "統計", exact: true}).click();
   const results = page.getByRole("region", {name: "測定結果の統計解析"});
-  await expect(shownTable(results)).toBeVisible({timeout: live});
+  // After a measurement the side panel keeps the measured condition (DM-04): its result place shows that condition, with
+  // 計算 there, and no saved result of another condition as if it were this one's (S-09).
+  await expect(results.getByRole("region", {name: "選択中の条件"}).or(shownTable(results)).first()).toBeVisible({timeout: live});
   await calculate(page);
   await results.getByRole("combobox", {name: "解析", exact: true}).selectOption("comparison");
   await calculate(page);
@@ -725,13 +727,13 @@ test("the ActD scene's statistics open on the nucleolar 5-EU and switch to the e
   const recorded = results.getByRole("group", {name: "保存した比較"});
   await expect(recorded.getByRole("button")).toHaveCount(2, {timeout: live});
   const sentence = results.getByRole("region", {name: "結果のまとめ"}).getByRole("heading", {level: 3});
-  // The opening comparison names its region and channel, and the side panel already agrees with it.
-  await expect(sentence).toContainText("核小体の平均輝度（eu5）");
+  // The opening comparison names its region and stain (not the channel identifier), and the side panel already agrees with it.
+  await expect(sentence).toContainText("核小体の平均輝度（5-EU）");
   await expect(results.getByRole("status").filter({hasText: /前の結果|記録した結果/})).toHaveCount(0);
   await recorded.getByRole("button", {name: /離心率/}).click();
   await expect(sentence).toContainText("離心率");
   await expect(page.getByRole("complementary", {name: "解析対象"}).getByRole("combobox", {name: "指標", exact: true})).toHaveValue("nucleolar_eccentricity");
-  await recorded.getByRole("button", {name: /eu5/}).click();
+  await recorded.getByRole("button", {name: /5-EU/}).click();
   await expect(sentence).toContainText("平均輝度");
   await expect(results.getByRole("status").filter({hasText: /前の結果|記録した結果/})).toHaveCount(0);
   await expect(notRecorded(page)).toHaveCount(0);
@@ -759,7 +761,7 @@ test("statistics of nucleoli, nucleoplasm and nucleolar measures show results, d
   await recorded.getByRole("button", {name: /総面積/}).click();
   await expect(sentence).toContainText("総面積");
   await expect(metric).toHaveValue("nucleolar_area_px");
-  await recorded.getByRole("button", {name: /eu5/}).click();
+  await recorded.getByRole("button", {name: /5-EU/}).click();
   await expect(sentence).toContainText("平均輝度");
   await expect(metric).toHaveValue("mean");
   await recorded.getByRole("button", {name: /離心率/}).click();
@@ -833,14 +835,14 @@ test("a per-nucleus nucleolar result is read and checked on the nucleoli, and un
   const recorded = results.getByRole("group", {name: "保存した比較"});
   await expect(recorded.getByRole("button")).toHaveCount(2, {timeout: live});
   // Both recorded comparisons count the same unresolved nuclei, and never also say nothing is missing (Q-05, S-03).
-  for (const name of [/eu5/, /離心率/]) {
+  for (const name of [/5-EU/, /離心率/]) {
     await recorded.getByRole("button", {name}).click();
     await summary.getByText("n の内訳と除外").click();
     await expect(summary).toContainText(/核小体を確定できない核 \d+（欠測）/);
     await expect(summary).not.toContainText("除外・欠測：なし");
   }
   // The eccentricity comes from the per-nucleus summary but is a shape of the nucleoli, and reads so everywhere.
-  await expect(results.locator("[class*=current]")).toContainText("核小体（核ごとの値） · 核小体の離心率");
+  await expect(results.locator("[class*=current]")).toContainText("計算する条件：核小体の離心率");
   await expect(page.getByRole("complementary", {name: "解析対象"})).toContainText("領域：核小体（核ごとの値）");
   await expect(results.getByRole("status").filter({hasText: /前の結果|記録した結果/})).toHaveCount(0);
   await header.getByRole("button", {name: "画像", exact: true}).click();
