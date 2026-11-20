@@ -9,6 +9,9 @@
 元の記録環境 `runtime` も保持し、更新を実行した環境は `derived_update_environments` に段階ごとに記録する。
 `examples` 段階の再実行は、文が同じ考察と記録済みの応答を保持する。
 
+手動の再生成は [`showcase-recording.yml`](../.github/workflows/showcase-recording.yml) で実行する。
+通常の Verify から分離し、再生成で飛ばした手順を必須の Python・Web 試験の成功として記録しない。
+
 Figure legend の文章だけを変更するときは、再記録の前に公開済みの `snapshot/` を作業用の別ディレクトリへコピーし、
 `figures` に `--figure-drawings <コピーした snapshot>` を渡す。保存結果と図の要求が一致する場合だけ、
 既存の SVG・PNG と論文用 ZIP の PDF・CSV・画像をバイト単位で保持し、共通の解析実装から凡例文を更新する。

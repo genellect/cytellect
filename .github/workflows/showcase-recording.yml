@@ -1,0 +1,80 @@
+name: Record public demo
+on:
+  workflow_dispatch:
+    inputs:
+      showcase_figures:
+        description: "Also update figure prose, preserving identical published drawings"
+        type: boolean
+        default: true
+permissions:
+  contents: read
+concurrency:
+  group: public-demo-recording-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  showcase-presentation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      CYTELLECT_PROPOSAL_URL: ""
+      CYTELLECT_PROPOSAL_TOKEN: ""
+      CYTELLECT_CELLPOSE_REMOTE_URL: ""
+      CYTELLECT_CELLPOSE_REMOTE_TOKEN: ""
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with: {node-version: "24"}
+      - uses: actions/setup-python@v6
+        with: {python-version: "3.12"}
+      - run: npm install --global pnpm@11.19.0
+      - run: python -m pip install uv==0.12.2
+      - run: uv sync --locked --dev
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --dir services/showcase/pyodide install --frozen-lockfile
+      - run: pnpm --filter @cytellect/web exec playwright install --with-deps chromium
+      - run: bash scripts/install_figure_font.sh
+      - name: Locate the installed Chromium
+        run: |
+          task_browser=$(node -e 'console.log(require("./apps/web/node_modules/@playwright/test").chromium.executablePath())')
+          echo "CYTELLECT_CHROMIUM_EXECUTABLE=$task_browser" >> "$GITHUB_ENV"
+      - name: Re-record presentation from the published seed
+        run: |
+          cp -a apps/web/public/showcase/snapshot /tmp/cytellect-published-drawings
+          uv run python -m cytellect_showcase.build \
+            services/showcase/datasets/zenodo-6643470-oxaliplatin.json \
+            services/showcase/datasets/zenodo-6643470-cisplatin.json \
+            services/showcase/datasets/zenodo-6643470-nucleolar.json \
+            services/showcase/datasets/cpg0016-jump-source13-plk1.json \
+            --work /tmp/cytellect-showcase-presentation --cache /tmp/cytellect-showcase-cache \
+            --fiji /tmp/recordings-only-no-fiji \
+            --stages reseed,proposals,publish,snapshot,journal
+      - name: Check the generated public tree
+        run: uv run python scripts/check_public_tree.py
+      - name: Pack generated public assets
+        run: tar -czf /tmp/showcase-presentation.tar.gz apps/web/public/showcase fixtures/public/allowlist.json
+      - uses: actions/upload-artifact@v6
+        with:
+          name: showcase-presentation
+          path: /tmp/showcase-presentation.tar.gz
+          retention-days: 7
+      - name: Update figure prose with unchanged published drawings
+        if: inputs.showcase_figures
+        run: |
+          uv run python -m cytellect_showcase.build \
+            services/showcase/datasets/zenodo-6643470-oxaliplatin.json \
+            services/showcase/datasets/zenodo-6643470-cisplatin.json \
+            services/showcase/datasets/zenodo-6643470-nucleolar.json \
+            services/showcase/datasets/cpg0016-jump-source13-plk1.json \
+            --work /tmp/cytellect-showcase-presentation --cache /tmp/cytellect-showcase-cache \
+            --fiji /tmp/recordings-only-no-fiji --stages figures \
+            --figure-drawings /tmp/cytellect-published-drawings
+      - name: Pack completed figures
+        if: inputs.showcase_figures
+        run: tar -czf /tmp/showcase-presentation-complete.tar.gz apps/web/public/showcase fixtures/public/allowlist.json
+      - uses: actions/upload-artifact@v6
+        if: inputs.showcase_figures
+        with:
+          name: showcase-presentation-complete
+          path: /tmp/showcase-presentation-complete.tar.gz
+          retention-days: 7
