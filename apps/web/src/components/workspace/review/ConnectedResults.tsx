@@ -3,6 +3,7 @@
 import {useEffect,useEffectEvent,useLayoutEffect,useMemo,useRef,useState,type ReactNode} from "react";
 import {ApiError,download,errorCodeMessage,errorMessage,fetchBlob,post,request} from "@/lib/api";
 import {formatValue,type Job} from "@/lib/types";
+import {plainFigureLegend} from "@/lib/figure-legend";
 import {usePrivateImage} from "@/lib/usePrivateImage";
 import {comparisonWarnings} from "@/lib/region-comparison-view";
 import {commonWarnings} from "@/lib/common-statistics";
@@ -75,7 +76,7 @@ const formNames:Record<string,string>={points:"全データ点",density:"分布�
 const sizeNames:Record<FigureSize,string>={panel:"パネル","single-column":"1段幅 · 89 mm","double-column":"2段幅 · 183 mm",custom:"カスタム"};
 interface Saved {job:string;revision:string;result:ResultPayload;identity:string;requestIdentity:string;plot:RenderPlot;figureJob:string;figure:ResultPayload["figure"];operation:ResultOperation;sources?:Array<{field:string;label:string}>;historical?:boolean;target?:ReviewTarget;created?:number}
 /** Saved units are the analysis package's (English, for figures); the result text names them in Japanese. */
-const unitLabels:Record<string,string>={"nuclei per field":"個／視野","nuclei per mm²":"個／mm²","positive nuclei per field":"個／視野","fraction of evaluable nuclei":"",dimensionless:""};
+const unitLabels:Record<string,string>={"nuclei per field":"個／視野","nuclei per mm²":"個／mm²","positive nuclei per field":"個／視野","fraction of evaluable nuclei":"",dimensionless:"",count:""};
 const unitLabel=(unit?:string|null)=>unit?unitLabels[unit]??unit:"";
 const metricLabels:Record<string,string>={area_px:"面積 / px²",area_um2:"面積 / µm²",mean:"平均輝度",median:"中央値",integrated:"積算輝度",mean_corrected:"平均輝度（背景補正）",integrated_corrected:"積算輝度（背景補正）",nucleolar_count:"核小体数",nucleolar_area_fraction:"核小体面積割合",log2_nucleoplasm_over_nucleolus:"核質／核小体 log₂ 比",positive_count:"視野あたりの陽性核数",positive_fraction:"陽性率",nucleus_count:"視野あたりの核数",nucleus_density_per_mm2:"核の密度（mm² あたり）",nucleolar_area_px:"核小体の総面積 / px²",nucleolar_area_um2:"核小体の総面積 / µm²",nucleolar_eccentricity:"核小体の離心率"};
 const regionNames:Record<string,string>={nuclei:"核",nucleoli:"核小体",nucleoplasm:"核質",cell:"細胞ROI"};
@@ -571,8 +572,9 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
 
 /** A figure at the proportions of its printed size: a 50 mm panel is not stretched to a page width (FU-05). */
 function VectorFigure({path,widthMm}:{path:string;widthMm?:number}){const url=usePrivateImage(path);return url?<img className={styles.figure} style={widthMm?{maxWidth:`${Math.round(widthMm*6)}px`}:undefined} src={url} alt="保存された解析結果のグラフ"/>:<p role="status">図を読み込み中…</p>;}
-/** The paper's legend, drafted from the saved result (FL-03). Bracketed gaps are facts the workspace does not
- * record (FL-05); the researcher fills them here before copying. */
+/** The paper's figure legend, drafted from the saved result (FL-03). Bracketed gaps are facts the workspace does not
+ * record (FL-05); the researcher fills them here before copying. The draft is Markdown (a bold title); the box and
+ * the copy hold plain text, as a manuscript takes it. */
 type LegendTerms={cell_line?:string|null;treatment?:string|null;stains?:string|null};
 /** The gap each proposed term fills; numbers in the legend always come from the saved result (FM-01, FM-02). */
 const termGaps:Array<[keyof LegendTerms,string]>=[["cell_line","[Cell line]"],["treatment","[treatment and duration]"],["stains","[antibody or dye for each stain]"]];
@@ -583,17 +585,17 @@ function FigureLegend({path,gaps,terms}:{path:string;gaps:string[];terms?:Legend
   const edited=useRef(false),taken=useRef(""),[pending,setPending]=useState<{draft:string;used:string[]}|null>(null);
   function take(draft:string,used:string[]){taken.current=draft;edited.current=false;setText(draft);setFilled(used);setPending(null);}
   const proposed=JSON.stringify(terms??null);
-  useEffect(()=>{let live=true;void fetchBlob(path).then(blob=>blob.text()).then(value=>{if(!live)return;let draft=value.trim();const used:string[]=[];
+  useEffect(()=>{let live=true;void fetchBlob(path).then(blob=>blob.text()).then(value=>{if(!live)return;let draft=plainFigureLegend(value);const used:string[]=[];
     for(const [key,gap] of termGaps){const term=terms?.[key];if(term&&draft.includes(gap)){draft=draft.replaceAll(gap,term);used.push(gapNames[gap]);}}
     if(edited.current)setPending(draft===taken.current?null:{draft,used});else take(draft,used);}).catch(()=>{if(live&&!edited.current)setText("");});return()=>{live=false;};},[path,proposed]);// eslint-disable-line react-hooks/exhaustive-deps -- terms is read by its content
   if(!text)return null;
   const open=gaps.filter(gap=>text.includes(gap));
-  return <section className={styles.legendDraft} aria-label="凡例の下書き">
-    <div className={styles.legendHead}><strong>凡例（English）</strong><button type="button" onClick={()=>void navigator.clipboard.writeText(text).then(()=>setNote("コピーしました")).catch(()=>setNote("コピーできませんでした"))}>コピー</button>{note&&<span role="status">{note}</span>}</div>
+  return <section className={styles.legendDraft} aria-label="Figure legend の下書き">
+    <div className={styles.legendHead}><strong>Figure legend</strong><button type="button" onClick={()=>void navigator.clipboard.writeText(text).then(()=>setNote("コピーしました")).catch(()=>setNote("コピーできませんでした"))}>コピー</button>{note&&<span role="status">{note}</span>}</div>
     {filled.length>0&&<p className={styles.figureHint}>AI の提案から記入：{filled.join("、")}。内容を確認してください</p>}
     {open.length>0&&<p className={styles.figureHint}>未記入：{open.map(gap=>gapNames[gap]||gap).join("、")}</p>}
-    {pending&&<p role="status" className={styles.figureHint}>図を描き直したため、凡例の下書きが変わりました。記入した内容はそのまま残しています。<button type="button" onClick={()=>take(pending.draft,pending.used)}>新しい下書きに置き換える</button></p>}
-    <textarea aria-label="凡例" value={text} rows={Math.min(12,Math.max(5,Math.ceil(text.length/90)))} onChange={event=>{edited.current=true;setText(event.target.value);}}/>
+    {pending&&<p role="status" className={styles.figureHint}>図を描き直したため、Figure legend の下書きが変わりました。記入した内容はそのまま残しています。<button type="button" onClick={()=>take(pending.draft,pending.used)}>新しい下書きに置き換える</button></p>}
+    <textarea aria-label="Figure legend" value={text} rows={Math.min(12,Math.max(5,Math.ceil(text.length/90)))} onChange={event=>{edited.current=true;setText(event.target.value);}}/>
   </section>;
 }
 const gapNames:Record<string,string>={"[Cell line]":"細胞株","[treatment and duration]":"処理と時間","[antibody or dye for each stain]":"抗体・色素"};
