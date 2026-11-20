@@ -77,8 +77,25 @@ jobs:
             }
             core.info(`Releasing ${commit} (main head at dispatch: ${context.sha})`);
             core.setOutput('commit', commit);
-  package:
+  proposal-compatibility:
     needs: source
+    environment: proposal-preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with: {ref: "${{ needs.source.outputs.commit }}"}
+      - uses: actions/setup-python@v6
+        with: {python-version: "3.12"}
+      - run: python -m pip install uv==0.12.2
+      - run: uv sync --locked --dev
+      - name: Require the released client's proposal and discussion prompt versions
+        env:
+          CYTELLECT_PROPOSAL_URL: ${{ vars.PROPOSAL_PREFLIGHT_URL }}
+          CYTELLECT_PROPOSAL_TOKEN: ${{ secrets.PROPOSAL_PREFLIGHT_DEVICE_TOKEN }}
+        run: uv run python scripts/dev.py doctor --proposal-version --packaged-client
+  package:
+    needs: [source, proposal-compatibility]
     if: github.ref == 'refs/heads/main'
     runs-on: windows-latest
     # The two-group comparison of 120 public JUMP images through installed Fiji adds up to an hour.

@@ -170,12 +170,23 @@ def test_every_job_that_builds_signs_or_tags_uses_the_resolved_commit():
 def test_release_protections_are_unchanged():
     assert "if: github.ref == 'refs/heads/main'" in job(RELEASE, "source")
     assert "if: github.ref == 'refs/heads/main'" in job(RELEASE, "package")
-    assert "needs: source" in job(RELEASE, "package")
+    assert "needs: [source, proposal-compatibility]" in job(RELEASE, "package")
     draft = job(RELEASE, "draft")
     assert "needs: [source, package]" in draft and "    environment: release" in draft
     assert 'if [ -z "$UPDATE_SIGNING_KEY" ]' in draft
     assert "update_manifest.py verify --release-dir release" in draft and '--previous-source "$previous"' in draft
     assert "group: windows-release\n  cancel-in-progress: false" in RELEASE
+
+
+def test_ai_compatibility_gates_the_exact_source_without_exposing_tokens_to_packaging():
+    gate = job(RELEASE, "proposal-compatibility")
+    assert "needs: source" in gate
+    assert 'ref: "${{ needs.source.outputs.commit }}"' in gate
+    assert "scripts/dev.py doctor --proposal-version" in gate
+    assert "secrets.PROPOSAL_PREFLIGHT_DEVICE_TOKEN" in gate and "vars.PROPOSAL_PREFLIGHT_URL" in gate
+    assert "secrets.PROPOSAL_PREFLIGHT_TOKEN" not in RELEASE
+    assert "continue-on-error" not in gate and "doctor --live" not in gate
+    assert "PROPOSAL_PREFLIGHT_DEVICE_TOKEN" not in job(RELEASE, "package") + job(RELEASE, "draft")
 
 
 def test_main_ci_is_never_cancelled_by_a_later_merge():

@@ -8,7 +8,28 @@ on:
 permissions:
   contents: read
 jobs:
+  # Before a package is built. A scheduled run builds none: its check is `scheduled-proposal-compatibility`.
+  proposal-compatibility:
+    if: >-
+      github.ref == 'refs/heads/main' && github.event_name != 'schedule' &&
+      vars.STORE_MSIX_PUBLISHER != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: proposal-preflight
+    steps:
+      - uses: actions/checkout@v5
+        with: {ref: "${{ github.sha }}", persist-credentials: false}
+      - uses: actions/setup-python@v6
+        with: {python-version: '3.12'}
+      - run: python -m pip install uv==0.12.2
+      - run: uv sync --locked --dev
+      - name: Require the Store client's service and both prompt versions
+        env:
+          CYTELLECT_PROPOSAL_URL: ${{ vars.PROPOSAL_PREFLIGHT_URL }}
+          CYTELLECT_PROPOSAL_TOKEN: ${{ secrets.PROPOSAL_PREFLIGHT_DEVICE_TOKEN }}
+        run: uv run python scripts/dev.py doctor --proposal-version --packaged-client
   package:
+    needs: proposal-compatibility
     if: >-
       github.ref == 'refs/heads/main' && github.event_name != 'schedule' &&
       vars.STORE_MSIX_PUBLISHER != ''
@@ -109,9 +130,34 @@ jobs:
             if (await artifact(`store-submitted-${context.sha}`)) return;
             const candidate = await artifact(`store-msix-${context.sha}`);
             if (candidate) core.setOutput('run-id', String(candidate.workflow_run.id));
-  submit:
+  # A scheduled run asks for the protected check (an owner's approval) only when a package waits to be
+  # submitted; `package` is skipped on a schedule, so the status functions keep this job and `submit` running.
+  scheduled-proposal-compatibility:
     needs: select
-    if: needs.select.outputs.run-id != ''
+    if: >-
+      always() && !cancelled() && github.event_name == 'schedule' &&
+      needs.select.outputs.run-id != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: proposal-preflight
+    steps:
+      - uses: actions/checkout@v5
+        with: {ref: "${{ github.sha }}", persist-credentials: false}
+      - uses: actions/setup-python@v6
+        with: {python-version: '3.12'}
+      - run: python -m pip install uv==0.12.2
+      - run: uv sync --locked --dev
+      - name: Require the Store client's service and both prompt versions
+        env:
+          CYTELLECT_PROPOSAL_URL: ${{ vars.PROPOSAL_PREFLIGHT_URL }}
+          CYTELLECT_PROPOSAL_TOKEN: ${{ secrets.PROPOSAL_PREFLIGHT_DEVICE_TOKEN }}
+        run: uv run python scripts/dev.py doctor --proposal-version --packaged-client
+  submit:
+    needs: [select, proposal-compatibility, scheduled-proposal-compatibility]
+    if: >-
+      always() && !cancelled() && needs.select.outputs.run-id != '' &&
+      (needs.proposal-compatibility.result == 'success' ||
+      needs.scheduled-proposal-compatibility.result == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: store-release

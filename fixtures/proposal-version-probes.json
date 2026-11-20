@@ -1,0 +1,72 @@
+[
+  {
+    "route": "/v1/proposals",
+    "prompt_version": "2026-11-19.1",
+    "context": {
+      "protocol": "1.2.0",
+      "goal": "Release compatibility probe",
+      "channels": [],
+      "field_count": 0,
+      "condition_count": 0,
+      "units_known": false,
+      "pairing_known": false,
+      "units_per_condition": [],
+      "complete_pair_count": 0,
+      "supplied_regions": false,
+      "measured_table": false,
+      "background_available": false,
+      "current_processing": null,
+      "current_background": null,
+      "current_gfp": null,
+      "negative_control_fields_known": false,
+      "acquired_dates_known": false,
+      "image_metadata": [],
+      "fields": [],
+      "previous_goal": "",
+      "previous_proposal": null
+    }
+  },
+  {
+    "route": "/v1/discussions",
+    "prompt_version": "2026-11-16.1",
+    "context": {
+      "protocol": "result-discussion/1.1.0",
+      "language": "ja",
+      "experiment": {
+        "purpose": null,
+        "cells": null,
+        "stains": []
+      },
+      "result": {
+        "metric": "area_px",
+        "metric_label": null,
+        "metric_definition": null,
+        "region": null,
+        "region_label": null,
+        "stain": null,
+        "channel_label": null,
+        "unit": "",
+        "scale": "difference",
+        "control": "probe-control",
+        "treatment": "probe-treatment",
+        "design": "independent",
+        "test": "none",
+        "exploratory_threshold": false,
+        "n_control": 0,
+        "n_treatment": 0,
+        "n_runs": null,
+        "p_value": null,
+        "effect": null,
+        "groups": [],
+        "difference": null,
+        "ratio": null,
+        "runs": [],
+        "warnings": [],
+        "heading": null,
+        "summary_points": [],
+        "counts": [],
+        "method": null
+      }
+    }
+  }
+]

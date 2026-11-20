@@ -140,6 +140,10 @@ M2 は元画像での解像・対象同定・校正を開始条件とする。M3
 
 モデルの検出精度、面積・輝度の測定誤差、手補正にかかる時間。
 
+## 配布前の AI 接続確認
+
+[#249](https://github.com/genellect/cytellect/issues/249) の LP-01 の配布前検査は [#256](https://github.com/genellect/cytellect/pull/256) に記録する。`doctor --proposal-version --packaged-client` は GPU を起動せず、Idempotency-Key のない依頼で解析提案・考察の版を検査する。インストーラー・Store の作成と Store の定期提出に、同じ SHA と組み込む接続先での検査を必須とする。検査用資格情報はオーナーの承認付き environment に置く。Docker／手動配布も実際の設定で同じ手順に従う。本番の検査・Worker デプロイ・配布用設定は未実施。
+
 ## 未完了の受入条件
 
 | 項目 | 内容 |
