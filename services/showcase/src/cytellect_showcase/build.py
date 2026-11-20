@@ -1559,6 +1559,8 @@ def journal(work: Path, origin_port: int, out: Path, scenes: list[dict], keep: s
         recorded["entries"] = [*recorded["entries"], *kept]
         report["entries"] = len(recorded["entries"])
         report["kept_scenes"] = sorted({entry["scene"] for entry in kept})
+        earlier_manifest = json.loads((previous.parent / "manifest.json").read_text(encoding="utf-8"))
+        report["reused_from_commit"] = earlier_manifest["generated_from_commit"]
     (target / "journal.json").write_text(json.dumps(recorded, indent=1, ensure_ascii=False) + "\n")
     # The previous recording's answers that this one no longer names are not published.
     named = {entry["file"] for entry in json.loads((target / "index.json").read_text())["entries"].values() if entry.get("file")}
@@ -1566,7 +1568,7 @@ def journal(work: Path, origin_port: int, out: Path, scenes: list[dict], keep: s
     for path in target.iterdir():
         if path.name not in named and path.name not in SNAPSHOT_KEEP | {"journal.json"}:
             path.unlink()
-    return {key: report[key] for key in ("entries", "scenes", "kept_scenes") if key in report}
+    return {key: report[key] for key in ("entries", "scenes", "kept_scenes", "reused_from_commit") if key in report}
 
 
 def _owner_session(app, workspace_id: str) -> str:

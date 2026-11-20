@@ -27,13 +27,19 @@ def test_every_public_preset_has_only_its_recorded_legend_facts(scene):
         presentation = preset["draft"]["figure_presentation"]
         assert presentation["composition"] == "quantification"
         terms = presentation["legend_terms"]
-        assert terms["cell_line"] in scope
-        assert terms["treatment"] in scope
         assert "Hoechst" in terms["stains"] and "Hoechst" in scope
         if "zenodo" in scene:
-            assert all(name in terms["stains"] and name in scope for name in ("FBL-sfGFP", "NPM1-mTagRFP", "5-EU", "Alexa Fluor 647 azide"))
+            assert terms["cell_line"].replace("U2OS with", "U2OS cells with") + "," in scope
+            assert all(name in terms["cell_line"] for name in ("FBL-sfGFP", "NPM1-mTagRFP"))
+            assert all(name in terms["stains"] and name in scope for name in ("5-EU", "Alexa Fluor 647 azide"))
+            assert "FBL" not in terms["stains"] and "NPM1" not in terms["stains"]
+            assert "FBL" not in data["dataset"]["modifications"]  # Not a displayed channel.
+            assert "nominal concentration inferred from the source filename label" in terms["treatment"]
+            label = terms["treatment"].split("label ")[1].split(")")[0]
+            assert any(label in item["filename"] for item in data["sources"].values())
         else:
-            assert terms["stains"] == "Hoechst 33342 (DNA, C01)"
+            assert terms["cell_line"] in scope and terms["treatment"] in scope
+            assert terms["stains"] == "Hoechst 33342 (DNA)"
 
 
 def test_changed_settings_cannot_replay_another_scenes_treatment_facts():

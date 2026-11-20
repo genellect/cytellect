@@ -40,7 +40,7 @@ jobs:
           echo "CYTELLECT_CHROMIUM_EXECUTABLE=$task_browser" >> "$GITHUB_ENV"
       - name: Re-record presentation from the published seed
         run: |
-          cp -a apps/web/public/showcase/snapshot /tmp/cytellect-published-drawings
+          cp -a apps/web/public/showcase /tmp/cytellect-published
           uv run python -m cytellect_showcase.build \
             services/showcase/datasets/zenodo-6643470-oxaliplatin.json \
             services/showcase/datasets/zenodo-6643470-cisplatin.json \
@@ -48,7 +48,9 @@ jobs:
             services/showcase/datasets/cpg0016-jump-source13-plk1.json \
             --work /tmp/cytellect-showcase-presentation --cache /tmp/cytellect-showcase-cache \
             --fiji /tmp/recordings-only-no-fiji \
-            --stages reseed,proposals,publish,snapshot,journal
+            --stages reseed,proposals,publish,snapshot,journal \
+            --journal-keep '^(?!.*:(?:ai-|rank-))' \
+            --journal-previous /tmp/cytellect-published/snapshot
       - name: Check the generated public tree
         run: uv run python scripts/check_public_tree.py
       - name: Pack generated public assets
@@ -68,7 +70,7 @@ jobs:
             services/showcase/datasets/cpg0016-jump-source13-plk1.json \
             --work /tmp/cytellect-showcase-presentation --cache /tmp/cytellect-showcase-cache \
             --fiji /tmp/recordings-only-no-fiji --stages figures \
-            --figure-drawings /tmp/cytellect-published-drawings
+            --figure-drawings /tmp/cytellect-published/snapshot
       - name: Pack completed figures
         if: inputs.showcase_figures
         run: tar -czf /tmp/showcase-presentation-complete.tar.gz apps/web/public/showcase fixtures/public/allowlist.json
