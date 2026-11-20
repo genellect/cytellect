@@ -97,7 +97,7 @@ export function accountLabel(account: Account | null | undefined, timeZone?: str
   switch (account?.state) {
     case "allowed": {
       const date = formatDate(account.resets_at, timeZone);
-      return {label: account.email || "ログイン中", detail: gpuQuotaReached(account) ? `GPU：今月の上限${date ? `（${date}に再開）` : ""}` : "GPU・解析提案：利用可"};
+      return {label: account.email || "ログイン中", detail: gpuQuotaReached(account) ? `GPU：今月の上限${date ? `（${date}に再開）` : ""}` : "GPU・解析提案・考察：利用可"};
     }
     case "pending_approval": return {label: account.approved ? "承認済み" : "承認待ち"};
     case "code_sent": return {label: "コードの入力待ち"};
@@ -108,14 +108,14 @@ export function accountLabel(account: Account | null | undefined, timeZone?: str
   }
 }
 
-/** Monthly usage beside the limits, e.g. "GPU 2 / 60 分 · 解析提案 0.40 / 5.00 ドル". */
+/** Monthly usage beside the limits, e.g. "GPU 2 / 60 分 · AI（解析提案・考察） 0.40 / 5.00 ドル". */
 export function usageText(account: Account): string {
   const parts: string[] = [];
   const minutes = (seconds: number | null | undefined) => seconds === null || seconds === undefined ? "–" : String(Math.ceil(seconds / 60));
   const dollars = (value: number | null | undefined) => value === null || value === undefined ? "–" : value.toFixed(2);
   if (account.limits || account.usage) {
     parts.push(`GPU ${minutes(account.usage?.gpu_seconds)} / ${minutes(account.limits?.gpu_seconds_month)} 分`);
-    parts.push(`解析提案 ${dollars(account.usage?.proposal_usd)} / ${dollars(account.limits?.proposal_usd_month)} ドル`);
+    parts.push(`AI（解析提案・考察） ${dollars(account.usage?.proposal_usd)} / ${dollars(account.limits?.proposal_usd_month)} ドル`);
   }
   return parts.join(" · ");
 }

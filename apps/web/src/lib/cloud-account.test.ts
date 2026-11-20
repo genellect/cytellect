@@ -9,7 +9,7 @@ afterEach(() => {vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.resetModules();})
 describe("cloud account display", () => {
   it("labels each account state for the header", () => {
     expect(accountLabel(null)).toEqual({label: "ログイン"});
-    expect(accountLabel({state: "allowed", email: "researcher@example.org"})).toEqual({label: "researcher@example.org", detail: "GPU・解析提案：利用可"});
+    expect(accountLabel({state: "allowed", email: "researcher@example.org"})).toEqual({label: "researcher@example.org", detail: "GPU・解析提案・考察：利用可"});
     expect(accountLabel({state: "pending_approval", email: "a@example.org"}).label).toBe("承認待ち");
     expect(accountLabel({state: "pending_approval", approved: true}).label).toBe("承認済み");
     expect(accountLabel({state: "expired"}).label).toBe("ログイン");
@@ -69,7 +69,7 @@ describe("cloud account display", () => {
     expect(resendWait(61_000, 1_000)).toBe(60);
     expect(resendWait(1_000, 61_000)).toBe(0);
     expect(usageText({state: "allowed", limits: {gpu_seconds_month: 3600, proposal_usd_month: 5}, usage: {gpu_seconds: 61, proposal_usd: 0.4}}))
-      .toBe("GPU 2 / 60 分 · 解析提案 0.40 / 5.00 ドル");
+      .toBe("GPU 2 / 60 分 · AI（解析提案・考察） 0.40 / 5.00 ドル");
     expect(formatDate("not a date")).toBe("");
   });
 });

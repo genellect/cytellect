@@ -958,6 +958,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/ai/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ai Status */
+        get: operations["ai_status_v1_ai_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/workspaces/{wid}/proposal-drafts": {
         parameters: {
             query?: never;
@@ -991,6 +1008,23 @@ export interface paths {
         put?: never;
         /** Draft Discussion */
         post: operations["draft_discussion_v1_jobs__jid__discussion_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/jobs/{jid}/discussion-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Discussion History */
+        get: operations["discussion_history_v1_jobs__jid__discussion_history_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1306,6 +1340,22 @@ export interface components {
              * @constant
              */
             scope: "planning-intent-only";
+        };
+        /**
+         * AiStatus
+         * @description Local configuration only: no provider call, credential, service URL or research data.
+         */
+        AiStatus: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "available" | "sign_in_required" | "unconfigured" | "misconfigured";
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "operator" | "account" | "none";
         };
         /** AnalysisRequest */
         AnalysisRequest: {
@@ -2688,6 +2738,11 @@ export interface components {
             alternatives?: string[];
             /** Next Steps */
             next_steps?: string[];
+        };
+        /** DiscussionHistory */
+        DiscussionHistory: {
+            current?: components["schemas"]["DiscussionView"] | null;
+            previous?: components["schemas"]["DiscussionView"] | null;
         };
         /**
          * DiscussionRequest
@@ -9184,6 +9239,26 @@ export interface operations {
             };
         };
     };
+    ai_status_v1_ai_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiStatus"];
+                };
+            };
+        };
+    };
     draft_proposal_v1_workspaces__wid__proposal_drafts_post: {
         parameters: {
             query?: never;
@@ -9272,6 +9347,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DiscussionView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    discussion_history_v1_jobs__jid__discussion_history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscussionHistory"];
                 };
             };
             /** @description Validation Error */

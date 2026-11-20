@@ -2849,6 +2849,24 @@
         }
       }
     },
+    "/v1/ai/status": {
+      "get": {
+        "summary": "Ai Status",
+        "operationId": "ai_status_v1_ai_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/workspaces/{wid}/proposal-drafts": {
       "post": {
         "summary": "Draft Proposal",
@@ -2976,6 +2994,45 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DiscussionView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/jobs/{jid}/discussion-history": {
+      "get": {
+        "summary": "Discussion History",
+        "operationId": "discussion_history_v1_jobs__jid__discussion_history_get",
+        "parameters": [
+          {
+            "name": "jid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Jid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscussionHistory"
                 }
               }
             }
@@ -3940,6 +3997,36 @@
           "accepted_at"
         ],
         "title": "AdoptedPlan"
+      },
+      "AiStatus": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "available",
+              "sign_in_required",
+              "unconfigured",
+              "misconfigured"
+            ],
+            "title": "State"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "operator",
+              "account",
+              "none"
+            ],
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "source"
+        ],
+        "title": "AiStatus",
+        "description": "Local configuration only: no provider call, credential, service URL or research data."
       },
       "AnalysisRequest": {
         "properties": {
@@ -7556,6 +7643,32 @@
         ],
         "title": "DiscussionDraft",
         "description": "The three headings of the discussion (AC-04). How many points and how long is the model's choice; a draft\nwith no interpretation at all is not a discussion."
+      },
+      "DiscussionHistory": {
+        "properties": {
+          "current": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DiscussionView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "previous": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DiscussionView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "DiscussionHistory"
       },
       "DiscussionRequest": {
         "properties": {

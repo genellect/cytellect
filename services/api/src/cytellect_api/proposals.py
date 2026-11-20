@@ -16,7 +16,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
-from typing import Annotated
+from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
 import numpy as np
@@ -150,6 +150,16 @@ def post_to_service(settings, path: str, content: dict, request_id: str | None =
                     code = "proposal_access_revoked"
             except (ValueError, OSError, AttributeError):
                 pass
+        if error.code == 400:
+            # The service does not know this client's prompt version yet (it is deployed before a release that
+            # sends a new one): a version mismatch, not a connection problem.
+            try:
+                data = error.read(2049)
+                failure = json.loads(data) if len(data) <= 2048 else None
+                if isinstance(failure, dict) and failure.get("code") == "prompt_version_unsupported":
+                    code, status = "proposal_service_version_mismatch", 502
+            except (ValueError, OSError, AttributeError):
+                pass
         if error.code in (502, 503):
             try:
                 data = error.read(2049)
@@ -210,6 +220,12 @@ class ProposalChannelLink(BaseModel):
 class ProposalDraftResponse(BaseModel):
     proposal: ValidatedProposal
     channels: list[ProposalChannelLink]
+
+
+class AiStatus(BaseModel):
+    """Local configuration only: no provider call, credential, service URL or research data."""
+    state: Literal["available", "sign_in_required", "unconfigured", "misconfigured"]
+    source: Literal["operator", "account", "none"]
 
 
 LEGACY_STAINS = {"ncl": ("NCL", "measure"), "gfp": ("GFP", "measure"), "dapi": (None, "nuclear")}
@@ -497,6 +513,20 @@ def _continuation_context(context: ProposalContext, links: list[ProposalChannelL
 
 def register_proposal_routes(api, store, settings, owner, workspace, credentials=None):
     Owner = Annotated[str, Depends(owner)]
+
+    @api.get("/v1/ai/status", response_model=AiStatus)
+    def ai_status(who: Owner):
+        explicit = bool(settings.proposal_url or settings.proposal_token)
+        source: Literal["operator", "account", "none"] = "operator" if explicit else "account" if credentials is not None else "none"
+        try:
+            configured = service_url(effective_settings(settings, credentials))
+        except (ValueError, OSError):
+            return AiStatus(state="misconfigured", source=source)
+        if configured:
+            return AiStatus(state="available", source=source)
+        if explicit:
+            return AiStatus(state="misconfigured", source=source)
+        return AiStatus(state="sign_in_required" if credentials is not None else "unconfigured", source=source)
 
     @api.post("/v1/workspaces/{wid}/proposal-drafts", response_model=ProposalDraftResponse)
     def draft_proposal(wid: str, body: ProposalDraftRequest, who: Owner):

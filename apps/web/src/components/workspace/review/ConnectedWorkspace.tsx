@@ -38,7 +38,8 @@ import {compositeLayers} from "./composite-layers";
 import styles from "./connected-workspace.module.css";
 import {DemoBadge,DemoGuide,SceneIntro,SceneIntroButton,SceneSwitcher,SideCredit,DOWNLOAD_HREF,LiveStatus,ProposalExamples,ShowcaseContext,UploadDialog,useSceneIntro,useShowcaseUi,type DemoStep,type ShowcaseUi} from "./showcase-ui";
 import showcaseStyles from "./showcase.module.css";
-import {AccountIndicator,AI_SCOPE,CloudNotices,CloudPhase,GpuStatus} from "../CloudAccount";
+import {AccountIndicator,AI_SCOPE,CloudNotices,CloudPhase,GpuStatus,useCloudAccount} from "../CloudAccount";
+import {AiProvider,AiSettings,AiAvailabilityHint,useAi} from "../AiSettings";
 import {markProposalScopeSeen,proposalScopeSeen,setIncludePreviews} from "@/lib/workspace/ai-settings";
 import {GeneratedContentReportLink} from "./GeneratedContentReportLink";
 
@@ -79,16 +80,19 @@ function WorkspaceRoute(){
   // `?step=image|statistics|figure` opens that tab (the demo and production alike).
   const step=steps.has(params.get("step")||"")?params.get("step") as DemoStep:undefined;
   const runtime=useWorkspaceRuntime(id);
+  const cloud=useCloudAccount(),showcase=useShowcaseUi();
   useEffect(()=>{
     if(id||!runtime.workspaceId||runtime.busy)return;
     const url=new URL(window.location.href);
     url.searchParams.set("id",runtime.workspaceId);
     window.history.replaceState(window.history.state,"",url);
   },[id,runtime.workspaceId,runtime.busy]);
-  return <Workspace runtime={runtime} initialMode={step}/>;
+  return <AiProvider demo={showcase.enabled} accountState={cloud?.checking?"checking":cloud?.account?.state}
+    onLogin={cloud?.openLogin} onRefresh={cloud?.refresh}><Workspace runtime={runtime} initialMode={step}/></AiProvider>;
 }
 
 function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoStep}){
+  const aiAccess=useAi();
   const data=r.data;const fields=useMemo(()=>data?.fields||[],[data]);
   const showcase=useShowcaseUi(),demo=showcase.enabled;
   const intro=useSceneIntro(demo?showcase.scene?.id:undefined);
@@ -320,8 +324,12 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
   const [demoReply,setDemoReply]=useState("");
   // A proposal sends the scope in AI_SCOPE; it is confirmed once before the first request after it widened (L03).
   const [scopePending,setScopePending]=useState<string|null>(null);
-  async function sendInstruction(value:string,confirmed=false){
-    dispatchPanel("open-ai");setDemoReply("");
+  // An earlier request of the same instruction failed or timed out and may have been charged: the service sends it
+  // again only when the researcher says so (the same rule as the discussion's 「再生成」).
+  const [retryPending,setRetryPending]=useState<string|null>(null);
+  async function sendInstruction(value:string,confirmed=false,retry=false){
+    if(!aiAccess.available){dispatchPanel("open-ai");return;}
+    dispatchPanel("open-ai");setDemoReply("");setRetryPending(null);
     if(!demo&&!confirmed&&!proposalScopeSeen()){setScopePending(value);return;}
     setScopePending(null);
     if(demo&&!showcase.examples.some(example=>example.instruction===value.trim())){
@@ -329,7 +337,9 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
       if(!example){setDemoReply(`${showcase.scene?.assistantScope??"このデモは、記録済みの公開画像の解析にのみ応答します。"}指示の例は下にあります。`);return;}
       await act(()=>r.requestProposal(example.instruction,field?.id));return;
     }
-    await act(()=>r.requestProposal(value,field?.id));
+    await act(()=>r.requestProposal(value,field?.id,retry).catch(error=>{
+      if(error instanceof ApiError&&error.code==="proposal_explicit_retry_required"){r.dismissError();setRetryPending(value);return;}
+      throw error;}));
   }
   // The 画像 and フォルダ buttons and a drop of files or folders add images the same way. A chosen list is read at once
   // (the input is cleared right after); a drop's files arrive once its folders are read.
@@ -491,12 +501,16 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
 
     {(mode==="image"&&!!field||ai)&&(panel||ai)&&<aside className={styles.inspector} aria-label={ai?"AI":"画像解析"}><div className={styles.panelHeading}><h2>{ai?"AI":"画像解析"}</h2><button className={styles.icon} aria-label="パネルを閉じる" onClick={()=>dispatchPanel("close")}><Icon name="close"/></button></div><div className={styles.inspectorBody}>
       {ai?<>
+        <AiSettings/>
         <button onClick={showSettings}>解析設定を表示</button>
         <div className={styles.userMessage}>{instruction}</div>
         {scopePending!==null&&<section role="group" aria-label="AIに送る内容の確認"><p>{AI_SCOPE}</p>
           <div><button disabled={busy} onClick={()=>{markProposalScopeSeen();void sendInstruction(scopePending,true);}}>確認して送信</button>
             <button disabled={busy} onClick={()=>{setIncludePreviews(false);markProposalScopeSeen();void sendInstruction(scopePending,true);}}>縮小画像なしで送信</button>
             <button disabled={busy} onClick={()=>setScopePending(null)}>キャンセル</button></div></section>}
+        {retryPending!==null&&<section role="group" aria-label="AIへの再送の確認"><p>前回の依頼が未完了です。再送すると再度課金される場合があります。</p>
+          <div><button disabled={busy} onClick={()=>void sendInstruction(retryPending,true,true)}>再送</button>
+            <button disabled={busy} onClick={()=>setRetryPending(null)}>キャンセル</button></div></section>}
         {demoReply?<p>{demoReply}</p>:r.proposal?<>
           <p>{r.proposal.draft.rationale}</p>
           <dl>{r.proposal.draft.channels.map(ch=><div key={ch.token}><dt>{ch.token}</dt><dd>{ch.stain||ch.role}</dd></div>)}</dl>
@@ -520,7 +534,7 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
         <section><h3>測定</h3><MetricSelect value={metric} onChange={setMetric} calibrated={calibrated} offered={metricOffered}/><label>背景補正<select value={r.settings.background} disabled={busy} onChange={e=>setSetting("background",e.target.value as RuntimeSettings["background"])}><option value="raw">なし（原値）</option><option value="automatic">自動推定</option><option value="confirmed_roi">背景ROI</option></select></label>{r.settings.background==="confirmed_roi"&&field&&<ConnectedBackground fieldId={field.id} fieldLabel={field.label} channels={field.channels.map(ch=>({...ch,role:ch.role||undefined}))} backgrounds={backgrounds} confirmedChannelIds={storedSpec?.confirmed_channel_ids||[]} disabled={r.busy} drawing={!!backgroundDraw} onDraw={channels=>{setCompare(false);setBackgroundDraw({field:field.id,channels,id:crypto.randomUUID()});}} onRemove={async channels=>{const updated={...backgrounds,[field.id]:{...backgrounds[field.id]}};for(const ch of channels)delete updated[field.id][ch];await r.saveBackgrounds(updated,storedSpec?.confirmed_channel_ids||[]);}}/>}</section>
       </>}
     </div></aside>}
-    <footer className={styles.composer}>{r.importIssues.length+r.unfinishedImports.length>0&&<details className={styles.importIssues} data-dismissible><summary>取込 {r.importIssues.length+r.unfinishedImports.length}件</summary><ul>{r.importIssues.map((issue,index)=><li key={index}>{importIssueText(issue)}</li>)}<UnfinishedImports items={r.unfinishedImports} disabled={busy} onExclude={(entries,reason)=>void act(()=>r.excludeImports(entries,reason))}/></ul></details>}<button className={styles.icon} aria-label="AIの会話を開く" aria-pressed={ai} onClick={()=>dispatchPanel("toggle-ai")}><Icon name="ai"/></button><textarea aria-label="AIへの指示" placeholder={demo&&showcase.examples.length?"AIに指示（例から選択）":"AIに指示"} value={instruction} onFocus={!ai?()=>dispatchPanel("open-ai"):undefined} onChange={e=>setInstruction(e.target.value)} rows={1}/><button className={styles.send} aria-label="AIへ送信" disabled={busy||(!instruction.trim()&&!fields.length)} onClick={()=>void send()}><Icon name="send"/></button></footer>
+    <footer className={styles.composer}><AiAvailabilityHint onSettings={()=>dispatchPanel("open-ai")}/>{r.importIssues.length+r.unfinishedImports.length>0&&<details className={styles.importIssues} data-dismissible><summary>取込 {r.importIssues.length+r.unfinishedImports.length}件</summary><ul>{r.importIssues.map((issue,index)=><li key={index}>{importIssueText(issue)}</li>)}<UnfinishedImports items={r.unfinishedImports} disabled={busy} onExclude={(entries,reason)=>void act(()=>r.excludeImports(entries,reason))}/></ul></details>}<button className={styles.icon} aria-label="AIの会話を開く" aria-pressed={ai} onClick={()=>dispatchPanel("toggle-ai")}><Icon name="ai"/></button><textarea disabled={!aiAccess.available} aria-label="AIへの指示" placeholder={demo&&showcase.examples.length?"AIに指示（例から選択）":"AIに指示"} value={instruction} onFocus={!ai?()=>dispatchPanel("open-ai"):undefined} onChange={e=>setInstruction(e.target.value)} rows={1}/><button className={styles.send} aria-label="AIへ送信" disabled={busy||!aiAccess.available||(!instruction.trim()&&!fields.length)} onClick={()=>void send()}><Icon name="send"/></button></footer>
     {demo&&<DemoGuide open={guide} onClose={closeGuide} onStep={guideStep} dataset={showcase.dataset}/>}
     <input hidden type="file" multiple accept=".tif,.tiff" ref={fileInput} data-testid="file-input" disabled={intakeDisabled} onChange={e=>{add(e.target.files);e.target.value="";}}/><input hidden type="file" multiple ref={folderInput} data-testid="folder-input" disabled={intakeDisabled} onChange={e=>{add(e.target.files);e.target.value="";}}/>
   </main>;
