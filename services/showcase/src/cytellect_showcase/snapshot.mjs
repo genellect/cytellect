@@ -201,7 +201,7 @@ for (const [key, entry] of Object.entries({...entries})) {
   }
 }
 // The statistics view reads the discussion of the saved comparison it shows (AC-08): the scene's example for its
-// opening comparison, none for the others. It asks by the job it shows, which is a figure redrawn from the
+// opening comparison and each recorded companion. It asks by the job it shows, which is a figure redrawn from the
 // comparison when the scene's figure was drawn again (the API answers with the comparison's discussion). The walk
 // leaves the view before that read always lands, so each saved comparison's and each redrawn figure's is read here.
 report.discussions = 0;

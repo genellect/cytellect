@@ -4,6 +4,11 @@
 
 ## 構成
 
+考察や図だけの更新では、初期状態と操作を記録した `generated_from_commit` を保持し、
+`manifest.json` の `derived_updates` に更新した段階とコミットを記録する。
+元の記録環境 `runtime` も保持し、更新を実行した環境は `derived_update_environments` に段階ごとに記録する。
+`examples` 段階の再実行は、文が同じ考察と記録済みの応答を保持する。
+
 ```
 本番の API とワーカー（実際の Fiji/StarDist・Cellpose）で公開画像を処理する
   └─ 検出の記録・初期状態（SQLite と全ファイル）・初期表示の GET 応答を書き出す（ビルド時、CPython）
@@ -144,7 +149,7 @@ Pyodide の CDN から読み込むパッケージ（再配布しない）:
 
 `uv run python scripts/build_showcase_runtime.py --cache <チェックアウト外>` が、Cytellect のホイール（`SOURCE_DATE_EPOCH` 固定で再現可能）、上記のホイール、フォント、`THIRD_PARTY_NOTICES.txt`、`runtime-config.json`、`fixtures/public/allowlist.json` の登録を書き出し、`manifest.json` の `files` のうち `runtime/` の項目と、作り直しに使ったコミット（`runtime_generated_from_commit`）を更新します。`generated_from_commit` は初期状態と記録を作ったコミットです。Python のソースを変えたら作り直します。`--check` は作り直した結果と、コミット済みのファイル・設定・登録・`manifest.json` の一覧を照合し、古い場合は失敗します。CI は `main` への push で `--check` を実行し、ずれていれば警告を示します。PR では作り直しを求めません（[CI の構成](ci.md)）。
 
-公開デモの作り直し（`services/showcase/src/cytellect_showcase/build.py`）は、`publish` → `snapshot` → `journal` → `figures` の順に実行します。図の描画器や図の画面だけを変えた場合は、記録を作り直さず、`--stages figures` だけを実行します（2026-11-19、オーナーの指示：画像・数値・考察の揃った記録は変えず、図だけを差し替える）。`figures` は、公開済みの初期状態の写しに本番の API を開き、記録した計算の結果と初期状態の保存した結果から、各結果の図と図の選択肢を 1 つずつ変えた図を、初期状態の保存した図はその設定のまま描き直して `snapshot/figures.json` に書き、記録と初期表示（`index.json`）にある図の答えを外します。デモのすべての図がこの段階から出ます。同じ値の結果は 1 度だけ描きます。公開済みの出力に何度でも実行し直せます：記録から外した論文用パッケージは、前回の `figures.json` の項目と、そのパッケージに入っている記録した解析の書き出しから作り直します。画面の操作を変えた場合は、`--stages reseed,publish,snapshot,journal,figures` で、公開済みの `seed.zip` と `manifest.json` から作業用のデータ・検出の記録・場面の情報を戻して始められます（`reseed`。画像の取得と検出をしないので、Fiji と Cellpose は動かない。`--fiji` には存在しないパスを渡してよい）。`journal` は、公開ビルドと同じ `/demo` をブラウザ内の API で開き、次の操作を初期状態から 1 場面ずつ実行して記録します。警告や想定外のエラーが 1 件でも出れば失敗します。
+公開デモの作り直し（`services/showcase/src/cytellect_showcase/build.py`）は、`publish` → `snapshot` → `journal` → `figures` の順に実行します。図の描画器や図の画面だけを変えた場合は、記録を作り直さず、`--stages figures` だけを実行します（2026-11-19、オーナーの指示：画像・数値・考察の揃った記録は変えず、図だけを差し替える）。`figures` は、公開済みの初期状態の写しに本番の API を開き、記録した計算の結果と初期状態の保存した結果から、各結果の図と図の選択肢を 1 つずつ変えた図を、初期状態の保存した図はその設定のまま描き直して `snapshot/figures.json` に書き、記録と初期表示（`index.json`）にある図の答えを外します。デモのすべての図がこの段階から出ます。同じ値の結果は 1 度だけ描きます。公開済みの出力に何度でも実行し直せます：記録から外した論文用パッケージは、前回の `figures.json` の項目と、そのパッケージに入っている記録した解析の書き出しから作り直します。考察のモックだけを変えた場合は、`--stages reseed,examples` を実行する：公開済みの初期状態の写しにモックを保存し直し（文が変わっていないモックは記録を保つ）、記録にある考察の取得（`GET /v1/jobs/<id>/discussion`）を答え直し、`seed.zip` を書き出し直す。操作の記録・数値・図は変えない。画面の操作を変えた場合は、`--stages reseed,publish,snapshot,journal,figures` で、公開済みの `seed.zip` と `manifest.json` から作業用のデータ・検出の記録・場面の情報を戻して始められます（`reseed`。画像の取得と検出をしないので、Fiji と Cellpose は動かない。`--fiji` には存在しないパスを渡してよい）。`journal` は、公開ビルドと同じ `/demo` をブラウザ内の API で開き、次の操作を初期状態から 1 場面ずつ実行して記録します。警告や想定外のエラーが 1 件でも出れば失敗します。
 
 - 案内どおりの統計・図・ZIP 保存
 - 核・核小体・核質ごとの統計：画面が選ばせる指標・染色・解析・相関の横軸のすべての組み合わせ（その図は `figures` が描く）
@@ -181,7 +186,7 @@ Pyodide の CDN から読み込むパッケージ（再配布しない）:
 - `crop_rule`：視野の切り出し位置の規則。`nuclear-window` は、核染色だけを読み、Otsu の閾値を超える画素が最も多い窓（`size`、`step` 画素の格子、同点は中央に近い窓）を選ぶ。測定するチャンネルは読まないので、切り出しが結果に合わせて動くことはない。全チャンネルで同じ窓を使い、画素値は変えない。
 - `scene_label`・`assistant_scope`：場面の名前と、記録にない AI の指示への返答で、その画像で比べられることを示す文。
 - `scenario.journal`：公開デモの記録の範囲（`full` は画面が選ばせるすべての操作、`story` は場面の物語を伝える操作だけ。上の「ビルドと検査」）。既定は `full`。
-- `scenario.discussion_example`：統計の最初の比較に付ける考察のモック（要件 AC-08）。LLM は呼ばず、場面ごとに人が書く。`implications`（示唆されること、1〜3 文）、`alternatives`（ほかの説明と限界、2 文まで）、`next_steps`（次に確かめること、3 文まで）。構築は、本番と同じ検証（結果にない数値・記述統計への「有意」など・「変化がない」・文献を含まない）に通してから、`origin: "example"` として保存する。通らなければ構築を止める。画面は見出しの横に「デモ用サンプル（参考）」と示す（UC-05）。モックのない比較では、考察の枠を出さない。snapshot は、保存した各比較と描き直した図の考察の取得（`GET /v1/jobs/<id>/discussion`。描き直した図には元の比較の考察を返す。モックのない比較は `null`）を記録し、統計を開いたときに枠が出るようにする。
+- `scenario.discussion_example`：統計の最初の比較に付ける考察のモック（要件 AC-08）。「保存した比較」で切り替えるほかの比較のモックは、`scenario.companions` のそれぞれに同じ形の `discussion_example` として書く（2026-11-20、オーナーの指摘：最初の比較にしか考察が出ない）。LLM は呼ばず、場面ごとに人が書く。`implications`（示唆されること、1〜3 文）、`alternatives`（ほかの説明と限界、2 文まで）、`next_steps`（次に確かめること、3 文まで）。構築は、本番と同じ検査（考察の構造。数値・言い回しの検査は 2026-11-17 にやめた）に通してから、`origin: "example"` として保存する。通らなければ構築を止める。画面は見出しの横に「デモ用サンプル（参考）」と示す（UC-05）。モックのない比較では、考察の枠を出さない。snapshot は、保存した各比較と描き直した図の考察の取得（`GET /v1/jobs/<id>/discussion`。描き直した図には元の比較の考察を返す。モックのない比較は `null`）を記録し、統計を開いたときに枠が出るようにする。
 - `dataset.explainer`：生物学が専門でない人への説明（要件 DM-11）。`what`（条件）、`colors`（表示：色と線）、`finding`（結果）を、それぞれ体言止めの短い文で書く（UC-01〜UC-07）。結果の数値は書かない。`terms` は、用語の補足（`apps/web/src/lib/showcase/terms.ts`）から出す語。画面は、場面の上に「場面の説明」の枠（条件・表示・結果・用語）として示し、閉じたことを場面ごとにブラウザに保つ。ヘッダーの場面の選択の隣の「場面の説明」ボタンが、いつでもこの枠を開閉する（2026-11-19、オーナーの指摘：「i」だけでは意味が分からない）（`snapshot/dataset.json` の `explainer`）。統計の結果の見出しの下には、指標の意味を 1 文で示す。
 - `dataset.reported_change`：出典が報告している変化（比べる条件・向き・量・範囲・実験回の独立性）。画面は、デモでの測定と分けて、結果のまとめの下に向きを 1 行で示し、量・範囲・独立性は折りたたむ（`snapshot/dataset.json` の `reportedChange`）。
 - Cellpose を使わないデータセット（NCL 陽性の核小体や細胞 ROI がない）では、Cellpose の実行環境は不要。
