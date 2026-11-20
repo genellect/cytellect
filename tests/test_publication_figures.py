@@ -316,3 +316,89 @@ def test_a_form_saved_before_is_drawn_as_its_nearest_publication_form(tmp_path, 
     manifest = render_common_statistics(result, tmp_path)
     assert manifest["common_statistics_figure_version"] == "2.0.0"
     assert manifest["presentation"]["observations"] == observations
+
+
+# Independent review (2026-11-20): what each form draws, and that its legend draft says no more.
+TWELVE_RUNS = (("A", [1, 3, 6, 2, 8, 5, 4, 7, 9, 3, 6, 5]), ("B", [2, 5, 10, 7, 9, 11, 6, 8, 12, 4, 10, 9]))
+
+
+def captured_axes(monkeypatch):
+    """The axes each comparison is drawn on, kept open for inspection."""
+    from cytellect_analysis import publication_figure
+
+    axes = []
+    original = publication_figure.draw_comparison
+
+    def record(fig, ax, *args, **kwargs):
+        value = original(fig, ax, *args, **kwargs)
+        axes.append(ax)
+        return value
+
+    monkeypatch.setattr(publication_figure, "draw_comparison", record)
+    return axes
+
+
+def test_a_long_group_name_keeps_the_width_the_layout_gave_it(tmp_path):
+    # The panel widened for a long word but the axis was shrunk back to the short-name width,
+    # so the names overlapped and the default figure was refused.
+    report, config = comparison_fixture((("A", [1, 3, 6]), ("B", [2, 5, 10])))
+    result = analyze_region_comparison(report, config, request_v2(test="welch-t"))
+    result = json.loads(json.dumps(result).replace('"A"', '"Cycloheximide-treated"').replace('"B"', '"Actinomycin-treated"'))
+    result["spec"]["plot"].update(kind="superplot", presentation=OPENING)
+    manifest = render_common_statistics(result, tmp_path)
+    assert manifest["style"]["width_mm"] > 70
+
+
+def test_a_run_histogram_draws_the_saved_bins_that_hold_a_value(tmp_path, monkeypatch):
+    from matplotlib.axes import Axes
+
+    report, config = comparison_fixture(TWELVE_RUNS)
+    result = analyze_region_comparison(report, config, request_v2(test="welch-t"))
+    result["spec"]["plot"].update(kind="histogram", histogram_bins=6, presentation=OPENING)
+    lengths = []
+    original = Axes.barh
+
+    def record(self, y, width, *args, **kwargs):
+        lengths.extend(np.atleast_1d(width).tolist())
+        return original(self, y, width, *args, **kwargs)
+
+    monkeypatch.setattr(Axes, "barh", record)
+    render_common_statistics(result, tmp_path)
+    data = json.loads((tmp_path / "figure-data.json").read_text(encoding="utf-8"))
+    bins = [row for row in data["graphical_summary"] if "bin_left" in row]
+    assert {row["condition"] for row in bins} == {"A", "B"} and len(bins) == 12
+    assert all(sum(row["count"] for row in bins if row["condition"] == group) == 12 for group in ("A", "B"))
+    # An empty bin is no mark (it drew as a line that read as data).
+    assert lengths and all(length > 0 for length in lengths)
+    assert len(lengths) == sum(row["count"] > 0 for row in bins)
+    assert "grey bars show a histogram of run values" in (tmp_path / "figure-legend.md").read_text(encoding="utf-8")
+
+
+def test_a_summary_that_cannot_be_drawn_is_not_in_the_legend(tmp_path):
+    report, config = comparison_fixture((("A", [5] * 12), ("B", [8] * 12)))
+    result = analyze_region_comparison(report, config, request_v2(test="none"))
+    result["spec"]["plot"].update(kind="violin", presentation=OPENING)
+    render_common_statistics(result, tmp_path)
+    legend = (tmp_path / "figure-legend.md").read_text(encoding="utf-8")
+    data = json.loads((tmp_path / "figure-data.json").read_text(encoding="utf-8"))
+    assert "grey outlines" not in legend
+    assert not any(row.get("shape") for row in data["graphical_summary"])
+
+
+def test_a_box_records_its_quartiles_and_a_run_line_stays_over_it(tmp_path, monkeypatch):
+    from cytellect_analysis.publication_figure import natural_order
+
+    report, config = comparison_fixture(TWELVE_RUNS)
+    result = analyze_region_comparison(report, config, request_v2(paired=True, test="paired-t"))
+    result["spec"]["plot"].update(kind="box", presentation=OPENING)
+    axes = captured_axes(monkeypatch)
+    render_common_statistics(result, tmp_path)
+    data = json.loads((tmp_path / "figure-data.json").read_text(encoding="utf-8"))
+    rows = [row for row in data["graphical_summary"] if row.get("shape") == "box"]
+    assert len(rows) == 2 and all(row["q1"] <= row["median"] <= row["q3"] and row["of"] == "run values" for row in rows)
+    box_face = max(patch.get_zorder() for patch in axes[0].patches)
+    # A run's line joins its two groups; a whisker or a median stays within one.
+    run_lines = [line for line in axes[0].lines if np.ptp(np.asarray(line.get_xdata(), dtype=float)) > .5]
+    assert run_lines and min(line.get_zorder() for line in run_lines) > box_face
+    # Runs read in order: p2 before p10.
+    assert natural_order(["p10", "p2", "p1"]) == ["p1", "p2", "p10"]

@@ -65,6 +65,9 @@ def comparison_legend(canonical, order, drawn, presentation, panels=None) -> tup
         parts.append(f"grey outlines show the distribution of {summarised}")
     elif shape == "histogram":
         parts.append("grey bars show a histogram of run values")
+    if shape and not description.get("shape_in_every_group", True):
+        # A box or an outline needs at least three values (an outline, values that differ); a histogram, a value.
+        parts[-1] += " (where a group has enough values to summarise)"
     sentence = "; ".join(parts + marks)
     sentence = sentence[0].upper() + sentence[1:]
     if lines[-1] == "b,":

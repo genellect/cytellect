@@ -67,7 +67,10 @@ def labelled(result, labels, fid):
     return labels[fid] if not name or name == labels[fid] else f"{labels[fid]} ({name})"
 
 
-def _caption(result, labels, methods_template=None):
+def _caption(result, labels, methods_template=None, *, paged=False):
+    """``paged``: the paginated figure (render 2.1.0) marks the field median with a line and places the
+    points side by side deterministically, coloured by the field's condition; the single figure (1.0.1)
+    uses squares and a seeded jitter."""
     ja = result["spec"]["plot"]["language"] == "ja"
     version = template_version(methods_template)
     area_only = getattr(_source_measurement_policy(result), "mode", None) == "area_only"
@@ -75,6 +78,7 @@ def _caption(result, labels, methods_template=None):
     observation = {"regions": ("regions", "領域"), "nuclei": ("nuclei", "核"),
                    "observations": ("observations", "観測値"), "fields": ("fields", "視野")}[result["observation_kind"]][ja]
     counts, selection = result["counts"], result["selection"]
+    coloured = len({row.get("condition") for row in result["field_summary"] if row.get("condition")}) > 1
     channel = _selected_channel(result)
     selected_identity = (f"channel_id={channel['channel_id']}; label={channel['label']}; "
                          f"stain={channel.get('stain') or 'not recorded'}") if channel else None
@@ -84,16 +88,19 @@ def _caption(result, labels, methods_template=None):
                       f"outside saved selection={selection['gate_unselected']}; missing metric={selection['missing_metric_selected']}.")
     if ja:
         lines = ["# 図の説明", "", f"{result['metric']}（{result['unit']}）の視野別記述図。",
-                 f"点は{observation}の測定値、四角は" + ("CSV の測定グループ" if numeric else "視野") + "内の中央値を示す。",
+                 f"点は{observation}の測定値、" + ("横線" if paged else "四角") + "は"
+                 + ("CSV の測定グループ" if numeric else "視野") + "内の中央値を示す。",
                  f"採用した {counts['observations']} 観測を表示した。",
                  "観測数・視野数は独立した実験反復数ではない。この記述解析では実験単位の独立性を判定していない。",
                  "検定、回帰、標準誤差、信頼区間は計算していない。撮影条件の比較可能性は確認していない。",
                  "四分位数は観測分布の記述であり信頼区間ではない。隣接順位間の線形補間 h=(n−1)p を使用した。",
                  selection_line,
+                 ("点は重ならないよう決定的に横へ並べた（表示のみ）" + ("。点の色は視野の条件を示す" if coloured else "")
+                  + "。値・選別は変更していない。") if paged else
                  "点の横方向の配置にのみ固定乱数 seed=0 を使用した。値・選別は変更していない。"]
     else:
         lines = ["# Figure legend", "", f"Per-field descriptive measurements: {result['metric']} ({result['unit']}).",
-                 f"Points are {observation}; squares show the median within each "
+                 f"Points are {observation}; " + ("horizontal lines" if paged else "squares") + " show the median within each "
                  + ("CSV measurement group." if numeric else "field."),
                  f"{counts['observations']} selected observations are shown.",
                  "Observation and field counts do not denote independent experimental replicates. "
@@ -102,7 +109,9 @@ def _caption(result, labels, methods_template=None):
                  "Acquisition comparability has not been established.",
                  "Quartiles describe the observed distribution, not uncertainty; linear interpolation uses h=(n−1)p.",
                  selection_line,
-                 "Horizontal jitter affects display only (seed 0); values and selection are unchanged."]
+                 ("Points are placed side by side by a deterministic layout (display only)"
+                  + ("; their colour shows the field's condition" if coloured else "") + "; values and selection are unchanged.")
+                 if paged else "Horizontal jitter affects display only (seed 0); values and selection are unchanged."]
     if result["observation_kind"] == "fields":
         lines[3] = ("1 視野 1 点。点は視野の値で、核ごとの分布ではない。視野内中央値の重複表示は行わない。"
                     if ja else "One point per field; points are field values, not a distribution of individual nuclei. "

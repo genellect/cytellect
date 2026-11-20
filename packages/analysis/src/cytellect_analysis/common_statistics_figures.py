@@ -497,7 +497,7 @@ def render_common_statistics(result, output: Path, *, methods_template=None, fig
                 "common_statistics_methods": template.model_dump(mode="json"), "style": style,
                 "font": selected_font.family, "font_metadata": selected_font.metadata()}
     if figure_version == "2.0.0" and not association:
-        # A run-value form keeps its 1.0.1 drawing; the screen still offers every form of the result.
+        # Drawn the earlier way (in Japanese, or asked without a presentation): the screen still offers every form.
         from .figure_forms import figure_forms
         from .publication_figure import resolve_presentation
 

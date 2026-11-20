@@ -117,6 +117,15 @@ def page_layout(result):
             "style": style, "plot": plot, "values": values, "jitter": jitter}
 
 
+def tick_label(value: float, ticks) -> str:
+    """A value-axis label: thousands separated, with as many decimals as the axis's ticks need (1,000.5 is not 1,001)."""
+    if abs(value) < 1000:
+        return f"{value:g}"
+    large = [float(tick) for tick in ticks if abs(tick) >= 1000] or [float(value)]
+    decimals = next((d for d in range(7) if all(abs(round(tick, d) - tick) <= 1e-9 * abs(tick) for tick in large)), 6)
+    return f"{value:,.{decimals}f}"
+
+
 def render_pages(result, output: Path, layout):
     """Only presentation failures are recoverable; write errors propagate unchanged.
 
@@ -153,7 +162,13 @@ def render_pages(result, output: Path, layout):
     point_size = float(plot.get("point_size") or 9)
     point_d = math.sqrt(point_size)
     fields_only = result["observation_kind"] == "fields"
-    ticks_format = FuncFormatter(lambda value, _: f"{value:,.0f}" if abs(value) >= 1000 else f"{value:g}")
+
+    def bind_font(item):
+        properties = item.get_fontproperties().copy()
+        properties.set_file(str(font.path))
+        properties.set_family(font.family)
+        properties.set_weight(font.weight)
+        item.set_fontproperties(properties)
     with plt.rc_context({**rc(size), "text.usetex": False, "text.parse_math": False, "axes.unicode_minus": False,
                          "svg.hashsalt": "cytellect-descriptive-figure-" + RENDER_VERSION}):
         for plan in layout["page_plan"]:
@@ -169,26 +184,33 @@ def render_pages(result, output: Path, layout):
                 axes.set_xlabel(xlabel)
                 axes.set_ylabel(fit_axis_title(ylabel, max(24.0, style["height_inches"] * 25.4 - 22), size))
                 axes.tick_params(axis="x", length=0, pad=3)
+                for item in figure.findobj(match=Text):
+                    bind_font(item)
                 # Legend keys describe the common marks; they are not dummy observations.
                 if plot.get("style", {}).get("show_legend", True):
+                    on_page = {condition_of.get(fid) for fid in plan["field_ids"]}
                     handles = ([Line2D([], [], marker="o", linestyle="none", markersize=3.2, markeredgewidth=0,
-                                       color=palette[condition], label=condition) for condition in conditions]
+                                       color=palette[condition], label=condition) for condition in conditions if condition in on_page]
                                if len(conditions) > 1 else
                                [Line2D([], [], marker="o", linestyle="none", markersize=3.2, markeredgewidth=0,
                                        color=colour_of(plan["field_ids"][0]), label=observation_label)])
                     if not fields_only:
                         handles.append(Line2D([], [], color=INK, linewidth=1.1, label=median_label))
-                    figure.legend(handles=handles, loc="outside upper center", frameon=False, ncols=len(handles),
-                                  handlelength=1.1, handletextpad=.4, columnspacing=1.2)
+                    # As many keys on a row as the page is wide: a narrow column wraps them.
+                    for columns in range(len(handles), 0, -1):
+                        legend = figure.legend(handles=handles, loc="outside upper center", frameon=False, ncols=columns,
+                                               handlelength=1.1, handletextpad=.4, columnspacing=1.2)
+                        for item in legend.get_texts():
+                            bind_font(item)
+                        figure.canvas.draw()
+                        if columns == 1 or legend.get_window_extent().width <= figure.bbox.width - 2:
+                            break
+                        legend.remove()
                 for item in figure.findobj(match=Text):
-                    properties = item.get_fontproperties().copy()
-                    properties.set_file(str(font.path))
-                    properties.set_family(font.family)
-                    properties.set_weight(font.weight)
-                    item.set_fontproperties(properties)
+                    bind_font(item)
                 apply_plot_controls(axes, plot)
                 if plot.get("axes", {}).get("y_scale", "linear") == "linear":
-                    axes.yaxis.set_major_formatter(ticks_format)
+                    axes.yaxis.set_major_formatter(FuncFormatter(lambda value, _, axes=axes: tick_label(value, axes.get_yticks())))
                 # The layout is fixed before the marks are placed, so a point's printed size is known in data units.
                 figure.canvas.draw()
                 figure.set_layout_engine("none")
