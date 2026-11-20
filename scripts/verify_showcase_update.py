@@ -120,6 +120,9 @@ def verify(before: Path, after: Path) -> dict[str, int]:
     for key, item in old["saved"].items():
         require(item["source"] == new["saved"][key]["source"], "saved figure source changed")
         drawings += same_item(before, after, item, new["saved"][key])
+    items = [item for group in old["groups"].values() for item in [group["opening"], *group["figures"]]]
+    items.extend(old["saved"].values())
+    drawing_files = {file for item in items for name, file in item["files"].items() if name not in PROSE}
     a, b = packages(before, old), packages(after, new)
     require(a == b, "publication package drawing/source data changed")
     with zipfile.ZipFile(before / "seed.zip") as original, zipfile.ZipFile(after / "seed.zip") as updated:
@@ -132,7 +135,7 @@ def verify(before: Path, after: Path) -> dict[str, int]:
         require(original_results == updated_results, f"scientific results changed: "
                 f"{len(original_results - updated_results)} missing, {len(updated_results - original_results)} added")
     return {"result_groups": len(old["groups"]), "exact_results": len(original_results),
-            "drawing_files": drawings, "protected_seed_files": len(protected),
+            "drawing_files": len(drawing_files), "drawing_references": drawings, "protected_seed_files": len(protected),
             "publication_packages": sum(len(values) for values in a.values())}
 
 
