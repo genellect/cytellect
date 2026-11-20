@@ -433,6 +433,8 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
     const opened=savedCondition(entry.operation,entry.result);
     if(!opened)return;
     chosenOperation.current=true;setOperation(entry.operation);
+    // A stratified result opens on its own stratum, so it is shown as the chosen condition's.
+    if(opened.stratum){const own=strata.find(value=>value.label===opened.stratum);if(own)setStratumChoice(own.id);}
     if(opened.regionSet in regionNames)onAnalysisTargetChange?.(metricStructure(opened.metric,opened.regionSet as ReviewTarget));
     onMetricChange?.(opened.metric,metricUsesChannel(opened.metric)?opened.channel:null);
     if(opened.x){setXMetric(opened.x.metric);setXChannel(opened.x.channel);}

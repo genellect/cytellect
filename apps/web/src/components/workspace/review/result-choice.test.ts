@@ -58,6 +58,12 @@ describe("saved result for the chosen condition (D-1)",()=>{
     expect(sameSources(fieldsOf(),sources.map(source=>({...source,mode:"raw_intensity"})))).toBe(false);
     expect(sameSources(fieldsOf(),sources.map(({field,mask})=>({field,mask})))).toBe(true);
   });
+  it("reads an association's fields from its axes",()=>{
+    const association:SavedResultLike={spec:{x_selection:{region_set_id:"nucleoli",metric:"area_px",channel_id:null},y_selection:{region_set_id:"nucleoli",metric:"mean",channel_id:"npm1"}},
+      x_source:{source_fields:fieldsOf()},y_source:{source_fields:fieldsOf()}};
+    const entry={job:"assoc",operation:"association" as const,result:association};
+    expect(savedFor([entry],choice({operation:"association",x:{metric:"area_px",channel:null}}),sources).current).toBe(entry);
+  });
   it("finds nothing for a condition without a result",()=>{
     expect(savedFor(entries,choice({operation:"distribution"}),sources)).toEqual({current:undefined,older:undefined});
     expect(savedFor(entries,null,sources)).toEqual({});

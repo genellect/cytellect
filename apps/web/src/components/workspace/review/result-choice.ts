@@ -31,8 +31,8 @@ export interface SavedResultLike {
   stratum?: {label: string} | null;
   selection?: {channel_gate?: {channel?: SavedChannelLike}} | null;
   spec?: {selection?: SavedSelectionLike; x_selection?: SavedSelectionLike; y_selection?: SavedSelectionLike} | null;
-  x_source?: {metric?: string; channel?: SavedChannelLike | null} | null;
-  y_source?: {metric?: string; channel?: SavedChannelLike | null} | null;
+  x_source?: {metric?: string; channel?: SavedChannelLike | null; source_fields?: SavedResultLike["source_fields"]} | null;
+  y_source?: {metric?: string; channel?: SavedChannelLike | null; source_fields?: SavedResultLike["source_fields"]} | null;
   /** Each field's adopted regions (their mask revision) and measurement, as the result recorded them. */
   source_fields?: Array<{field_id: string; region_set?: {region_set_id?: string; mask_revision_id?: string};
     measurement_protocol?: string; measurement?: {mode?: string} | null}>;
@@ -101,7 +101,9 @@ export function savedFor<T extends {operation: ResultOperation; result: SavedRes
   const key = conditionKey(condition);
   if (!key) return {};
   const same = entries.filter(entry => conditionKey(savedCondition(entry.operation, entry.result)) === key);
-  return {current: same.find(entry => sameSources(entry.result.source_fields, sources)), older: same[0]};
+  // An association keeps its fields per axis (both axes are measured on the same fields).
+  const fieldsOf = (result: SavedResultLike) => result.source_fields ?? result.y_source?.source_fields ?? result.x_source?.source_fields;
+  return {current: same.find(entry => sameSources(fieldsOf(entry.result), sources)), older: same[0]};
 }
 
 export {measureLabel};
