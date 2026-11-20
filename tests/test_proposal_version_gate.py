@@ -86,8 +86,18 @@ def test_both_distribution_paths_require_the_protected_gate():
         mapping = jobs(file)
         for target in targets:
             assert "proposal-compatibility" in ancestors(mapping, target)
-        gate = mapping["proposal-compatibility"]
-        assert "environment: proposal-preflight" in gate
-        assert "doctor --proposal-version --packaged-client" in gate
-        assert [name for name, body in mapping.items() if "PROPOSAL_PREFLIGHT_DEVICE_TOKEN" in body] == ["proposal-compatibility"]
-    assert "needs.proposal-compatibility.result == 'success'" in jobs("windows-store-release.yml")["submit"]
+        gates = [name for name in mapping if name.endswith("proposal-compatibility")]
+        for gate in (mapping[name] for name in gates):
+            assert "environment: proposal-preflight" in gate
+            assert "doctor --proposal-version --packaged-client" in gate
+        assert [name for name, body in mapping.items() if "PROPOSAL_PREFLIGHT_DEVICE_TOKEN" in body] == gates
+    store = jobs("windows-store-release.yml")
+    assert "needs.proposal-compatibility.result == 'success'" in store["submit"]
+    # A scheduled run asks for the owner's approval only when a package waits to be submitted.
+    assert "github.event_name != 'schedule'" in store["proposal-compatibility"]
+    scheduled = store["scheduled-proposal-compatibility"]
+    assert "needs: select" in scheduled and "needs.select.outputs.run-id != ''" in scheduled
+    assert "github.event_name == 'schedule'" in scheduled
+    assert "needs.scheduled-proposal-compatibility.result == 'success'" in store["submit"]
+    # `package` is skipped on a schedule: without a status function its dependants would be skipped too.
+    assert "always() && !cancelled()" in scheduled and "always() && !cancelled()" in store["submit"]
