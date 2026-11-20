@@ -27,9 +27,11 @@ def version_payloads(proposal_prompt: str | None = None, discussion_prompt: str 
 
 
 def check_versions(service: str, token: str, probe, *, proposal_prompt: str | None = None,
-                   discussion_prompt: str | None = None, expected_service: str | None = None) -> list[tuple[str, str, bool, str]]:
+                   discussion_prompt: str | None = None, expected_service: str | None = None,
+                   allow_loopback: bool = False) -> list[tuple[str, str, bool, str]]:
     parts = urlsplit(service)
-    if (parts.scheme != "https" or not parts.hostname or parts.username or parts.password
+    secure = parts.scheme == "https" or (allow_loopback and parts.scheme == "http" and parts.hostname in {"127.0.0.1", "localhost", "::1"})
+    if (not secure or not parts.hostname or parts.username or parts.password
             or parts.query or parts.fragment or not token):
         return [("AI service", "", False, "set an HTTPS service URL and device token before release")]
     if expected_service and service.rstrip("/") != expected_service.rstrip("/"):
