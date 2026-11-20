@@ -35,9 +35,10 @@ def published():
 @pytest.fixture
 def comparison(tmp_path, published):
     document, results = published
+    seed_groups = {source["group"] for source in document["sources"].values() if source.get("seed")}
     identity = next(identity for identity in results
                     if document["groups"][identity]["opening"]["figure"].get("common_statistics_figure_version") == "2.0.0"
-                    and results[identity]["analysis_kind"] == "region-comparison")
+                    and results[identity]["analysis_kind"] == "region-comparison" and identity in seed_groups)
     previous, target = tmp_path / "previous", tmp_path / "target"
     previous.mkdir()
     target.mkdir()
