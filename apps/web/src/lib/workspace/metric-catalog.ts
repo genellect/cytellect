@@ -106,8 +106,10 @@ export function perRegionMetric(id: string): boolean {return PER_REGION.has(id);
 export function measureLabel(metric: string, regionSet: string | null | undefined, stain: string | null | undefined): string {
   const label = metricLabel(metric);
   const region = PER_REGION.has(metric) && regionSet ? SUBJECT_NAMES[regionSet as ReviewTarget] : undefined;
-  const named = stain && (metric.startsWith("positive_") || metricUsesChannel(metric)) ? `（${stain}）` : "";
-  return `${region ? `${region}の` : ""}${label}${named}`;
+  const named = !!stain && (metric.startsWith("positive_") || metricUsesChannel(metric));
+  // A label that already ends in a parenthesis (「積算輝度（背景補正）」) takes the stain inside it.
+  const text = named && label.endsWith("）") ? `${label.slice(0, -1)}、${stain}）` : named ? `${label}（${stain}）` : label;
+  return `${region ? `${region}の` : ""}${text}`;
 }
 /** One sentence of what is measured, on which subject, and what one observation is (B-2, SL-01). */
 export function metricSentence(id: string, subject: ReviewTarget): string {

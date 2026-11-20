@@ -89,7 +89,7 @@ describe("the next step follows the table beside the image (A-2, TB-02)", () => 
   it("compares the brightness the stain's table lists, not a metric the table does not show", () => {
     // The statistics view opened on the eccentricity; the table lists each nucleolus's NPM1 brightness.
     expect(nextComparison({...view, metric: "nucleolar_eccentricity"})).toMatchObject({label: "核小体の平均輝度（NPM1）を群間で比較", metric: "mean", target: "nucleoli", channel: "npm1"});
-    expect(nextComparison({...view, metric: "integrated_corrected"})).toMatchObject({label: "核小体の積算輝度（背景補正）（NPM1）を群間で比較", metric: "integrated_corrected"});
+    expect(nextComparison({...view, metric: "integrated_corrected"})).toMatchObject({label: "核小体の積算輝度（背景補正、NPM1）を群間で比較", metric: "integrated_corrected"});
   });
   it("compares a nucleolar summary the nucleus table lists, on the nucleoplasm set it is read from", () => {
     expect(nextComparison({...view, metric: "nucleolar_eccentricity", nucleusTable: true})).toMatchObject({label: "核小体の離心率を群間で比較", metric: "nucleolar_eccentricity", target: "nucleoplasm", channel: null});

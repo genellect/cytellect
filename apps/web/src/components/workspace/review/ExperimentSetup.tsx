@@ -89,7 +89,7 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pendin
   const independent=draft.independence_confirmed??false;
   // One line of what is in place (ED-02): runs, groups, fields, and what the comparison will be.
   const status=[`${runs.length} 実験回 × ${draft.groups.length} 群、${placed} 視野を割り当て済み。`,
-    pair?(independent?"実験回は独立と記録済みのため、検定と信頼区間まで示します。":"独立性が未確認のため、検定なしの記述（実験回ごとの値と差）です。"):"1 群の記述です（検定なし）。",
+    pair?(issues.length?"":independent?"実験回は独立と記録済みのため、検定と信頼区間まで示します。":"独立性が未確認のため、検定なしの記述（実験回ごとの値と差）です。"):"1 群の記述です（検定なし）。",
     issues.length?`統計の前の確認：${issues.length} 件（下）。`:""].filter(Boolean).join("");
   const labelOf=(key:string,fallback:string)=>labels[key]??fallback;
   function commitLabel(key:string,current:string,apply:(label:string)=>ExperimentDesign){

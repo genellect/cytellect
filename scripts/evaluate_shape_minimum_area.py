@@ -24,6 +24,7 @@ import zipfile
 from pathlib import Path
 
 import numpy as np
+from scipy.ndimage import label
 from cytellect_analysis.region_shape import region_shapes
 
 TOLERANCE = {"circularity": 0.05, "solidity": 0.05, "axis_ratio_relative": 0.10}
@@ -76,7 +77,8 @@ def errors(masks: list[np.ndarray]) -> list[dict]:
             sampled = np.ascontiguousarray(labels[offset::factor, offset::factor])
             for row in region_shapes(sampled, minimum_area_px=1)["rows"]:
                 full = reference.get(row["region_id"])
-                if full is None or row["missing_reason"] is not None:
+                # A sampled nucleus split into pieces is not one object any more: it is left out.
+                if full is None or row["missing_reason"] is not None or label(sampled == row["region_id"])[1] != 1:
                     continue
                 records.append({"area_px": row["area_px"], "factor": factor,
                                 "circularity": abs(row["circularity"] - full["circularity"]),
