@@ -30,11 +30,12 @@ export function AiProvider({children,demo,accountState,onLogin,onRefresh}:{child
   const refresh=useCallback(()=>{void onRefresh?.();setRevision(value=>value+1);},[onRefresh]);
   useEffect(()=>{
     if(demo)return;
-    checkRevision.current++;setCompatibility(null);setCheckingService(false);
+    const invalidateCheck=()=>{checkRevision.current++;};
+    invalidateCheck();setCompatibility(null);setCheckingService(false);
     let live=true;setChecking(true);setFailed(false);
     request<Status>("/v1/ai/status").then(value=>{if(live)setStatus(value);}).catch(()=>{if(live){setStatus(null);setFailed(true);}})
       .finally(()=>{if(live)setChecking(false);});
-    return()=>{live=false;checkRevision.current++;};
+    return()=>{live=false;invalidateCheck();};
   },[demo,accountState,revision]);
   const accountBlocked=status?.source==="account"&&!!accountState&&accountState!=="allowed";
   return <Context.Provider value={{available:demo||(!checking&&!checkingService&&status?.state==="available"&&!accountBlocked&&(!compatibility||compatibility.state==="compatible")),

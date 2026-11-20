@@ -6,8 +6,10 @@ MVP（画像の登録から検出・修正・測定・統計・作図までの�
 
 デモと本番の考察・Figure legend・LLM の操作を揃える実装は [#249](https://github.com/genellect/cytellect/issues/249)、
 分割と依存関係は [#250](https://github.com/genellect/cytellect/pull/250) に従う。Figure legend の文と名前は
-`fix/figure-legend-prose` で実装し、日英の見出しの共通事例と統計条件別の文章を検証する。
+日英の見出しの共通事例と統計条件別の文章で検証する（実装と検証の記録は [#251](https://github.com/genellect/cytellect/pull/251)）。
 研究者による評価は未実施のまま追跡し、今回の実装のマージ条件には含めない（2026-11-20、オーナーの指示）。
+
+公開デモの保存した比較 9 件に考察サンプルを用意し、文章だけの更新では記録した数値・図・元の実行環境を保持する。文章の照合・生成・不変性の記録は [#252](https://github.com/genellect/cytellect/pull/252) に置く。構造の契約と生物学的な記述の正しさを区別し、追加文のオーナー確認は未実施として追跡する。
 
 | 対象 | 状況 |
 |---|---|
@@ -115,7 +117,7 @@ M2 は元画像での解像・対象同定・校正を開始条件とする。M3
 ### LLM による解析支援の見直し
 
 [#249](https://github.com/genellect/cytellect/issues/249) の版の不一致・明示的な再送・エラー文の実装は
-`fix/proposal-failure-messages` に分ける（[#250](https://github.com/genellect/cytellect/pull/250) の単位3）。
+[対応する PR #253](https://github.com/genellect/cytellect/pull/253) に記録する（[#250](https://github.com/genellect/cytellect/pull/250) の単位3）。
 再送の確認を重複表示せず、APIの失敗コードと表示文の対応を試験で確認する。
 
 単位4の実装と検証は [#254](https://github.com/genellect/cytellect/pull/254) に記録する。設定とログインの状態を読む確認と、利用者が選ぶ課金のないサービスの対応確認を分ける。Windows・Docker・開発共通の「AI の設定」、1 回の操作での考察生成、再計算前の考察の区別を API と画面の試験で確かめる。Docker の案内は招待とトークンファイルの設定を含む。本番の有料生成と人による評価は未実施として残し、今回の評価をマージ条件にはしない。
