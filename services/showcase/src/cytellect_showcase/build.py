@@ -1616,7 +1616,8 @@ def record_proposals(manifest: dict, seed_data: Path, work: Path, origin_port: i
             raise
         payload = {"model": plan["model"], "prompt_version": plan["prompt_version"], "draft": copy.deepcopy(draft)}
         entries[context_sha256(context)] = {**payload, "source": plan["source"], "goal": context.goal,
-                                            "previous_goal": context.previous_goal}
+                                            "previous_goal": context.previous_goal,
+                                            "conditions": sorted({field.condition for field in context.fields if field.condition})}
         return copy.deepcopy(payload)
 
     count = len(plan["presets"])
@@ -1638,7 +1639,7 @@ def record_proposals(manifest: dict, seed_data: Path, work: Path, origin_port: i
             app, settings, server, thread = serve(data, origin, fiji, api_port, worker=True,
                                                   proposal_model=plan["model"],
                                                   proposal_prompt_version=plan["prompt_version"],
-                                                  proposal_url=PROPOSAL_URL)
+                                                  proposal_url=PROPOSAL_URL, proposal_token="showcase-offline")
             try:
                 config = {"origin": origin, "api": api_origin, "token": _owner_session(app, workspace_id),
                           "cookie": settings.cookie_name, "web": str(web),
@@ -1653,6 +1654,8 @@ def record_proposals(manifest: dict, seed_data: Path, work: Path, origin_port: i
                     sys.stderr.write(result.stderr[:3000] + "\n…\n" + result.stderr[-1500:])
                     raise SystemExit("proposal walk failed")
                 report = json.loads(result.stdout.strip().splitlines()[-1])
+                if report.get("alerts") or not report.get("sent") or not all(item["answered"] for item in report["sent"]):
+                    raise SystemExit("proposal walk did not adopt every authored preset")
                 reports.append({"sequence": sequence, **report})
                 log("proposals", sequence, report)
             finally:
@@ -1764,11 +1767,12 @@ def main(argv: list[str] | None = None) -> None:
         manifests.append((path, manifest))
     if len({manifest["id"] for _, manifest in manifests}) != len(manifests):
         raise SystemExit("duplicate scene id")
-    if any(uses_cellpose(manifest) for _, manifest in manifests):
+    stages = set(args.stages.split(","))
+    detector_stages = stages.intersection({"select", "scenario", "grid"}) or ("proposals" in stages and "reseed" not in stages)
+    if detector_stages and any(uses_cellpose(manifest) for _, manifest in manifests):
         for name in ("CYTELLECT_CELLPOSE_PYTHON", "CYTELLECT_CELLPOSE_MODEL_DIR"):
             if not os.environ.get(name):
                 raise SystemExit(f"{name} must name the pinned Cellpose runtime")
-    stages = set(args.stages.split(","))
     work.mkdir(parents=True, exist_ok=True)
     state_path = work / "state.json"
     origin = f"http://127.0.0.1:{args.web_port}"
@@ -1833,8 +1837,15 @@ def main(argv: list[str] | None = None) -> None:
             api.client.close()
             save()
         uninstall()
+    if "reseed" in stages:
+        reseed(args.out, work, manifests, state)
+        save()
     if "proposals" in stages:
-        recorder = install_recorder(recordings, reuse=True)
+        if "reseed" in stages:
+            from cytellect_showcase.detections import install_replay
+            install_replay(recordings)  # A presentation update must never launch a detector.
+        else:
+            install_recorder(recordings, reuse=True)
         fresh = True
         for _, manifest in manifests:
             if not manifest["scenario"].get("proposals"):
@@ -1845,9 +1856,6 @@ def main(argv: list[str] | None = None) -> None:
             fresh = False
             save()
         uninstall()
-    if "reseed" in stages:
-        reseed(args.out, work, manifests, state)
-        save()
     if "publish" in stages:
         publish(args, manifests, state, seed_data, recordings, started)
     if "examples" in stages:

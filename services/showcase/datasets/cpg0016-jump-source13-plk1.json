@@ -722,7 +722,15 @@
        "cells": null
       },
       "background": null,
-      "gfp_selection": null
+      "gfp_selection": null,
+      "figure_presentation": {
+       "composition": "quantification",
+       "legend_terms": {
+        "cell_line": "U2OS-311 (Cas9)",
+        "treatment": "96 h after transfection with pooled CRISPR guides",
+        "stains": "Hoechst 33342 (DNA, C01)"
+       }
+      }
      }
     },
     {
@@ -787,7 +795,15 @@
        "cells": null
       },
       "background": null,
-      "gfp_selection": null
+      "gfp_selection": null,
+      "figure_presentation": {
+       "composition": "quantification",
+       "legend_terms": {
+        "cell_line": "U2OS-311 (Cas9)",
+        "treatment": "96 h after transfection with pooled CRISPR guides",
+        "stains": "Hoechst 33342 (DNA, C01)"
+       }
+      }
      }
     }
    ]

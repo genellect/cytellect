@@ -146,6 +146,12 @@ Pyodide の CDN から読み込むパッケージ（再配布しない）:
 
 ### ビルドと検査
 
+`#249` の凡例の語句は、4 場面の `dataset.scope` にある細胞株・処理と時間・染色だけを `scenario.proposals.presets[].draft.figure_presentation.legend_terms` に記す。画像の配置は `quantification` を保ち、測定や検定の条件を変えない。同じ指示文が別の場面にもあるため、用意した案のフォールバックは記録した群名も照合し、別の処理の語句を混ぜない。
+
+この語句を変えたときは `--stages reseed,proposals,publish,snapshot,journal,figures` を実行する。`reseed` を先に行い、`proposals` は保存済みの検出の再生だけを許す。未記録の検出は失敗し、Fiji・Cellpose や LLM を起動しない。解析案の送信・採用を画面から記録し直すので、前の案を含む文脈のハッシュも更新される。公開済みの Pyodide wheel は作り直さない。
+
+Windows に録画用 Chromium がない場合は、既存の Verify workflow の手動入力 `showcase_presentation: true` を作業ブランチで使える。この実行は公開素材の再生成だけを行い、通常の統合試験を起動せず、資格情報を受け取らず、コミットや公開も行わない。出力 artifact を確認して PR の公開ファイルへ反映し、その head の通常の CI を別に通す。
+
 `uv run python scripts/build_showcase_runtime.py --cache <チェックアウト外>` が、Cytellect のホイール（`SOURCE_DATE_EPOCH` 固定で再現可能）、上記のホイール、フォント、`THIRD_PARTY_NOTICES.txt`、`runtime-config.json`、`fixtures/public/allowlist.json` の登録を書き出し、`manifest.json` の `files` のうち `runtime/` の項目と、作り直しに使ったコミット（`runtime_generated_from_commit`）を更新します。`generated_from_commit` は初期状態と記録を作ったコミットです。Python のソースを変えたら作り直します。`--check` は作り直した結果と、コミット済みのファイル・設定・登録・`manifest.json` の一覧を照合し、古い場合は失敗します。CI は `main` への push で `--check` を実行し、ずれていれば警告を示します。PR では作り直しを求めません（[CI の構成](ci.md)）。
 
 公開デモの作り直し（`services/showcase/src/cytellect_showcase/build.py`）は、`publish` → `snapshot` → `journal` → `figures` の順に実行します。図の描画器や図の画面だけを変えた場合は、記録を作り直さず、`--stages figures` だけを実行します（2026-11-19、オーナーの指示：画像・数値・考察の揃った記録は変えず、図だけを差し替える）。`figures` は、公開済みの初期状態の写しに本番の API を開き、記録した計算の結果と初期状態の保存した結果から、各結果の図と図の選択肢を 1 つずつ変えた図を、初期状態の保存した図はその設定のまま描き直して `snapshot/figures.json` に書き、記録と初期表示（`index.json`）にある図の答えを外します。デモのすべての図がこの段階から出ます。同じ値の結果は 1 度だけ描きます。公開済みの出力に何度でも実行し直せます：記録から外した論文用パッケージは、前回の `figures.json` の項目と、そのパッケージに入っている記録した解析の書き出しから作り直します。考察のモックだけを変えた場合は、`--stages reseed,examples` を実行する：公開済みの初期状態の写しにモックを保存し直し（文が変わっていないモックは記録を保つ）、記録にある考察の取得（`GET /v1/jobs/<id>/discussion`）を答え直し、`seed.zip` を書き出し直す。操作の記録・数値・図は変えない。画面の操作を変えた場合は、`--stages reseed,publish,snapshot,journal,figures` で、公開済みの `seed.zip` と `manifest.json` から作業用のデータ・検出の記録・場面の情報を戻して始められます（`reseed`。画像の取得と検出をしないので、Fiji と Cellpose は動かない。`--fiji` には存在しないパスを渡してよい）。`journal` は、公開ビルドと同じ `/demo` をブラウザ内の API で開き、次の操作を初期状態から 1 場面ずつ実行して記録します。警告や想定外のエラーが 1 件でも出れば失敗します。

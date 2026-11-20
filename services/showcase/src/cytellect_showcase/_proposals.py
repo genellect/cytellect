@@ -75,7 +75,9 @@ class Recordings:
         goal = context.goal.strip()
         candidates = [payload for payload in self.entries.values()
                       if payload.get("source") == AUTHORED and isinstance(payload.get("goal"), str)
-                      and payload["goal"].strip() == goal]
+                      and payload["goal"].strip() == goal
+                      and ("conditions" not in payload or payload["conditions"] ==
+                           sorted({field.condition for field in context.fields if field.condition}))]
         # Prefer the recording made after the same previous instruction, then any other.
         candidates.sort(key=lambda payload: payload.get("previous_goal", "") != context.previous_goal)
         for payload in candidates:
