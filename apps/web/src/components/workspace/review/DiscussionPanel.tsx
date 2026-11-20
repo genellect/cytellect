@@ -55,7 +55,7 @@ export function DiscussionPanel({adapter, job, demo, workspace = "", summary}: {
       const rejected = error instanceof ApiError && error.status === 502 && error.code === "request_failed";
       const again = error instanceof ApiError && error.code === "proposal_explicit_retry_required";
       setFailure({text: rejected ? "AI の出力を読み取れませんでした。再生成すると再度課金される場合があります。" :
-        again ? "前回の依頼が未完了です。再生成すると再度課金される場合があります。" : errorMessage(error), retry: rejected || again});
+        again ? "前回の依頼が未完了です。再生成には課金される場合があります。" : errorMessage(error), retry: rejected || again});
     } finally {if(ticket===generation.current)setBusy(false);}
   };
   if (!view) return <>

@@ -102,7 +102,7 @@ test("a failed AI instruction can be resent explicitly, with one confirmation an
   await send.click();
   const confirm=page.getByRole("group",{name:"AIへの再送の確認"});
   await expect(confirm).toBeVisible();
-  await expect(page.getByText("前回の依頼が未完了です。再送すると再度課金される場合があります。",{exact:true})).toHaveCount(1);
+  await expect(page.getByText("前回の依頼が未完了です。再送には課金される場合があります。",{exact:true})).toHaveCount(1);
   await confirm.getByRole("button",{name:"キャンセル"}).click();
   expect(requests).toHaveLength(2);
   await send.click();await expect(confirm).toBeVisible();

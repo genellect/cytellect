@@ -1,4 +1,5 @@
 """No real provider calls: scientific proposal and billing-state invariants."""
+import io
 import json
 import threading
 import time
@@ -19,6 +20,27 @@ from test_region_api import make_field, region_request
 
 BODY = {"transmission_confirmed": True}
 REPLY = json.dumps({"draft": ACTIN_DRAFT, "model": "gpt-6.1-sol", "prompt_version": PROPOSAL_PROMPT_VERSION}).encode()
+
+
+@pytest.mark.parametrize("status,code", [(400, "prompt_version_unsupported"), (400, "request_invalid"),
+                                      (401, "unauthorized"), (403, "revoked"), (429, "quota_exhausted"),
+                                      (503, "proposal_service_disabled")])
+def test_known_pre_model_failures_can_be_sent_after_fix_without_a_paid_retry(tmp_path, monkeypatch, status, code):
+    responses = iter([None, REPLY])
+    def reply(request):
+        body = next(responses)
+        if body is None:
+            raise urllib.error.HTTPError(request.full_url, status, "pre-model", {}, io.BytesIO(json.dumps({"code": code}).encode()))
+        return FakeResponse(body)
+    client, wid, calls = configured(tmp_path, monkeypatch, reply)
+    path = f"/v1/workspaces/{wid}/proposal-drafts"
+    first = client.post(path, json=BODY, headers=HEADERS)
+    assert first.status_code >= 400
+    assert client.app.state.store.rows(proposal_drafts)[0]["state"] == "unbilled"
+    restarted = TestClient(create_app(client.app.state.settings))
+    restarted.cookies.update(client.cookies)
+    assert restarted.post(path, json=BODY, headers=HEADERS).status_code == 200
+    assert len(calls) == 2
 
 
 def test_ratio_requires_background_and_paired_three_conditions_are_unsupported():

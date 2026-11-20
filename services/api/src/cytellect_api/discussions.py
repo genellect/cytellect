@@ -160,7 +160,7 @@ def register_discussion_routes(api, store, settings, owner, job_record, credenti
             if cached:
                 if cached["state"] == "pending" and cached["lease_until"] > now:
                     raise HTTPException(409, "proposal_request_in_progress")
-                if not body.retry_failed:
+                if not body.retry_failed and cached["state"] != "unbilled":
                     # A timeout may already have incurred cost; never silently pay again.
                     raise HTTPException(409, "proposal_explicit_retry_required")
                 conn.execute(update(result_discussions).where(result_discussions.c.id == cached["id"]).values(
@@ -170,6 +170,7 @@ def register_discussion_routes(api, store, settings, owner, job_record, credenti
                     id=str(uuid.uuid4()), workspace_id=wid, job_id=jid, cache_key=key, request_id=request_id,
                     state="pending", created=now, lease_until=lease))
         discussion = None
+        unbilled = False
         try:
             payload = post_to_service(service, "/v1/discussions", {
                 "context": context.model_dump(mode="json"), "prompt_version": settings.discussion_prompt_version}, request_id)
@@ -178,6 +179,7 @@ def register_discussion_routes(api, store, settings, owner, job_record, credenti
             discussion = validate_discussion(payload.get("draft"), context, model=payload["model"],
                                              prompt_version=payload["prompt_version"])
         except ProposalServiceError as error:
+            unbilled = not error.may_have_charged
             raise HTTPException(error.status, error.code) from None
         except DiscussionRejected as error:
             # Only an answer without the three headings; codes only, the text is never echoed into logs.
@@ -190,7 +192,7 @@ def register_discussion_routes(api, store, settings, owner, job_record, credenti
                     conn.execute(update(result_discussions).where(
                         result_discussions.c.workspace_id == wid, result_discussions.c.cache_key == key,
                         result_discussions.c.request_id == request_id, result_discussions.c.state == "pending"
-                    ).values(state="failed"))
+                    ).values(state="unbilled" if unbilled else "failed"))
         job_record(jid, who)  # Revocation or expiry during the external call blocks publication.
         with store.transaction() as conn:
             stored = conn.execute(update(result_discussions).where(

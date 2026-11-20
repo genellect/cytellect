@@ -508,7 +508,7 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
           <div><button disabled={busy} onClick={()=>{markProposalScopeSeen();void sendInstruction(scopePending,true);}}>確認して送信</button>
             <button disabled={busy} onClick={()=>{setIncludePreviews(false);markProposalScopeSeen();void sendInstruction(scopePending,true);}}>縮小画像なしで送信</button>
             <button disabled={busy} onClick={()=>setScopePending(null)}>キャンセル</button></div></section>}
-        {retryPending!==null&&<section role="group" aria-label="AIへの再送の確認"><p>前回の依頼が未完了です。再送すると再度課金される場合があります。</p>
+        {retryPending!==null&&<section role="group" aria-label="AIへの再送の確認"><p>前回の依頼が未完了です。再送には課金される場合があります。</p>
           <div><button disabled={busy} onClick={()=>void sendInstruction(retryPending,true,true)}>再送</button>
             <button disabled={busy} onClick={()=>setRetryPending(null)}>キャンセル</button></div></section>}
         {demoReply?<p>{demoReply}</p>:r.proposal?<>
