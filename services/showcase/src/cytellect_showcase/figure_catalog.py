@@ -214,6 +214,12 @@ def build(api, target: Path, scratch: Path, shard: tuple[int, int] | None = None
 
     catalog = Catalog(api, target)
     previous = json.loads((drawings / "figures.json").read_text(encoding="utf-8")) if drawings else None
+    published = None
+    drawing_origins: dict[str, str] = {}
+    if previous is not None and drawings is not None:
+        from .figure_text import PublishedDrawings
+
+        published = PublishedDrawings(drawings, previous)
     journal = json.loads((target / "journal.json").read_text(encoding="utf-8"))
     entries = journal["entries"]
     read = lambda entry: json.loads((target / entry["file"]).read_text(encoding="utf-8"))  # noqa: E731
@@ -289,9 +295,6 @@ def build(api, target: Path, scratch: Path, shard: tuple[int, int] | None = None
 
             from .figure_text import reuse_item
 
-            if identity not in previous["groups"]:
-                raise ValueError(f"no identical published result for {identity}; a new drawing requires a normal figures build")
-            old = previous["groups"][identity]
             if group["seed"]:
                 row = seed[group["seed"]]
                 result = json.loads((catalog.store.safe_path(row["result_dir"]) / "result.json").read_text(encoding="utf-8"))
@@ -303,9 +306,9 @@ def build(api, target: Path, scratch: Path, shard: tuple[int, int] | None = None
                 requested = {**value["plot"], **({"kind": "superplot", "presentation": DEFAULT_PRESENTATION}
                                                 if value["kind"] == "common-statistics" else {})}
             plot = validated_plot(result, requested)
-            if plot != old["opening"]["plot"] or variants(result, old["opening"]["figure"], plot, bool(group["seed"])) != [
-                    item["plot"] for item in old["figures"]]:
-                raise ValueError(f"published figure settings changed for {identity}")
+            assert published is not None
+            origin, old = published.choose(result, plot, bool(group["seed"]))
+            drawing_origins[identity] = origin
             written[identity] = {"observations": old["observations"],
                                  "opening": reuse_item(catalog, drawings, result, old["opening"]),
                                  "figures": [reuse_item(catalog, drawings, result, item) for item in old["figures"]]}
@@ -379,7 +382,8 @@ def build(api, target: Path, scratch: Path, shard: tuple[int, int] | None = None
         if previous is not None and drawings is not None:
             from .figure_text import package_root
 
-            figure["root"] = package_root(drawings, previous, source["group"], figure, target, scratch / f"reused-{index}")
+            origin = drawing_origins[source["group"]]
+            figure["root"] = package_root(drawings, previous, origin, figure, target, scratch / f"reused-{index}")
         figure_job = str(uuid.uuid4())
         rendered = copy.deepcopy(result)
         rendered.pop("figure", None)
@@ -433,6 +437,7 @@ def build(api, target: Path, scratch: Path, shard: tuple[int, int] | None = None
         "sources": sources,
         "saved": saved_figures,
         "packages": package_entries,
+        **({"drawing_origins": drawing_origins} if drawing_origins else {}),
     }
     (target / "figures.json").write_text(json.dumps(document, ensure_ascii=False, separators=(",", ":")) + "\n",
                                        encoding="utf-8", newline="\n")

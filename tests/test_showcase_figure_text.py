@@ -2,6 +2,7 @@
 import copy
 import hashlib
 import json
+import math
 import shutil
 import zipfile
 from pathlib import Path
@@ -44,7 +45,13 @@ def comparison(tmp_path, published):
     for item in [group["opening"], *group["figures"]]:
         for name in item["files"].values():
             shutil.copyfile(SNAPSHOT / name, previous / name)
-    (previous / "figures.json").write_text(json.dumps({"groups": {identity: group}, "saved": {}, "sources": {}, "packages": []}))
+    job = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
+    (previous / "figures.json").write_text(json.dumps({"groups": {identity: group}, "saved": {},
+                                                       "sources": {job: {"group": identity}}, "packages": []}))
+    (previous / "source-result.json").write_text(json.dumps(results[identity]), encoding="utf-8")
+    (previous / "index.json").write_text(json.dumps({"entries": {f"GET /v1/jobs/{job}/common-statistics":
+                                                                {"file": "source-result.json"}}}))
+    (previous / "journal.json").write_text('{"entries":[]}')
     (target / "index.json").write_text('{"entries":{}}')
     (target / "journal.json").write_text('{"entries":[]}')
     result = copy.deepcopy(results[identity])
@@ -76,12 +83,16 @@ def test_catalogue_keeps_every_published_drawing_byte(comparison):
         assert "n = " in text
 
 
-@pytest.mark.parametrize("change", ["values", "settings", "checksum"])
+@pytest.mark.parametrize("change", ["values", "tiny-values", "settings", "checksum", "nondefault-presentation"])
 def test_changed_values_settings_or_assets_are_rejected(comparison, change):
     api, previous, target, scratch, identity, result_path = comparison
-    if change == "values":
+    if change in ("values", "tiny-values", "nondefault-presentation"):
         result = read(result_path)
-        result["unit_summary"][0]["value"] += 1
+        if change == "nondefault-presentation":
+            result["spec"]["plot"]["presentation"] = {"version": "1.0.0", "outlines": False}
+        else:
+            value = result["unit_summary"][0]["value"]
+            result["unit_summary"][0]["value"] = value + 1 if change == "values" else math.nextafter(value, math.inf)
         result_path.write_text(json.dumps(result))
     else:
         document = read(previous / "figures.json")
@@ -91,9 +102,24 @@ def test_changed_values_settings_or_assets_are_rejected(comparison, change):
         else:
             name = document["groups"][identity]["opening"]["files"]["figure.svg"]
             (previous / name).write_bytes(b"changed")
-    with pytest.raises(ValueError, match={"values": "no identical published result", "settings": "settings changed",
+    with pytest.raises(ValueError, match={"values": "no identical published result", "tiny-values": "no identical published result",
+                                         "nondefault-presentation": "no identical published result", "settings": "settings changed",
                                          "checksum": "checksum mismatch"}[change]):
         build(api, target, scratch, drawings=previous)
+
+
+def test_explicit_defaults_and_new_capture_fingerprint_keep_the_same_drawing(comparison):
+    from cytellect_analysis.common_statistics_contracts import FigurePresentation
+
+    api, previous, target, scratch, identity, result_path = comparison
+    result = read(result_path)
+    result["source_fingerprint"] = "f" * 64
+    result["spec"]["plot"]["presentation"] = FigurePresentation(version="1.0.0").model_dump(mode="json")
+    result_path.write_text(json.dumps(result))
+    report = build(api, target, scratch, drawings=previous)
+    after = read(target / "figures.json")
+    assert report["groups"] == 1
+    assert set(after["drawing_origins"].values()) == {identity}
 
 
 def test_package_prose_preserves_all_graphics_and_source_files(tmp_path, published):

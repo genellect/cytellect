@@ -7,6 +7,7 @@ must be identical. Run after the figures stage, before adopting its artifact.
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import io
 import json
@@ -18,6 +19,8 @@ UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
 VOLATILE = {"figure", "source_job_id", "source_fingerprint", "software", "versions", "scipy_version", "numpy_version"}
 PROSE = {"figure-legend.md", "figure-caption.md"}
 SCIENCE_FILES = {".tif", ".tiff", ".npy", ".npz", ".csv", ".svg", ".png", ".pdf"}
+DEFAULT_PRESENTATION: dict[str, object] = {"version": "1.0.0", "observations": None, "color_by": None, "annotation": "value",
+                        "size": "panel", "composition": "quantification", "image_fields": {}, "outlines": True}
 
 
 def read(path: Path):
@@ -32,7 +35,8 @@ def require(condition: bool, message: str) -> None:
 def canonical(value):
     """Keep every scientific value at its recorded precision, including tiny changes."""
     if isinstance(value, dict):
-        return {key: canonical(inner) for key, inner in value.items() if key not in VOLATILE}
+        return {key: (inner if key in {"field_id", "field_ids"} else canonical(inner))
+                for key, inner in value.items() if key not in VOLATILE}
     if isinstance(value, list):
         return [canonical(inner) for inner in value]
     if isinstance(value, str):
@@ -41,19 +45,25 @@ def canonical(value):
 
 
 def result_key(value: dict) -> str:
+    value = copy.deepcopy(value)
+    plot = value.get("spec", {}).get("plot", {})
+    if plot.get("presentation") in (None, DEFAULT_PRESENTATION):
+        plot.pop("presentation", None)
     return json.dumps(canonical(value), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
-def results(root: Path, seed: zipfile.ZipFile, catalogue: dict) -> set[str]:
+def results(root: Path, seed: zipfile.ZipFile, catalogue: dict, group_values: dict[str, set[str]]) -> set[str]:
     values: set[str] = set()
     covered: set[str] = set()
 
     def add(body: bytes, job: str):
         value = json.loads(body)
         if isinstance(value, dict) and value.get("source_kind") == "region-2d" and "spec" in value:
-            values.add(result_key(value))
+            key = result_key(value)
+            values.add(key)
             if source := catalogue["sources"].get(job):
                 covered.add(source["group"])
+                group_values.setdefault(source["group"], set()).add(key)
 
     entries = read(root / "snapshot/index.json")["entries"]
     responses = [(key.removeprefix("GET "), entry) for key, entry in entries.items() if key.startswith("GET ")]
@@ -94,7 +104,8 @@ def same_item(before: Path, after: Path, old: dict, new: dict) -> int:
 def packages(root: Path, catalogue: dict) -> dict[tuple[str, int], list[tuple[tuple[str, bytes], ...]]]:
     found: dict[tuple[str, int], list[tuple[tuple[str, bytes], ...]]] = {}
     for entry in catalogue["packages"]:
-        key = (catalogue["sources"][entry["source"]]["group"], entry["figure"])
+        group = catalogue["sources"][entry["source"]]["group"]
+        key = (catalogue.get("drawing_origins", {}).get(group, group), entry["figure"])
         with zipfile.ZipFile(io.BytesIO(asset(root, entry["files"]["publication.zip"]))) as archive:
             files = tuple(sorted((name, archive.read(name)) for name in archive.namelist()
                                  if name.startswith("edited-figure/") and Path(name).name not in PROSE))
@@ -108,11 +119,14 @@ def packages(root: Path, catalogue: dict) -> dict[tuple[str, int], list[tuple[tu
 def verify(before: Path, after: Path) -> dict[str, int]:
     old = read(before / "snapshot/figures.json")
     new = read(after / "snapshot/figures.json")
-    require(old["groups"].keys() == new["groups"].keys(), "recorded result groups changed")
+    require(len(old["groups"]) == len(new["groups"]), "recorded result group count changed")
     require(old["saved"].keys() == new["saved"].keys(), "saved figures changed")
     drawings = 0
-    for key, group in old["groups"].items():
-        other = new["groups"][key]
+    origins = new.get("drawing_origins", {})
+    for key, other in new["groups"].items():
+        original = origins.get(key, key)
+        require(original in old["groups"], "unknown original drawing group")
+        group = old["groups"][original]
         require(group["observations"] == other["observations"], "observations display changed")
         old_items, new_items = [group["opening"], *group["figures"]], [other["opening"], *other["figures"]]
         require(len(old_items) == len(new_items), "figure variant count changed")
@@ -123,6 +137,10 @@ def verify(before: Path, after: Path) -> dict[str, int]:
     items = [item for group in old["groups"].values() for item in [group["opening"], *group["figures"]]]
     items.extend(old["saved"].values())
     drawing_files = {file for item in items for name, file in item["files"].items() if name not in PROSE}
+    updated_items = [item for group in new["groups"].values() for item in [group["opening"], *group["figures"]]]
+    updated_items.extend(new["saved"].values())
+    require(drawing_files == {file for item in updated_items for name, file in item["files"].items() if name not in PROSE},
+            "published drawing file set changed")
     a, b = packages(before, old), packages(after, new)
     require(a == b, "publication package drawing/source data changed")
     with zipfile.ZipFile(before / "seed.zip") as original, zipfile.ZipFile(after / "seed.zip") as updated:
@@ -131,9 +149,13 @@ def verify(before: Path, after: Path) -> dict[str, int]:
                 "seed scientific file set changed")
         for name in protected:
             require(original.read(name) == updated.read(name), f"seed input/mask/measurement/drawing changed: {name}")
-        original_results, updated_results = results(before, original, old), results(after, updated, new)
+        old_groups: dict[str, set[str]] = {}
+        new_groups: dict[str, set[str]] = {}
+        original_results, updated_results = results(before, original, old, old_groups), results(after, updated, new, new_groups)
         require(original_results == updated_results, f"scientific results changed: "
                 f"{len(original_results - updated_results)} missing, {len(updated_results - original_results)} added")
+        for key, values in new_groups.items():
+            require(values == old_groups[origins.get(key, key)], "drawing is associated with different scientific values")
     return {"result_groups": len(old["groups"]), "exact_results": len(original_results),
             "drawing_files": len(drawing_files), "drawing_references": drawings, "protected_seed_files": len(protected),
             "publication_packages": sum(len(values) for values in a.values())}

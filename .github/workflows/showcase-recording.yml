@@ -6,8 +6,13 @@ on:
         description: "Also update figure prose, preserving identical published drawings"
         type: boolean
         default: true
+      recording_run:
+        description: "Resume figures from the showcase-presentation artifact of this workflow run"
+        type: string
+        default: ""
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: public-demo-recording-${{ github.ref }}
   cancel-in-progress: false
@@ -38,9 +43,22 @@ jobs:
         run: |
           task_browser=$(node -e 'console.log(require("./apps/web/node_modules/@playwright/test").chromium.executablePath())')
           echo "CYTELLECT_CHROMIUM_EXECUTABLE=$task_browser" >> "$GITHUB_ENV"
+      - name: Keep the published drawings and provenance
+        run: cp -a apps/web/public/showcase /tmp/cytellect-published
+      - name: Download a completed recording stage
+        if: inputs.recording_run != ''
+        uses: actions/download-artifact@v7
+        with:
+          name: showcase-presentation
+          run-id: ${{ inputs.recording_run }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: /tmp/recorded-presentation
+      - name: Restore the public recording without replacing the font registry
+        if: inputs.recording_run != ''
+        run: tar -xzf /tmp/recorded-presentation/showcase-presentation.tar.gz apps/web/public/showcase
       - name: Re-record presentation from the published seed
+        if: inputs.recording_run == ''
         run: |
-          cp -a apps/web/public/showcase /tmp/cytellect-published
           uv run python -m cytellect_showcase.build \
             services/showcase/datasets/zenodo-6643470-oxaliplatin.json \
             services/showcase/datasets/zenodo-6643470-cisplatin.json \
@@ -52,10 +70,13 @@ jobs:
             --journal-keep '^(?!.*:(?:ai-|rank-))' \
             --journal-previous /tmp/cytellect-published/snapshot
       - name: Check the generated public tree
+        if: inputs.recording_run == ''
         run: uv run python scripts/check_public_tree.py
       - name: Pack generated public assets
+        if: inputs.recording_run == ''
         run: tar -czf /tmp/showcase-presentation.tar.gz apps/web/public/showcase fixtures/public/allowlist.json
       - uses: actions/upload-artifact@v6
+        if: inputs.recording_run == ''
         with:
           name: showcase-presentation
           path: /tmp/showcase-presentation.tar.gz
@@ -69,12 +90,13 @@ jobs:
             services/showcase/datasets/zenodo-6643470-nucleolar.json \
             services/showcase/datasets/cpg0016-jump-source13-plk1.json \
             --work /tmp/cytellect-showcase-presentation --cache /tmp/cytellect-showcase-cache \
-            --fiji /tmp/recordings-only-no-fiji --stages figures \
+            --fiji /tmp/recordings-only-no-fiji --stages reseed,figures \
             --figure-drawings /tmp/cytellect-published/snapshot
       - name: Pack completed figures
         if: inputs.showcase_figures
         run: |
           uv run python scripts/verify_showcase_update.py --before /tmp/cytellect-published --after apps/web/public/showcase
+          uv run python scripts/check_public_tree.py
           tar -czf /tmp/showcase-presentation-complete.tar.gz apps/web/public/showcase fixtures/public/allowlist.json
       - uses: actions/upload-artifact@v6
         if: inputs.showcase_figures

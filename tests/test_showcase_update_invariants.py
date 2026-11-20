@@ -48,3 +48,16 @@ def test_exact_scientific_values_do_not_use_the_catalogues_rounding():
     changed = copy.deepcopy(original)
     changed["unit_summary"][0]["value"] += 1e-12
     assert checker.result_key(original) != checker.result_key(changed)
+
+
+def test_only_known_presentation_defaults_and_capture_ids_are_normalized():
+    journal = json.loads((SNAPSHOT / "journal.json").read_text(encoding="utf-8"))
+    entry = next(entry for entry in journal["entries"] if entry["method"] == "GET" and entry.get("file")
+                 and entry["path"].endswith("/common-statistics"))
+    original = json.loads((SNAPSHOT / entry["file"]).read_text(encoding="utf-8"))
+    changed = copy.deepcopy(original)
+    changed["source_fingerprint"] = "f" * 64
+    changed["spec"]["plot"]["presentation"] = copy.deepcopy(checker.DEFAULT_PRESENTATION)
+    assert checker.result_key(original) == checker.result_key(changed)
+    changed["spec"]["plot"]["presentation"]["outlines"] = False
+    assert checker.result_key(original) != checker.result_key(changed)
