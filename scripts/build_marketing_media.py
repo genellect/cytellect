@@ -4,7 +4,7 @@ Font inputs are obtained from their official distributions and retained with OFL
 licenses. This script does not download or install anything at application runtime.
 Rebuild the font subset with the Brotli recorded in apps/web/public/fonts/subset-manifest.json,
 for example ``uv run --with brotli==1.2.1 python scripts/build_marketing_media.py --fonts-only ...``.
-The result then matches except for the modification time fontTools writes into the head table.
+The source font's timestamp is retained so the same inputs produce the same bytes.
 """
 from __future__ import annotations
 
@@ -61,7 +61,7 @@ def main() -> None:
     shutil.copyfile(args.font_inputs / "InterVariable.woff2", fonts / "InterVariable.woff2")
     shutil.copyfile(args.font_inputs / "Inter-LICENSE.txt", fonts / "Inter-LICENSE.txt")
     shutil.copyfile(args.font_inputs / "OFL.txt", fonts / "NotoSansJP-OFL.txt")
-    font = TTFont(args.font_inputs / "NotoSansJP[wght].ttf")
+    font = TTFont(args.font_inputs / "NotoSansJP[wght].ttf", recalcTimestamp=False)
     source_paths = ([root / name for name in args.text_source] if args.text_source else
                     sorted([*root.glob("apps/web/src/components/**/*.tsx"),
                             *root.glob("apps/web/src/app/**/*.tsx"),
@@ -88,8 +88,7 @@ def main() -> None:
     (fonts / "subset-manifest.json").write_text(json.dumps({
         "source_sha256": hashlib.sha256((args.font_inputs / "NotoSansJP[wght].ttf").read_bytes()).hexdigest(),
         "license": "OFL-1.1", "weight_axis": "100-900", "fonttools_version": __import__("fontTools").version,
-        # woff2 bytes depend on the Brotli encoder. With the same version a rebuild differs only in the
-        # head table's modification time, which fontTools sets when it saves.
+        # woff2 bytes depend on the Brotli encoder; retain the source timestamp too.
         "brotli_version": __import__("brotli").__version__,
         "requested_codepoints": sorted(codepoints),
         "sources": {str(p.relative_to(root)).replace("\\", "/"): hashlib.sha256(p.read_bytes()).hexdigest() for p in source_paths},
