@@ -73,7 +73,9 @@ jobs:
             --figure-drawings /tmp/cytellect-published/snapshot
       - name: Pack completed figures
         if: inputs.showcase_figures
-        run: tar -czf /tmp/showcase-presentation-complete.tar.gz apps/web/public/showcase fixtures/public/allowlist.json
+        run: |
+          uv run python scripts/verify_showcase_update.py --before /tmp/cytellect-published --after apps/web/public/showcase
+          tar -czf /tmp/showcase-presentation-complete.tar.gz apps/web/public/showcase fixtures/public/allowlist.json
       - uses: actions/upload-artifact@v6
         if: inputs.showcase_figures
         with:
