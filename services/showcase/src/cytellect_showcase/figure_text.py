@@ -9,8 +9,88 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import re
 import zipfile
 from pathlib import Path
+
+
+def scientific_key(result: dict) -> str:
+    """Exact recorded values and field bindings, allowing capture IDs and explicit defaults."""
+    from cytellect_analysis.common_statistics_contracts import FigurePresentation
+
+    from .figure_catalog import UUID, VERSION_RECORDS
+
+    value = copy.deepcopy(result)
+    for key in ("figure", "source_job_id", "source_fingerprint"):
+        value.pop(key, None)
+    plot = value.get("spec", {}).get("plot", {})
+    if plot.get("presentation") in (None, FigurePresentation(version="1.0.0").model_dump(mode="json")):
+        plot.pop("presentation", None)
+
+    def canonical(item):
+        if isinstance(item, dict):
+            return {key: (inner if key in {"field_id", "field_ids"} else canonical(inner))
+                    for key, inner in item.items() if key not in VERSION_RECORDS}
+        if isinstance(item, list):
+            return [canonical(inner) for inner in item]
+        return UUID.sub("*", item) if isinstance(item, str) else item
+    return json.dumps(canonical(value), sort_keys=True, separators=(",", ":"))
+
+
+class PublishedDrawings:
+    """Match scientific inputs exactly before consulting the old drawing settings and bytes."""
+
+    def __init__(self, snapshot: Path, document: dict):
+        self.document = document
+        self.by_value: dict[str, set[str]] = {}
+        checked: dict[str, str] = {}
+
+        def add(job, body):
+            source = document["sources"].get(job)
+            if source and source["group"] in document["groups"]:
+                self.by_value.setdefault(scientific_key(json.loads(body)), set()).add(source["group"])
+
+        index = json.loads((snapshot / "index.json").read_text(encoding="utf-8"))["entries"]
+        journal = json.loads((snapshot / "journal.json").read_text(encoding="utf-8"))["entries"]
+        responses = [(key.removeprefix("GET "), entry) for key, entry in index.items() if key.startswith("GET ")]
+        responses += [(entry["path"], entry) for entry in journal if entry["method"] == "GET"]
+        for path, entry in responses:
+            found = re.fullmatch(r"/v1/jobs/([^/]+)/(result|common-statistics)", path)
+            if found and entry.get("file") and (source := document["sources"].get(found[1])):
+                name = entry["file"]
+                if name not in checked:
+                    checked[name] = scientific_key(json.loads((snapshot / name).read_text(encoding="utf-8")))
+                self.by_value.setdefault(checked[name], set()).add(source["group"])
+        if (snapshot.parent / "seed.zip").is_file():
+            with zipfile.ZipFile(snapshot.parent / "seed.zip") as archive:
+                for name in archive.namelist():
+                    if found := re.fullmatch(r"runs/([^/]+)/output/result.json", name):
+                        add(found[1], archive.read(name))
+
+    def choose(self, result: dict, plot: dict, images: bool) -> tuple[str, dict]:
+        from .figure_catalog import _identity, variants
+
+        known = self.by_value.get(scientific_key(result), set())
+        if not known:
+            raise ValueError("no identical published result; a new drawing requires a normal figures build")
+        candidates = [key for key in sorted(known) if key in self.document["groups"]
+                      and plot == self.document["groups"][key]["opening"]["plot"]
+                      and variants(result, self.document["groups"][key]["opening"]["figure"], plot, images) ==
+                      [item["plot"] for item in self.document["groups"][key]["figures"]]]
+        if not candidates:
+            raise ValueError("published figure settings changed")
+        if _identity(result) in candidates:
+            candidates = [_identity(result)]
+        # Equal values may have been recorded under several capture IDs. Ambiguous drawings must not be guessed.
+        def drawing(key):
+            group = self.document["groups"][key]
+            return json.dumps([{**item, "files": {name: file for name, file in item["files"].items()
+                                                  if name != "figure-legend.md"}}
+                               for item in [group["opening"], *group["figures"]]], sort_keys=True)
+        if len({drawing(key) for key in candidates}) != 1:
+            raise ValueError("ambiguous published drawing for identical scientific values")
+        selected = candidates[0]
+        return selected, self.document["groups"][selected]
 
 
 def legend(result: dict, item: dict) -> tuple[str, list[str]] | None:

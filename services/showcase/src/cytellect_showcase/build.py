@@ -2225,7 +2225,7 @@ def write_manifest(args, manifests: list, state: dict) -> None:
         "seed": state.get("seed"),
         **generation_provenance(published, set(args.stages.split(",")), git_commit()),
         "runtime": published.get("runtime") if derived_only else current_runtime,
-        "journal": state.get("journal"),
+        "journal": state.get("journal") or (published.get("journal") if derived_only else None),
         "detections_recorded": len(json.loads((args.work / "recordings" / "index.json").read_text())["entries"])
         if (args.work / "recordings" / "index.json").is_file() else 0,
         "files": files,

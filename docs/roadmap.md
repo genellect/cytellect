@@ -103,7 +103,12 @@ M2 は元画像での解像・対象同定・校正を開始条件とする。M3
 
 ### 論文の図
 
-[#249](https://github.com/genellect/cytellect/issues/249) の FL-15 を `feat/demo-legend-terms` で実装する（[#250](https://github.com/genellect/cytellect/pull/250) の単位5）。出典の事実だけを 4 場面の全解析案へ加え、単位1・2・4を含む画面で公開デモを再生成する。記録のコミットは cherry-pick せず、既存の検出結果を再生する。数値・統計・図の画像の不変性と、語句の記入は生成後に確かめる。公開 wheel・本番サービス・配布には触れない。
+[#249](https://github.com/genellect/cytellect/issues/249) の FL-15 の実装と検証は
+[PR #255](https://github.com/genellect/cytellect/pull/255) に記録する（[#250](https://github.com/genellect/cytellect/pull/250) の単位5）。
+出典に基づく細胞株・染色・ファイル名から推定した公称濃度を区別し、4 場面の全11解析案へ加える。
+変更した操作は記録し直し、無変更の操作は元のコミットを記して保持する。検出結果は再生する。
+生成物は全225結果の数値、元画素・マスク、図と論文用パッケージの元データを自動照合してから採用する。
+公開 wheel・本番サービス・配布は別の課題として追跡する。
 
 凡例文だけの更新では `figures --figure-drawings` で、一致する公開済みの結果・設定の描画を保持する。通常の描画検査は変更しない。新しい結果や設定はこの方法では受け付けず、図を変える作業として通常の生成を要する。
 

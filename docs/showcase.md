@@ -11,6 +11,9 @@
 
 手動の再生成は [`showcase-recording.yml`](../.github/workflows/showcase-recording.yml) で実行する。
 通常の Verify から分離し、再生成で飛ばした手順を必須の Python・Web 試験の成功として記録しない。
+凡例語句だけの更新は AI・順位検定の操作を再記録し、無変更の操作は
+`--journal-keep`・`--journal-previous` で保持する。保持した操作と元コミットを manifest の
+`journal.kept_scenes`・`journal.reused_from_commit` に記録する。
 
 Figure legend の文章だけを変更するときは、再記録の前に公開済みの `snapshot/` を作業用の別ディレクトリへコピーし、
 `figures` に `--figure-drawings <コピーした snapshot>` を渡す。保存結果と図の要求が一致する場合だけ、
@@ -18,6 +21,9 @@ Figure legend の文章だけを変更するときは、再記録の前に公開
 一致する結果・設定・論文用パッケージがない場合、または公開ファイルの SHA-256 が違う場合は失敗する。
 描画器や図の設定の変更には使わず、通常の `figures` で描画とレイアウト検査を実行する。
 凡例文用の一時キャンバスは画像として出力せず、公開済みの図の再検証に代えるものではない。
+完成した生成物は `scripts/verify_showcase_update.py --before <更新前の公開ディレクトリ> --after <更新後>`
+で照合する。全結果の値は丸めずに比較し、元画像・マスク・測定 CSV・図と論文用 ZIP の画像・元データを
+バイト単位で比較する。不一致では生成物を採用しない。
 
 ```
 本番の API とワーカー（実際の Fiji/StarDist・Cellpose）で公開画像を処理する
@@ -158,10 +164,14 @@ Pyodide の CDN から読み込むパッケージ（再配布しない）:
 ### ビルドと検査
 
 `#249` の凡例の語句は、4 場面の `dataset.scope` にある細胞株・処理と時間・染色だけを `scenario.proposals.presets[].draft.figure_presentation.legend_terms` に記す。画像の配置は `quantification` を保ち、測定や検定の条件を変えない。同じ指示文が別の場面にもあるため、用意した案のフォールバックは記録した群名も照合し、別の処理の語句を混ぜない。
+ノックインの FBL-sfGFP・NPM1-mTagRFP は細胞株の性質に記し、FBL を表示チャンネルや染色とはしない。
+染色には Hoechst と、Alexa Fluor 647 azide で標識した 5-EU を記す。
+薬剤濃度は元ファイル名の Ox10・Cis10・ActD1 から推定した公称値と明記する。
+JUMP の C01 はチャンネル番号なので、染色名には含めない。
 
 この語句を変えたときは `--stages reseed,proposals,publish,snapshot,journal,figures` を実行する。`reseed` を先に行い、`proposals` は保存済みの検出の再生だけを許す。未記録の検出は失敗し、Fiji・Cellpose や LLM を起動しない。解析案の送信・採用を画面から記録し直すので、前の案を含む文脈のハッシュも更新される。公開済みの Pyodide wheel は作り直さない。
 
-Windows に録画用 Chromium がない場合は、既存の Verify workflow の手動入力 `showcase_presentation: true` を作業ブランチで使える。この実行は公開素材の再生成だけを行い、通常の統合試験を起動せず、資格情報を受け取らず、コミットや公開も行わない。出力 artifact を確認して PR の公開ファイルへ反映し、その head の通常の CI を別に通す。
+Windows に録画用 Chromium がない場合は、専用の `showcase-recording.yml` を作業ブランチで手動実行する。この実行は公開素材の再生成だけを行い、通常の統合試験を起動せず、資格情報を受け取らず、コミットや公開も行わない。出力 artifact を照合して PR の公開ファイルへ反映し、その head の通常の CI を別に通す。
 
 `uv run python scripts/build_showcase_runtime.py --cache <チェックアウト外>` が、Cytellect のホイール（`SOURCE_DATE_EPOCH` 固定で再現可能）、上記のホイール、フォント、`THIRD_PARTY_NOTICES.txt`、`runtime-config.json`、`fixtures/public/allowlist.json` の登録を書き出し、`manifest.json` の `files` のうち `runtime/` の項目と、作り直しに使ったコミット（`runtime_generated_from_commit`）を更新します。`generated_from_commit` は初期状態と記録を作ったコミットです。Python のソースを変えたら作り直します。`--check` は作り直した結果と、コミット済みのファイル・設定・登録・`manifest.json` の一覧を照合し、古い場合は失敗します。CI は `main` への push で `--check` を実行し、ずれていれば警告を示します。PR では作り直しを求めません（[CI の構成](ci.md)）。
 
