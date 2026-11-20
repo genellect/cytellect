@@ -113,7 +113,7 @@ M2 は元画像での解像・対象同定・校正を開始条件とする。M3
 ### LLM による解析支援の見直し
 
 [#249](https://github.com/genellect/cytellect/issues/249) の版の不一致・明示的な再送・エラー文の実装は
-`fix/proposal-failure-messages` に分ける（[#250](https://github.com/genellect/cytellect/pull/250) の単位3）。
+[対応する PR #253](https://github.com/genellect/cytellect/pull/253) に記録する（[#250](https://github.com/genellect/cytellect/pull/250) の単位3）。
 再送の確認を重複表示せず、APIの失敗コードと表示文の対応を試験で確認する。
 
 2026-11-16 にオーナーが「LLM に研究データを示すのは自然なことで、保守的な設計そのものが品質を下げている」と指示し、[見直し案](drafts/llm-assistant/plan.md)を採用した。段階 0（方針と開示の文書の改訂）と段階 1（今の構成のまま入力を増やし、出力の制限を緩める）を genellect/cytellect#231 で実装する。
