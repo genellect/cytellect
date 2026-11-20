@@ -100,6 +100,6 @@ describe("what the calculation still needs (SR-03)",()=>{
   it("is empty when everything is in place",()=>{expect(calculationNeeds(ready)).toEqual([]);});
   it("names each missing confirmation and input",()=>{
     expect(calculationNeeds({...ready,reviewed:false,designUnconfirmed:true,unresolvedUnconfirmed:true,missing:2,metadata:"視野の群の入力"}))
-      .toEqual(["2 視野の測定","視野の群の入力","核小体を確定できない核の一覧の確認","独立実験単位と解析条件の確認","測定領域と採用する視野の確認"]);
+      .toEqual(["2 視野の測定","視野の群の入力","核小体を確定できない核の一覧の確認","実験回の定義と解析条件の確認","測定領域と採用する視野の確認"]);
   });
 });

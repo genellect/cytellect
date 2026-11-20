@@ -127,7 +127,7 @@ describe("result summary", () => {
     const summary = summarize(base({design: "independent", test: "welch-t", metric: "nucleus_count", n_pairs: null, n_treatment: 4, runs: [],
       difference: interval(-4, -7, -1), ratio: interval(null, null, null, "nonpositive_values")}), {method: "Welch t-test", p_value: 0.03}, "核数", "");
     expect(summary.heading).toBe("Drug で、核数が約 4 減少");
-    expect(summary.basis.label).toBe("Welch の t 検定 · n = 3・4（実験単位） · p = 0.03");
+    expect(summary.basis.label).toBe("Welch の t 検定 · n = 3・4（実験回） · p = 0.03");
     expect(summary.points.some(point => point.startsWith("差（群の平均の差）"))).toBe(true);
     expect(summary.notes).toContain("0 以下の値を含むため、比は示しません。");
   });

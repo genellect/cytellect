@@ -65,7 +65,7 @@ test("a chosen condition shows its saved result, or its name, what is missing an
   await expect(calculate).toBeDisabled();
   await expect(pending).toContainText("計算に必要なこと：");
   await expect(pending).toContainText("測定領域と採用する視野の確認");
-  for (const name of ["独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み", "測定領域と採用する視野を確認済み"]) await pending.getByLabel(name, {exact: true}).check();
+  for (const name of ["実験回の定義、撮影・画素条件、採否と欠測の扱いを確認済み", "測定領域と採用する視野を確認済み"]) await pending.getByLabel(name, {exact: true}).check();
   const keep = pending.getByLabel("この一覧を確認し、欠測として残して計算する", {exact: true});
   if (await keep.count()) await keep.check();
   await expect(pending).not.toContainText("計算に必要なこと：");
@@ -77,7 +77,7 @@ test("a chosen condition shows its saved result, or its name, what is missing an
   // calculated result is shown at once and the confirmations are still given.
   await choose("mean", "nucleoplasm", "npm1");
   await expect(pending.getByRole("heading", {level: 3})).toHaveText("核質の平均輝度（NPM1）");
-  await expect(pending.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み", {exact: true})).toBeChecked();
+  await expect(pending.getByLabel("実験回の定義、撮影・画素条件、採否と欠測の扱いを確認済み", {exact: true})).toBeChecked();
   await expect(pending.getByLabel("測定領域と採用する視野を確認済み", {exact: true})).not.toBeChecked();
   await choose("mean", "nucleoli", "npm1");
   await expect(summary.getByRole("heading", {level: 3})).toContainText("核小体の平均輝度（NPM1）");

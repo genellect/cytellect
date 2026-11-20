@@ -473,9 +473,9 @@ async function fillIfEmpty(control: Locator, value: string) {
 }
 async function calculate(page: Page) {
   const results = page.getByRole("region", {name: "測定結果の統計解析"});
-  await fillIfEmpty(results.getByRole("textbox", {name: "独立実験単位", exact: true}), "公開画像の反復（デモ）");
+  await fillIfEmpty(results.getByRole("textbox", {name: "実験回の定義", exact: true}), "公開画像の反復（デモ）");
   await fillIfEmpty(results.getByRole("textbox", {name: "対応の根拠", exact: true}), "同じ反復（Rep）内の 2 条件");
-  const confirm = results.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み");
+  const confirm = results.getByLabel("実験回の定義、撮影・画素条件、採否と欠測の扱いを確認済み");
   if (await confirm.count() && !await confirm.isChecked()) await confirm.check();
   const reviewed = results.getByLabel("測定領域と採用する視野を確認済み");
   if (!await reviewed.isChecked()) await reviewed.check();
@@ -803,7 +803,7 @@ test("the statistics view states the premise once, in the basis line, and opens 
       // The discussion is a frame apart from the computed result (AC-01); its limits (AC-04) are not statements of the premise.
       .filter(element => (element as HTMLElement).offsetParent !== null && !element.closest("details:not([open]) > :not(summary)") && !element.closest("section[aria-label='考察']"))
       .map(element => element.textContent ?? "")
-      // The folded counts table names its unit column (独立実験単位); it is a heading, not a statement of the premise.
+      // The folded counts table names its unit column (実験回); it is a heading, not a statement of the premise.
       .filter(text => /独立|検定なし|記述のみ|記述統計/.test(text) && !text.startsWith("数の内訳")));
     expect(statements, scene?.id).toHaveLength(1);
     expect(statements[0]).toMatch(/^記述統計/);

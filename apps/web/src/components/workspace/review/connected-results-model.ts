@@ -103,15 +103,15 @@ export function metadataMissing(design: Pick<ResultDesign,"operation"|"metric"|"
   const compared=Object.entries(fields).filter(([fid])=>!(design.channelGate?.control_field_ids??[]).includes(fid)).map(([,value])=>value);
   return compared.some(value=>!value.condition?.trim() || !value.sample?.trim() || !value.experimental_unit?.trim()
     || ((metricUsesChannel(design.metric) || design.metric.startsWith("positive_") || (design.operation === "association" && metricUsesChannel(design.xMetric))) && !value.acquisition_date?.trim())
-    || (design.operation === "comparison" && design.paired && !value.pair?.trim())) ? "視野の群・試料・独立実験単位と、必要な撮影日・対応ペアの入力" : null;
+    || (design.operation === "comparison" && design.paired && !value.pair?.trim())) ? "視野の群・試料・実験回と、必要な撮影日・対応ペアの入力" : null;
 }
 export function resultRequest(design: ResultDesign, fields: Record<string, Metadata>, plot: RenderPlot) {
   const selection = resultSelection(design);
   if (design.operation === "distribution") return {mode:"descriptive",selection,group_by:"field",figure_policy:{version:"2.0.0",layout:"field-pages"},plot:{...plot,kind:"distribution"}};
   const compared=Object.entries(fields).filter(([fid])=>!(design.channelGate?.control_field_ids??[]).includes(fid)).map(([,value])=>value);
   const conditions = [...new Set(compared.map(value=>value.condition?.trim()).filter((value):value is string=>!!value))];
-  if (!design.confirmed || !design.unit.trim()) throw new Error("独立実験単位と解析条件を確認してください。");
-  if (metadataMissing(design, fields)) throw new Error("視野の群・試料・独立実験単位と、必要な撮影日・対応ペアを入力してください。");
+  if (!design.confirmed || !design.unit.trim()) throw new Error("実験回の定義と解析条件を確認してください。");
+  if (metadataMissing(design, fields)) throw new Error("視野の群・試料・実験回と、必要な撮影日・対応ペアを入力してください。");
   if (design.operation === "comparison") {
     const choices: ComparisonChoices = {metric:design.metric as ComparisonMetric,channel:design.channel,regionSet:design.regionSet,
       design:design.paired?"paired":"independent",method:design.rank?"rank":"parametric",unitDefinition:design.unit,pairingBasis:design.pairing,

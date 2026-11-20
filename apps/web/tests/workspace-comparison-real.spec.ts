@@ -63,7 +63,7 @@ test("synthetic fields reach real independent-unit comparison and editable expor
   await options.getByRole("combobox", {name:"指標",exact:true}).selectOption("mean");
   await options.getByRole("combobox", {name:"染色",exact:true}).selectOption("c2");
   await panel.getByRole("combobox", {name:"解析",exact:true}).selectOption("comparison");
-  await panel.getByLabel("独立実験単位", {exact:true}).fill("Synthetic independent-unit execution fixture; not biological replicates");
+  await panel.getByLabel("実験回の定義", {exact:true}).fill("Synthetic independent-unit execution fixture; not biological replicates");
   for (let i = 0; i < 4; i++) {
     await panel.locator('input[aria-label$=" condition"]').nth(i).fill(i < 2 ? "A" : "B");
     await panel.locator('input[aria-label$=" sample"]').nth(i).fill(`synthetic-sample-${i}`);
@@ -76,7 +76,7 @@ test("synthetic fields reach real independent-unit comparison and editable expor
   await expect(panel.locator('input[aria-label$=" condition"]').first()).toHaveValue("A");
   expect(writes.filter(value => value.endsWith("/review"))).toHaveLength(0);
   await panel.getByLabel("A / B", {exact:true}).check();
-  await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み", {exact:true}).check();
+  await panel.getByLabel("実験回の定義、撮影・画素条件、採否と欠測の扱いを確認済み", {exact:true}).check();
   await panel.getByLabel("測定領域と採用する視野を確認済み", {exact:true}).check();
   await panel.getByRole("button", {name:"計算", exact:true}).click();
   // Include operation errors rather than reporting only a missing-table timeout.

@@ -94,10 +94,10 @@ test("failed saved entries remain visible until explicitly excluded from compari
   await expect(panel.getByText("2 視野の測定が未完了です。",{exact:true})).toHaveCount(0);
   await panel.getByRole("combobox",{name:"解析",exact:true}).selectOption("comparison");
   await page.getByRole("complementary",{name:"解析対象"}).getByRole("combobox",{name:"指標",exact:true}).selectOption("area_px");
-  await panel.getByLabel("独立実験単位",{exact:true}).fill("Transport independent units");
+  await panel.getByLabel("実験回の定義",{exact:true}).fill("Transport independent units");
   for(let i=0;i<2;i++)for(const key of ["condition","sample","experimental_unit"])await panel.locator(`input[aria-label$=" ${key}"]`).nth(i).fill(`${key}-${i}`);
   await panel.getByLabel("condition-0 / condition-1",{exact:true}).check();
-  await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み",{exact:true}).check();
+  await panel.getByLabel("実験回の定義、撮影・画素条件、採否と欠測の扱いを確認済み",{exact:true}).check();
   await panel.getByLabel("測定領域と採用する視野を確認済み",{exact:true}).check();
   await expect(panel.getByRole("button",{name:"計算",exact:true})).toBeEnabled();
   await panel.getByRole("button",{name:"計算",exact:true}).click();

@@ -162,7 +162,7 @@ export function calculationNeeds(state: {
     state.independenceMissing && "実験回の独立性の確認",
     state.ledgerError && "核小体を確定できない核の一覧の読み込み",
     state.unresolvedUnconfirmed && "核小体を確定できない核の一覧の確認",
-    state.designUnconfirmed && "独立実験単位と解析条件の確認",
+    state.designUnconfirmed && "実験回の定義と解析条件の確認",
     !state.reviewed && "測定領域と採用する視野の確認",
   ].filter((value): value is string => !!value);
 }
