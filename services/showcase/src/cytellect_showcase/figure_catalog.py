@@ -158,7 +158,7 @@ class Catalog:
         relative = f"showcase-figures/{job_id}"
         root = self.data / relative
         root.mkdir(parents=True, exist_ok=True)
-        (root / "result.json").write_text(json.dumps(result))
+        (root / "result.json").write_text(json.dumps(result), encoding="utf-8", newline="\n")
         with self.store.transaction() as conn:
             conn.execute(self.jobs.insert().values(
                 id=job_id, workspace_id=workspace, revision_id=result["revision_id"], kind=kind, state="succeeded",
@@ -174,7 +174,7 @@ class Catalog:
         if job is None or job["state"] != "succeeded":
             raise RuntimeError(f"figure render of {source} failed: {job and job['error']}")
         root = self.store.safe_path(job["result_dir"])
-        return json.loads((root / "result.json").read_text()), root
+        return json.loads((root / "result.json").read_text(encoding="utf-8")), root
 
 
 def opening_figure(result: dict, plot: dict, out: Path) -> dict:
@@ -199,7 +199,7 @@ def opening_figure(result: dict, plot: dict, out: Path) -> dict:
             raise
     else:
         drawn["figure"] = render_descriptive_output(drawn, out, methods_template=saved_methods_template(recorded))
-    (out / "result.json").write_text(json.dumps(drawn))
+    (out / "result.json").write_text(json.dumps(drawn), encoding="utf-8", newline="\n")
     return drawn
 
 
@@ -214,9 +214,9 @@ def build(api, target: Path, scratch: Path, shard: tuple[int, int] | None = None
 
     catalog = Catalog(api, target)
     previous = json.loads((drawings / "figures.json").read_text(encoding="utf-8")) if drawings else None
-    journal = json.loads((target / "journal.json").read_text())
+    journal = json.loads((target / "journal.json").read_text(encoding="utf-8"))
     entries = journal["entries"]
-    read = lambda entry: json.loads((target / entry["file"]).read_text())  # noqa: E731
+    read = lambda entry: json.loads((target / entry["file"]).read_text(encoding="utf-8"))  # noqa: E731
 
     # The statistics the tour calculated: job, workspace, opening figure settings and recorded result.
     scene_workspace: dict[str, str] = {}
@@ -254,7 +254,7 @@ def build(api, target: Path, scratch: Path, shard: tuple[int, int] | None = None
     groups: dict[str, dict] = {}
     sources: dict[str, dict] = {}
     for job, row in seed.items():
-        result = json.loads((catalog.store.safe_path(row["result_dir"]) / "result.json").read_text())
+        result = json.loads((catalog.store.safe_path(row["result_dir"]) / "result.json").read_text(encoding="utf-8"))
         if result.get("source_kind") != "region-2d" or not result.get("figure"):
             continue
         group = groups.setdefault(_identity(result), {"seed": job, "members": []})
@@ -270,7 +270,7 @@ def build(api, target: Path, scratch: Path, shard: tuple[int, int] | None = None
 
     written: dict[str, dict] = {}
     for part in parts or []:
-        for identity, value in json.loads(part.read_text())["groups"].items():
+        for identity, value in json.loads(part.read_text(encoding="utf-8"))["groups"].items():
             # The files are written again from the drawings: the target may be a fresh copy.
             for item, root in [(value["opening"], value.pop("opening_root")),
                                *((item, item["root"]) for item in value["figures"])]:
@@ -294,7 +294,7 @@ def build(api, target: Path, scratch: Path, shard: tuple[int, int] | None = None
             old = previous["groups"][identity]
             if group["seed"]:
                 row = seed[group["seed"]]
-                result = json.loads((catalog.store.safe_path(row["result_dir"]) / "result.json").read_text())
+                result = json.loads((catalog.store.safe_path(row["result_dir"]) / "result.json").read_text(encoding="utf-8"))
                 requested = {**result["spec"]["plot"], **({"kind": "superplot", "presentation": DEFAULT_PRESENTATION}
                                                        if _comparison(result) else {})}
             else:
@@ -315,7 +315,7 @@ def build(api, target: Path, scratch: Path, shard: tuple[int, int] | None = None
             # A saved result of the seed is drawn anew too: every figure of the demo comes from this stage.
             representative = group["seed"]
             row = seed[representative]
-            saved = json.loads((catalog.store.safe_path(row["result_dir"]) / "result.json").read_text())
+            saved = json.loads((catalog.store.safe_path(row["result_dir"]) / "result.json").read_text(encoding="utf-8"))
             root = scratch / representative
             # The demo opens on the new default figure (plan G7): a saved comparison is drawn as the
             # 「グラフ」 view opens it, with the opening presentation.
@@ -353,7 +353,7 @@ def build(api, target: Path, scratch: Path, shard: tuple[int, int] | None = None
     if shard is not None:
         drawn_part = {identity: {**value, "figures": [{**item, "root": str(item["root"])} for item in value["figures"]]}
                       for identity, value in written.items()}
-        (scratch / f"part-{shard[0]}.json").write_text(json.dumps({"groups": drawn_part}))
+        (scratch / f"part-{shard[0]}.json").write_text(json.dumps({"groups": drawn_part}), encoding="utf-8", newline="\n")
         return {"groups": len(written)}
 
     # Publication packages of the tour: the recorded analysis with the opening figure drawn anew.
@@ -364,7 +364,7 @@ def build(api, target: Path, scratch: Path, shard: tuple[int, int] | None = None
     if not packages and (target / "figures.json").is_file():
         packages = [{"source": entry["source"], "analysis": entry["analysis"], "workspace": sources[entry["source"]]["workspace"],
                      "zip": target / entry["files"]["publication.zip"]}
-                    for entry in json.loads((target / "figures.json").read_text()).get("packages", [])
+                    for entry in json.loads((target / "figures.json").read_text(encoding="utf-8")).get("packages", [])
                     if entry["source"] in sources]
     package_entries = []
     for index, package in enumerate(packages):
@@ -383,7 +383,7 @@ def build(api, target: Path, scratch: Path, shard: tuple[int, int] | None = None
         figure_job = str(uuid.uuid4())
         rendered = copy.deepcopy(result)
         rendered.pop("figure", None)
-        rendered["spec"]["plot"] = json.loads((figure["root"] / "result.json").read_text())["spec"]["plot"]
+        rendered["spec"]["plot"] = json.loads((figure["root"] / "result.json").read_text(encoding="utf-8"))["spec"]["plot"]
         rendered["figure"], rendered["source_job_id"] = figure["figure"], package["source"]
         root = catalog.inject(figure_job, package["workspace"], rendered, kind="figure-render")
         for name in figure["figure"]["source_files"]:
@@ -403,7 +403,7 @@ def build(api, target: Path, scratch: Path, shard: tuple[int, int] | None = None
     # Figures the seed saved (「保存した図」): each drawn anew with the settings it was saved with.
     saved_figures: dict[str, dict] = {}
     for row in seed_figures:
-        recorded = json.loads((catalog.store.safe_path(row["result_dir"]) / "result.json").read_text())
+        recorded = json.loads((catalog.store.safe_path(row["result_dir"]) / "result.json").read_text(encoding="utf-8"))
         source = recorded.get("source_job_id")
         if source not in sources or not recorded.get("figure"):
             continue
@@ -434,16 +434,17 @@ def build(api, target: Path, scratch: Path, shard: tuple[int, int] | None = None
         "saved": saved_figures,
         "packages": package_entries,
     }
-    (target / "figures.json").write_text(json.dumps(document, ensure_ascii=False, separators=(",", ":")) + "\n")
+    (target / "figures.json").write_text(json.dumps(document, ensure_ascii=False, separators=(",", ":")) + "\n",
+                                       encoding="utf-8", newline="\n")
 
     # The opening snapshot's drawings of saved results and figures are answered from the catalogue.
     drawn_by_catalog = set(sources) | set(saved_figures)
     index_path = target / "index.json"
-    index = json.loads(index_path.read_text())
+    index = json.loads(index_path.read_text(encoding="utf-8"))
     for key in [key for key in index["entries"] if (found := JOB_FILE.match(key.removeprefix("GET ")))
                 and found.group(1) in drawn_by_catalog and SHOWN.search(found.group(2))]:
         del index["entries"][key]
-    index_path.write_text(json.dumps(index, indent=1) + "\n")
+    index_path.write_text(json.dumps(index, indent=1) + "\n", encoding="utf-8", newline="\n")
 
     # The tour's own figure answers are replaced by the catalogue: figure requests, their reads and
     # the drawings of each calculated result.
@@ -468,7 +469,8 @@ def build(api, target: Path, scratch: Path, shard: tuple[int, int] | None = None
         else:
             kept.append(entry)
     journal["entries"] = kept
-    (target / "journal.json").write_text(json.dumps(journal, indent=1, ensure_ascii=False) + "\n")
+    (target / "journal.json").write_text(json.dumps(journal, indent=1, ensure_ascii=False) + "\n",
+                                       encoding="utf-8", newline="\n")
     return {"groups": len(written), "sources": len(sources), "figures": sum(len(value["figures"]) for value in written.values()),
             "saved": len(saved_figures), "packages": len(package_entries), "journal_entries_removed": removed,
             "files_written": catalog.files_written}
