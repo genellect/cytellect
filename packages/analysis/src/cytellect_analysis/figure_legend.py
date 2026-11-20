@@ -8,9 +8,12 @@ from __future__ import annotations
 
 from decimal import ROUND_HALF_UP, Decimal
 
+from .figure_annotations import _grouped
 from .publication_figure import axis_title
 
 GAPS = ("[Cell line]", "[treatment and duration]", "[antibody or dye for each stain]")
+# Saved unit labels that are not units of a size; the summary on the screen leaves them out too.
+UNITLESS = frozenset({"dimensionless", "count", "fraction of evaluable nuclei"})
 
 
 def _join(items: list[str]) -> str:
@@ -28,7 +31,14 @@ def _decimal_number(value: float, precision: int = 2) -> str:
         return "0"
     rounded = number.quantize(Decimal(1).scaleb(number.adjusted() - precision + 1), rounding=ROUND_HALF_UP)
     text = format(rounded, "f")
-    return (text.rstrip("0").rstrip(".") if "." in text else text).replace("-", "−")
+    # Rounded as result-summary.ts does; the English text groups thousands, as the legend's body does.
+    return _grouped((text.rstrip("0").rstrip(".") if "." in text else text).replace("-", "−"))
+
+
+def _mid_sentence(title: str) -> str:
+    """Lower-case an ordinary first word ("Nuclear"); a stain name keeps its capitals ("NPM1", "EdU")."""
+    word = title.split(" ", 1)[0]
+    return title[0].lower() + title[1:] if word.isalpha() and word[1:].islower() else title
 
 
 def _span(values: list[float]) -> str:
@@ -50,6 +60,7 @@ def _title(canonical, order) -> str:
     """One sentence for what the figure shows: the heading of the result summary (FL-03, RS-02)."""
     title = _outcome_title(canonical)
     unit = canonical.get("unit") or ""
+    unit = "" if unit in UNITLESS else unit
     estimates = canonical.get("estimates")
     if not estimates or len(order) != 2:
         return f"{title} in {_join(list(order))}"
@@ -76,8 +87,7 @@ def _title(canonical, order) -> str:
             def mean_text(group):
                 value = _decimal_number(means[group] * (100 if scale == "fraction" else 1), 3)
                 return f"{value}%" if scale == "fraction" else f"{value}{suffix}"
-            noun = title.removeprefix("The ")
-            return f"Mean {noun[0].lower() + noun[1:]} was {mean_text(control)} in {control} and {mean_text(treatment)} in {treatment}"
+            return f"Mean {_mid_sentence(title.removeprefix('The '))} was {mean_text(control)} in {control} and {mean_text(treatment)} in {treatment}"
         if not shown or sum(_sign(run["difference"]) == shown for run in runs) < len(runs):
             return f"{title} did not change consistently with {treatment}"
         ratios = [run["ratio"] for run in runs] if all((run.get("ratio") or 0) > 0 for run in runs) else None
@@ -153,7 +163,7 @@ def _counts(counts, order, nouns: str, unit_word: str) -> str:
 
 def _opening(title: str, corrected: bool = False) -> str:
     note = " (background-subtracted)" if corrected else ""
-    return f"We quantified {title[0].lower() + title[1:]}{note} in {GAPS[0]} cells ({GAPS[1]}) labelled with {GAPS[2]}."
+    return f"We quantified {_mid_sentence(title)}{note} in {GAPS[0]} cells ({GAPS[1]}) labelled with {GAPS[2]}."
 
 
 def _selection_sentence(canonical) -> list[str]:
@@ -169,9 +179,12 @@ def _selection_sentence(canonical) -> list[str]:
                       else "a researcher-specified threshold" if method == "manual"
                       else "Otsu thresholding per acquisition date")
     objects = "cell ROIs" if gate.get("unit") == "cell_roi" else "nuclei"
+    metric = canonical.get("metric")
     subset = (f"Only {label}-{gate['keep']} {objects} were analysed. "
               if record.get("purpose") != "field_positivity" else
-              "Positive fractions used all evaluable positive and negative nuclei as the denominator. ")
+              "Positive fractions used all evaluable positive and negative nuclei as the denominator. "
+              if metric == "positive_fraction" else
+              f"{label}-positive nuclei were counted in each field. " if metric == "positive_count" else "")
     return [subset + f"Classification used {classification} of mean {label} intensities; a value strictly above the "
             "threshold was positive and equality was negative. Unclassified objects were not selected."]
 
