@@ -436,7 +436,7 @@
     "license": "Apache-2.0 AND MIT AND BSD-3-Clause AND PSF-2.0 AND OFL-1.1"
   },
   "apps/web/public/showcase/seed.zip": {
-    "sha256": "43a2e95b5ce9b3af34f436adb9246ee6b760414236822c2016074b9f1b7be23d",
+    "sha256": "d315a1e1057e4fb0cdec2d5041be48b5ab08377ec58324d31cf3c14008797291",
     "source": "https://github.com/broadinstitute/cellpainting-gallery ; https://zenodo.org/records/6643470",
     "license": "CC-BY-4.0 ; CC0-1.0",
     "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
@@ -555,6 +555,12 @@
     "license": "CC-BY-4.0 ; CC0-1.0",
     "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
   },
+  "apps/web/public/showcase/snapshot/10d97c860bc0bec330a2a7e8.zip": {
+    "sha256": "10d97c860bc0bec330a2a7e81c083cb59c25d5f5963f7b95782e5824bc469ab3",
+    "source": "https://github.com/broadinstitute/cellpainting-gallery ; https://zenodo.org/records/6643470",
+    "license": "CC-BY-4.0 ; CC0-1.0",
+    "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
+  },
   "apps/web/public/showcase/snapshot/11669abbf15c5e6a51c72834.png": {
     "sha256": "11669abbf15c5e6a51c72834934552db812022c4a68627ee876a45e4062b1db1",
     "source": "https://github.com/broadinstitute/cellpainting-gallery ; https://zenodo.org/records/6643470",
@@ -641,12 +647,6 @@
   },
   "apps/web/public/showcase/snapshot/1e4c5a9016de3b35aa5032e7.png": {
     "sha256": "1e4c5a9016de3b35aa5032e7cf0120915dcc96249ead7f877a679753cef8aa98",
-    "source": "https://github.com/broadinstitute/cellpainting-gallery ; https://zenodo.org/records/6643470",
-    "license": "CC-BY-4.0 ; CC0-1.0",
-    "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
-  },
-  "apps/web/public/showcase/snapshot/1f4bcb9994a4df0fdfafbd11.zip": {
-    "sha256": "1f4bcb9994a4df0fdfafbd11874f27565c743fa29146f1edeaf4adb5177f1de9",
     "source": "https://github.com/broadinstitute/cellpainting-gallery ; https://zenodo.org/records/6643470",
     "license": "CC-BY-4.0 ; CC0-1.0",
     "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
@@ -843,12 +843,6 @@
     "license": "CC-BY-4.0 ; CC0-1.0",
     "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
   },
-  "apps/web/public/showcase/snapshot/3c8add610b2fee051cb864f2.zip": {
-    "sha256": "3c8add610b2fee051cb864f299b2d3cd9e4508328e1d73870c2aa8d0330b7c36",
-    "source": "https://github.com/broadinstitute/cellpainting-gallery ; https://zenodo.org/records/6643470",
-    "license": "CC-BY-4.0 ; CC0-1.0",
-    "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
-  },
   "apps/web/public/showcase/snapshot/3daca38a1d1898fa2206782f.png": {
     "sha256": "3daca38a1d1898fa2206782f96bfb94beb47fffbb11dd0633eea80b6cbd52d07",
     "source": "https://github.com/broadinstitute/cellpainting-gallery ; https://zenodo.org/records/6643470",
@@ -875,6 +869,12 @@
   },
   "apps/web/public/showcase/snapshot/3f93fd939e03af7d1eed1b95.png": {
     "sha256": "3f93fd939e03af7d1eed1b9549ffd000a562e74297d514eadd3a890cf09eb96e",
+    "source": "https://github.com/broadinstitute/cellpainting-gallery ; https://zenodo.org/records/6643470",
+    "license": "CC-BY-4.0 ; CC0-1.0",
+    "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
+  },
+  "apps/web/public/showcase/snapshot/3fc2386768e70738f57bbb56.zip": {
+    "sha256": "3fc2386768e70738f57bbb56a18c738ab5fbf274a9bac91cd4016331db428a10",
     "source": "https://github.com/broadinstitute/cellpainting-gallery ; https://zenodo.org/records/6643470",
     "license": "CC-BY-4.0 ; CC0-1.0",
     "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
@@ -1329,12 +1329,6 @@
     "license": "CC-BY-4.0 ; CC0-1.0",
     "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
   },
-  "apps/web/public/showcase/snapshot/b06aa2cc08aeacadef330c67.zip": {
-    "sha256": "b06aa2cc08aeacadef330c6797ff48ff5a59a556e7be8a0197db72b3f6807ec3",
-    "source": "https://github.com/broadinstitute/cellpainting-gallery ; https://zenodo.org/records/6643470",
-    "license": "CC-BY-4.0 ; CC0-1.0",
-    "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
-  },
   "apps/web/public/showcase/snapshot/b342241f425cc065d34f1105.png": {
     "sha256": "b342241f425cc065d34f110561ec308d92106cfc4d6aaf627a2217833b767c15",
     "source": "https://github.com/broadinstitute/cellpainting-gallery ; https://zenodo.org/records/6643470",
@@ -1421,6 +1415,12 @@
   },
   "apps/web/public/showcase/snapshot/bee75ad1e0b074540208b587.zip": {
     "sha256": "bee75ad1e0b074540208b587a729e10988fb1fee893de9246d1b56b8f92a06de",
+    "source": "https://github.com/broadinstitute/cellpainting-gallery ; https://zenodo.org/records/6643470",
+    "license": "CC-BY-4.0 ; CC0-1.0",
+    "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
+  },
+  "apps/web/public/showcase/snapshot/bf3b5a22024cc6d49c293cb1.zip": {
+    "sha256": "bf3b5a22024cc6d49c293cb1f94bfe4513271ede78f6551a57eed054ef5ff3b2",
     "source": "https://github.com/broadinstitute/cellpainting-gallery ; https://zenodo.org/records/6643470",
     "license": "CC-BY-4.0 ; CC0-1.0",
     "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
@@ -1551,20 +1551,26 @@
     "license": "CC-BY-4.0 ; CC0-1.0",
     "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
   },
-  "apps/web/public/showcase/snapshot/d767725ca24af62626b072f7.zip": {
-    "sha256": "d767725ca24af62626b072f7b19e6848ad9b6a5436b47d16e8021919c83faf4b",
-    "source": "https://github.com/broadinstitute/cellpainting-gallery ; https://zenodo.org/records/6643470",
-    "license": "CC-BY-4.0 ; CC0-1.0",
-    "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
-  },
   "apps/web/public/showcase/snapshot/daa085696ace036aff3f8088.png": {
     "sha256": "daa085696ace036aff3f808899ac9da1772780454b2c1125b2c3dbb43477f770",
     "source": "https://github.com/broadinstitute/cellpainting-gallery ; https://zenodo.org/records/6643470",
     "license": "CC-BY-4.0 ; CC0-1.0",
     "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
   },
+  "apps/web/public/showcase/snapshot/dae8d2c6ab2c1ab191d4e7fb.zip": {
+    "sha256": "dae8d2c6ab2c1ab191d4e7fb9fb005f90c80394e7b8dcf30d0ce773a63d1635b",
+    "source": "https://github.com/broadinstitute/cellpainting-gallery ; https://zenodo.org/records/6643470",
+    "license": "CC-BY-4.0 ; CC0-1.0",
+    "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
+  },
   "apps/web/public/showcase/snapshot/dafb1b156c9ede29802bf0fd.png": {
     "sha256": "dafb1b156c9ede29802bf0fde3b1429eedd3deeec690d6549b2d40b67364bd46",
+    "source": "https://github.com/broadinstitute/cellpainting-gallery ; https://zenodo.org/records/6643470",
+    "license": "CC-BY-4.0 ; CC0-1.0",
+    "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
+  },
+  "apps/web/public/showcase/snapshot/db709a93896202ccd47beca9.zip": {
+    "sha256": "db709a93896202ccd47beca95bdbc75ac1c476b58dd25eb0f31941b7b27b327f",
     "source": "https://github.com/broadinstitute/cellpainting-gallery ; https://zenodo.org/records/6643470",
     "license": "CC-BY-4.0 ; CC0-1.0",
     "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
@@ -1607,12 +1613,6 @@
   },
   "apps/web/public/showcase/snapshot/e72feb62d02af5792b9043d9.png": {
     "sha256": "e72feb62d02af5792b9043d97bb7227ad638c1399e165d04db66ffb79681dc20",
-    "source": "https://github.com/broadinstitute/cellpainting-gallery ; https://zenodo.org/records/6643470",
-    "license": "CC-BY-4.0 ; CC0-1.0",
-    "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
-  },
-  "apps/web/public/showcase/snapshot/e77ef898026a7b552de51ef9.zip": {
-    "sha256": "e77ef898026a7b552de51ef9e7940070a70e7493057424f2b1037ee3bd29507e",
     "source": "https://github.com/broadinstitute/cellpainting-gallery ; https://zenodo.org/records/6643470",
     "license": "CC-BY-4.0 ; CC0-1.0",
     "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
