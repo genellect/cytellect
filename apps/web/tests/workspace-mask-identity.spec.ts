@@ -1,3 +1,4 @@
+import {aiReadFixture} from "./ai-read-fixture";
 import {appAlerts} from "./app-alerts";
 import {expect, test} from "@playwright/test";
 
@@ -12,6 +13,8 @@ test("a new target cannot display the previous target mask while running or afte
   let release: (() => void) | undefined;
   const pending = new Promise<void>(resolve => {release = resolve;});
   await page.route("**/v1/**", async route => {
+    if(await aiReadFixture(route))return;
+
     const path = new URL(route.request().url()).pathname;
     const headers = {"Access-Control-Allow-Origin":new URL(page.url()).origin,"Access-Control-Allow-Credentials":"true","Access-Control-Allow-Headers":"content-type,x-cytellect-request"};
     const json = (body: unknown, status = 200) => route.fulfill({status,headers,contentType:"application/json",body:JSON.stringify(body)});
