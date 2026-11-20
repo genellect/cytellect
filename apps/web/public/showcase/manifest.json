@@ -82,13 +82,42 @@
       "target": "nucleoplasm",
       "metric": "nucleolar_area_px",
       "channel": null,
-      "design": "paired"
+      "design": "paired",
+      "discussion_example": {
+       "implications": [
+        "核あたりの核小体の総面積が全実験回で縮小しており、核小体の構造が処理に応答した可能性がある。",
+        "離心率の向きがそろわない条件でも面積は縮小しており、形より先に大きさが変わる可能性がある。"
+       ],
+       "alternatives": [
+        "NPM1 が核質へ分散すると輪郭が小さく検出され、見かけ上の縮小となる可能性がある。",
+        "実験回の独立性が未確認で、縮小の大きさは回によって幅がある。"
+       ],
+       "next_steps": [
+        "FBL など別の核小体マーカーで領域を決め、面積の縮小を確かめる。",
+        "核小体の数と 1 個あたりの面積に分け、断片化と収縮を区別する。",
+        "独立した実験回を増やし、縮小の大きさを推定する。"
+       ]
+      }
      },
      {
       "target": "nucleoli",
       "metric": "mean",
       "channel": "eu5",
-      "design": "paired"
+      "design": "paired",
+      "discussion_example": {
+       "implications": [
+        "核小体の 5-EU 平均は実験回で増減が一致せず、本条件では新生 RNA 量の変化を判断できない。",
+        "明確な増減がみられない点は、未処理と同程度とする出典の報告と矛盾しない。"
+       ],
+       "alternatives": [
+        "核小体の輪郭が処理で変わると、平均輝度は測る領域の違いを反映しうる。",
+        "実験回の独立性が未確認で、回間差が処理の効果か染色・撮影の差かを区別できない。"
+       ],
+       "next_steps": [
+        "核全体の 5-EU の積算値と併せて比べ、領域の取り方の影響を確かめる。",
+        "RNA 合成阻害（ActD）を陽性対照に置き、5-EU の低下を検出できる範囲を確かめる。"
+       ]
+      }
      }
     ],
     "direction_checks": [
@@ -1919,13 +1948,40 @@
       "target": "nucleoplasm",
       "metric": "nucleolar_area_px",
       "channel": null,
-      "design": "paired"
+      "design": "paired",
+      "discussion_example": {
+       "implications": [
+        "核小体の総面積の変化は実験回で向きが一致せず、本条件では大きさの変化を判断できない。",
+        "明確な変化がみられない点は、臨床濃度では構造が変わらないとする出典の報告と矛盾しない。"
+       ],
+       "alternatives": [
+        "視野数が少なく、核間のばらつきが小さな変化を覆っている可能性がある。",
+        "実験回の独立性が未確認で、回間差の要因を区別できない。"
+       ],
+       "next_steps": [
+        "オキサリプラチンの場面と同じ指標で並べ、白金製剤間の応答の差を比べる。",
+        "高濃度の条件を加え、面積が変わり始める濃度を調べる。"
+       ]
+      }
      },
      {
       "target": "nucleoli",
       "metric": "mean",
       "channel": "eu5",
-      "design": "paired"
+      "design": "paired",
+      "discussion_example": {
+       "implications": [
+        "核小体の 5-EU 平均は実験回で増減が一致せず、本条件では新生 RNA 量の変化を判断できない。"
+       ],
+       "alternatives": [
+        "出典はわずかな増加を報告しており、この視野数では小さな差を検出できていない可能性がある。",
+        "実験回の独立性が未確認で、回間差が処理の効果か染色・撮影の差かを区別できない。"
+       ],
+       "next_steps": [
+        "視野数と独立した実験回を増やし、差の向きの一致を確かめる。",
+        "核小体の面積あたりの 5-EU でも比べ、出典の定義に合わせて確かめる。"
+       ]
+      }
      }
     ],
     "direction_checks": [],
@@ -3746,7 +3802,21 @@
       "target": "nucleoplasm",
       "metric": "nucleolar_eccentricity",
       "channel": null,
-      "design": "paired"
+      "design": "paired",
+      "discussion_example": {
+       "implications": [
+        "核小体の離心率が全実験回で低下しており、ActD による核小体の球状化と整合する。",
+        "転写の阻害に伴う核小体の成分の再配置を反映する可能性がある。"
+       ],
+       "alternatives": [
+        "核小体が小さくなると輪郭の画素数が減り、離心率の推定が不安定になりうる。",
+        "実験回の独立性が未確認で、低下の大きさは確定できない。"
+       ],
+       "next_steps": [
+        "核小体の面積と数を併せて比べ、形の変化と大きさの変化を分ける。",
+        "FBL など別の成分を染め、核小体キャップの形成を確かめる。"
+       ]
+      }
      }
     ],
     "direction_checks": [
@@ -6495,11 +6565,14 @@
  ],
  "seed": {
   "entries": 3023,
-  "bytes": 96023323,
+  "bytes": 96046013,
   "regenerated_on_boot": 601,
   "regenerated_bytes": 719032190
  },
  "generated_from_commit": "964193f0da3a12aaa7fa0bc62047f1de2ecec93e",
+ "derived_updates": {
+  "examples": "e31afa1b703147f1fd05993fadb297355c78268d"
+ },
  "runtime": {
   "fiji": {
    "distribution": {
@@ -6579,23 +6652,11 @@
    "runner_sha256": "a3739e14463084d067dc056254af8740cbdd72d4b195c22afef50216063cbd45",
    "requirements_sha256": "caab4cdefcd21b8afe25451a76e0ed0ecaa698180df8c2570ddccc387fc49b39"
   },
-  "python": "3.12.3"
+  "python": "3.12.13"
  },
  "journal": null,
  "detections_recorded": 486,
  "files": {
-  "runtime/NotoSansJP-OFL.txt": {
-   "sha256": "1c05c68c34f9708415aada51f17e1b0092d2cea709bf4a94cd38114f9e73d7d9",
-   "bytes": 4388
-  },
-  "runtime/NotoSansJP-Regular.ttf": {
-   "sha256": "a66655d7b24ac6f793f73914c60ad44522b9fbd9e5f9b3706220b66c44fdaad2",
-   "bytes": 5766828
-  },
-  "runtime/THIRD_PARTY_NOTICES.txt": {
-   "sha256": "7a6d8036ec6e88c2646824a49bda95095f6829af6ddeafd24f8c17dabcb9dae3",
-   "bytes": 58691
-  },
   "runtime/alembic-1.20.0-py3-none-any.whl": {
    "sha256": "77eb101048d95f982c0353e9233404889dcd7a6fc244c107836c0e2fc9cf7d9d",
    "bytes": 268719
@@ -6628,6 +6689,14 @@
    "sha256": "723296007c870bfd6b3f0c3230dba7198096e5269297ebf5e4eff9e7ffa39d4f",
    "bytes": 80164
   },
+  "runtime/NotoSansJP-OFL.txt": {
+   "sha256": "1c05c68c34f9708415aada51f17e1b0092d2cea709bf4a94cd38114f9e73d7d9",
+   "bytes": 4388
+  },
+  "runtime/NotoSansJP-Regular.ttf": {
+   "sha256": "a66655d7b24ac6f793f73914c60ad44522b9fbd9e5f9b3706220b66c44fdaad2",
+   "bytes": 5766828
+  },
   "runtime/opentelemetry_api-1.45.2-py3-none-any.whl": {
    "sha256": "2cbd737377e710ee740d261c94e93fa0f08e6d037c18f17513cc0a2d94479a34",
    "bytes": 60335
@@ -6644,6 +6713,10 @@
    "sha256": "67f8e99895493dd2911a03f11314af6ceebeae4e704bb9f43dfc6a9db151c93e",
    "bytes": 78980
   },
+  "runtime/THIRD_PARTY_NOTICES.txt": {
+   "sha256": "7a6d8036ec6e88c2646824a49bda95095f6829af6ddeafd24f8c17dabcb9dae3",
+   "bytes": 58691
+  },
   "runtime/tifffile-2026.9.20-py3-none-any.whl": {
    "sha256": "9b913167b8f66a57f2e7c0454486c4c4607196d494797461226166bd0755c0e6",
    "bytes": 275004
@@ -6653,8 +6726,8 @@
    "bytes": 45571
   },
   "seed.zip": {
-   "sha256": "43a2e95b5ce9b3af34f436adb9246ee6b760414236822c2016074b9f1b7be23d",
-   "bytes": 96023323
+   "sha256": "c3f348d1cebb1059d4c63920f98bdf6a6f8e7ed22fda1fc676531ac4d7a3be4c",
+   "bytes": 96046013
   },
   "snapshot/0006c98ea370d0a605b826ed.svg": {
    "sha256": "0006c98ea370d0a605b826eded9efd339e837aa831fd1813cdf9f86431f34575",
@@ -12340,6 +12413,10 @@
    "sha256": "253eeb7e2db1f8a2326662e4d1fd02f6b2d74ceddb625ddf8180fe2e7d5436f0",
    "bytes": 18877
   },
+  "snapshot/253fd8fc79073aa17313f0c6.json": {
+   "sha256": "253fd8fc79073aa17313f0c65a75b15bee803e8a02ae598dfb094de19b4db2a6",
+   "bytes": 1017
+  },
   "snapshot/25581e6e3e2c39566bc8150e.svg": {
    "sha256": "25581e6e3e2c39566bc8150ef5b3fc5e13cc317940c22616bb9649265f1d15bc",
    "bytes": 25413
@@ -14668,6 +14745,10 @@
    "sha256": "3406ac5acc3527e1dfba7faa57b759d93933831647ef8b15c12d65ce7255b8d2",
    "bytes": 851
   },
+  "snapshot/340af69fb6a1581b5955b234.json": {
+   "sha256": "340af69fb6a1581b5955b2343e5066527aef0e7bfa6a36d9731b2486556caf72",
+   "bytes": 964
+  },
   "snapshot/340b12a62c698d2599312973.json": {
    "sha256": "340b12a62c698d25993129731c6af2d739db2bc2ae8ccc84c483aca5f117d06a",
    "bytes": 8367
@@ -15787,6 +15868,10 @@
   "snapshot/3bb801aa665d72a172089da2.md": {
    "sha256": "3bb801aa665d72a172089da2964f4742878a2af60fd9e31a4a15eb4c857b76a5",
    "bytes": 828
+  },
+  "snapshot/3bc4a013effd1b52b311935c.json": {
+   "sha256": "3bc4a013effd1b52b311935c3e27f7e6336bc1d0fd4b765ebd86151322877d08",
+   "bytes": 1053
   },
   "snapshot/3bc6a216ab92ab24dd6228fb.json": {
    "sha256": "3bc6a216ab92ab24dd6228fb7691648e8aa1be701991490e0ed810e088fdb7cb",
@@ -30688,6 +30773,10 @@
    "sha256": "9da415c8e8659f879a3c5649a55517c9e8e16ad44775a48fac346a13f6153c99",
    "bytes": 42768
   },
+  "snapshot/9da58a13170c77102462294e.json": {
+   "sha256": "9da58a13170c77102462294e302901a529306c4fa29fc2d534133a1b30f10389",
+   "bytes": 1131
+  },
   "snapshot/9da6d83b95197d52f688961f.svg": {
    "sha256": "9da6d83b95197d52f688961fa4752adb176e69d67d71d81ef60f373bec4b290e",
    "bytes": 19505
@@ -31739,6 +31828,10 @@
   "snapshot/a4bce10792c012a1c109d4fb.json": {
    "sha256": "a4bce10792c012a1c109d4fbc216ca08bf5be7e05a37493504e49436009625ac",
    "bytes": 8599
+  },
+  "snapshot/a4d7bb88c4b55d08f455fc8f.json": {
+   "sha256": "a4d7bb88c4b55d08f455fc8ff624e7e2aaf353a2d0777bf149b9719e1bbeee74",
+   "bytes": 951
   },
   "snapshot/a4db73dc1f8a748671cbd10d.json": {
    "sha256": "a4db73dc1f8a748671cbd10db71bef717fcf59d184dba25a3d4c2ed99c6bfedb",
@@ -46137,11 +46230,11 @@
    "bytes": 4385196
   },
   "snapshot/index.json": {
-   "sha256": "ada2eed8362c9f6fb7777c75dac3fc083dcde2f22ba79e6e01aa4ef802ce785f",
+   "sha256": "d967565d73e28eb66acbf11737567fe87faa0659753696ae2a9bd341ea26510b",
    "bytes": 629918
   },
   "snapshot/journal.json": {
-   "sha256": "9f6be270684427baaa2c2dfe251aa03eb6b27aa78d13e6c386a1d73a1636bdde",
+   "sha256": "77393a17c96284030c5fcfdc474500f640619ec1c528520863ac06d8d6c9de0e",
    "bytes": 59009201
   },
   "snapshot/proposal-examples.json": {
