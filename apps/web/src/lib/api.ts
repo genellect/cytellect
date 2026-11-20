@@ -21,7 +21,8 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
  const result = showcase ? await showcaseTransport()!.fetch(path, {...options, headers}) : await fetch(API + path, {...options, headers, credentials: "include", cache: "no-store"});
  if (!result.ok) {
    let code = "request_failed";
-   try { const value = await result.json(); if (typeof value.detail === "string") code = value.detail; } catch {}
+   try { const value = await result.json(); if (typeof value.detail === "string") code = value.detail;
+     else if (value.detail && typeof value.detail.code === "string") code = value.detail.code; } catch {}
    throw new ApiError(code, result.status);
  }
  return result.json() as Promise<T>;
@@ -115,12 +116,16 @@ const messages:Record<string,string> = {
  proposal_model_selection_changed:"AI提案が選択済みのモデルを変更するため、適用しませんでした。モデルは検出条件で変更してください。",
  proposal_association_same_region_required:"異なる測定領域（例：核と核小体）の相関には未対応です。相関の横軸と縦軸には同じ測定領域を指定してください。",
   signal_threshold_indeterminate: "画像内の輝度が一定のため、陽性領域を検出できません。別のチャンネルを指定してください。",
- proposal_service_disabled:LOCAL_MODE?"AI（解析提案・考察）にはクラウド機能が必要です。右上の「ログイン」から有効にしてください。":"AI（解析提案・考察）は現在無効です。管理者がサービス設定を確認してください。",
- proposal_service_unauthorized:LOCAL_MODE?"AI（解析提案・考察）の利用を確認できませんでした。右上のアカウントでログインの状態を確認してください。":"AI のサービスが接続を認めませんでした。管理者が端末の設定を確認してください。",
+ proposal_service_disabled:"AI（解析提案・考察）は現在無効です。管理者がサービスの有効化と接続先を確認してください。",
+ proposal_service_unauthorized:"AI のサービスが接続を認めませんでした。管理者が端末の利用登録と認証を確認してください。",
  proposal_access_revoked:"AI（解析提案・考察）の利用が停止されています。オーナーにお問い合わせください。このPCでの解析は続けて使えます。",
  proposal_quota_exhausted:"今月の AI（解析提案・考察）の利用上限に達しました。上限は毎月リセットされます。このPCでの解析は続けて使えます。",
  proposal_service_unavailable:"AI のサービスに接続できません。接続状態を確認してください。",
  proposal_service_version_mismatch:"AI のサービスが、このアプリの版に未対応です。管理者がサービスの更新を確認してください。",
+ proposal_service_request_incompatible:"AI のサービスが、このアプリの依頼形式に対応していません。管理者がサービスの更新を確認してください。",
+ proposal_rejected:"AI の解析案が、このアプリで扱える形式ではありませんでした。再送の前に設定を確認してください。",
+ discussion_rejected:"AI の考察を読み取れませんでした。再生成の確認へ進んでください。",
+ artifact_not_found:"保存した結果のファイルが見つかりません。解析結果を確認してください。",
  proposal_response_invalid:"AI のサービスからの応答を読み取れませんでした。接続状態を確認してください。",
  proposal_service_misconfigured:"AI のサービス設定に問題があります。管理者が接続先と認証の設定を確認してください。",
  proposal_selected_field_excluded:"選択した視野は対象から除外されています。対象の視野を選んでください。",
@@ -140,7 +145,7 @@ const messages:Record<string,string> = {
  proposal_request_in_progress:"同じ依頼を処理中です。完了までお待ちください。",
  proposal_request_already_sent:"同じ依頼を送信済みです。少し待ってから再送してください。",
  proposal_context_changed:"依頼の途中で画像や設定が変わりました。もう一度送信してください。",
- proposal_explicit_retry_required:"前回の依頼が未完了です。再送すると再度課金される場合があります。",
+ proposal_explicit_retry_required:"前回の依頼が未完了です。再送には課金される場合があります。",
  proposal_model_unavailable:"AI の応答を取得できませんでした。サービスの通信状態を確認してください。",
  proposal_budget_reconciliation_required:"API使用量の上限に不一致があったため停止しています。管理者による費用確認が必要です。",
  proposal_provider_model_not_found:"設定した AI のモデルを利用できません。モデル名とプロジェクトの利用権限を確認してください。",

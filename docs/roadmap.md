@@ -4,6 +4,13 @@ MVP（画像の登録から検出・修正・測定・統計・作図までの�
 
 ## 現在の提供状況
 
+デモと本番の考察・Figure legend・LLM の操作を揃える実装は [#249](https://github.com/genellect/cytellect/issues/249)、
+分割と依存関係は [#250](https://github.com/genellect/cytellect/pull/250) に従う。Figure legend の文と名前は
+日英の見出しの共通事例と統計条件別の文章で検証する（実装と検証の記録は [#251](https://github.com/genellect/cytellect/pull/251)）。
+研究者による評価は未実施のまま追跡し、今回の実装のマージ条件には含めない（2026-11-20、オーナーの指示）。
+
+公開デモの保存した比較 9 件に考察サンプルを用意し、文章だけの更新では記録した数値・図・元の実行環境を保持する。文章の照合・生成・不変性の記録は [#252](https://github.com/genellect/cytellect/pull/252) に置く。構造の契約と生物学的な記述の正しさを区別し、追加文のオーナー確認は未実施として追跡する。
+
 | 対象 | 状況 |
 |---|---|
 | 公開サイト | [cytellect.app](https://cytellect.app/)。LP、`/demo`、`/plan` で構成する。`/demo` は本番と同じ解析ワークスペースを、登録済みの公開画像でサーバーレスに動かす（[公開デモ](showcase.md)）。解析エンジン（Fiji・StarDist・Cellpose）、有料 API（LLM）、画像の追加だけを止め、核ごとの表・区画への分配・陽性率を含むほかの画面は、記録した操作の結果で開く（2026-11-10、オーナーの判断）。統計・図・分類・背景補正の選択肢と、核小体の場面の核・核小体の削除は本番と同じ操作で記録から答え、自由に描いた輪郭や任意の数値・文字には案内を出す（2026-11-11、オーナーの判断）。画像の追加は Windows 版・Docker 版だけで行い、公開サイトは研究画像を受け付けない。公開サイトの `/workspace` は `/demo` へ転送する。`main` へのマージで自動デプロイ |
@@ -106,7 +113,7 @@ M2 は元画像での解像・対象同定・校正を開始条件とする。M3
 ### LLM による解析支援の見直し
 
 [#249](https://github.com/genellect/cytellect/issues/249) の版の不一致・明示的な再送・エラー文の実装は
-`fix/proposal-failure-messages` に分ける（[#250](https://github.com/genellect/cytellect/pull/250) の単位3）。
+[対応する PR #253](https://github.com/genellect/cytellect/pull/253) に記録する（[#250](https://github.com/genellect/cytellect/pull/250) の単位3）。
 再送の確認を重複表示せず、APIの失敗コードと表示文の対応を試験で確認する。
 
 単位4の `feat/ai-availability` は単位3に積む。課金のない利用状態の読み取り、Windows・Docker・開発共通の「AI の設定」、1 回の操作での考察生成、再計算前の考察の区別を実装する。API の所有者・保存・呼び出し回数の試験と、画面の操作試験で確かめる。本番の有料生成と研究者による評価は未実施として残し、今回の人による評価を実装 PR のマージ条件にはしない。

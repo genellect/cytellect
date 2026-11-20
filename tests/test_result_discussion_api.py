@@ -180,6 +180,19 @@ def test_service_failures_keep_their_codes_and_a_version_mismatch_is_refused(tmp
     assert response.status_code == 502 and response.json()["detail"] == "proposal_service_version_mismatch"
 
 
+def test_known_pre_model_discussion_failure_does_not_require_a_paid_retry(tmp_path, monkeypatch):
+    client, app = client_for(tmp_path)
+    job, store = saved_job(client, app)
+    def unbilled(*args, **kwargs):
+        raise ProposalServiceError(502, "proposal_service_request_incompatible", may_have_charged=False)
+    monkeypatch.setattr(discussions, "post_to_service", unbilled)
+    assert post(client, job).json()["detail"] == "proposal_service_request_incompatible"
+    assert store.rows(result_discussions)[0]["state"] == "unbilled"
+    monkeypatch.setattr(discussions, "post_to_service", lambda *args, **kwargs:
+                        {"model": MODEL, "prompt_version": DISCUSSION_PROMPT_VERSION, "draft": DRAFT})
+    assert post(client, job).status_code == 200
+
+
 def test_only_a_saved_two_group_comparison_can_be_discussed(tmp_path, service):
     client, app = client_for(tmp_path)
     job, store = saved_job(client, app)
