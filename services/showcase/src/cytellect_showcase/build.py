@@ -1486,6 +1486,15 @@ def journal(work: Path, origin_port: int, out: Path, scenes: list[dict], keep: s
     the walks that draw no figure (deleting and restoring an outline, the AI examples on each field)
     stay as published, with their files.
     """
+    reused_from_commit = None
+    if keep and previous is not None:
+        # Read before the walk: a previous snapshot without its manifest must not cost the recording.
+        earlier_manifest = previous.parent / "manifest.json"
+        if earlier_manifest.is_file():
+            reused_from_commit = json.loads(earlier_manifest.read_text(encoding="utf-8")).get("generated_from_commit")
+        if not reused_from_commit:
+            raise SystemExit("journal: keeping walks needs the previous manifest.json, with generated_from_commit, "
+                             "beside the previous snapshot directory")
     origin = f"http://127.0.0.1:{origin_port}"
     web = REPO / "apps" / "web"
     preserved = {name: (web / name).read_bytes() for name in ("next-env.d.ts", "tsconfig.json")}
@@ -1559,6 +1568,7 @@ def journal(work: Path, origin_port: int, out: Path, scenes: list[dict], keep: s
         recorded["entries"] = [*recorded["entries"], *kept]
         report["entries"] = len(recorded["entries"])
         report["kept_scenes"] = sorted({entry["scene"] for entry in kept})
+        report["reused_from_commit"] = reused_from_commit
     (target / "journal.json").write_text(json.dumps(recorded, indent=1, ensure_ascii=False) + "\n")
     # The previous recording's answers that this one no longer names are not published.
     named = {entry["file"] for entry in json.loads((target / "index.json").read_text())["entries"].values() if entry.get("file")}
@@ -1566,7 +1576,7 @@ def journal(work: Path, origin_port: int, out: Path, scenes: list[dict], keep: s
     for path in target.iterdir():
         if path.name not in named and path.name not in SNAPSHOT_KEEP | {"journal.json"}:
             path.unlink()
-    return {key: report[key] for key in ("entries", "scenes", "kept_scenes") if key in report}
+    return {key: report[key] for key in ("entries", "scenes", "kept_scenes", "reused_from_commit") if key in report}
 
 
 def _owner_session(app, workspace_id: str) -> str:
@@ -1616,7 +1626,8 @@ def record_proposals(manifest: dict, seed_data: Path, work: Path, origin_port: i
             raise
         payload = {"model": plan["model"], "prompt_version": plan["prompt_version"], "draft": copy.deepcopy(draft)}
         entries[context_sha256(context)] = {**payload, "source": plan["source"], "goal": context.goal,
-                                            "previous_goal": context.previous_goal}
+                                            "previous_goal": context.previous_goal,
+                                            "conditions": sorted({field.condition for field in context.fields if field.condition})}
         return copy.deepcopy(payload)
 
     count = len(plan["presets"])
@@ -1638,7 +1649,7 @@ def record_proposals(manifest: dict, seed_data: Path, work: Path, origin_port: i
             app, settings, server, thread = serve(data, origin, fiji, api_port, worker=True,
                                                   proposal_model=plan["model"],
                                                   proposal_prompt_version=plan["prompt_version"],
-                                                  proposal_url=PROPOSAL_URL)
+                                                  proposal_url=PROPOSAL_URL, proposal_token="showcase-offline")
             try:
                 config = {"origin": origin, "api": api_origin, "token": _owner_session(app, workspace_id),
                           "cookie": settings.cookie_name, "web": str(web),
@@ -1653,6 +1664,8 @@ def record_proposals(manifest: dict, seed_data: Path, work: Path, origin_port: i
                     sys.stderr.write(result.stderr[:3000] + "\n…\n" + result.stderr[-1500:])
                     raise SystemExit("proposal walk failed")
                 report = json.loads(result.stdout.strip().splitlines()[-1])
+                if report.get("alerts") or not report.get("sent") or not all(item["answered"] for item in report["sent"]):
+                    raise SystemExit("proposal walk did not adopt every authored preset")
                 reports.append({"sequence": sequence, **report})
                 log("proposals", sequence, report)
             finally:
@@ -1752,6 +1765,8 @@ def main(argv: list[str] | None = None) -> None:
                         help="snapshot directory holding the journal and files the kept walks come from")
     parser.add_argument("--figures-reuse", action="store_true",
                         help="figures: keep the groups the previous run drew and draw only the rest")
+    parser.add_argument("--figure-drawings", type=Path,
+                        help="figures: update prose using an earlier snapshot's identical results/settings; keep drawing bytes")
     parser.add_argument("--web-port", type=int, default=3217)
     parser.add_argument("--api-port", type=int, default=8217)
     args = parser.parse_args(argv)
@@ -1764,11 +1779,12 @@ def main(argv: list[str] | None = None) -> None:
         manifests.append((path, manifest))
     if len({manifest["id"] for _, manifest in manifests}) != len(manifests):
         raise SystemExit("duplicate scene id")
-    if any(uses_cellpose(manifest) for _, manifest in manifests):
+    stages = set(args.stages.split(","))
+    detector_stages = stages.intersection({"select", "scenario", "grid"}) or ("proposals" in stages and "reseed" not in stages)
+    if detector_stages and any(uses_cellpose(manifest) for _, manifest in manifests):
         for name in ("CYTELLECT_CELLPOSE_PYTHON", "CYTELLECT_CELLPOSE_MODEL_DIR"):
             if not os.environ.get(name):
                 raise SystemExit(f"{name} must name the pinned Cellpose runtime")
-    stages = set(args.stages.split(","))
     work.mkdir(parents=True, exist_ok=True)
     state_path = work / "state.json"
     origin = f"http://127.0.0.1:{args.web_port}"
@@ -1833,8 +1849,23 @@ def main(argv: list[str] | None = None) -> None:
             api.client.close()
             save()
         uninstall()
+    if "reseed" in stages:
+        if args.figure_drawings is not None:
+            from .figure_text import preserve_seed
+
+            original = args.figure_drawings.parent
+            state["seed"] = preserve_seed(original / "seed.zip", args.out / "seed.zip")
+            # A seed kept through several prose updates still comes from the commit that first recorded it.
+            earlier = json.loads((original / "manifest.json").read_text(encoding="utf-8"))
+            state["seed_science_from_commit"] = earlier.get("seed_science_from_commit") or earlier.get("generated_from_commit")
+        reseed(args.out, work, manifests, state)
+        save()
     if "proposals" in stages:
-        recorder = install_recorder(recordings, reuse=True)
+        if "reseed" in stages:
+            from cytellect_showcase.detections import install_replay
+            install_replay(recordings)  # A presentation update must never launch a detector.
+        else:
+            install_recorder(recordings, reuse=True)
         fresh = True
         for _, manifest in manifests:
             if not manifest["scenario"].get("proposals"):
@@ -1845,9 +1876,6 @@ def main(argv: list[str] | None = None) -> None:
             fresh = False
             save()
         uninstall()
-    if "reseed" in stages:
-        reseed(args.out, work, manifests, state)
-        save()
     if "publish" in stages:
         publish(args, manifests, state, seed_data, recordings, started)
     if "examples" in stages:
@@ -1858,11 +1886,6 @@ def main(argv: list[str] | None = None) -> None:
         first = scenes[manifests[0][1]["id"]]["scenario"]
         state["refigure"] = refigure(seed_data, args.out, args.fiji, first["owner"])
         save()
-    if "figures" in stages:
-        first = scenes[manifests[0][1]["id"]]["scenario"]
-        state["figures"] = figures(seed_data, work, args.out, args.fiji, first["owner"], reuse=args.figures_reuse)
-        save()
-        write_manifest(args, manifests, state)
     if "snapshot" in stages:
         for index, (_, manifest) in enumerate(manifests):
             scenario_state = scenes[manifest["id"]]["scenario"]
@@ -1880,6 +1903,12 @@ def main(argv: list[str] | None = None) -> None:
              "gateChannels": manifest["scenario"].get("gate_channels", []),
              "scope": journal_scope(manifest), "story": story_metrics(manifest)} for _, manifest in manifests],
             keep=args.journal_keep, previous=args.journal_previous)
+        save()
+        write_manifest(args, manifests, state)
+    if "figures" in stages:
+        first = scenes[manifests[0][1]["id"]]["scenario"]
+        state["figures"] = figures(seed_data, work, args.out, args.fiji, first["owner"], reuse=args.figures_reuse,
+                                   drawings=args.figure_drawings)
         save()
         write_manifest(args, manifests, state)
     if "manifest" in stages:
@@ -1943,7 +1972,8 @@ def refigure(seed_data: Path, out: Path, fiji: str, owner: str) -> dict:
     return {"replaced": replaced, "legends": added}
 
 
-def figures(seed_data: Path, work: Path, out: Path, fiji: str, owner: str, reuse: bool = False) -> dict:
+def figures(seed_data: Path, work: Path, out: Path, fiji: str, owner: str, reuse: bool = False,
+            drawings: Path | None = None) -> dict:
     """Draw the demo's figures from its recorded results (stage ``figures``, ``figure_catalog.py``).
 
     For a change of the renderer or of the figure controls: the tour is not recorded again; its
@@ -1956,14 +1986,14 @@ def figures(seed_data: Path, work: Path, out: Path, fiji: str, owner: str, reuse
     data, scratch = work / "figures-data", work / "figures-scratch"
     copies = [work / f"figures-data-{index}" for index in range(workers)]
     parts = [scratch / f"shard-{index}" / f"part-{index}.json" for index in range(workers)]
-    reuse = reuse and all(part.is_file() for part in parts)
+    reuse = drawings is None and reuse and all(part.is_file() for part in parts)
     for path in (data, *([] if reuse else [scratch, *copies])):
         shutil.rmtree(path, ignore_errors=True)
     scratch.mkdir(parents=True, exist_ok=True)
     # The groups of results are drawn in several processes, each on its own copy of the seed;
     # this process then writes the catalogue from their parts.
     processes = []
-    for index, copy_dir in enumerate([] if reuse else copies):
+    for index, copy_dir in enumerate([] if reuse or drawings is not None else copies):
         shutil.copytree(seed_data, copy_dir, ignore=shutil.ignore_patterns("tmp"))
         (scratch / f"shard-{index}").mkdir()
         processes.append(subprocess.Popen(
@@ -1975,7 +2005,8 @@ def figures(seed_data: Path, work: Path, out: Path, fiji: str, owner: str, reuse
     shutil.copytree(seed_data, data, ignore=shutil.ignore_patterns("tmp"))
     api = open_api(data, "http://127.0.0.1", fiji, owner)
     try:
-        report = figure_catalog.build(api, out / "snapshot", scratch, parts=parts)
+        report = figure_catalog.build(api, out / "snapshot", scratch, parts=parts if drawings is None else None,
+                                      drawings=drawings)
     finally:
         api.client.close()
     target = out / "snapshot"
@@ -2149,12 +2180,18 @@ def publish(args, manifests: list, state: dict, seed_data: Path, recordings: Pat
     write_manifest(args, manifests, state)
 
 
+# The stages that build the workspace from the images again. ``snapshot`` and ``journal`` alone record the walks
+# on a seed that ``reseed`` brought back, so its earlier derived updates (the examples) still apply.
+RECORDED_ANEW = frozenset({"prepare", "scenario"})
+
+
 def generation_provenance(previous: dict, stages: set[str], commit: str) -> dict:
     """A derived-only update does not claim to have recorded the initial workspace and its walks."""
     record: dict = {"generated_from_commit": commit}
     if previous.get("generated_from_commit") and not stages.intersection({"prepare", "scenario", "publish", "snapshot", "journal"}):
         record["generated_from_commit"] = previous["generated_from_commit"]
-    updates = {**previous.get("derived_updates", {}),
+    # A workspace recorded anew holds none of the earlier derived updates.
+    updates = {**({} if stages.intersection(RECORDED_ANEW) else previous.get("derived_updates", {})),
                **{stage: commit for stage in sorted(stages.intersection({"examples", "figures", "refigure"}))}}
     if updates:
         record["derived_updates"] = updates
@@ -2208,16 +2245,18 @@ def write_manifest(args, manifests: list, state: dict) -> None:
         "schema": "cytellect-showcase-manifest/2",
         "scenes": [scene_record(manifest) for _, manifest in manifests],
         "seed": state.get("seed"),
+        **({"seed_science_from_commit": state["seed_science_from_commit"]}
+           if state.get("seed_science_from_commit") else {}),
         **generation_provenance(published, set(args.stages.split(",")), git_commit()),
         "runtime": published.get("runtime") if derived_only else current_runtime,
-        "journal": state.get("journal"),
+        "journal": state.get("journal") or (published.get("journal") if derived_only else None),
         "detections_recorded": len(json.loads((args.work / "recordings" / "index.json").read_text())["entries"])
         if (args.work / "recordings" / "index.json").is_file() else 0,
         "files": files,
         "limitations": "Public example images; numbers illustrate the software and do not establish scientific "
                        "validity for any laboratory's images.",
     }
-    environments = dict(published.get("derived_update_environments", {}))
+    environments = {} if stages.intersection(RECORDED_ANEW) else dict(published.get("derived_update_environments", {}))
     environments.update({stage: current_runtime for stage in sorted(stages.intersection({"examples", "figures", "refigure"}))})
     if environments:
         record["derived_update_environments"] = environments

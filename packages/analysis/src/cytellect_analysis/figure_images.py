@@ -254,19 +254,26 @@ def draw_images(fig, holder, figure: ImageFigure, font_size: float, outlines: bo
 
 
 def legend_sentence(figure: ImageFigure) -> str:
-    measured = figure.names.get(figure.measured or "", figure.measured or "")
+    return recorded_legend_sentence(figure.record(), figure.names)
+
+
+def recorded_legend_sentence(record: dict[str, Any], names: dict[str, str]) -> str:
+    """Describe the saved panels without loading or redrawing their pixels."""
+    measured_id = record.get("measured_channel") or ""
+    measured = names.get(measured_id, measured_id)
     parts = ["Representative fields, one per condition"]
-    rules = {p.selection for p in figure.panels}
+    rules = {p["selection"] for p in record["fields"]}
     if rules == {"rule"}:
         parts[0] += " (the field whose value is closest to the condition's mean of runs)"
     elif "researcher" in rules:
         parts[0] += " (chosen by the researcher)"
     text = parts[0] + f": {measured} in grey"
-    if figure.counterstain:
-        counter = figure.names.get(figure.counterstain, figure.counterstain)
+    if record.get("counterstain_channel"):
+        counter_id = record["counterstain_channel"]
+        counter = names.get(counter_id, counter_id)
         text += f" and merge ({counter} green, {measured} magenta)"
     text += ("; each stain is shown with the same linear display range in every condition "
              "(0.5–99.5th percentile of the shown pixels); yellow outlines mark the measured regions")
-    if figure.scale_bar_um:
-        text += f". Scale bar, {figure.scale_bar_um:g} µm"
+    if record.get("scale_bar_um"):
+        text += f". Scale bar, {record['scale_bar_um']:g} µm"
     return text + "."
