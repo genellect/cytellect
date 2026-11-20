@@ -97,6 +97,18 @@ export function metricsForSubject(subject: ReviewTarget): Array<{unit: string; m
   }
   return groups;
 }
+/** Metrics that describe each region of the chosen set; the others name their own subject (核小体の離心率, 陽性率). */
+const PER_REGION = new Set(["area_px", "area_um2", "mean", "median", "integrated", "mean_corrected", "median_corrected", "integrated_corrected"]);
+export function perRegionMetric(id: string): boolean {return PER_REGION.has(id);}
+/** One name for a measure everywhere it is shown (requirements S-12, SL-02): 「核小体の平均輝度（5-EU）」.
+ * The region names a per-region metric; the stain is the recorded stain name, never a channel identifier
+ * unless nothing else was recorded. */
+export function measureLabel(metric: string, regionSet: string | null | undefined, stain: string | null | undefined): string {
+  const label = metricLabel(metric);
+  const region = PER_REGION.has(metric) && regionSet ? SUBJECT_NAMES[regionSet as ReviewTarget] : undefined;
+  const named = stain && (metric.startsWith("positive_") || metricUsesChannel(metric)) ? `（${stain}）` : "";
+  return `${region ? `${region}の` : ""}${label}${named}`;
+}
 /** One sentence of what is measured, on which subject, and what one observation is (B-2, SL-01). */
 export function metricSentence(id: string, subject: ReviewTarget): string {
   return `対象：${SUBJECT_NAMES[subject]}。観測の単位：${metricUnit(id, subject)}。`;

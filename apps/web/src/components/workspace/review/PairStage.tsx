@@ -26,6 +26,8 @@ interface Props {
   runId:string;linked:boolean;tables:boolean;onDisplay?:(value:PairDisplay|null)=>void;
   /** The partition table of a pane's field, in the nucleolus-and-nucleoplasm colour mode (MV-05). */
   partition?:(field:ReviewField)=>ReactNode;
+  /** The workspace's choice between each region's stain table and the nucleus table, so the next step follows the table shown (A-2). */
+  nucleusView?:boolean;onNucleusView?:(value:boolean)=>void;
 }
 
 /** Runs in which at least one group has a field, in the design's order. */
@@ -40,7 +42,7 @@ export const pairRuns=(design:ExperimentDesign)=>(design.runs??[]).filter(run=>d
 export interface Historical {target:ReviewTarget;result:SavedResult;context?:SavedResult["masks"]["regions"];nucleus?:number}
 
 export function PairStage({design,fields,runtime:r,target,channel,selectedField,region,historical,onSelect,onEditing,runId,linked,tables,onDisplay,
-  colorBy,states,legend,fills,gateTable,heading,next,partition}:Props&ColorView){
+  colorBy,states,legend,fills,gateTable,heading,next,partition,nucleusView:chosenView,onNucleusView}:Props&ColorView){
   const runs=pairRuns(design);
   const run=runs.find(value=>value.id===runId)??runs[0];
   const [chosen,setChosen]=useState<Record<string,string>>({});
@@ -77,7 +79,8 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
   useEffect(()=>()=>onDisplay?.(null),[]);// eslint-disable-line react-hooks/exhaustive-deps
 
   // Each pane shows its field's nucleus table (every stain and the confirmed nucleoli per nucleus) by default.
-  const [nucleusView,setNucleusView]=useState(true);
+  const [ownView,setOwnView]=useState(true);
+  const nucleusView=chosenView??ownView,setNucleusView=onNucleusView??setOwnView;
   if(!run)return <p className={styles.empty}>2 つの群に画像がある実験回がありません。「実験」で群と実験回に画像を割り当ててください。</p>;
   return <div className={styles.pair} data-placement={layout.placement}>
     {panes.map((pane,index)=>{
@@ -92,7 +95,8 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
       const rows=value?.rows.filter(row=>row.channel_id===channel)??[];
       const count=value?new Set(value.masks.regions.map(region=>region.id)).size:null;
       const select=(n:number)=>{if(field)onSelect(field.id,channel,n);};
-      const nuclear=target==="nuclei"&&!saved&&!candidate&&field?r.currentResult(field.id,"nuclei"):undefined;
+      // Beside the nucleoli and the nucleoplasm too: each nucleus's nucleolar summary is read in its nucleus table (A-1).
+      const nuclear=target!=="cell"&&!saved&&!candidate&&field?r.currentResult(field.id,"nuclei"):undefined;
       const label=`${pane.group.label}${pane.group.id===design.control_group_id?"（対照）":""}`;
       return <section key={pane.group.id} className={styles.pane} aria-label={label}>
         <header className={styles.paneHead}>
@@ -126,7 +130,7 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
           {/* Each table names what it lists; the next step sits once, beside the last group's table (MV-06, MV-09). */}
           {/* The next step sits once, beside the last group's table: on its summary line when the nucleus table is shown. */}
           <TableHeading heading={heading(colorBy==="positivity"||(!!nuclear&&nucleusView),rows)} next={index===panes.length-1&&!(colorBy!=="compartments"&&nuclear&&(nucleusView||colorBy==="positivity"))?next:null}>
-            {colorBy==="outline"&&nuclear&&<div className={styles.tableViews} role="group" aria-label={`${pane.group.label} の表の切り替え`}><button aria-pressed={!nucleusView} onClick={()=>setNucleusView(false)}>このチャンネル</button><button aria-pressed={nucleusView} onClick={()=>setNucleusView(true)}>核ごとの表</button></div>}
+            {colorBy==="outline"&&nuclear&&<div className={styles.tableViews} role="group" aria-label={`${pane.group.label} の表の切り替え`}><button aria-pressed={!nucleusView} onClick={()=>setNucleusView(false)}>{target==="nuclei"?"このチャンネル":`${target==="nucleoli"?"核小体":"核質"}ごと`}</button><button aria-pressed={nucleusView} onClick={()=>setNucleusView(true)}>{target==="nuclei"?"核ごとの表":"核ごと（核小体のまとめ）"}</button></div>}
           </TableHeading>
           {colorBy==="compartments"?partition?.(field)
           :<>

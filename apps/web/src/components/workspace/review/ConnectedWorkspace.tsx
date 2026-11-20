@@ -139,7 +139,8 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   const result=historicResult||candidate||(field?r.currentResult(field.id,target):undefined);
   const rows=result?.rows.filter(value=>value.channel_id===actualChannel)||[];
   // Nuclei of the shown field (the demo answers its tables from the recording).
-  const nuclearResult=target==="nuclei"&&!historicResult&&!candidate&&field?r.currentResult(field.id,"nuclei"):undefined;
+  // The nucleus table also beside the nucleoli and the nucleoplasm: each nucleus's nucleolar summary is read there (A-1).
+  const nuclearResult=target!=="cell"&&!historicResult&&!candidate&&field?r.currentResult(field.id,"nuclei"):undefined;
   const nucleusTableSource:NucleusTableSource|undefined=field&&nuclearResult?{shown:nucleusView,onShow:setNucleusView,load:r.adapter.nucleusTable,save:r.adapter.saveNucleusTable,field:field.id,caption:field.label,exclusion:field.exclusionReason,
     nuclearRevision:nuclearResult.revision,nucleolarRevision:r.currentResult(field.id,"nucleoli")?.revision,channels:field.channels}:undefined;
   const planes=fields.flatMap(value=>value.channels.map(ch=>({field:value,channel:ch,key:`${value.id}:${ch.id}`})));
@@ -386,7 +387,7 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
     return tableHeading({colorBy:"outline",target,stain:stainName(actualChannel),corrected:shownRows.some(row=>row.mean_corrected!=null),nucleusTable});
   }
   // The one next step beside the table (MV-09), for a two-group design.
-  const nextStep=experiment?.layout==="pair"&&!historicResult&&!candidate?nextComparison({colorBy:colorShown,metric,target,channel:actualChannel,stain:stainName(actualChannel)}):null;
+  const nextStep=experiment?.layout==="pair"&&!historicResult&&!candidate?nextComparison({colorBy:colorShown,metric,target,channel:actualChannel,stain:stainName(actualChannel),nucleusTable:!!nucleusTableSource?.shown}):null;
   /** The partition table of one field (MV-05): nucleoli and nucleoplasm of its adopted nuclei, in the stain chosen above the image. */
   function partitionFor(value:ReviewField){
     const nuclear=r.currentResult(value.id,"nuclei"),ch=value.channels.find(item=>item.id===actualChannel);
@@ -490,11 +491,11 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
           </div>
           {assignments&&<AssignmentEditor key={field.id} field={field} runtime={r} onDone={()=>{setAssignments(false);queuePreview("nuclei");}} onError={setLocalError}/>}
           {picker&&<div className={styles.comparisonPicker}>{planes.map(value=><label key={value.key}><input type="checkbox" checked={picked.includes(value.key)} onChange={e=>setPicked(previous=>e.target.checked?[...previous,value.key]:previous.filter(key=>key!==value.key))}/>{value.field.label} · {value.channel.stain||value.channel.id}</label>)}<button className={styles.icon} aria-label="比較対象を閉じる" onClick={()=>setPicker(false)}><Icon name="close"/></button></div>}
-          {pairActive?<PairStage design={experiment!} fields={fields} runtime={r} target={target} channel={actualChannel} selectedField={field.id} region={region} historical={historical} onSelect={(id,ch,n)=>{setSelected(id);setChannel(ch);setRegion(n);}} onEditing={setEditing} runId={pairRunId} linked={pairLinked} tables={pairTables} onDisplay={setPairDisplay}
+          {pairActive?<PairStage nucleusView={nucleusView} onNucleusView={setNucleusView} design={experiment!} fields={fields} runtime={r} target={target} channel={actualChannel} selectedField={field.id} region={region} historical={historical} onSelect={(id,ch,n)=>{setSelected(id);setChannel(ch);setRegion(n);}} onEditing={setEditing} runId={pairRunId} linked={pairLinked} tables={pairTables} onDisplay={setPairDisplay}
             colorBy={colorShown} states={regionStates} legend={legendFor} fills={fillsFor} gateTable={gateTableFor} heading={headingFor} next={nextAction} partition={partitionFor}/>:<ImageStage planes={visible} target={target} fieldId={field.id} region={region} rows={rows} onRegion={setRegion} onSelect={(id,ch,n)=>{setSelected(id);setChannel(ch);setRegion(n);}} onOpen={openField} runtime={r} editing={editing} onEditing={setEditing} colorBy={colorShown} states={regionStates} legend={legendFor} fills={fillsFor} gateTable={gateTableFor} heading={headingFor} next={nextAction} partition={colorShown==="compartments"?partitionFor(field):undefined} historical={historical} backgrounds={backgrounds} backgroundDraw={backgroundDraw?{field:backgroundDraw.field,requestId:backgroundDraw.id,onSave:saveBackground,onCancel:()=>setBackgroundDraw(null)}:undefined} viewport={viewport} onViewport={(fid,value)=>setViewport(previous=>({...previous,[fid]:value}))} composite={merged} demo={demo} rowsField={rowsField} nucleusTable={nucleusTableSource} sideTable={!table} onSideTable={setSideRoom}/>}
           {/* Side by side, each pane lists its own measurements; this row then only carries the selected field's actions. */}
           {(!pairActive||!!candidate||!!field.exclusionReason||!!field.error)&&<div className={styles.measureToggle}>{pairActive?<strong>{field.label}</strong>:<button aria-expanded={table} aria-label={sideRoom?`測定値${rows.length?` · ${rows.length}`:""}（${table?"画像の横に戻す":"画像の下に広げる"}）`:undefined} title={sideRoom?(table?"測定値を画像の横に戻します":"測定値を画像の下に広げます"):undefined} onClick={()=>setTable(!table)}>測定値{rows.length?` · ${rows.length}`:""}</button>}<span>{targets[target]}{historicResult?" · 図の保存時の版":candidate?" · 検出候補":result?"":" · 未測定"}</span>{candidate&&<button disabled={busy} onClick={()=>void act(()=>r.acceptCandidates(field.id,target))}>候補を採用</button>}{field.exclusionReason?<button onClick={()=>void act(()=>r.excludeField(field.id,null))}>解析対象に戻す</button>:field.error?<button onClick={()=>void act(()=>r.excludeField(field.id,"利用者が解析対象から除外"))}>この視野を除外</button>:null}</div>}
-          {table&&!pairActive&&<div className={styles.tableDrawer}><MeasurementsPanel heading={headingFor(!!nucleusTableSource?.shown,rows)} rowsField={rowsField} mode={colorShown} gate={field?gateTableFor(field.id):undefined} next={nextAction} partition={colorShown==="compartments"?partitionFor(field):undefined} rows={rows} region={region} onRegion={setRegion} editing={editing} nucleusTable={nucleusTableSource}/></div>}
+          {table&&!pairActive&&<div className={styles.tableDrawer}><MeasurementsPanel target={target} heading={headingFor(!!nucleusTableSource?.shown,rows)} rowsField={rowsField} mode={colorShown} gate={field?gateTableFor(field.id):undefined} next={nextAction} partition={colorShown==="compartments"?partitionFor(field):undefined} rows={rows} region={region} onRegion={setRegion} editing={editing} nucleusTable={nucleusTableSource}/></div>}
 
         </>}
       </section>
@@ -641,20 +642,20 @@ function ImageStage({planes,target,fieldId,region,rows,rowsField,onRegion,onSele
           initialZoom={demo&&single?1.8:undefined} initialFocus={demo&&single?nucleus?centre(nucleus.points):densestPoint(r.currentResult(plane.field.id,"nuclei")?.masks.regions||[],plane.field.width/4):undefined}/>:<p>画像を読み込み中…</p>}
       </div>;
     })}
-    {showTable&&<div className={styles.sideMeasurements}><MeasurementsPanel heading={heading(!!nucleusTable?.shown,rows)} rowsField={rowsField} mode={colorBy} gate={gateTable(fieldId)} next={next} partition={partition} rows={rows} region={region} onRegion={onRegion} editing={editing} nucleusTable={nucleusTable}/></div>}
+    {showTable&&<div className={styles.sideMeasurements}><MeasurementsPanel target={target} heading={heading(!!nucleusTable?.shown,rows)} rowsField={rowsField} mode={colorBy} gate={gateTable(fieldId)} next={next} partition={partition} rows={rows} region={region} onRegion={onRegion} editing={editing} nucleusTable={nucleusTable}/></div>}
   </div>;
 }
 
 /** The table of what the image shows (MV-06, MV-07): its heading names per what, which stain and which values; the
  * colour mode decides the rows. Values come from the API. Shown once, beside the image or below it, with the next step. */
-function MeasurementsPanel({heading,mode,gate,next,rows,rowsField,region,onRegion,editing,nucleusTable,partition}:{heading:string;mode:ColorBy;gate?:NucleusTableGate;next?:NextAction|null;
+function MeasurementsPanel({heading,mode,gate,next,rows,rowsField,region,onRegion,editing,nucleusTable,partition,target="nuclei"}:{heading:string;mode:ColorBy;gate?:NucleusTableGate;next?:NextAction|null;target?:ReviewTarget;
   rows:MeasurementRow[];rowsField:string;region?:number;onRegion:(n:number)=>void;editing:boolean;nucleusTable?:NucleusTableSource;partition?:ReactNode}){
   // In a comparison of images the table may list another field than the one in view: its heading names it.
   const field=rowsField?`${rowsField} · `:"";
   const nucleusRows=mode==="positivity"||!!nucleusTable?.shown;
   return <>
     <TableHeading heading={`${field}${heading}`} next={nucleusRows&&nucleusTable&&mode!=="compartments"?null:next}>
-      {mode==="outline"&&nucleusTable&&<div className={styles.tableViews} role="group" aria-label="表の切り替え"><button aria-pressed={!nucleusTable.shown} onClick={()=>nucleusTable.onShow(false)}>このチャンネル</button><button aria-pressed={nucleusTable.shown} onClick={()=>nucleusTable.onShow(true)}>核ごとの表</button></div>}
+      {mode==="outline"&&nucleusTable&&<div className={styles.tableViews} role="group" aria-label="表の切り替え"><button aria-pressed={!nucleusTable.shown} onClick={()=>nucleusTable.onShow(false)}>{target==="nuclei"?"このチャンネル":`${targets[target]}ごと`}</button><button aria-pressed={nucleusTable.shown} onClick={()=>nucleusTable.onShow(true)}>{target==="nuclei"?"核ごとの表":"核ごと（核小体のまとめ）"}</button></div>}
     </TableHeading>
     {mode==="compartments"?partition
     :<>

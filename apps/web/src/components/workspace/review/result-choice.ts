@@ -1,4 +1,4 @@
-import {metricLabel,metricUsesChannel} from "../../../lib/workspace/metric-catalog";
+import {measureLabel,metricLabel,metricUsesChannel} from "../../../lib/workspace/metric-catalog";
 import type {ResultOperation} from "./connected-results-model";
 
 /** What a result answers, in the terms the side panel chooses (requirements SR-01, SR-02): the analysis,
@@ -104,19 +104,7 @@ export function savedFor<T extends {operation: ResultOperation; result: SavedRes
   return {current: same.find(entry => sameSources(entry.result.source_fields, sources)), older: same[0]};
 }
 
-const REGION_NAMES: Record<string, string> = {nuclei: "核", nucleoli: "核小体", nucleoplasm: "核質", cell: "細胞ROI"};
-/** Metrics that describe each region of the chosen set; the others name their own subject (核小体の離心率, 陽性率). */
-const PER_REGION = new Set(["area_px", "area_um2", "mean", "median", "integrated", "mean_corrected", "median_corrected", "integrated_corrected"]);
-
-/** One name for a measure everywhere it is shown (requirements SL-02): 「核小体の平均輝度（5-EU）」.
- * The region names a per-region metric; the stain is the recorded stain name, never a channel identifier
- * unless nothing else was recorded. */
-export function measureLabel(metric: string, regionSet: string | null | undefined, stain: string | null | undefined): string {
-  const label = metricLabel(metric);
-  const region = PER_REGION.has(metric) && regionSet ? REGION_NAMES[regionSet] : undefined;
-  const named = stain && (positive(metric) || metricUsesChannel(metric)) ? `（${stain}）` : "";
-  return `${region ? `${region}の` : ""}${label}${named}`;
-}
+export {measureLabel};
 const stainOf = (channel: SavedChannelLike | null | undefined) => channel ? channel.stain || channel.label || channel.channel_id : null;
 
 /** The measure a saved result shows (its vertical axis for an association), named by its recorded stain. */

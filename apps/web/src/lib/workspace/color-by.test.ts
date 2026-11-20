@@ -74,12 +74,30 @@ describe("table heading (MV-06)", () => {
 describe("next step (MV-09)", () => {
   const view = {metric: "mean", target: "nucleoli" as const, channel: "eu5", stain: "5-EU"};
   it("compares groups by what the colour mode shows", () => {
-    expect(nextComparison({...view, colorBy: "outline"})).toMatchObject({label: "平均輝度（5-EU）を群間で比較", metric: "mean", target: "nucleoli", channel: "eu5", reclassify: false});
-    expect(nextComparison({...view, metric: "area_px", colorBy: "outline"})).toMatchObject({label: "面積（px²）を群間で比較", channel: null});
+    expect(nextComparison({...view, colorBy: "outline"})).toMatchObject({label: "核小体の平均輝度（5-EU）を群間で比較", metric: "mean", target: "nucleoli", channel: "eu5", reclassify: false});
+    expect(nextComparison({...view, metric: "area_px", colorBy: "outline"})).toMatchObject({label: "核小体の面積（px²）を群間で比較", channel: null});
     // Positivity says that the compared fields are judged again by the same rule (M22).
     const positivity = nextComparison({...view, colorBy: "positivity"});
     expect(positivity).toMatchObject({label: "陽性率を群間で比較", metric: "positive_fraction", target: "nuclei", channel: null, reclassify: true});
     expect(positivity.note).toContain("再判定してから");
     expect(nextComparison({...view, colorBy: "compartments"})).toMatchObject({metric: "log2_nucleoplasm_over_nucleolus", target: "nucleoplasm", channel: "eu5"});
+  });
+});
+
+describe("the next step follows the table beside the image (A-2, TB-02)", () => {
+  const view = {colorBy: "outline" as const, target: "nucleoli" as const, channel: "npm1", stain: "NPM1"};
+  it("compares the brightness the stain's table lists, not a metric the table does not show", () => {
+    // The statistics view opened on the eccentricity; the table lists each nucleolus's NPM1 brightness.
+    expect(nextComparison({...view, metric: "nucleolar_eccentricity"})).toMatchObject({label: "核小体の平均輝度（NPM1）を群間で比較", metric: "mean", target: "nucleoli", channel: "npm1"});
+    expect(nextComparison({...view, metric: "integrated_corrected"})).toMatchObject({label: "核小体の積算輝度（背景補正）（NPM1）を群間で比較", metric: "integrated_corrected"});
+  });
+  it("compares a nucleolar summary the nucleus table lists, on the nucleoplasm set it is read from", () => {
+    expect(nextComparison({...view, metric: "nucleolar_eccentricity", nucleusTable: true})).toMatchObject({label: "核小体の離心率を群間で比較", metric: "nucleolar_eccentricity", target: "nucleoplasm", channel: null});
+    expect(nextComparison({...view, metric: "nucleus_count", nucleusTable: true})).toMatchObject({metric: "nucleolar_area_px", target: "nucleoplasm"});
+    expect(nextComparison({...view, target: "nuclei", metric: "mean", nucleusTable: true})).toMatchObject({label: "核の平均輝度（NPM1）を群間で比較", target: "nuclei"});
+  });
+  it("names the nucleolar summaries in the nucleus table's heading beside the nucleoli (A-1)", () => {
+    expect(tableHeading({colorBy: "outline", target: "nucleoli", stain: "NPM1", corrected: false, nucleusTable: true})).toBe("核ごと · 核小体のまとめとすべての染色");
+    expect(tableHeading({colorBy: "outline", target: "nuclei", stain: "NPM1", corrected: false, nucleusTable: true})).toBe("核ごと · すべての染色");
   });
 });
