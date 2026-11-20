@@ -1,3 +1,4 @@
+import {aiReadFixture} from "./ai-read-fixture";
 import {nucleusTableFixture} from "./nucleus-table-fixture";
 import {expect,test,type BrowserContext,type Page} from "@playwright/test";
 import type {WorkspaceSelection} from "../src/lib/workspace/api-adapter";
@@ -15,6 +16,8 @@ async function savedWorkspace(context:BrowserContext,page:Page,failed=false){
   const revision=(id:string,fid:string,state="succeeded")=>({id,state,created:1,config:{recipe,field_ids:[fid],measurement:{version:"1.1.0",mode:"raw_intensity"},backgrounds:{}}});
   const revisions=()=>[...fieldIds.map((id,index)=>revision(index<2?`r${index+1}`:`bad${index}`,id,index<2?"succeeded":"failed")),...(edited?[revision("edited","f1")]:[])];
   await context.route("**/v1/**",async route=>{
+    if(await aiReadFixture(route))return;
+
     const req=route.request(),path=new URL(req.url()).pathname,method=req.method();
     const headers={"Access-Control-Allow-Origin":new URL(page.url()).origin,"Access-Control-Allow-Credentials":"true","Access-Control-Allow-Headers":"content-type,x-cytellect-request","Access-Control-Allow-Methods":"GET,POST,PUT,DELETE,OPTIONS"};
     const json=(body:unknown,status=200)=>route.fulfill({status,headers,contentType:"application/json",body:JSON.stringify(body)});

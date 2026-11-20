@@ -4,6 +4,8 @@
  * Stored per browser profile; a blocked storage falls back to the defaults (previews on, scope not yet seen,
  * no goal). */
 const PREVIEWS_SETTING = "cytellect.ai.include-previews";
+export const AI_SCOPE = "AI への相談では、書いた目的、チャンネル名、視野の名前と記録、代表的な視野の縮小画像（設定で止められます）を送ります。";
+export const DISCUSSION_SCOPE = "送信内容：保存済みの結果（上のまとめの見出しと要点、指標とその定義、領域・チャネル・群・実験回の名前、群の値、差と信頼区間、実験回ごとの値、n とその内訳、集計と検定の方法、警告）と実験の目的。";
 // v3: the scope grew (the summary, n breakdown and method, 2026-11-17); it is shown in full once again.
 const DISCUSSION_SCOPE_SETTING = "cytellect.ai.discussion-scope-seen.v3";
 const GOAL_SETTING = "cytellect.ai.goal.";
@@ -15,6 +17,12 @@ const PROPOSAL_SCOPE_SETTING = "cytellect.ai.proposal-scope-seen.v2";
 // previews is never lost to a failed write; a choice that was stored is read back from storage, so a change made in
 // another tab of the same browser takes effect here too.
 const unsaved = new Map<string, string>();
+const SETTINGS_EVENT = "cytellect-ai-settings";
+export function subscribeAiSettings(listener:()=>void):()=>void {
+  if(typeof window==="undefined")return ()=>{};
+  window.addEventListener("storage",listener);window.addEventListener(SETTINGS_EVENT,listener);
+  return ()=>{window.removeEventListener("storage",listener);window.removeEventListener(SETTINGS_EVENT,listener);};
+}
 
 function read(key: string): string | null {
   if (unsaved.has(key)) return unsaved.get(key)!;
@@ -27,6 +35,7 @@ function write(key: string, value: string) {
     storage.setItem(key, value);
     unsaved.delete(key);
   } catch {unsaved.set(key, value);}
+  if(typeof window!=="undefined")window.dispatchEvent(new Event(SETTINGS_EVENT));
 }
 
 export function includePreviews(): boolean {return read(PREVIEWS_SETTING) !== "0";}

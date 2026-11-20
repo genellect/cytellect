@@ -16,7 +16,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
-from typing import Annotated
+from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
 import numpy as np
@@ -230,6 +230,16 @@ class ProposalChannelLink(BaseModel):
 class ProposalDraftResponse(BaseModel):
     proposal: ValidatedProposal
     channels: list[ProposalChannelLink]
+
+
+class AiStatus(BaseModel):
+    """Local configuration only: no provider call, credential, service URL or research data."""
+    state: Literal["available", "sign_in_required", "unconfigured", "misconfigured"]
+    source: Literal["operator", "account", "none"]
+
+
+class AiCompatibility(BaseModel):
+    state: Literal["compatible", "unconfigured", "misconfigured", "unavailable", "unauthorized", "incompatible"]
 
 
 LEGACY_STAINS = {"ncl": ("NCL", "measure"), "gfp": ("GFP", "measure"), "dapi": (None, "nuclear")}
@@ -517,6 +527,49 @@ def _continuation_context(context: ProposalContext, links: list[ProposalChannelL
 
 def register_proposal_routes(api, store, settings, owner, workspace, credentials=None):
     Owner = Annotated[str, Depends(owner)]
+
+    @api.get("/v1/ai/status", response_model=AiStatus)
+    def ai_status(who: Owner):
+        explicit = bool(settings.proposal_url or settings.proposal_token)
+        source: Literal["operator", "account", "none"] = "operator" if explicit else "account" if credentials is not None else "none"
+        try:
+            configured = service_url(effective_settings(settings, credentials))
+        except (ValueError, OSError):
+            return AiStatus(state="misconfigured", source=source)
+        if configured:
+            return AiStatus(state="available", source=source)
+        if explicit:
+            return AiStatus(state="misconfigured", source=source)
+        return AiStatus(state="sign_in_required" if credentials is not None else "unconfigured", source=source)
+
+    @api.post("/v1/ai/check", response_model=AiCompatibility)
+    def ai_check(who: Owner):
+        """An explicit, protocol-only check. Never accept a URL/token or send an idempotency key."""
+        from .proposal_preflight import check_versions, probe_status
+
+        service = effective_settings(settings, credentials)
+        try:
+            if service_url(service) is None:
+                return AiCompatibility(state="unconfigured")
+        except ValueError:
+            return AiCompatibility(state="misconfigured")
+        responses = []
+        def probe(request, timeout):
+            response = probe_status(request, timeout=min(timeout, 15))
+            responses.append(response)
+            return response
+        checks = check_versions(service.proposal_url or "", service.proposal_token or "", probe,
+            proposal_prompt=service.proposal_prompt_version, discussion_prompt=service.discussion_prompt_version,
+            allow_loopback=True)
+        if all(check[2] for check in checks):
+            return AiCompatibility(state="compatible")
+        if not responses:
+            return AiCompatibility(state="misconfigured")
+        if any(status in (401, 403) for status, _ in responses):
+            return AiCompatibility(state="unauthorized")
+        if any(status == 400 and code in ("request_invalid", "prompt_version_unsupported") for status, code in responses):
+            return AiCompatibility(state="incompatible")
+        return AiCompatibility(state="unavailable")
 
     @api.post("/v1/workspaces/{wid}/proposal-drafts", response_model=ProposalDraftResponse)
     def draft_proposal(wid: str, body: ProposalDraftRequest, who: Owner):

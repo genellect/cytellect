@@ -18,6 +18,8 @@ The optional proposal service is off by default ([design](workspace-redesign.md#
 
 When the user confirms transmission for a discussion draft, the API sends the saved comparison as the researcher sees it (the result summary's heading and points as shown, the metric's name and definition, the region, group, run and channel names, the aggregate values, the n breakdown, and the recorded aggregation and test settings with the researcher's unit definition and pairing basis) and the experiment purpose, which starts from the goal last written to the AI in the workspace, through the same service. The request leaves out images, masks, per-object measurement tables, filenames and paths. The provider receives the request as above. The app checks only the draft's structure and saves it, as written, with the comparison in the workspace. See [discussion requirements AC-02–AC-06](drafts/results-and-demo-story/requirements.md).
 
+The authenticated AI availability read exposes only state and configuration source, with no URL or credential and no external request. Discussion-history reads enforce ownership of the current job and select earlier discussions only within that workspace; an older discussion remains labelled as belonging to the previous result. The shared AI settings panel repeats both transmission scopes in all installation modes. Its preview preference is stored in the browser, not sent as telemetry.
+
 ## Remote Cellpose inference
 
 An operator may point an installation at a remote GPU inference service

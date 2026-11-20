@@ -11,6 +11,12 @@ const markup = (value: DiscussionView) => renderToStaticMarkup(createElement(Sav
 const text = (value: DiscussionView) => markup(value).replace(/<[^>]+>/g, " ");
 
 describe("saved discussion (AC-01, AC-06, AC-08)", () => {
+  it("labels a previous result without presenting it as the current discussion",()=>{
+    const page=renderToStaticMarkup(createElement(SavedDiscussion,{view:view("model"),previous:true}));
+    expect(page).toContain('aria-label="前の結果の考察"');
+    expect(page).toContain("AI 生成（参考）");
+    expect(page).not.toContain('aria-label="考察"');
+  });
   it("names its source, model and day as a reference, not a computed value", () => {
     const page = text(view("model"));
     expect(page).toContain("AI 生成（参考）· gpt-6.1-sol · 2026-11-12");
