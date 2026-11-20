@@ -1006,6 +1006,7 @@ for (const scene of SCENES.length ? SCENES : [undefined]) test(`each preset AI i
       for(const term of Object.values(expected) as string[])await expect(legend.getByRole("textbox",{name:"Figure legend",exact:true})).toHaveValue(new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")));
       await expect(legend.getByRole("textbox",{name:"Figure legend",exact:true})).not.toHaveValue(/\[Cell line\]|\[treatment and duration\]|\[antibody or dye for each stain\]/);
       await header.getByRole("button",{name:"画像",exact:true}).click();
+      await composer.click();
     }
   }
   // Free text this dataset cannot answer is told what it can, without a notice or an error.
