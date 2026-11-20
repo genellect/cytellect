@@ -2226,7 +2226,7 @@ def write_manifest(args, manifests: list, state: dict) -> None:
         commit = json.loads(previous.read_text()).get("runtime_generated_from_commit")
         if commit:
             record["runtime_generated_from_commit"] = commit
-    (out / "manifest.json").write_text(json.dumps(record, indent=1, ensure_ascii=False) + "\n")
+    (out / "manifest.json").write_text(json.dumps(record, indent=1, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
     if out.resolve() == PUBLIC.resolve():
         register_public_files(out, [manifest for _, manifest in manifests])
 
@@ -2249,7 +2249,7 @@ def register_public_files(out: Path, manifests: list[dict]) -> None:
             allowed[prefix + path.relative_to(out).as_posix()] = {
                 "sha256": sha256_file(path), "source": " ; ".join(sources), "license": " ; ".join(licences),
                 "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"}
-    registry.write_text(json.dumps(allowed, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    registry.write_text(json.dumps(allowed, indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
 
 
 if __name__ == "__main__":
