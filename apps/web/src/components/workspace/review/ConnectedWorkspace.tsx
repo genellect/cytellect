@@ -320,8 +320,11 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
   const [demoReply,setDemoReply]=useState("");
   // A proposal sends the scope in AI_SCOPE; it is confirmed once before the first request after it widened (L03).
   const [scopePending,setScopePending]=useState<string|null>(null);
-  async function sendInstruction(value:string,confirmed=false){
-    dispatchPanel("open-ai");setDemoReply("");
+  // An earlier request of the same instruction failed or timed out and may have been charged: the service sends it
+  // again only when the researcher says so (the same rule as the discussion's 「再生成」).
+  const [retryPending,setRetryPending]=useState<string|null>(null);
+  async function sendInstruction(value:string,confirmed=false,retry=false){
+    dispatchPanel("open-ai");setDemoReply("");setRetryPending(null);
     if(!demo&&!confirmed&&!proposalScopeSeen()){setScopePending(value);return;}
     setScopePending(null);
     if(demo&&!showcase.examples.some(example=>example.instruction===value.trim())){
@@ -329,7 +332,9 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
       if(!example){setDemoReply(`${showcase.scene?.assistantScope??"このデモは、記録済みの公開画像の解析にのみ応答します。"}指示の例は下にあります。`);return;}
       await act(()=>r.requestProposal(example.instruction,field?.id));return;
     }
-    await act(()=>r.requestProposal(value,field?.id));
+    await act(()=>r.requestProposal(value,field?.id,retry).catch(error=>{
+      if(error instanceof ApiError&&error.code==="proposal_explicit_retry_required"){r.dismissError();setRetryPending(value);return;}
+      throw error;}));
   }
   // The 画像 and フォルダ buttons and a drop of files or folders add images the same way. A chosen list is read at once
   // (the input is cleared right after); a drop's files arrive once its folders are read.
@@ -497,6 +502,9 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
           <div><button disabled={busy} onClick={()=>{markProposalScopeSeen();void sendInstruction(scopePending,true);}}>確認して送信</button>
             <button disabled={busy} onClick={()=>{setIncludePreviews(false);markProposalScopeSeen();void sendInstruction(scopePending,true);}}>縮小画像なしで送信</button>
             <button disabled={busy} onClick={()=>setScopePending(null)}>キャンセル</button></div></section>}
+        {retryPending!==null&&<section role="group" aria-label="AIへの再送の確認"><p>前回の依頼が未完了です。再送には課金される場合があります。</p>
+          <div><button disabled={busy} onClick={()=>void sendInstruction(retryPending,true,true)}>再送</button>
+            <button disabled={busy} onClick={()=>setRetryPending(null)}>キャンセル</button></div></section>}
         {demoReply?<p>{demoReply}</p>:r.proposal?<>
           <p>{r.proposal.draft.rationale}</p>
           <dl>{r.proposal.draft.channels.map(ch=><div key={ch.token}><dt>{ch.token}</dt><dd>{ch.stain||ch.role}</dd></div>)}</dl>
