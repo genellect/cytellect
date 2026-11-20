@@ -64,7 +64,11 @@ def test_publication_figure_from_a_saved_demo_comparison(tmp_path):
     assert svg.count("data-cytellect-source") == len(observations) + len(result["unit_summary"])
     legend = (tmp_path / "figure-legend.md").read_text(encoding="utf-8")
     assert "[Cell line]" in legend and "n = 3 runs per condition" in legend
-    assert "no hypothesis test" in legend
+    assert "No hypothesis test or confidence interval was calculated" in legend
+    # The title states the result as the summary on the screen does (FL-03); the body reads as a paper's legend.
+    assert legend.startswith("**Nuclear NPM1 mean intensity did not change consistently with Oxaliplatin 10 µM.**")
+    assert "→" not in legend and "Excluded runs: 0" not in legend
+    assert "the mean of its fields, each field summarised by the median of its nuclei" in legend
     source = json.loads((tmp_path / "figure-data.json").read_text(encoding="utf-8"))
     assert source["presentation"]["observations"] == "points"
     assert [form["id"] for form in manifest["forms"]][:3] == ["points", "density", "box"]
