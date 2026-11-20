@@ -79,6 +79,7 @@ jobs:
             core.setOutput('commit', commit);
   proposal-compatibility:
     needs: source
+    environment: proposal-preflight
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -92,7 +93,7 @@ jobs:
         env:
           CYTELLECT_PROPOSAL_URL: ${{ vars.PROPOSAL_PREFLIGHT_URL }}
           CYTELLECT_PROPOSAL_TOKEN: ${{ secrets.PROPOSAL_PREFLIGHT_TOKEN }}
-        run: uv run python scripts/dev.py doctor --proposal-version
+        run: uv run python scripts/dev.py doctor --proposal-version --packaged-client
   package:
     needs: [source, proposal-compatibility]
     if: github.ref == 'refs/heads/main'

@@ -51,3 +51,42 @@ def test_doctor_compatibility_mode_does_not_probe_gpu_or_require_tools(monkeypat
     with pytest.raises(SystemExit, match="do not distribute"):
         dev.doctor(argparse.Namespace(proposal_version=True))
     assert "[NG]" in capsys.readouterr().out
+
+
+def test_a_different_service_cannot_certify_the_packaged_client():
+    def refuse(*args, **kwargs):
+        raise AssertionError("wrong service must not receive the token")
+    assert not check_versions("https://other.example", "test-token", refuse,
+                              expected_service="https://api.cytellect.app")[0][2]
+
+
+def test_effective_operator_prompt_overrides_are_checked():
+    sent = []
+    def probe(request, timeout):
+        sent.append(json.loads(request.data)["prompt_version"])
+        return 400, "request_id_required"
+    result = check_versions("https://service.example", "test-token", probe,
+                            proposal_prompt="configured-proposal", discussion_prompt="configured-discussion")
+    assert all(row[2] for row in result)
+    assert sent == ["configured-proposal", "configured-discussion"]
+
+
+def test_both_distribution_paths_require_the_protected_gate():
+    import re
+    def jobs(file):
+        text = (ROOT / ".github/workflows" / file).read_text(encoding="utf-8")
+        chunks = re.split(r"(?m)^  ([\w-]+):\s*$", text[text.index("jobs:\n") + 6:])
+        return dict(zip(chunks[1::2], chunks[2::2], strict=True))
+    def ancestors(mapping, job):
+        found = re.search(r"(?m)^    needs: (.+)$", mapping[job])
+        parents = [part.strip() for part in found[1].strip("[]").split(",")] if found else []
+        return set(parents) | {ancestor for parent in parents for ancestor in ancestors(mapping, parent)}
+    for file, targets in [("local-release.yml", ["package"]), ("windows-store-release.yml", ["package", "submit"])]:
+        mapping = jobs(file)
+        for target in targets:
+            assert "proposal-compatibility" in ancestors(mapping, target)
+        gate = mapping["proposal-compatibility"]
+        assert "environment: proposal-preflight" in gate
+        assert "doctor --proposal-version --packaged-client" in gate
+        assert [name for name, body in mapping.items() if "PROPOSAL_PREFLIGHT_TOKEN" in body] == ["proposal-compatibility"]
+    assert "needs.proposal-compatibility.result == 'success'" in jobs("windows-store-release.yml")["submit"]

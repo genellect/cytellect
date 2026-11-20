@@ -53,7 +53,7 @@ PR では、`scripts/ci_changes.py` が、`main` との差分のファイルか�
 
 ## 配布の条件
 
-Windows の配布 workflow は、解決した同じソース SHA の解析提案・考察のプロンプト版を `proposal-compatibility` で確かめてからパッケージを作る。`PROPOSAL_PREFLIGHT_URL`（repository variable）と `PROPOSAL_PREFLIGHT_TOKEN`（secret）が未設定、またはサービスが版を受け付けない場合は止まる。モデル・GPUを呼ばず、利用回数にも数えない。[課金のない検査の手順](proposal-deployment.md#required-prompt-version-check-before-distribution)と、Docker／手動配布でも同じ確認を行う。
+Windows のインストーラーと Store の両配布経路は、同じソース SHA の解析提案・考察の版を `proposal-compatibility` で確かめてからパッケージを作る。Store の定期提出も検査の成功を要する。検査先は Windows に組み込む接続先と一致しなければならない。`proposal-preflight` environment にオーナーの承認を必須とし、接続先 `PROPOSAL_PREFLIGHT_URL` と資格情報 `PROPOSAL_PREFLIGHT_TOKEN` はその environment に置く。repository secret は使わない。未設定・不一致は配布を止める。モデル・GPUを呼ばず、利用回数にも数えない。[課金のない検査の手順](proposal-deployment.md#required-prompt-version-check-before-distribution)と、Docker／手動配布でも同じ確認を行う。
 
 Windows 版は、配布する `main` のコミットで次の 9 つのジョブがすべて成功している場合にだけ配布する（`.github/workflows/local-release.yml` が確かめる）。配布するコミットは、実行した時点の `main` の先頭か、入力 `commit` で指定したその祖先で、成功の確認・ビルド・署名・タグはすべてそのコミットに対して行う（[配布する](release-signing.md#4-配布する)）。ブランチ保護の必須チェックは、`windows-installer` と `browser-e2e` を除く 7 つのまま。`browser-e2e` は PR でも実行するが、必須チェックへの追加はオーナーが設定で行う（未設定）。それまでは、マージの前に `browser-e2e` の成功も確かめる。
 
