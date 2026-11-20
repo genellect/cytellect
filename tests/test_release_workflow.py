@@ -183,9 +183,10 @@ def test_ai_compatibility_gates_the_exact_source_without_exposing_tokens_to_pack
     assert "needs: source" in gate
     assert 'ref: "${{ needs.source.outputs.commit }}"' in gate
     assert "scripts/dev.py doctor --proposal-version" in gate
-    assert "secrets.PROPOSAL_PREFLIGHT_TOKEN" in gate and "vars.PROPOSAL_PREFLIGHT_URL" in gate
+    assert "secrets.PROPOSAL_PREFLIGHT_DEVICE_TOKEN" in gate and "vars.PROPOSAL_PREFLIGHT_URL" in gate
+    assert "secrets.PROPOSAL_PREFLIGHT_TOKEN" not in RELEASE
     assert "continue-on-error" not in gate and "doctor --live" not in gate
-    assert "PROPOSAL_PREFLIGHT_TOKEN" not in job(RELEASE, "package") + job(RELEASE, "draft")
+    assert "PROPOSAL_PREFLIGHT_DEVICE_TOKEN" not in job(RELEASE, "package") + job(RELEASE, "draft")
 
 
 def test_main_ci_is_never_cancelled_by_a_later_merge():
