@@ -30,7 +30,7 @@ def check(root: Path) -> list[str]:
     problems = []
     for path in [*sorted(root.glob("*.md")), *sorted(root.glob("docs/*.md")), *skill_files]:
         text = path.read_text(encoding="utf-8")
-        name = path.relative_to(root)
+        name = path.relative_to(root).as_posix()  # the same text on Windows
         for value in re.findall(r"\]\(([^)]+)\)", text):
             value = value.split("#")[0]
             if not value or "://" in value or value.startswith("mailto:"):
