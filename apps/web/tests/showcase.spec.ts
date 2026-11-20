@@ -552,7 +552,8 @@ test("measuring nucleoli or nucleoplasm, then statistics of the nuclei, shows re
     await idle(page);
     await header.getByRole("button", {name: "統計", exact: true}).click();
     const results = page.getByRole("region", {name: "測定結果の統計解析"});
-    await expect(shownTable(results)).toBeVisible({timeout: live});
+    // The measured condition's result place: its saved result, or its name with 計算 (S-09).
+    await expect(results.getByRole("region", {name: "選択中の条件"}).or(shownTable(results)).first()).toBeVisible({timeout: live});
     await calculate(page);
     await results.getByRole("combobox", {name: "解析", exact: true}).selectOption("comparison");
     await calculate(page);
@@ -907,7 +908,8 @@ test("an AI example on another field, then measuring and statistics of each regi
   const results = page.getByRole("region", {name: "測定結果の統計解析"});
   const statistics = async (region: string, metric: string, channel: string | null, kind: string) => {
     await header.getByRole("button", {name: "統計", exact: true}).click();
-    await expect(shownTable(results)).toBeVisible({timeout: live});
+    // After a measurement the result place shows the measured condition: its saved result, or its name with 計算 (S-09).
+    await expect(results.getByRole("region", {name: "選択中の条件"}).or(shownTable(results)).first()).toBeVisible({timeout: live});
     await chooseMetric(page, region, metric, channel);
     await results.getByRole("combobox", {name: "解析", exact: true}).selectOption(kind);
     await calculate(page);
