@@ -12,6 +12,9 @@ The tolerance is fixed here before the data are read: the 90th percentile of |Δ
 0.05 and of |Δ axis ratio| / axis ratio ≤ 0.10, in an area bin and every larger bin. The minimum area is chosen on the
 PLK1 (JUMP) nuclei only and then checked, unchanged, on the DS6a nuclei, which play no part in choosing it.
 
+Eccentricity (|Δ| ≤ 0.05) was added after the first run, before its values were read. It is reported per bin
+but takes no part in choosing the minimum area.
+
     uv run python scripts/evaluate_shape_minimum_area.py [--seed apps/web/public/showcase/seed.zip]
 """
 from __future__ import annotations
@@ -28,6 +31,7 @@ from cytellect_analysis.region_shape import region_shapes
 from scipy.ndimage import label
 
 TOLERANCE = {"circularity": 0.05, "solidity": 0.05, "axis_ratio_relative": 0.10}
+REPORTED = {"eccentricity": 0.05}
 QUANTILE = 0.90
 REFERENCE_MINIMUM_AREA = 400
 FACTORS = (2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 20)
@@ -83,7 +87,8 @@ def errors(masks: list[np.ndarray]) -> list[dict]:
                 records.append({"area_px": row["area_px"], "factor": factor,
                                 "circularity": abs(row["circularity"] - full["circularity"]),
                                 "solidity": abs(row["solidity"] - full["solidity"]),
-                                "axis_ratio_relative": abs(row["axis_ratio"] - full["axis_ratio"]) / full["axis_ratio"]})
+                                "axis_ratio_relative": abs(row["axis_ratio"] - full["axis_ratio"]) / full["axis_ratio"],
+                                "eccentricity": abs(row["eccentricity"] - full["eccentricity"])})
     return records
 
 
@@ -92,9 +97,11 @@ def summary(records: list[dict]) -> list[dict]:
     for low, high in zip(BINS, (*BINS[1:], None), strict=True):
         inside = [record for record in records if record["area_px"] >= low and (high is None or record["area_px"] < high)]
         row = {"area_from_px": low, "area_below_px": high, "objects": len(inside)}
-        for key in TOLERANCE:
+        for key in (*TOLERANCE, *REPORTED):
             row[f"{key}_p90"] = float(np.quantile([record[key] for record in inside], QUANTILE)) if inside else None
         row["within_tolerance"] = bool(inside) and all(row[f"{key}_p90"] <= limit for key, limit in TOLERANCE.items())
+        for key, limit in {**TOLERANCE, **REPORTED}.items():
+            row[f"{key}_within"] = bool(inside) and row[f"{key}_p90"] <= limit
         rows.append(row)
     return rows
 
@@ -117,7 +124,7 @@ def main() -> None:
     chosen = minimum_area(tuning)
     evaluation = summary(errors(masks.get(EVALUATION, [])))
     held_out = [row for row in evaluation if row["objects"] and chosen is not None and row["area_from_px"] >= chosen]
-    print(json.dumps({"protocol": "region-shape/1.0.0", "tolerance": TOLERANCE, "quantile": QUANTILE,
+    print(json.dumps({"protocol": "region-shape/1.0.0", "tolerance": TOLERANCE, "reported": REPORTED, "quantile": QUANTILE,
                       "masks": {key: len(value) for key, value in masks.items()},
                       "tuning": {"dataset": TUNING, "bins": tuning, "minimum_area_px": chosen},
                       "evaluation": {"dataset": EVALUATION, "bins": evaluation,

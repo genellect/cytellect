@@ -1,5 +1,5 @@
 "use client";
-import {useEffect,useRef,useState} from "react";
+import {useEffect,useRef,useState,type ReactNode} from "react";
 import {LABEL_LIMIT,savePlan,addRun,assignFields,assignStratum,emptyDesign,expandToPair,fieldsIn,isStratified,issueText,labelProblem,readiness,removeRun,renameGroup,unassignField,updateRun,type ExperimentDesign} from "@/lib/workspace/experiment-design";
 import {StrataEditor} from "./StrataEditor";
 import styles from "./experiment-setup.module.css";
@@ -20,6 +20,8 @@ interface Props {
   onCsv?:()=>void;
   /** The one next step (ED-02): check the detections on the images, or compare in statistics once every field is measured. */
   next?:{label:string;onClick:()=>void}|null;
+  /** The primary-measure declaration (#257 RP-04), shown after the design. */
+  primary?:ReactNode;
 }
 
 const today=()=>new Date().toISOString().slice(0,10);
@@ -28,7 +30,7 @@ function uniqueRunLabel(date:string,taken:string[]){const used=new Set(taken.map
 
 /** Chooses one screen (describe one group) or two screens (compare two groups), then
  * groups, independent runs and samples before images are added (requirements E-01–E-08). */
-export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pending,onOpenField,onCsv,next}:Props){
+export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pending,onOpenField,onCsv,next,primary}:Props){
   const [draft,setDraft]=useState<ExperimentDesign|null>(design);
   const [labels,setLabels]=useState<Record<string,string>>({});
   const [runDate,setRunDate]=useState(today());
@@ -173,6 +175,7 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pendin
     {!readOnly&&<label className={styles.independence}><input type="checkbox" checked={draft.independence_confirmed??false} disabled={locked} onChange={event=>void save({...draft,independence_confirmed:event.target.checked})}/>
       <span><strong>各実験回は独立に行った</strong>（別々に播種・処理・染色）。日付やプレートの違いだけでは独立とは限りません。未確認の場合、群間比較は記述統計のみです。</span></label>}
     <StrataEditor design={draft} locked={locked} readOnly={readOnly} onSave={save}/>
+    {primary}
     {unassigned.length>0&&<section className={styles.unassigned} aria-label="群・実験回が未割り当ての視野">
       <h2>群・実験回が未割り当ての視野</h2>
       <ul>{unassigned.map(field=><li key={field.id}><button className={styles.link} onClick={()=>onOpenField(field.id)}>{field.label}</button>

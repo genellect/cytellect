@@ -51,7 +51,8 @@ export type RenderPlot = ReturnType<typeof defaultFigureEdits> & {
   presentation?:{version:"1.0.0";observations?:"points"|"violin"|"box"|"none"|null;color_by?:"run"|"group"|null;annotation:"value"|"stars"|"none";size:"panel"|"single-column"|"double-column"|"custom";composition:"quantification"|"images-quantification";image_fields?:Record<string,string>;outlines:boolean};
   axes?:{version:"1.0.0";x_scale:"linear"|"log10"|"log2";y_scale:"linear"|"log10"|"log2";x_min:number|null;x_max:number|null;x_tick_step:number|null};
 };
-const metrics = new Set(["area_px","area_um2","mean","median","integrated","mean_corrected","median_corrected","integrated_corrected","nucleolar_count","nucleolar_area_fraction","log2_nucleoplasm_over_nucleolus","nucleolar_area_px","nucleolar_area_um2","nucleolar_eccentricity",...FIELD_SUMMARY_METRICS]);
+const metrics = new Set(["area_px","area_um2","mean","median","integrated","mean_corrected","median_corrected","integrated_corrected",
+  "solidity","axis_ratio","eccentricity","cv","cv_corrected","positive_area_fraction","nucleolar_count","nucleolar_area_fraction","log2_nucleoplasm_over_nucleolus","nucleolar_area_px","nucleolar_area_um2","nucleolar_eccentricity",...FIELD_SUMMARY_METRICS]);
 export function resultSelection(design: Pick<ResultDesign,"regionSet"|"metric"|"channel"|"gfp"|"channelGate">) {
   if (!metrics.has(design.metric)) throw new Error("対応する測定項目を選択してください。");
   return comparisonSelection(design.regionSet, design.metric as ComparisonMetric, metricUsesChannel(design.metric) ? design.channel : null, design.gfp??null,design.channelGate??null);

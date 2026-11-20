@@ -5,6 +5,9 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from .region_features import SHAPE_METRICS, is_feature, reads_no_stain
+from .region_features import methods_lines as feature_methods_lines
+
 
 class StatisticalMethodsTemplate(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True, frozen=True, revalidate_instances="always")
@@ -92,7 +95,7 @@ def _automatic_background(result, metric, fields, channel_id):
             established += selected[0]["status"] == "established"
     input_modes = {field.get("image_info", {}).get("input_mode", "native") for field in fields}
     display = input_modes == {"display-rgb"}
-    if not display and input_modes != {"native"} and not metric.startswith("area"):
+    if not display and input_modes != {"native"} and not reads_no_stain(metric):
         raise ValueError("statistical_methods_source_invalid")
     plane = ("display-RGB transform 1.0.0 plane, max(R,G,B) ignoring alpha," if display else
              "unchanged original pixels" if input_modes == {"native"} else "recorded native or display-RGB measurement planes")
@@ -196,7 +199,7 @@ def _measurement(result, version="1.0.0"):
                              "ignoring alpha, at original resolution. Values are display codes, not acquired raw fluorescence. "
                              "Acquisition LUTs, clipping and gamma cannot be reversed. "
                              "Background was not established; corrected intensities are missing.")
-            elif len(input_modes) > 1 and not metric.startswith("area"):
+            elif len(input_modes) > 1 and not reads_no_stain(metric):
                 raise ValueError("statistical_methods_source_invalid")
             else:
                 lines.append("Raw-intensity protocol 3.0.0 measured original pixels. Background was not established; corrected intensities are missing.")
@@ -204,7 +207,7 @@ def _measurement(result, version="1.0.0"):
             summary_geometry = (result["spec"]["selection"]["source"] in ("field-summary", "compartment-summary")
                                 and metric in ("nucleus_count", "nucleus_density_per_mm2", "nucleolar_area_px",
                                                "nucleolar_area_um2", "nucleolar_eccentricity"))
-            if metric not in ("area_px", "area_um2") and not summary_geometry:
+            if metric not in ("area_px", "area_um2", *SHAPE_METRICS) and not summary_geometry:
                 raise ValueError("statistical_methods_source_invalid")
             lines.append("Area-only measurement used measurement protocol 2.0.0 and policy 1.0.0 (area_only). "
                          "Fluorescence intensity and signal-saturation fractions were not measured. "
@@ -242,6 +245,8 @@ def _measurement(result, version="1.0.0"):
         from .common_statistics_figures import field_summary_methods_sentence
 
         lines.append(field_summary_methods_sentence("The outcome", metric))
+    elif is_feature(metric):
+        lines.extend(feature_methods_lines(fields, metric))
     elif "area_px" in metric or "area_um2" in metric:
         lines.append("Area is the number of original-coordinate mask pixels; calibrated area multiplies this count by "
                      "the recorded X and Y pixel sizes (or the square of the scalar pixel size in nuclear recipes). "

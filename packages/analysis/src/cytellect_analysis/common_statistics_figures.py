@@ -32,6 +32,9 @@ from .figures import (
     series_color,
 )
 from .gfp_selection import recorded_gate_lines
+from .region_features import LABELS as FEATURE_LABELS
+from .region_features import is_feature
+from .region_features import methods_lines as feature_methods_lines
 from .regions import RegionModel
 
 # 2.0.0: publication figures (docs/drafts/publication-figures/plan.md). 1.0.0 and 1.0.1 replay saved figures.
@@ -83,7 +86,8 @@ def _label(source, ja=False):
     metric = source["metric"]
     labels = {"area_px": ("Region area", "領域面積"), "area_um2": ("Region area", "領域面積"),
               "mean": ("Mean intensity", "平均輝度"), "median": ("Median intensity", "輝度中央値"),
-              "integrated": ("Integrated intensity", "積算輝度"), **COMPARTMENT_LABELS, **FIELD_SUMMARY_LABELS}
+              "integrated": ("Integrated intensity", "積算輝度"), **COMPARTMENT_LABELS, **FIELD_SUMMARY_LABELS,
+              **FEATURE_LABELS}
     label = labels[metric.removesuffix("_corrected")][ja]
     if channel:
         label = f"{channel['label']}: {label}"
@@ -153,6 +157,8 @@ def common_statistics_methods(result):
                                                       spec.get("selection", {}).get("version", "1.0.0")))
         elif source["metric"] in FIELD_SUMMARY_LABELS:
             lines.append(field_summary_methods_sentence(axis, source["metric"]))
+        elif is_feature(source["metric"]):
+            lines.extend(f"{axis}: {line}" for line in feature_methods_lines(source["source_fields"], source["metric"]))
         elif source["metric"].endswith("_corrected"):
             automatic = any((item.get("measurement") or {}).get("mode") == "automatic_background" for item in source["source_fields"])
             basis = "saved automatic background candidate median" if automatic else "saved confirmed background ROI median"

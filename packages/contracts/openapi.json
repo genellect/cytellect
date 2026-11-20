@@ -2479,6 +2479,71 @@
         }
       }
     },
+    "/v1/revisions/{rid}/region-features": {
+      "get": {
+        "summary": "Get Region Features",
+        "description": "Solidity, axis ratio and eccentricity of every region of one measured field; with `channel_id`, also the\npixel CV (raw and, with an established automatic background, corrected) and positive-area fraction.",
+        "operationId": "get_region_features_v1_revisions__rid__region_features_get",
+        "parameters": [
+          {
+            "name": "rid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rid"
+            }
+          },
+          {
+            "name": "field_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Field Id"
+            }
+          },
+          {
+            "name": "channel_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Channel Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegionFeatureTable"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/revisions/{rid}/region-partition": {
       "get": {
         "summary": "Get Region Partition",
@@ -4205,6 +4270,16 @@
               }
             ],
             "title": "Experiment"
+          },
+          "primary_outcome": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PrimaryOutcome"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -8966,7 +9041,13 @@
                   "integrated",
                   "mean_corrected",
                   "median_corrected",
-                  "integrated_corrected"
+                  "integrated_corrected",
+                  "solidity",
+                  "axis_ratio",
+                  "eccentricity",
+                  "cv",
+                  "cv_corrected",
+                  "positive_area_fraction"
                 ]
               },
               {
@@ -12647,6 +12728,140 @@
         "type": "object",
         "title": "PlotSpec"
       },
+      "PrimaryOutcome": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Version",
+            "default": "1.0.0"
+          },
+          "metric": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "area_px",
+                  "area_um2",
+                  "mean",
+                  "median",
+                  "integrated",
+                  "mean_corrected",
+                  "median_corrected",
+                  "integrated_corrected",
+                  "solidity",
+                  "axis_ratio",
+                  "eccentricity",
+                  "cv",
+                  "cv_corrected",
+                  "positive_area_fraction"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "ncl_nucleus_mean",
+                  "ncl_nucleus_median",
+                  "ncl_nucleus_integrated",
+                  "ncl_nucleus_mean_corrected",
+                  "ncl_nucleus_median_corrected",
+                  "ncl_nucleus_integrated_corrected",
+                  "ncl_nucleoli_mean",
+                  "ncl_nucleoli_median",
+                  "ncl_nucleoli_integrated",
+                  "ncl_nucleoli_mean_corrected",
+                  "ncl_nucleoli_median_corrected",
+                  "ncl_nucleoli_integrated_corrected",
+                  "ncl_nucleoplasm_mean",
+                  "ncl_nucleoplasm_median",
+                  "ncl_nucleoplasm_integrated",
+                  "ncl_nucleoplasm_mean_corrected",
+                  "ncl_nucleoplasm_median_corrected",
+                  "ncl_nucleoplasm_integrated_corrected",
+                  "gfp_mean",
+                  "gfp_median",
+                  "gfp_integrated",
+                  "gfp_mean_corrected",
+                  "gfp_median_corrected",
+                  "gfp_integrated_corrected",
+                  "nucleus_area_px",
+                  "nucleus_area_um2",
+                  "nucleolar_area_px",
+                  "nucleolar_area_um2",
+                  "nucleoplasm_area_px",
+                  "nucleoplasm_area_um2",
+                  "nucleolar_count",
+                  "nucleolar_area_fraction",
+                  "ncl_nucleoplasm_over_nucleoli",
+                  "ncl_log2_nucleoplasm_over_nucleoli",
+                  "ncl_legacy_release"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "nucleus_count",
+                  "nucleus_density_per_mm2",
+                  "positive_count",
+                  "positive_fraction"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "nucleolar_area_px",
+                  "nucleolar_area_um2",
+                  "nucleolar_eccentricity"
+                ]
+              }
+            ],
+            "title": "Metric"
+          },
+          "region_set_id": {
+            "type": "string",
+            "enum": [
+              "nuclei",
+              "nucleoli",
+              "nucleoplasm",
+              "cell"
+            ],
+            "title": "Region Set Id"
+          },
+          "channel_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel Id"
+          },
+          "declared_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Declared At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "metric",
+          "region_set_id"
+        ],
+        "title": "PrimaryOutcome",
+        "description": "The measure declared primary before results are read (genellect/cytellect#257 RP-04); any other measure is\nexploratory. The server sets `declared_at` when the declared measure changes, so it cannot be backdated."
+      },
       "ProposalChannelLink": {
         "properties": {
           "token": {
@@ -14325,6 +14540,141 @@
           "reason"
         ],
         "title": "RegionExclusion"
+      },
+      "RegionFeatureRow": {
+        "properties": {
+          "region_id": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Region Id"
+          },
+          "area_px": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Area Px"
+          },
+          "excluded": {
+            "type": "boolean",
+            "title": "Excluded"
+          },
+          "values": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/RegionFeatureValue"
+            },
+            "type": "object",
+            "title": "Values"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "region_id",
+          "area_px",
+          "excluded",
+          "values"
+        ],
+        "title": "RegionFeatureRow"
+      },
+      "RegionFeatureTable": {
+        "properties": {
+          "protocol": {
+            "type": "string",
+            "title": "Protocol"
+          },
+          "field_id": {
+            "type": "string",
+            "title": "Field Id"
+          },
+          "region_set_id": {
+            "type": "string",
+            "title": "Region Set Id"
+          },
+          "mask_revision_id": {
+            "type": "string",
+            "title": "Mask Revision Id"
+          },
+          "channel_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel Id"
+          },
+          "minimum_area_px": {
+            "type": "integer",
+            "title": "Minimum Area Px"
+          },
+          "metrics": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Metrics"
+          },
+          "thresholds": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Thresholds"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/RegionFeatureRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "protocol",
+          "field_id",
+          "region_set_id",
+          "mask_revision_id",
+          "channel_id",
+          "minimum_area_px",
+          "metrics",
+          "thresholds",
+          "rows"
+        ],
+        "title": "RegionFeatureTable"
+      },
+      "RegionFeatureValue": {
+        "properties": {
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "missing_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Missing Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "value",
+          "missing_reason"
+        ],
+        "title": "RegionFeatureValue"
       },
       "RegionFieldFailure": {
         "properties": {
@@ -16824,7 +17174,13 @@
               "integrated",
               "mean_corrected",
               "median_corrected",
-              "integrated_corrected"
+              "integrated_corrected",
+              "solidity",
+              "axis_ratio",
+              "eccentricity",
+              "cv",
+              "cv_corrected",
+              "positive_area_fraction"
             ],
             "title": "Metric",
             "type": "string"
@@ -17426,7 +17782,13 @@
                   "integrated",
                   "mean_corrected",
                   "median_corrected",
-                  "integrated_corrected"
+                  "integrated_corrected",
+                  "solidity",
+                  "axis_ratio",
+                  "eccentricity",
+                  "cv",
+                  "cv_corrected",
+                  "positive_area_fraction"
                 ]
               },
               {
@@ -17990,7 +18352,13 @@
                   "integrated",
                   "mean_corrected",
                   "median_corrected",
-                  "integrated_corrected"
+                  "integrated_corrected",
+                  "solidity",
+                  "axis_ratio",
+                  "eccentricity",
+                  "cv",
+                  "cv_corrected",
+                  "positive_area_fraction"
                 ]
               },
               {
@@ -18080,7 +18448,13 @@
                   "integrated",
                   "mean_corrected",
                   "median_corrected",
-                  "integrated_corrected"
+                  "integrated_corrected",
+                  "solidity",
+                  "axis_ratio",
+                  "eccentricity",
+                  "cv",
+                  "cv_corrected",
+                  "positive_area_fraction"
                 ]
               },
               {

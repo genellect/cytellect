@@ -350,6 +350,12 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       const query = `field_id=${encodeURIComponent(field)}${nucleolarRevision ? `&nucleolar_revision_id=${encodeURIComponent(nucleolarRevision)}` : ""}`;
       return client.request<NucleusTableData>(`/v1/revisions/${revision}/nucleus-table?${query}`);
     },
+    /** Shape (and, with a channel, pixel CV and positive-area fraction) of every region of one measured field,
+     * computed by the API with the same implementation as statistics (region-features/1.0.0). */
+    async regionFeatures(revision: string, field: string, channel?: string | null) {
+      const query = new URLSearchParams({field_id: field, ...(channel ? {channel_id: channel} : {})});
+      return client.request<RegionFeatureTable>(`/v1/revisions/${revision}/region-features?${query}`);
+    },
     /** Saves the same nucleus table as a ZIP: the CSV, each column's unit and definition, and the JSON. */
     async saveNucleusTable(revision: string, field: string, nucleolarRevision?: string) {
       const query = `field_id=${encodeURIComponent(field)}${nucleolarRevision ? `&nucleolar_revision_id=${encodeURIComponent(nucleolarRevision)}` : ""}`;
@@ -402,6 +408,7 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
   };
 }
 export type ApiAdapter = ReturnType<typeof createApiAdapter>;
+export type RegionFeatureTable = components["schemas"]["RegionFeatureTable"];
 export type DiscussionView = components["schemas"]["DiscussionView"];
 export type ExperimentNote = components["schemas"]["ExperimentNote"];
 export type ShownSummary = components["schemas"]["ShownSummary"];

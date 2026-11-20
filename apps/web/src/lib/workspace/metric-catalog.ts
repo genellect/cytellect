@@ -42,6 +42,22 @@ export const METRIC_QUESTIONS: MetricQuestion[] = [
     {id: "mean_corrected", label: "平均輝度（背景補正）", channel: true, definition: "背景を差し引いた平均輝度。背景の決め方は測定の設定に記録されます。"},
     {id: "integrated_corrected", label: "積算輝度（背景補正）", channel: true, definition: "背景を差し引いた積算輝度。領域の大きさにも左右されます。"},
   ]},
+  {question: "形の変化", metrics: [
+    {id: "solidity", label: "ソリディティ", channel: false,
+      definition: "選んだ領域の面積 ÷ 領域を囲む最小の多角形の面積（solidity）。1 に近いほどくぼみや切れ込みが少ない。96 px 未満の領域と画像の端にかかる領域は形を測らず欠測にします（個数と面積には含めます）。2D の値で、体積や球形度ではありません。"},
+    {id: "axis_ratio", label: "長短軸比", channel: false,
+      definition: "選んだ領域の二次モーメントから計算した長軸 ÷ 短軸。1 は等方、大きいほど細長い。96 px 未満の領域と画像の端にかかる領域は欠測です。"},
+    {id: "eccentricity", label: "離心率", channel: false,
+      definition: "選んだ領域の離心率（0 = 円、1 に近いほど細長い）。長短軸比と同じ二次モーメントから計算します。96 px 未満の領域と画像の端にかかる領域は欠測です。"},
+  ]},
+  {question: "信号の偏りと広がり", metrics: [
+    {id: "cv", label: "画素の変動係数（CV）", channel: true,
+      definition: "選んだ領域の中の、選んだ染色の画素値の標準偏差 ÷ 平均（原値）。小さいほど領域の中の信号が均一。染色・露光・ピントに左右されるため、同じ撮影条件の中で比べます。"},
+    {id: "cv_corrected", label: "画素の変動係数（CV、背景補正）", channel: true,
+      definition: "自動推定した背景を差し引いた画素値で計算した変動係数。背景が決まらない視野と、補正後の平均が 0 以下の領域は欠測です。"},
+    {id: "positive_area_fraction", label: "陽性面積率", channel: true,
+      definition: "選んだ領域の画素のうち、視野ごとに決めた閾値以上の画素の割合。閾値はその視野の採用した領域すべての画素から Otsu 法で決め、値を結果に記録します。露光や全体の明るさにも左右されます。"},
+  ]},
   {question:"陽性核の増減",metrics:[
     {id:"positive_count", subjects: ["nuclei"], unit: "視野ごと",label:"視野あたりの陽性核数",target:"nuclei",channel:false,
       definition:"記録したチャンネルの分類による、視野ごとの陽性核数。対照・除外核・未判定核は別に数えます。"},
@@ -98,7 +114,8 @@ export function metricsForSubject(subject: ReviewTarget): Array<{unit: string; m
   return groups;
 }
 /** Metrics that describe each region of the chosen set; the others name their own subject (核小体の離心率, 陽性率). */
-const PER_REGION = new Set(["area_px", "area_um2", "mean", "median", "integrated", "mean_corrected", "median_corrected", "integrated_corrected"]);
+const PER_REGION = new Set(["area_px", "area_um2", "mean", "median", "integrated", "mean_corrected", "median_corrected", "integrated_corrected",
+  "solidity", "axis_ratio", "eccentricity", "cv", "cv_corrected", "positive_area_fraction"]);
 export function perRegionMetric(id: string): boolean {return PER_REGION.has(id);}
 /** One name for a measure everywhere it is shown (requirements S-12, SL-02): 「核小体の平均輝度（5-EU）」.
  * The region names a per-region metric; the stain is the recorded stain name, never a channel identifier

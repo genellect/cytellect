@@ -65,3 +65,6 @@
 .calculation{display:flex;flex-direction:column;gap:12px}
 .calculation .primary{align-self:flex-start;min-width:120px}
 .needs{margin:0;font-size:13px;line-height:1.5;color:#4b5563}
+/* Primary or exploratory measure (#257 RP-04): a quiet tag after the condition, stronger only for the primary. */
+.outcomeRole{display:inline-block;margin-left:8px;padding:0 6px;border-radius:4px;border:1px solid #c7ced8;color:#4b5563;font-size:12px;line-height:1.6}
+.outcomeRole[data-outcome-role="primary"]{border-color:#2164cf;color:#1a4fa3;font-weight:600}

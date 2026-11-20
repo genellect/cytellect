@@ -6,6 +6,7 @@ import math
 from collections import Counter, defaultdict
 from typing import Any
 
+from . import region_features
 from .descriptive_contracts import (
     DescriptiveResult,
     LegacySelection,
@@ -97,6 +98,8 @@ def _quantile(values, probability):
 
 
 def _metric_unit(metric):
+    if region_features.is_feature(metric):
+        return region_features.UNITS[metric]
     if metric.endswith("area_px") or metric == "area_px":
         return "pixel²"
     if metric.endswith("area_um2") or metric == "area_um2":
@@ -261,8 +264,12 @@ def region_report_measurement_policy(report):
     raise ValueError("region_measurement_protocol_mismatch")
 
 
-def prepare_region_observations(report, field_snapshot, selector):
-    """Validate every source observation before selection or statistical aggregation."""
+def prepare_region_observations(report, field_snapshot, selector, features=None):
+    """Validate every source observation before selection or statistical aggregation.
+
+    ``features`` maps (metric, channel ID) to field -> region-features/1.0.0 record; it is required only for a shape or
+    pixel-signal metric, whose values are bound to the measured regions by identity and pixel area.
+    """
     selector = RegionSelection.model_validate(selector)
     measurement = region_report_measurement_policy(report)
     require_region_metric(measurement, selector.metric)
@@ -352,23 +359,39 @@ def prepare_region_observations(report, field_snapshot, selector):
     exclusions = _region_exclusions(report, set(field_snapshot), objects, selector.region_set_id)
     if any(exclusions.get((item["field_id"], None)) != item["reason"] for item in excluded):
         raise ValueError("descriptive_failure_exclusion_mismatch")
+    feature_values: dict[str, dict[int, dict[str, Any]]] = {}
+    if region_features.is_feature(selector.metric):
+        by_field = (features or {}).get((selector.metric, selector.channel_id))
+        if not isinstance(by_field, dict) or set(by_field) != {field["field_id"] for field in fields}:
+            raise ValueError("region_features_unavailable")
+        for field in fields:
+            fid = field["field_id"]
+            region_areas = {rid: row.area_px for (f, rid), row in objects.items() if f == fid}
+            feature_values[fid] = region_features.bind(by_field[fid], selector.metric, region_areas)
+            field["region_features"] = region_features.provenance(by_field[fid])
     observations = []
     for (fid, rid), row in sorted(objects.items()):
         reason = exclusions.get((fid, None)) or exclusions.get((fid, rid))
+        if feature_values:
+            value, value_reason = feature_values[fid][rid]["value"], feature_values[fid][rid]["missing_reason"]
+        else:
+            value = getattr(row, selector.metric)
+            value_reason = row.area_missing_reason if selector.metric == "area_um2" else None
         observations.append({"observation_id": json.dumps([fid, selector.region_set_id, rid], separators=(",", ":")),
                              "field_id": fid, "region_id": rid, "region_set_id": selector.region_set_id,
                              "mask_revision_id": row.mask_revision_id, "analysis_revision_id": row.analysis_revision_id,
                              "channel_id": selector.channel_id, **_metadata(field_snapshot[fid]),
-                             "value": getattr(row, selector.metric), "excluded": bool(reason),
+                             "value": value, "excluded": bool(reason),
                              "exclusion_reason": reason, "gate_selected": True,
-                             "missing_reason": row.area_missing_reason if selector.metric == "area_um2" else None})
+                             "missing_reason": value_reason if value is None else None})
     return observations, fields, _metric_unit(selector.metric), excluded
 
 
-def describe_regions(report, field_snapshot, request, nuclear=None):
-    """``nuclear`` binds a GFP nucleus filter on a nucleoplasm revision to its adopted nuclei."""
+def describe_regions(report, field_snapshot, request, nuclear=None, features=None):
+    """``nuclear`` binds a GFP nucleus filter on a nucleoplasm revision to its adopted nuclei; ``features`` carries the
+    shape or pixel-signal values (see :func:`prepare_region_observations`)."""
     request = _request(request, "region")
-    observations, fields, unit, excluded = prepare_region_observations(report, field_snapshot, request.selection)
+    observations, fields, unit, excluded = prepare_region_observations(report, field_snapshot, request.selection, features)
     if gate_of(request.selection) is None:
         return _finish(observations, fields, request, "region-2d", "regions", unit, excluded)
     observations, record = gate_source_observations(report, report.get("recipe"), field_snapshot, request.selection,

@@ -1,5 +1,6 @@
 "use client";
 
+import {outcomeRole,outcomeRoleText,primaryName,type PrimaryOutcome} from "@/lib/workspace/primary-outcome";
 import {useEffect,useEffectEvent,useLayoutEffect,useMemo,useRef,useState,type ReactNode} from "react";
 import {ApiError,download,errorCodeMessage,errorMessage,fetchBlob,post,request} from "@/lib/api";
 import {formatValue,type Job} from "@/lib/types";
@@ -60,6 +61,8 @@ export interface ConnectedResultsProps {
   onEditExperiment?:()=>void;
   /** The recorded stain name of a channel (「5-EU」), so that a measure is named by its stain, not its identifier (SL-02). */
   stainName?:(channelId:string)=>string;
+  /** The primary measure declared before results (#257 RP-04); every other measure is shown as exploratory. */
+  primary?:PrimaryOutcome|null;
   /** Opens the statistics view from a figure whose chosen condition has not been calculated yet (SR-04). */
   onStatistics?:()=>void;
 }
@@ -113,7 +116,7 @@ export function ConnectedResults(props:ConnectedResultsProps) {
   return <WorkspaceResults key={props.workspace} {...props}/>;
 }
 
-function WorkspaceResults({adapter,workspace,selection,items:allItems,target,metric,channel,mode,shown=true,measured=0,compareRequest=0,onOpening,onOpeningTarget,onSource,beforePrepare,disabled=false,gfp=null,channelGate=null,initialSpec,onSaveDraft,onMetricChange,onAnalysisTargetChange,onPrepareMissing,experiment=null,experimentSha256=null,onEditExperiment,reclassifyRequest=0,stainName=(id:string)=>id,onStatistics}:ConnectedResultsProps) {
+function WorkspaceResults({adapter,workspace,selection,items:allItems,target,metric,channel,mode,shown=true,measured=0,compareRequest=0,onOpening,onOpeningTarget,onSource,beforePrepare,disabled=false,gfp=null,channelGate=null,initialSpec,onSaveDraft,onMetricChange,onAnalysisTargetChange,onPrepareMissing,experiment=null,experimentSha256=null,onEditExperiment,reclassifyRequest=0,stainName=(id:string)=>id,onStatistics,primary=null}:ConnectedResultsProps) {
   const derived=useMemo(()=>experiment?fieldMetadata(experiment):{},[experiment]);
   // A stratified design (1.1.0) is read one declared stratum at a time: only that stratum's fields enter,
   // and the API refuses a cohort, description or comparison that pools strata.
@@ -481,6 +484,10 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   const choiceLabel=operation==="association"&&condition.x?`${measureLabel(metric,regionSet,stainOf(condition.channel))} と ${measureLabel(condition.x.metric,regionSet,stainOf(condition.x.channel))}`
     :measureLabel(metric,regionSet,stainOf(condition.channel));
   const shownLabel=saved?savedMeasureLabel(saved.operation,saved.result):"";
+  // Primary or exploratory (RP-04): the shown result by its saved condition and time, the chosen condition before it is calculated.
+  const primaryLabel=primaryName(primary,stainName);
+  const shownRole=outcomeRole(primary,shownCondition,saved?.created);
+  const choiceRole=outcomeRole(primary,{metric,regionSet,channel:condition.channel});
   // A newly chosen condition opens its saved result at once (D-1); nothing is calculated without 計算.
   const appliedChoice=useRef("");
   useEffect(()=>{
@@ -525,7 +532,8 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
         {!!unstratified&&<p role="alert">層が決まっていない視野：{unstratified} 件。計算には、「実験」での層の割り当てか、理由を付けた除外が必要です。</p>}
       </div>}
       <button type="button" onClick={()=>setCsv(true)}>CSV の数値表を解析</button>
-      {mode==="statistics"?<p className={styles.current}>計算する条件：{choiceLabel}</p>:saved&&<p className={styles.current}>表示中：{shownLabel}</p>}
+      {mode==="statistics"?<p className={styles.current}>計算する条件：{choiceLabel}<span className={styles.outcomeRole} data-outcome-role={choiceRole}>{outcomeRoleText(choiceRole,primaryLabel)}</span></p>
+        :saved&&<p className={styles.current}>表示中：{shownLabel}<span className={styles.outcomeRole} data-outcome-role={shownRole}>{outcomeRoleText(shownRole,primaryLabel)}</span></p>}
       {positivityMissing&&<p role="status">陽性核数・陽性率には核の分類が必要です。「画像」で色分けを「陽性・陰性」にし、染色を選んで分類してください。</p>}
       {channelGate&&<div><p>{currentGate?`${channelGateName(currentGate.result)}の分類記録：確認済み。` :"集計対象・実験情報の変更後は、分類記録の確認が必要です。"}</p>
         <button type="button" disabled={disabled||!!busy||!sources.length||!!missing||!ledgerReady} onClick={()=>void classifyForResults()}>現在の実験情報で再分類</button>

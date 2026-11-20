@@ -599,6 +599,7 @@ def run_region_export(store, job, output):
             for slot in snapshot["image_info"]["inputs"]:
                 raw.append((f"{fid}/{slot}.tif", store.safe_path("workspaces", revision["workspace_id"],
                                                                 "fields", fid, f"{slot}.tif")))
+    from .feature_sources import load_region_features
     from .region_export_sources import collect_dependencies
 
     records = store.rows(jobs, revision_id=revision["id"], kind="statistics", state="succeeded")
@@ -612,6 +613,7 @@ def run_region_export(store, job, output):
         mask_files={fid: store.safe_path(root, fid, "labels.npy") for fid in report["field_masks"]},
         raw_files=raw, statistics_results=statistics, statistics_roots=statistics_roots, include_raw=include_raw,
         dependencies=dependencies,
+        features=load_region_features(store, revision, report, [result.get("spec") for result in statistics]),
     )
     summary = {"files": ["analysis.zip", "methods.md"], "raw_included": include_raw, "revision_id": revision["id"]}
     write_json(output / "result.json", summary)

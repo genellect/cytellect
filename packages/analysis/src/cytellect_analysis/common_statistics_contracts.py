@@ -14,6 +14,7 @@ from .region_comparison_contracts import (
     RegionComparisonRequest,
     RegionComparisonResult,
 )
+from .region_features import reads_no_stain
 from .regions import RegionModel
 
 
@@ -154,7 +155,7 @@ class RegionAssociationRequest(RegionModel):
             raise ValueError("channel_gate_unsupported_request")
         if self.x_selection.channel_gate != self.y_selection.channel_gate:
             raise ValueError("common_statistics_matched_channel_selection_required")
-        if self.version == "1.1.0" and not any(s.metric.startswith("area_") for s in (self.x_selection, self.y_selection)):
+        if self.version == "1.1.0" and not any(reads_no_stain(s.metric) for s in (self.x_selection, self.y_selection)):
             if self.x_selection.metric.endswith("_corrected") != self.y_selection.metric.endswith("_corrected"):
                 raise ValueError("common_statistics_matched_intensity_policy_required")
         if self.missingness_confirmed is not True or self.design.kind != "independent":

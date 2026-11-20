@@ -45,6 +45,15 @@ comparison, and an association, which analyses every group, is withheld, each wi
 With a GFP nucleus filter the analysed nuclei are known only to the API, which then decides.
 Numeric CSV import handles already measured assays; no instrument-specific processing.
 
+Shape and pixel-signal measures (genellect/cytellect#257, requirements M-10, M-11): solidity, axis ratio and eccentricity
+of each region, and a stain's pixel CV and positive-area fraction, are chosen like area and brightness. The API computes
+them from the saved regions (`region-features/1.0.0`, docs/methods.md); the browser never does. The image table loads
+them on request (「形と信号の値を表示」, `GET /v1/revisions/{rid}/region-features`), with the reason a region has no value.
+The experiment view declares one primary measure before results (`primary_outcome` in the analysis spec; the API sets
+the declaration time), and the statistics view names every condition and shown result 主要指標 or 探索的な指標. The
+核小体ストレス theme lists each question's measure, stain, region and observation, and opens the region on the image.
+The public demo has neither the declaration nor these values in its recording until it is recorded again.
+
 ## Data boundary
 
 Research pixels go directly from browser to API. No Next.js server action, image

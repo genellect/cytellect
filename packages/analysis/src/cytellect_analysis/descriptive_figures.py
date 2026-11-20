@@ -26,6 +26,7 @@ from .figures import (
 )
 from .gfp_selection import recorded_gate_lines
 from .mask_corrections import mask_correction_caption_lines
+from .region_features import LABELS as FEATURE_LABELS
 from .statistical_methods import (
     methods_metadata,
     readable_descriptive_methods,
@@ -222,7 +223,8 @@ def _ylabel(result, ja):
               "nucleus_count": ("Nuclei per field", "視野あたりの核数"),
               "nucleus_density_per_mm2": ("Nuclear density", "核の密度"),
               "positive_count": ("Positive nuclei per field", "視野あたりの陽性核数"),
-              "positive_fraction": ("Positive fraction of evaluable nuclei", "判定可能な核の陽性率")}
+              "positive_fraction": ("Positive fraction of evaluable nuclei", "判定可能な核の陽性率"),
+              **{key: ("Region " + en[:1].lower() + en[1:], "領域の" + ja) for key, (en, ja) in FEATURE_LABELS.items()}}
     if metric in COMPARTMENT_LABELS:
         channel = _selected_channel(result)
         label = (f"{channel['label']}: " if channel else "") + COMPARTMENT_LABELS[metric][ja]

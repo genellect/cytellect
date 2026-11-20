@@ -158,3 +158,26 @@ def test_migration_creates_empty_spec_table(tmp_path):
     assert migrated.one(workspace_analysis_specs, workspace_id="absent") is None
     with migrated.engine.connect() as conn:
         assert conn.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one() == "0012"
+
+
+def test_primary_outcome_is_declared_with_the_servers_time(tmp_path, monkeypatch):
+    """#257 RP-04: the primary measure keeps the time it was first declared; a client cannot backdate it."""
+    import cytellect_api.analysis_spec as module
+
+    client, _, _, _, path = setup(tmp_path)
+    clock = iter([1000.0, 2000.0, 3000.0])
+    monkeypatch.setattr(module, "_now", lambda: next(clock))
+    primary = {"metric": "solidity", "region_set_id": "nucleoli", "channel_id": None, "declared_at": 1.0}
+    saved = client.put(path, headers=HEADERS, json={"version": 0, "spec": {"channel_assignment_version": 0,
+                                                                          "primary_outcome": primary}})
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["spec"]["primary_outcome"] == {**primary, "version": "1.0.0", "declared_at": 1000.0}
+    # Saving other settings keeps the declaration and its time.
+    spec = {**saved.json()["spec"], "target": "nucleoli"}
+    again = client.put(path, headers=HEADERS, json={"version": 1, "spec": spec}).json()
+    assert again["spec"]["primary_outcome"]["declared_at"] == 1000.0
+    # Another measure is a new declaration with a new time.
+    changed = {**again["spec"], "primary_outcome": {**primary, "metric": "cv", "region_set_id": "nuclei", "channel_id": None}}
+    assert client.put(path, headers=HEADERS, json={"version": 2, "spec": changed}).json()["spec"]["primary_outcome"]["declared_at"] == 2000.0
+    # A spec without a declaration keeps its earlier shape.
+    assert "primary_outcome" not in AnalysisSpec(channel_assignment_version=0).model_dump(mode="json")

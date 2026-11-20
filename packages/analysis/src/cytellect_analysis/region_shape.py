@@ -13,9 +13,10 @@ values are not read. Each object's values come from its own pixels:
 
 An object below ``minimum_area_px``, one touching the image border, or one whose minor axis or perimeter is zero has
 no shape values and keeps its reason (``below_minimum_area``, ``touches_border``, ``degenerate``); it is never set to
-zero, and it still counts in numbers and areas elsewhere. The minimum is an explicit argument, recorded with the result,
-because its value is to be set from the error measured on public real images (owner decision 5 of #257).
-2D values are not volumes or sphericities.
+zero, and it still counts in numbers and areas elsewhere. The minimum area of version 1.0.0 is 96 px, set from the
+digitisation error measured on public real images (docs/methods.md, scripts/evaluate_shape_minimum_area.py). Version
+1.0.0 offers solidity, axis ratio and eccentricity; circularity failed the held-out check at every size and, with the
+perimeter, is computed for checking only. 2D values are not volumes or sphericities.
 """
 from __future__ import annotations
 
@@ -28,6 +29,9 @@ from .masks import validate_label_array
 
 PROTOCOL: Literal["region-shape/1.0.0"] = "region-shape/1.0.0"
 PERIMETER_ESTIMATOR: Literal["crofton-4"] = "crofton-4"
+MINIMUM_AREA_PX = 96
+# The shape metrics version 1.0.0 offers to tables and statistics.
+OFFERED_METRICS = ("solidity", "axis_ratio", "eccentricity")
 
 
 class RegionShape(TypedDict):
@@ -49,8 +53,9 @@ class RegionShapes(TypedDict):
     rows: list[RegionShape]
 
 
-def region_shapes(labels: np.ndarray, *, minimum_area_px: int) -> RegionShapes:
-    """One row per label (ascending). ``minimum_area_px`` (≥ 1) is the smallest area given shape values."""
+def region_shapes(labels: np.ndarray, *, minimum_area_px: int = MINIMUM_AREA_PX) -> RegionShapes:
+    """One row per label (ascending). ``minimum_area_px`` (≥ 1) is the smallest area given shape values; the protocol's
+    is MINIMUM_AREA_PX, and other values are for evaluating the digitisation error only."""
     validate_label_array(labels)
     if isinstance(minimum_area_px, bool) or not isinstance(minimum_area_px, int) or minimum_area_px < 1:
         raise ValueError("region_shape_minimum_area_invalid")

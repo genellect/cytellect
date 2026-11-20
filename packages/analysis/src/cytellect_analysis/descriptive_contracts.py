@@ -37,7 +37,10 @@ LegacyMetric = Literal[
 RegionMetric = Literal[
     "area_px", "area_um2", "mean", "median", "integrated",
     "mean_corrected", "median_corrected", "integrated_corrected",
+    # region-features/1.0.0 (region_features.py): shape reads no stain, the pixel CV and positive area read one.
+    "solidity", "axis_ratio", "eccentricity", "cv", "cv_corrected", "positive_area_fraction",
 ]
+SHAPE_METRICS = ("solidity", "axis_ratio", "eccentricity")
 
 
 class GfpGateFilter(StrictModel):
@@ -196,7 +199,7 @@ class RegionSelection(_OptionalGate):
 
     @model_validator(mode="after")
     def channel_for_intensity_only(self):
-        if self.metric.startswith("area_"):
+        if self.metric.startswith("area_") or self.metric in SHAPE_METRICS:
             if self.channel_id is not None:
                 raise ValueError("descriptive_area_channel_must_be_unset")
         elif self.channel_id is None:
