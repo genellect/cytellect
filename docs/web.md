@@ -52,7 +52,7 @@ them on request (「形と信号の値を表示」, `GET /v1/revisions/{rid}/reg
 The experiment view declares one primary measure before results (`primary_outcome` in the analysis spec; the API sets
 the declaration time), and the statistics view names every condition and shown result 主要指標 or 探索的な指標. The
 核小体ストレス theme lists each question's measure, stain, region and observation, and opens the region on the image.
-The public demo has neither the declaration nor these values in its recording until it is recorded again.
+The public demo has neither the declaration nor these values in its recording, so it does not offer these metrics (`DEMO_UNRECORDED` in metric-catalog.ts) until it is recorded again within the size limit (DM-10).
 
 ## Data boundary
 

@@ -123,6 +123,8 @@ test("the subject comes first: only its metrics are listed, by what one observat
   await expect(metric.locator("optgroup").first()).toHaveAttribute("label", "核小体ごと");
   await expect(metric.locator("option[value=nucleolar_eccentricity]")).toHaveCount(1);
   await expect(metric.locator("option[value=nucleus_count]")).toHaveCount(0);
+  // Metrics added after the recording are not offered until the demo is recorded again (#257).
+  for (const unrecorded of ["solidity", "cv", "largest_nucleolus_fraction"]) await expect(metric.locator(`option[value=${unrecorded}]`)).toHaveCount(0);
   await metric.selectOption("nucleolar_eccentricity");
   await expect(side.getByTestId("metric-definition")).toContainText("対象：核小体。観測の単位：核ごと（その核の核小体をまとめた値）。");
   // On the nuclei a metric of another subject is replaced by the first of the nuclei, which the sentence names.

@@ -289,7 +289,9 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
     if(proposed&&!(figure?.plot as {presentation?:Presentation}|undefined)?.presentation?.composition)setComposition(proposed.composition);
     if(figure?.plot){const p=figure.plot as typeof figure.plot & {style?:RenderPlot["style"];axes?:RenderPlot["axes"]};setFigureKind(p.kind);setWidth(p.width_inches*25.4);setHeight(p.height_inches*25.4);setFont(p.font_size);setXLabel(p.x_label);setYLabel(p.y_label);setYMin(p.y_min==null?"":String(p.y_min));setYMax(p.y_max==null?"":String(p.y_max));setColors(p.style?.series_colors||{});setLegend(p.style?.show_legend??true);setPointSize(p.point_size??null);restorePresentation((p as {presentation?:unknown}).presentation);setOrder(p.group_order||[]);setXAxis({min:p.axes?.x_min==null?"":String(p.axes.x_min),max:p.axes?.x_max==null?"":String(p.axes.x_max),step:p.axes?.x_tick_step==null?"":String(p.axes.x_tick_step),scale:p.axes?.x_scale||"linear"});setYAxis({min:"",max:"",step:p.y_tick_step==null?"":String(p.y_tick_step),scale:p.axes?.y_scale||"linear"});}
   },[initialSpec,onMetricChange]);// eslint-disable-line react-hooks/exhaustive-deps -- measured and onOpening are read for the first look only
-  const requestIdentity=JSON.stringify(design);
+  // The horizontal axis belongs to an association only: it follows other metrics (associationAxes) and would otherwise
+  // call a comparison or distribution of the same condition changed (SR-01).
+  const requestIdentity=JSON.stringify(operation==="association"?design:{...design,xMetric:null,xChannel:null});
   const stale=!!saved&&!saved.historical&&(saved.identity!==identity||saved.requestIdentity!==requestIdentity);
   const missing=items.filter(item=>!item.excluded&&!item.result).length;
   const excludedCount=items.filter(item=>item.excluded).length;

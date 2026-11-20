@@ -9,7 +9,7 @@ import {Suspense,useEffect,useEffectEvent,useMemo,useReducer,useRef,useState,typ
 import {useSearchParams} from "next/navigation";
 import {useWorkspaceRuntime,type RuntimeSettings} from "@/lib/workspace/use-workspace-runtime";
 import type {ReviewField,ReviewTarget} from "@/lib/workspace/review-preview";
-import {metricChoice,metricSentence,metricsForSubject,metricStructure,metricSubjects,metricTarget,metricUsesChannel,nucleusPositivity} from "@/lib/workspace/metric-catalog";
+import {metricChoice,metricSentence,metricsForSubject,metricStructure,metricSubjects,metricTarget,metricUsesChannel,nucleusPositivity,DEMO_UNRECORDED} from "@/lib/workspace/metric-catalog";
 import {MetricSelect} from "./MetricSelect";
 import type {ChannelAssignment,MeasurementRow,GfpGateResult,Recipe,SavedResult,RevisionRecord,RegionFeatureTable} from "@/lib/workspace/api-adapter";
 import {API_CONFIGURED,ApiError,errorCodeMessage,errorMessage,request} from "@/lib/api";
@@ -378,7 +378,7 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
   // A scene that names none (or could not be read) classifies by no stain, and its metrics leave positivity out.
   const sceneGate=demo?showcase.dataset?.gateChannels??[]:null;
   const gateChannels=(field?.channels||data?.channels||[]).filter(value=>!sceneGate||sceneGate.includes(value.id));
-  const metricOfferedFor=(id:string,subject:ReviewTarget)=>regionOffered(metricTarget(id,subject))&&(!nucleusPositivity(id)||!sceneGate||sceneGate.length>0);
+  const metricOfferedFor=(id:string,subject:ReviewTarget)=>regionOffered(metricTarget(id,subject))&&(!nucleusPositivity(id)||!sceneGate||sceneGate.length>0)&&!(demo&&DEMO_UNRECORDED.has(id));
   // The side panel chooses the subject first, then its metric, then the stain (B-1). A metric listed under the chosen
   // subject keeps it; a metric of another subject (opened from a saved result) shows the subject it is checked on.
   const subject=metricSubjects(metric).includes(target)?target:checkedTarget;

@@ -316,6 +316,8 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   await options.getByRole("combobox", {name: "指標", exact: true}).selectOption("nucleus_count");
   await expect(descriptiveBasis).toBeVisible({timeout: 60_000});
   await expect(pendingCondition).toHaveCount(0);
+  // The saved result is the chosen condition's: nothing asks for it to be calculated again.
+  await expect(panel.getByRole("status").filter({hasText: "再計算してください"})).toHaveCount(0);
   await page.screenshot({path: path.join(output, "statistics-follows-choice.png")});
 
   // A separate path: after the researcher confirms independence, the declared paired t test is offered.
