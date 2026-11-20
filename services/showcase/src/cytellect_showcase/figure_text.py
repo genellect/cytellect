@@ -10,8 +10,74 @@ import copy
 import hashlib
 import json
 import re
+import sqlite3
+import tempfile
 import zipfile
 from pathlib import Path
+
+
+def preserve_seed(previous: Path, target: Path) -> dict:
+    """Keep published science/exports while adopting the re-recorded proposal answers.
+
+    ``publish`` normally rederives saved figures in the browser. A prose-only update
+    must retain their original bytes. Verify unchanged inputs, database rows and
+    exact statistical results before retaining that complete published seed.
+    """
+    from .build import deterministic_zip
+
+    with zipfile.ZipFile(previous) as original, zipfile.ZipFile(target) as recorded:
+        names = set(original.namelist())
+        if names != set(recorded.namelist()) or len(names) != len(original.namelist()) \
+                or len(names) != len(recorded.namelist()):
+            raise ValueError("seed member set changed")
+        for name in names:
+            if name.startswith(("/", "\\")) or ".." in Path(name).parts or "\\" in name:
+                raise ValueError("unsafe seed member")
+            if name in {"proposals.json", "showcase.json", "cytellect.sqlite"}:
+                continue
+            a, b = original.read(name), recorded.read(name)
+            if name.startswith("runs/"):
+                if name.endswith("/output/result.json"):
+                    x, y = json.loads(a), json.loads(b)
+                    if scientific_key(x) != scientific_key(y):
+                        raise ValueError(f"seed scientific result changed: {name}")
+                elif Path(name).suffix not in {".svg", ".png", ".pdf", ".md"} \
+                        and not name.endswith("/output/figure-data.json") and a != b:
+                    raise ValueError(f"seed scientific source changed: {name}")
+            elif a != b:
+                raise ValueError(f"seed input or recording changed: {name}")
+        with tempfile.TemporaryDirectory(dir=target.parent) as temporary:
+            databases = []
+            for index, archive in enumerate((original, recorded)):
+                path = Path(temporary) / f"{index}.sqlite"
+                path.write_bytes(archive.read("cytellect.sqlite"))
+                with sqlite3.connect(path) as connection:
+                    schema = list(connection.execute("SELECT type, name, sql FROM sqlite_master ORDER BY type, name"))
+                    tables = {name: sorted(map(repr, connection.execute('SELECT * FROM "' + name.replace('"', '""') + '"')))
+                              for kind, name, _ in schema if kind == "table"}
+                connection.close()
+                databases.append((schema, tables))
+            if databases[0] != databases[1]:
+                raise ValueError("seed database schema or rows changed")
+        showcase = json.loads(recorded.read("showcase.json"))
+        # Reconstitution is scientific input too; do not replace its pixel hashes or mappings.
+        old_showcase = json.loads(original.read("showcase.json"))
+        def description(value):
+            value = copy.deepcopy(value)
+            for item in value.get("regenerate", []):
+                if item["path"].startswith("runs/") and (Path(item["path"]).suffix in {".svg", ".png", ".pdf", ".md"}
+                                                          or item["path"].endswith("/output/figure-data.json")):
+                    item.pop("bytes", None)
+                    item.pop("sha256", None)
+            return value
+        if description(showcase) != description(old_showcase):
+            raise ValueError("seed description or reconstitution plan changed")
+        entries: dict[str, Path | bytes] = {
+            name: recorded.read(name) if name == "proposals.json" else original.read(name) for name in names}
+    deterministic_zip(target, entries)
+    regenerate = old_showcase.get("regenerate", [])
+    return {"entries": len(entries), "bytes": target.stat().st_size, "regenerated_on_boot": len(regenerate),
+            "regenerated_bytes": sum(item["bytes"] for item in regenerate)}
 
 
 def scientific_key(result: dict) -> str:
@@ -96,6 +162,9 @@ class PublishedDrawings:
 def legend(result: dict, item: dict) -> tuple[str, list[str]] | None:
     if item["figure"].get("common_statistics_figure_version") != "2.0.0":
         return None
+    import matplotlib
+
+    matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     from cytellect_analysis.common_statistics_contracts import CommonStatisticsResult
     from cytellect_analysis.figure_images import image_channels, recorded_legend_sentence

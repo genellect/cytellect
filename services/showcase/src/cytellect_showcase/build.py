@@ -1842,6 +1842,13 @@ def main(argv: list[str] | None = None) -> None:
             save()
         uninstall()
     if "reseed" in stages:
+        if args.figure_drawings is not None:
+            from .figure_text import preserve_seed
+
+            original = args.figure_drawings.parent
+            state["seed"] = preserve_seed(original / "seed.zip", args.out / "seed.zip")
+            state["seed_science_from_commit"] = json.loads((original / "manifest.json").read_text(encoding="utf-8")).get(
+                "generated_from_commit")
         reseed(args.out, work, manifests, state)
         save()
     if "proposals" in stages:
@@ -2223,6 +2230,8 @@ def write_manifest(args, manifests: list, state: dict) -> None:
         "schema": "cytellect-showcase-manifest/2",
         "scenes": [scene_record(manifest) for _, manifest in manifests],
         "seed": state.get("seed"),
+        **({"seed_science_from_commit": state["seed_science_from_commit"]}
+           if state.get("seed_science_from_commit") else {}),
         **generation_provenance(published, set(args.stages.split(",")), git_commit()),
         "runtime": published.get("runtime") if derived_only else current_runtime,
         "journal": state.get("journal") or (published.get("journal") if derived_only else None),
