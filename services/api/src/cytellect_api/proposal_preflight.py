@@ -41,7 +41,8 @@ def check_versions(service: str, token: str, probe, *, proposal_prompt: str | No
         route = item["route"]
         body = {key: value for key, value in item.items() if key != "route"}
         request = urllib.request.Request(service.rstrip("/") + route, method="POST",
-            data=json.dumps(body).encode(), headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"})
+            data=json.dumps(body).encode(), headers={"Authorization": "Bearer " + token, "Content-Type": "application/json",
+                                                   "User-Agent": "Cytellect/0.1"})
         # No retries and no Idempotency-Key: accepted versions must stop before claim/count/reserve.
         status, code = probe(request, timeout=30)
         accepted = status == 400 and code == "request_id_required"
