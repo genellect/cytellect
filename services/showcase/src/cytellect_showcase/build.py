@@ -1048,8 +1048,9 @@ def examples(seed_data: Path, recordings: Path, work: Path, out: Path, fiji: str
         index_path.write_text(json.dumps(index, indent=1) + "\n", encoding="utf-8", newline="\n")
         journal_path.write_text(json.dumps(recorded, indent=1, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
         named = {entry.get("file") for entry in [*index["entries"].values(), *recorded["entries"]]}
-        for replaced_name in replaced - named - {None}:
-            (target / replaced_name).unlink(missing_ok=True)
+        for replaced_name in replaced - named:
+            if replaced_name is not None:
+                (target / replaced_name).unlink(missing_ok=True)
     finally:
         api.client.close()
     saved = work / "proposals.json"
