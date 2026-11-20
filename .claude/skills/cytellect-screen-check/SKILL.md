@@ -12,7 +12,7 @@ description: Cytellect の画面（解析ワークスペース、公開デモ /d
 | 確かめるもの | 起動 |
 |---|---|
 | LP、公開デモ（`/demo`）の表示と操作 | `NEXT_PUBLIC_API_ORIGIN` を設定していないシェルで `pnpm build` を実行し、`pnpm --filter @cytellect/web start` で起動する。CI の公開サイトの試験と同じ構成で、API・Fiji・鍵は要らない |
-| 解析ワークスペース（画像の登録・検出・測定・統計・図） | `python3 scripts/dev.py doctor` で準備を確かめてから `python3 scripts/dev.py serve`。表示された招待コードで `http://localhost:3000/workspace` に入る。画像は CI の `browser-e2e` ジョブと同じ手順で公開画像を準備する（`CONTRIBUTING.md`「PR を出す前に」） |
+| 解析ワークスペース（画像の登録・検出・測定・統計・図） | `python3 scripts/dev.py doctor` で準備を確かめてから `python3 scripts/dev.py serve`。表示された招待コードで `http://localhost:3000/workspace` に入る。登録する画像は `python3 scripts/dev.py public-inputs` で準備する（既定 `~/cytellect-public-inputs/workspace-inputs`） |
 
 - `NEXT_PUBLIC_API_ORIGIN` はビルドの時点で固定される。`serve` のビルドは API を指すため、公開デモと解析ワークスペースを切り替えるときはビルドし直す（公開のビルドのあとに `serve --skip-build` を使わない）。
 - サーバーは `run_in_background` で起動し、`curl --fail` で応答を確かめてから操作する。

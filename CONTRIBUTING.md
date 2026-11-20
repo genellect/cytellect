@@ -190,10 +190,16 @@ fi
 `check` は、PR の CI と同じ検査を手元で再現する。変更の内容に応じて、次のコマンドを実行する。
 
 ```bash
-python3 scripts/dev.py check           # すべての変更で（python や web に絞ることもできる）
-python3 scripts/dev.py check --fiji    # 解析エンジンを変えたとき、実際の Fiji での試験も
-python3 scripts/dev.py contracts       # API を変えたとき（OpenAPI、既定レシピ、TypeScript の型を一緒にコミット）
-python3 scripts/dev.py audit           # 依存パッケージを変えたとき（結果は checkout の外に保存）
+python3 scripts/dev.py changed           # 変更したファイルと、PR の CI が実行する対象を示す
+python3 scripts/dev.py check --changed   # 変更に応じて python・web を選んで実行する（文書だけならリンクと公開ツリーの検査）
+python3 scripts/dev.py check             # python と web のすべて（python や web に絞ることもできる）
+python3 scripts/dev.py check --fiji      # 解析エンジンを変えたとき、実際の Fiji での試験も
+python3 scripts/dev.py contracts         # API を変えたとき（OpenAPI、既定レシピ、TypeScript の型を一緒にコミット）
+python3 scripts/dev.py audit             # 依存パッケージを変えたとき（結果は checkout の外に保存）
 ```
 
-ブラウザ、コンテナ、Windows の統合試験は CI が担う（[CI の構成](docs/ci.md)）。コンテナの試験は、クラウド環境でも `dockerd` を起動すれば手元で行える。ブラウザの試験を手元で行うときは、`serve` を起動したまま、CI の `browser-e2e` ジョブ（[ci.yml](.github/workflows/ci.yml)）と同じ手順で公開画像を準備して `pnpm test:e2e` を実行する。`CYTELLECT_TEST_DATA_DIR` には `serve` の作業データの場所を指定する。PR の説明は、[PR テンプレート](.github/pull_request_template.md)のすべての項目を書く。
+`python` の全体は 20 分ほどかかる。PR の CI が同じ検査を実行するため、手元では変更に関係する試験だけを実行し、全体は CI に任せてもよい。
+
+ブラウザ、コンテナ、Windows の統合試験は CI が担う（[CI の構成](docs/ci.md)）。コンテナの試験は、クラウド環境でも `dockerd` を起動すれば手元で行える。ブラウザの試験を手元で行うときは、`python3 scripts/dev.py public-inputs` で登録済みの公開画像を準備する（既定 `~/cytellect-public-inputs/workspace-inputs`）。そのうえで `serve` を起動したまま、CI の `browser-e2e` ジョブ（[ci.yml](.github/workflows/ci.yml)）と同じ環境変数で `pnpm test:e2e` を実行する。`CYTELLECT_REAL_INPUTS` には準備した画像の場所を、`CYTELLECT_TEST_DATA_DIR` には `serve` の作業データの場所を指定する。PR の説明は、[PR テンプレート](.github/pull_request_template.md)のすべての項目を書く。
+
+Claude Code では、検証（`cytellect-verify`）、画面の確認（`cytellect-screen-check`）、PR の作成（`cytellect-pr`）の手順をスキルにしている（[.claude/skills](.claude/skills)、使い分けは [CLAUDE.md](CLAUDE.md#目的別のスキル)）。

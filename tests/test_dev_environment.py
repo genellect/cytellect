@@ -320,3 +320,35 @@ def test_fiji_and_the_figure_font_are_installed_on_first_use(monkeypatch, tmp_pa
         monkeypatch.setattr(dev, "figure_font", lambda: next(fonts))
         dev.ensure_figure_font()
         assert commands == [("bash", "scripts/install_figure_font.sh")]
+
+
+def test_changed_areas_follow_the_pull_request_ci_rules():
+    import dev
+
+    assert dev.changed_areas([]) == frozenset()
+    assert dev.changed_areas(["docs/methods.md", ".claude/skills/cytellect-verify/SKILL.md"]) == frozenset()
+    assert dev.changed_areas(["services/proposal-worker/src/index.ts"]) == {"web"}
+
+
+def test_check_changed_runs_only_the_selected_local_areas(monkeypatch, capsys):
+    import argparse
+
+    import dev
+    import pytest
+
+    calls: list[tuple[str, ...]] = []
+    monkeypatch.setattr(dev, "run", lambda argv, env=None: calls.append(tuple(argv)))
+    monkeypatch.setattr(dev, "ensure_figure_font", lambda: None)
+
+    monkeypatch.setattr(dev, "changed_paths", lambda base: ["docs/methods.md"])
+    dev.check(argparse.Namespace(areas=[], changed=True, fiji=False))
+    assert calls == list(dev.DOC_CHECKS)
+
+    calls.clear()
+    monkeypatch.setattr(dev, "changed_paths", lambda base: ["scripts/ci_changes.py"])
+    dev.check(argparse.Namespace(areas=[], changed=True, fiji=False))
+    assert calls == list(dev.CHECKS["python"])
+    assert "Left to pull-request CI: fiji, windows" in capsys.readouterr().out
+
+    with pytest.raises(SystemExit):
+        dev.check(argparse.Namespace(areas=["web"], changed=True, fiji=False))

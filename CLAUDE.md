@@ -23,8 +23,8 @@
 | アプリの文言 | `design:ux-copy` | 新しい画面や導線の文言をまとめて書く | 数語の修正。[開発の原則](docs/development-principles.md#画面と文章)の UC-01〜UC-07 に照らすだけでよい |
 | 画面の確認 | `cytellect-screen-check` | 画面を変えた | — |
 | 検証 | `cytellect-verify` | コード・設定・依存パッケージを変えた | — |
-| PR の準備 | `cytellect-pre-pr` | PR を作る・更新する | 途中のコミットの push |
-| コードレビュー | `/code-review medium`。測定・統計・検出・作図の計算は `high` | ロジックを変えた：`packages/analysis`、`engines`、`services/api`、`services/worker`、`services/proposal-worker`、`apps/web/src/lib` などの状態とデータの処理 | 画面の見た目・文言・文書・設定・試験だけの変更 |
+| PR の作成 | `cytellect-pr` | PR を作る・更新する | 途中のコミットの push |
+| コードレビュー | `/code-review medium`。測定・統計・検出・作図の計算は `high` | ロジックを変えた：解析・API・計算ワーカー・提案 Worker の処理と、画面の状態とデータの処理 | 画面の見た目・文言・文書・設定・試験だけの変更 |
 | セキュリティレビュー | `/security-review` | 認証・認可（ログイン、招待、セッション、端末トークン）、アップロードの受け入れ、更新の署名、workflow の権限とシークレットを変えた | それ以外の変更 |
 | Claude API と LLM の機能 | `claude-api` | 解析支援の Worker、モデル、プロンプト、費用を扱う | — |
 | 統計と図の手法 | `data:statistical-analysis`、`dataviz` | 新しい検定や図の種類を設計する。値は共通実装だけが作る | 既存の図の見た目の調整 |

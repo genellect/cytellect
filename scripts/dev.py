@@ -3,14 +3,18 @@
 Standard library only, so it runs before `uv sync` and on Windows:
 
     python3 scripts/dev.py setup [--fiji DIR] [--cellpose DIR]
-    python3 scripts/dev.py check [python] [web] [--fiji]
+    python3 scripts/dev.py check [python] [web] [--changed] [--fiji]
+    python3 scripts/dev.py changed [--base REF]
     python3 scripts/dev.py contracts
     python3 scripts/dev.py audit [--out DIR]
     python3 scripts/dev.py doctor [--live]
     python3 scripts/dev.py serve [--data-dir DIR] [--skip-build]
+    python3 scripts/dev.py public-inputs [--out DIR]
 
 `check` runs the same commands as the `python` and `web` jobs in
 .github/workflows/ci.yml; tests/test_dev_commands.py fails when the two drift.
+`changed` and `check --changed` pick the areas from the changed files with the
+rules pull-request CI uses (scripts/ci_changes.py).
 Browser, container and Windows-installer checks stay CI-only (see docs/ci.md).
 
 `serve` runs the analysis screen as installations do (API, worker, production web
@@ -33,6 +37,8 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+
+from ci_changes import AREAS, select
 
 ROOT = Path(__file__).resolve().parents[1]
 API_ORIGIN = "http://localhost:8000"
@@ -83,6 +89,11 @@ CHECKS: dict[str, tuple[tuple[str, ...], ...]] = {
     ),
 }
 FIJI_CHECK = ("uv", "run", "pytest", "-m", "fiji")
+# What CI still runs on a documentation-only change (docs/ci.md, ジョブの選び方).
+DOC_CHECKS: tuple[tuple[str, ...], ...] = (
+    ("uv", "run", "python", "scripts/check_docs.py"),
+    ("uv", "run", "python", "scripts/check_public_tree.py"),
+)
 
 
 def run(argv: tuple[str, ...] | list[str], env: dict[str, str] | None = None) -> None:
@@ -131,7 +142,47 @@ def setup(args: argparse.Namespace) -> None:
         print("export " + " ".join(exports))
 
 
+def changed_paths(base: str) -> list[str]:
+    """Files that differ from `base`: this branch's commits, staged and unstaged edits, untracked files."""
+    paths: set[str] = set()
+    for argv in (("git", "diff", "--name-only", f"{base}...HEAD"), ("git", "diff", "--name-only", "HEAD"),
+                 ("git", "ls-files", "--others", "--exclude-standard")):
+        result = subprocess.run(argv, cwd=ROOT, capture_output=True, text=True)
+        if result.returncode:
+            sys.exit(f"Cannot list changes against {base}: {result.stderr.strip()} (run `git fetch origin main`)")
+        paths.update(line for line in result.stdout.splitlines() if line)
+    return sorted(paths)
+
+
+def changed_areas(paths: list[str]) -> frozenset[str]:
+    """The pull-request CI areas for these files; none for no files or documentation only."""
+    return select(paths) if paths else frozenset()
+
+
+def changed(args: argparse.Namespace) -> None:
+    paths = changed_paths(args.base)
+    print(f"Changed files against {args.base} and the working tree: {len(paths)}")
+    for path in paths:
+        print(f"  {path}")
+    areas = changed_areas(paths)
+    print("CI areas: " + (", ".join(area for area in AREAS if area in areas) or "none (documentation only)"))
+
+
 def check(args: argparse.Namespace) -> None:
+    if args.changed:
+        if args.areas:
+            sys.exit("Give areas or --changed, not both")
+        selected = changed_areas(changed_paths("origin/main"))
+        args.areas = [area for area in CHECKS if area in selected]
+        ci_only = [area for area in AREAS if area in selected and area not in CHECKS]
+        print("Local areas: " + (", ".join(args.areas) or "none (documentation only)"))
+        if ci_only:
+            print("Left to pull-request CI: " + ", ".join(ci_only))
+        if not args.areas:
+            for argv in DOC_CHECKS:
+                run(argv)
+            print("All selected checks passed.")
+            return
     areas = args.areas or list(CHECKS)
     unknown = sorted(set(areas) - set(CHECKS))
     if unknown:
@@ -156,6 +207,17 @@ def contracts(_: argparse.Namespace) -> None:
         run(OPENAPI, env)
         run(("pnpm", "contracts"), env)
     print("Commit packages/contracts/openapi.json, recipe-defaults.json and generated.ts together.")
+
+
+def public_inputs(args: argparse.Namespace) -> None:
+    """Download the registered public BBBC007 field and extract its unchanged TIFFs, as browser-e2e does."""
+    out = outside_checkout(args.out, "Public inputs")
+    source, inputs = out / "bbbc007", out / "workspace-inputs"
+    run(("uv", "run", "python", "scripts/public_bbbc007.py", "--data-dir", str(source), "--download"))
+    run(("uv", "run", "python", "scripts/prepare_workspace_bbbc007.py", "--data-dir", str(source),
+         "--output", str(inputs)))
+    run(("uv", "run", "python", "scripts/check_public_uploads.py", str(inputs)))
+    print(f"Registered public images for the workspace: {inputs}")
 
 
 def audit(args: argparse.Namespace) -> None:
@@ -588,8 +650,13 @@ def main() -> None:
     p.set_defaults(func=setup)
     p = sub.add_parser("check", help="Run the pull-request CI checks for the python and/or web areas")
     p.add_argument("areas", nargs="*", metavar="AREA", help="python, web (default: both)")
+    p.add_argument("--changed", action="store_true",
+                   help="Choose the areas from the files changed against origin/main, as pull-request CI does")
     p.add_argument("--fiji", action="store_true", help="Also run the real-Fiji tests")
     p.set_defaults(func=check)
+    p = sub.add_parser("changed", help="List changed files and the pull-request CI areas they select")
+    p.add_argument("--base", default="origin/main", metavar="REF", help="Compare against this ref (default: origin/main)")
+    p.set_defaults(func=changed)
     p = sub.add_parser("contracts", help="Regenerate OpenAPI, default recipe and TypeScript contracts")
     p.set_defaults(func=contracts)
     p = sub.add_parser("audit", help="Dependency inventory, vulnerability audits and full-history secret scan")
@@ -608,6 +675,10 @@ def main() -> None:
                    help="Private runtime directory outside the checkout (default: ~/cytellect-data)")
     p.add_argument("--skip-build", action="store_true", help="Reuse the last `serve` web build")
     p.set_defaults(func=serve)
+    p = sub.add_parser("public-inputs", help="Prepare the registered public images the workspace browser tests use")
+    p.add_argument("--out", type=Path, default=Path.home() / "cytellect-public-inputs", metavar="DIR",
+                   help="Directory outside the checkout (default: ~/cytellect-public-inputs)")
+    p.set_defaults(func=public_inputs)
     args = parser.parse_args()
     args.func(args)
 
