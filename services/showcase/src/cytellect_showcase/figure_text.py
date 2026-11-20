@@ -42,7 +42,8 @@ def preserve_seed(previous: Path, target: Path) -> dict:
                     if scientific_key(x) != scientific_key(y):
                         raise ValueError(f"seed scientific result changed: {name}")
                 elif Path(name).suffix not in {".svg", ".png", ".pdf", ".md"} \
-                        and not name.endswith("/output/figure-data.json") and a != b:
+                        and not name.endswith(tuple("/output/" + filename for filename in
+                            ("figure-data.json", "figure-archive.json", "descriptive-output.json", "figure.zip"))) and a != b:
                     raise ValueError(f"seed scientific source changed: {name}")
             elif a != b:
                 raise ValueError(f"seed input or recording changed: {name}")

@@ -18,7 +18,9 @@ def seed_pair(tmp_path):
                       and json.loads(archive.read(name)).get("source_kind") == "region-2d")
         csv = next(name for name in names if name.startswith(result.removesuffix("result.json")) and name.endswith(".csv"))
         svg = next(name for name in names if name.startswith(result.removesuffix("result.json")) and name.endswith(".svg"))
-        entries = {name: archive.read(name) for name in (result, csv, svg, "cytellect.sqlite", "showcase.json", "proposals.json")}
+        exports = [name for name in names if name.startswith(result.removesuffix("result.json"))
+                   and Path(name).name in {"figure.zip", "figure-archive.json", "figure-data.json", "descriptive-output.json"}]
+        entries = {name: archive.read(name) for name in (result, csv, svg, *exports, "cytellect.sqlite", "showcase.json", "proposals.json")}
     old, new = tmp_path / "old.zip", tmp_path / "new.zip"
     def write(path, values):
         with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -27,6 +29,9 @@ def seed_pair(tmp_path):
     write(old, entries)
     changed = copy.deepcopy(entries)
     changed[svg] += b"\n<!-- rerendered -->"
+    for name in exports:
+        if name.endswith(".zip"):
+            changed[name] += b"different export metadata"
     proposals = json.loads(changed["proposals.json"])
     # The published proposals stay real; change their serialization to identify the adopted member.
     changed["proposals.json"] = json.dumps(proposals, ensure_ascii=False, indent=2).encode()
