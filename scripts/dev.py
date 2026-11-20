@@ -38,7 +38,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from ci_changes import AREAS, select
+from ci_changes import AREAS, REGISTRY, documentation_registry_change, select_changes
 
 ROOT = Path(__file__).resolve().parents[1]
 API_ORIGIN = "http://localhost:8000"
@@ -89,6 +89,8 @@ CHECKS: dict[str, tuple[tuple[str, ...], ...]] = {
     ),
 }
 FIJI_CHECK = ("uv", "run", "pytest", "-m", "fiji")
+# The landing-page job's Next.js checks; its browser tests stay in CI.
+LP_CHECKS: tuple[tuple[str, ...], ...] = (("pnpm", "check"),)
 # What CI still runs on a documentation-only change (docs/ci.md, ジョブの選び方).
 DOC_CHECKS: tuple[tuple[str, ...], ...] = (
     ("uv", "run", "python", "scripts/check_docs.py"),
@@ -154,9 +156,29 @@ def changed_paths(base: str) -> list[str]:
     return sorted(paths)
 
 
-def changed_areas(paths: list[str]) -> frozenset[str]:
-    """The pull-request CI areas for these files; none for no files or documentation only."""
-    return select(paths) if paths else frozenset()
+def _registry_at(revision: str) -> dict | None:
+    shown = subprocess.run(["git", "show", f"{revision}:{REGISTRY}"], cwd=ROOT, capture_output=True, text=True)
+    try:
+        loaded = json.loads(shown.stdout) if not shown.returncode else None
+    except json.JSONDecodeError:
+        return None
+    return loaded if isinstance(loaded, dict) else None
+
+
+def changed_areas(paths: list[str], base: str = "origin/main") -> frozenset[str]:
+    """The pull-request CI areas for these files (scripts/ci_changes.py); none for no files or documentation only."""
+    if not paths:
+        return frozenset()
+    documentation_registry = False
+    if REGISTRY in paths:
+        merge_base = subprocess.run(["git", "merge-base", base, "HEAD"], cwd=ROOT, capture_output=True, text=True)
+        old = _registry_at(merge_base.stdout.strip() or base)
+        try:
+            new = json.loads((ROOT / REGISTRY).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            new = None
+        documentation_registry = isinstance(old, dict) and isinstance(new, dict) and documentation_registry_change(old, new)
+    return select_changes(paths, documentation_registry)
 
 
 def changed(args: argparse.Namespace) -> None:
@@ -169,21 +191,22 @@ def changed(args: argparse.Namespace) -> None:
 
 
 def check(args: argparse.Namespace) -> None:
+    extra: tuple[tuple[str, ...], ...] = ()
     if args.changed:
         if args.areas:
             sys.exit("Give areas or --changed, not both")
         selected = changed_areas(changed_paths("origin/main"))
-        args.areas = [area for area in CHECKS if area in selected]
+        areas = [area for area in CHECKS if area in selected]
+        # The web job covers the landing page, so lp is selected only without web.
+        extra = (LP_CHECKS if "lp" in selected else ()) + (() if areas else DOC_CHECKS)
+        label = ", ".join(areas + (["lp (Next.js checks)"] if "lp" in selected else [])) or (
+            "none (documentation only)" if not selected else "none")
+        print("Local areas: " + label)
         ci_only = [area for area in AREAS if area in selected and area not in CHECKS]
-        print("Local areas: " + (", ".join(args.areas) or "none (documentation only)"))
         if ci_only:
             print("Left to pull-request CI: " + ", ".join(ci_only))
-        if not args.areas:
-            for argv in DOC_CHECKS:
-                run(argv)
-            print("All selected checks passed.")
-            return
-    areas = args.areas or list(CHECKS)
+    else:
+        areas = args.areas or list(CHECKS)
     unknown = sorted(set(areas) - set(CHECKS))
     if unknown:
         sys.exit(f"Unknown area: {', '.join(unknown)} (choose from {', '.join(CHECKS)})")
@@ -193,6 +216,8 @@ def check(args: argparse.Namespace) -> None:
         ensure_fiji()
     with tempfile.TemporaryDirectory(prefix="cytellect-check-") as scratch:
         env = scratch_env(Path(scratch))
+        for argv in extra:
+            run(argv, env)
         for area in areas:
             for argv in CHECKS[area]:
                 run(argv, env)

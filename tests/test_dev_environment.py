@@ -350,5 +350,33 @@ def test_check_changed_runs_only_the_selected_local_areas(monkeypatch, capsys):
     assert calls == list(dev.CHECKS["python"])
     assert "Left to pull-request CI: fiji, windows" in capsys.readouterr().out
 
+    calls.clear()
+    monkeypatch.setattr(dev, "changed_paths", lambda base: ["apps/web/src/components/PublicLanding.tsx"])
+    dev.check(argparse.Namespace(areas=[], changed=True, fiji=False))
+    assert calls == [*dev.LP_CHECKS, *dev.DOC_CHECKS]
+    assert "Local areas: lp (Next.js checks)" in capsys.readouterr().out
+
+    calls.clear()
+    monkeypatch.setattr(dev, "ensure_fiji", lambda: "")
+    monkeypatch.setattr(dev, "changed_paths", lambda base: ["docs/methods.md"])
+    dev.check(argparse.Namespace(areas=[], changed=True, fiji=True))
+    assert calls == [*dev.DOC_CHECKS, dev.FIJI_CHECK]
+
     with pytest.raises(SystemExit):
         dev.check(argparse.Namespace(areas=["web"], changed=True, fiji=False))
+
+
+def test_a_documentation_only_registry_edit_selects_no_area(monkeypatch, tmp_path):
+    import json
+
+    import dev
+
+    old = {"fixtures/public/a.tif": {"sha256": "1"}}
+    new = {**old, "docs/figure.png": {"sha256": "2"}}
+    (tmp_path / "fixtures/public").mkdir(parents=True)
+    (tmp_path / dev.REGISTRY).write_text(json.dumps(new), encoding="utf-8")
+    monkeypatch.setattr(dev, "ROOT", tmp_path)
+    monkeypatch.setattr(dev, "_registry_at", lambda revision: old)
+    assert dev.changed_areas([dev.REGISTRY, "docs/figure.png"]) == frozenset()
+    (tmp_path / dev.REGISTRY).write_text(json.dumps({**new, "fixtures/public/b.tif": {"sha256": "3"}}), encoding="utf-8")
+    assert dev.changed_areas([dev.REGISTRY]) != frozenset()
