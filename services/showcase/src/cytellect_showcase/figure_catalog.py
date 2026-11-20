@@ -190,13 +190,7 @@ def opening_figure(result: dict, plot: dict, out: Path) -> dict:
     drawn["spec"]["plot"] = validated_plot(drawn, plot)
     out.mkdir(parents=True, exist_ok=True)
     if _comparison(drawn):
-        try:
-            drawn["figure"] = render_common_statistics(drawn, out)
-        except ValueError:
-            # This builder uses registered public demo inputs only. Keep the exact failed drawing
-            # outside the public tree, so a recording can be diagnosed without changing its values.
-            (out / "drawing-failure.json").write_text(json.dumps(drawn), encoding="utf-8")
-            raise
+        drawn["figure"] = render_common_statistics(drawn, out)
     else:
         drawn["figure"] = render_descriptive_output(drawn, out, methods_template=saved_methods_template(recorded))
     (out / "result.json").write_text(json.dumps(drawn), encoding="utf-8", newline="\n")
