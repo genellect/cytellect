@@ -11,6 +11,8 @@ import { LandingImpact } from "./LandingImpact";
 import { LandingInvite } from "./LandingInvite";
 import { LandingDownload } from "./LandingDownload";
 import { LandingDemoBar } from "./LandingDemoBar";
+import { WINDOWS_STORE_LINKS } from "@/lib/release";
+import { StoreLink } from "./StoreLink";
 import { demoSceneHref } from "@/lib/showcase/scene-links";
 import styles from "./product.module.css";
 import lp from "./optical-landing.module.css";
@@ -44,7 +46,12 @@ export default function PublicLanding() {
         <div className={lp.heroShade} />
         <div className={lp.heroCopy}>
           <h1 id="hero-title" lang="en" aria-label="Get your microscopy publication-ready."><span>Get your</span>{" "}<span>microscopy</span>{" "}<span>publication-<br className={lp.mobileBreak} />ready.</span></h1>
-          <div className={lp.heroActions}><Link data-lp-event="example" href="/demo" className={lp.primary}>デモを体験する <Forward /></Link><a data-lp-event="download_section" href="#download" className={lp.heroSecondary}>ダウンロード <span aria-hidden="true">↓</span></a></div>
+          <div className={lp.heroActions}>
+            <Link data-lp-event="example" href="/demo" className={lp.primary}>デモを体験する <Forward /></Link>
+            {WINDOWS_STORE_LINKS
+              ? <StoreLink {...WINDOWS_STORE_LINKS} className={lp.heroSecondary}>Microsoft Store で入手 <Arrow /></StoreLink>
+              : <a data-lp-event="download_section" href="#download" className={lp.heroSecondary}>ダウンロード <span aria-hidden="true">↓</span></a>}
+          </div>
         </div>
       </section>
 

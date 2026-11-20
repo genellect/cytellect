@@ -2,6 +2,16 @@
 
 Windows PC に Cytellect の配布版を導入し、起動・更新・アンインストールする手順。
 
+## Microsoft Store 版
+
+対象は Windows 11（x64）。[導入ガイド](https://cytellect.app/download)の「Microsoft Store で入手」を押すと、Microsoft Store に Cytellect が開く。「入手」を押し、完了したら「開く」を押す。次回からはスタートメニューで「Cytellect」を選ぶ。[Store の掲載ページ](https://apps.microsoft.com/detail/9PGKTQGV7X5C)
+
+- **更新**　Microsoft Store の自動更新で新しい版が届く。作業データは更新後も開ける。
+- **アンインストール**　Windows の「設定」→「アプリ」→「インストールされているアプリ」で Cytellect を選び、「アンインストール」を押す。研究データは保持される。作業データも削除したい場合は、アンインストール前にワークスペースで該当する作業を削除する。アンインストールの後に残ったデータをすべて消すには、エクスプローラーのアドレス欄に `%LOCALAPPDATA%\Cytellect` と入力して開き、このフォルダーを削除する。作業データ、設定、ログ、クラウドへのログイン情報が消える。従来版も入れている場合は、このフォルダーを直接消さず、従来版のアンインストールで研究データの削除を選ぶ。
+- **従来版から移行**　従来版を終了して Store 版を開く。既定の `%LOCALAPPDATA%\Cytellect` に保存した作業を開ける。従来版をアンインストールする場合は、Store 版でも使用する研究データの保持を選ぶ。
+
+## 従来の EXE・ZIP 版
+
 | 項目 | 内容 |
 |---|---|
 | 対象 | Windows で Cytellect を使う研究者 |
@@ -23,7 +33,7 @@ Windows PC に Cytellect の配布版を導入し、起動・更新・アンイ�
 
 ## 2. ダウンロードと確認
 
-1. [Cytellect のサイト](https://cytellect.app/)の「ダウンロード」で「Windows版をダウンロード」を押し、インストーラー `Cytellect-Setup-<版>.exe`（約 1.07 GB）を保存する。リリースのページから保存してもよい。
+1. [従来版のリリース](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.24)からインストーラー `Cytellect-Setup-<版>.exe` を保存する。
 2. 保存したインストーラーを開き、「インストール」を押す（[3.1](#31-インストーラー)）。
 
 - インストーラーがない版（0.1.0-local.20 まで）では、`Cytellect-<版>-windows-x64.zip` を保存し、[3.2](#32-zip-版のセットアップ) に進む。

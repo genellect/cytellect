@@ -1,8 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { windowsReleaseUrl, windowsReleaseAsset, resolveWindowsReleaseUrl, verifiedRelease, releaseSize, PUBLISHED_RELEASE } from "./release";
+import { windowsReleaseUrl, windowsReleaseAsset, resolveWindowsReleaseUrl, verifiedRelease, releaseSize, PUBLISHED_RELEASE, windowsStoreLinks } from "./release";
 import published from "./published-release.json";
 const asset="https://github.com/genellect/cytellect/releases/download/test-fixture/Cytellect-test-fixture-windows-x64.zip";
 const installer="https://github.com/genellect/cytellect/releases/download/v0.1.0-local.99/Cytellect-Setup-0.1.0-local.99.exe";
+
+it("offers the Store links only for the default public distribution",()=>{
+ expect(windowsStoreLinks(undefined,false,false)).toEqual({
+  app:"ms-windows-store://pdp/?ProductId=9PGKTQGV7X5C",
+  web:"https://apps.microsoft.com/detail/9PGKTQGV7X5C",
+ });
+ expect(windowsStoreLinks(undefined,true,false)).toBeNull();
+ expect(windowsStoreLinks(undefined,false,true)).toBeNull();
+ expect(windowsStoreLinks(installer,false,false)).toBeNull();
+ expect(windowsStoreLinks("",false,false)).toBeNull();
+});
 /** Hosts, schemes, repositories, paths and decorations that only look like a release asset. */
 function lookalikes(value:string):string[]{
  return [value.replace("https:","http:"),value.replace("github.com","example.com"),value.replace("github.com","github.com.evil.example"),

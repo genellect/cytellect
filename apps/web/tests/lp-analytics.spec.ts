@@ -80,23 +80,34 @@ test("download click uses a fixed event without sending the asset URL", async ({
   await page.goto(origin + "/");
   await expect.poll(async () => JSON.stringify(await commands(page))).toContain('"page_view"');
   // A normal Ctrl-click preserves browser behavior and leaves the LP available for inspection.
-  await page.locator('[data-lp-event="download"]').evaluate((anchor: HTMLAnchorElement) => {
+  await page.locator('#download a[data-lp-event="download"]').evaluate((anchor: HTMLAnchorElement) => {
     anchor.addEventListener("click", event => event.preventDefault());
     anchor.dispatchEvent(new MouseEvent("click", { bubbles:true, ctrlKey:true }));
   });
   await expect.poll(async () => JSON.stringify(await commands(page))).toContain('"download_click"');
   const events = await commands(page);
   expect(JSON.stringify(events)).not.toContain("releases/download");
+  expect(JSON.stringify(events)).not.toContain("ms-windows-store:");
 });
 
-test("a plain download click is measured and still opens the next-steps guide", async ({page, baseURL}) => {
+test("a plain install click is measured and opens the file guide for a legacy download", async ({page, baseURL}) => {
   await isolatedSite(page, baseURL!);
   // The release file itself is replaced by a tiny attachment so the test never fetches the installer.
   await page.route("https://github.com/**", route => route.fulfill({ body: "x", headers: { "content-disposition": "attachment; filename=test.bin" } }));
   await page.goto(origin + "/");
   await expect.poll(async () => JSON.stringify(await commands(page))).toContain('"page_view"');
-  await page.locator('#download a[data-lp-event="download"]').click();
-  await expect(page.getByRole("dialog", { name: "ダウンロードを始めました" })).toBeVisible();
+  const download = page.locator('#download a[data-lp-event="download"]');
+  const store = (await download.getAttribute("href"))?.startsWith("ms-windows-store:");
+  if (store) await download.evaluate(anchor => anchor.addEventListener("click", event => {
+    anchor.setAttribute("data-click-prevented", String(event.defaultPrevented));
+    event.preventDefault();
+  }, { once: true }));
+  await download.click();
+  const dialog = page.getByRole("dialog", { name: "ダウンロードを始めました" });
+  if (store) {
+    await expect(download).toHaveAttribute("data-click-prevented", "false");
+    await expect(dialog).toHaveCount(0);
+  } else await expect(dialog).toBeVisible();
   await expect.poll(async () => JSON.stringify(await commands(page))).toContain('"download_click"');
   await expect(page).toHaveURL(`${origin}/`);
 });
@@ -172,7 +183,10 @@ test("installed-user guidance is visible without contacting a local service", as
   await expect(page.locator("#launch")).toBeInViewport();
   await page.locator("#launch summary").click();
   await expect(page.locator("#launch")).toContainText("「作業画面を開く」");
-  await expect(page.locator("#launch")).toContainText("デスクトップの「Cytellect」から開けます。");
+  const launchText = process.env.CYTELLECT_EXPECT_RELEASE_URL === undefined
+    ? "スタートメニューで「Cytellect」を選びます。"
+    : "デスクトップの「Cytellect」から開けます。";
+  await expect(page.locator("#launch")).toContainText(launchText);
   expect(localRequests).toEqual([]);
 });
 

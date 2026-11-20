@@ -2,6 +2,11 @@ import {test,expect} from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 
+const storeByDefault=process.env.CYTELLECT_EXPECT_RELEASE_URL===undefined;
+const installAction=storeByDefault
+ ? {name:"Microsoft Store で入手",href:"ms-windows-store://pdp/?ProductId=9PGKTQGV7X5C"}
+ : {name:"ダウンロード",href:"#download"};
+
 test.beforeEach(()=>{test.skip(process.env.CYTELLECT_EXPECT_UNCONFIGURED!=="1","Unconfigured public build only");});
 
 test("immersive LP keeps outcomes readable across viewports and routes to the real product",async({page})=>{
@@ -13,7 +18,7 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
  await expect(hero.locator("p")).toHaveCount(0);
  await expect(hero.locator("figure")).toHaveCount(0);await expect(hero.getByRole("list")).toHaveCount(0);
  await expect(hero.locator("video")).toHaveCount(0);await expect(hero.locator("canvas")).toHaveCount(0);
- await expect(hero.getByRole("link",{name:"ダウンロード",exact:true})).toHaveAttribute("href","#download");
+ await expect(hero.getByRole("link",{name:installAction.name,exact:true})).toHaveAttribute("href",installAction.href);
  await expect(hero.getByRole("link",{name:"デモを体験する",exact:true})).toHaveAttribute("href","/demo");
  await expect(hero.getByRole("button",{name:/領域/})).toHaveCount(0);
  // What Cytellect does is split into tabs, detection and measurement first, so the page stays short. Without the
@@ -143,7 +148,7 @@ test("a failed hero film leaves the poster and primary action available",async({
  await expect.poll(()=>poster.evaluate((node:HTMLImageElement)=>node.complete&&node.naturalWidth>0)).toBe(true);
  await expect(film.locator("video")).toHaveCount(0);
  await expect(page.getByRole("button",{name:"背景映像を停止",exact:true})).toHaveCount(0);
- await expect(page.getByRole("region",{name:"Get your microscopy publication-ready.",exact:true}).getByRole("link",{name:"ダウンロード",exact:true})).toBeVisible();
+ await expect(page.getByRole("region",{name:"Get your microscopy publication-ready.",exact:true}).getByRole("link",{name:installAction.name,exact:true})).toBeVisible();
 });
 
 test("a researcher can stop the hero film and keep it stopped after navigation",async({page})=>{
