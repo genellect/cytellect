@@ -58,6 +58,7 @@ COMPARTMENT_LABELS = {
     "nucleolar_area_px": ("Nucleolar area per nucleus", "核あたりの核小体の総面積"),
     "nucleolar_area_um2": ("Nucleolar area per nucleus", "核あたりの核小体の総面積"),
     "nucleolar_eccentricity": ("Nucleolar eccentricity", "核小体の離心率"),
+    "largest_nucleolus_fraction": ("Largest nucleolus / all nucleoli", "最大の核小体 / 核小体全体"),
 }
 FIELD_SUMMARY_LABELS = {
     "nucleus_count": ("Nucleus count", "核数"),

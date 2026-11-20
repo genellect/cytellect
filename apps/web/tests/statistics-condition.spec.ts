@@ -56,7 +56,10 @@ test("a chosen condition shows its saved result, or its name, what is missing an
   await choose("mean", "nucleoli", "eu5");
   await expect(summary.getByRole("heading", {level: 3})).toContainText("核小体の平均輝度（5-EU）");
   await expect(pending).toHaveCount(0);
-  await expect(results.locator("[class*=current]").first()).toHaveText("計算する条件：核小体の平均輝度（5-EU）");
+  const current=results.locator("[class*=current]").first();
+  await expect(current).toHaveText(/^計算する条件：核小体の平均輝度（5-EU）/);
+  // The demo recording declares no primary measure, so every condition reads as exploratory (#257 RP-04).
+  await expect(current.locator("[data-outcome-role]")).toHaveText("探索的な指標（主要指標は未宣言）");
 
   // SR-02, SR-03: a condition without one shows no other condition's result; it names the condition and what is missing.
   await choose("mean", "nucleoli", "npm1");

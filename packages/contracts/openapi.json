@@ -7295,7 +7295,8 @@
                 "enum": [
                   "nucleolar_area_px",
                   "nucleolar_area_um2",
-                  "nucleolar_eccentricity"
+                  "nucleolar_eccentricity",
+                  "largest_nucleolus_fraction"
                 ],
                 "type": "string"
               }
@@ -9104,7 +9105,8 @@
                 "enum": [
                   "nucleolar_area_px",
                   "nucleolar_area_um2",
-                  "nucleolar_eccentricity"
+                  "nucleolar_eccentricity",
+                  "largest_nucleolus_fraction"
                 ]
               }
             ],
@@ -12811,7 +12813,8 @@
                 "enum": [
                   "nucleolar_area_px",
                   "nucleolar_area_um2",
-                  "nucleolar_eccentricity"
+                  "nucleolar_eccentricity",
+                  "largest_nucleolus_fraction"
                 ]
               }
             ],
@@ -18415,7 +18418,8 @@
                 "enum": [
                   "nucleolar_area_px",
                   "nucleolar_area_um2",
-                  "nucleolar_eccentricity"
+                  "nucleolar_eccentricity",
+                  "largest_nucleolus_fraction"
                 ]
               }
             ],

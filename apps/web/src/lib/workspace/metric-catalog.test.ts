@@ -23,7 +23,7 @@ describe("metric catalog", () => {
     // The nucleoli: their own areas and brightness per nucleolus, then the per-nucleus summaries and the partition.
     expect(groups("nucleoli")).toEqual([
       ["核小体ごと", ["area_px", "area_um2", "mean", "median", "integrated", "mean_corrected", "integrated_corrected", ...FEATURES]],
-      ["核ごと（その核の核小体をまとめた値）", ["nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity", "nucleolar_count", "nucleolar_area_fraction"]],
+      ["核ごと（その核の核小体をまとめた値）", ["nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity", "largest_nucleolus_fraction", "nucleolar_count", "nucleolar_area_fraction"]],
       ["核ごと（核質と核小体の比）", ["log2_nucleoplasm_over_nucleolus"]],
     ]);
     expect(groups("nuclei").map(([unit]) => unit)).toEqual(["核ごと", "視野ごと"]);

@@ -93,8 +93,9 @@
 .theme{margin:8px 0 12px;font-size:14px;line-height:1.6;color:#374151}
 .theme summary{cursor:pointer;font-weight:600}
 .themeScroll{overflow-x:auto}
-.theme table{border-collapse:collapse;min-width:640px;font-size:13px}
-.theme th,.theme td{border-bottom:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}
+.theme table{border-collapse:collapse;width:100%;min-width:640px;font-size:13px}
+/* Above the workspace's numeric-table rule (right-aligned, one line): these cells are words. */
+.theme table th,.theme table td{border-bottom:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top;white-space:normal}
 .theme td small{display:block;color:#6b7280}
 .theme tr[data-available="false"]{color:#6b7280}
 .theme td .link+.link{margin-left:10px}

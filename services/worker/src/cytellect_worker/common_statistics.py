@@ -69,7 +69,7 @@ def run_common_statistics(store, job, output):
         summaries = (load_compartment_summaries(store, rev, report)
                      if request.selection.source == "compartment-summary" else None)
         shapes = (load_nucleolar_shapes(store, rev, report, summaries)
-                  if request.selection.metric == "nucleolar_eccentricity" else None)
+                  if request.selection.metric in ("nucleolar_eccentricity", "largest_nucleolus_fraction") else None)
         nuclear = load_gate_nuclear_source(store, rev, report, request.selection) if gate_of(request.selection) is not None else None
         value = analyze_region_comparison(report, config, request, summaries=summaries, nuclear=nuclear, shapes=shapes,
                                           **_features(store, rev, report, request))

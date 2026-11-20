@@ -245,7 +245,7 @@ FIELD_SUMMARY_VERSION: Literal["1.0.0"] = "1.0.0"
 COMPARTMENT_SUMMARY_SELECTION_V11: Literal["1.1.0"] = "1.1.0"
 
 FieldSummaryMetric = Literal["nucleus_count", "nucleus_density_per_mm2", "positive_count", "positive_fraction"]
-NucleolarSummaryMetric = Literal["nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity"]
+NucleolarSummaryMetric = Literal["nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity", "largest_nucleolus_fraction"]
 
 
 class FieldSummarySelection(StrictModel):

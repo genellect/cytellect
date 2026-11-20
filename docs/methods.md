@@ -728,6 +728,11 @@ Adds to the 1.0.0 metrics, for nuclei with at least one adopted nucleolus
   object (`λmax = 0`) is not measured; a one-pixel-wide line has `e = 1`. The nucleus value is the area-weighted mean of its measured objects;
   if none is measurable it is missing (`degenerate_objects`). Larger values mean
   more elongated nucleoli; rounder nucleoli have smaller values.
+- `largest_nucleolus_fraction` (added 2026-11-21, genellect/cytellect#257 A-3): the pixel area of the nucleus's
+  largest adopted nucleolus divided by the pixel area of its adopted nucleoli together (0–1], the nucleus table's
+  `largest_nucleolus_fraction`. Near 1, the nucleolar area is in one large nucleolus; smaller values mean it is
+  divided among similar nucleoli. It is compared as a difference and read from the same per-nucleus shapes as
+  eccentricity (below).
 - Eccentricity is computed when the comparison runs, from each field's adopted
   nuclear mask (with its exclusions) and adopted nucleolar mask, the same inputs as
   the saved summary. Every summarized nucleus must have the same nuclear and

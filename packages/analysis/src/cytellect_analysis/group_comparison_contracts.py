@@ -60,7 +60,7 @@ _SCALES: dict[str, MetricScale] = {
     "nucleus_count": "ratio", "nucleus_density_per_mm2": "ratio", "positive_count": "ratio",
     "positive_fraction": "fraction",
     "nucleolar_count": "ratio", "nucleolar_area_px": "ratio", "nucleolar_area_um2": "ratio",
-    "nucleolar_area_fraction": "fraction", "nucleolar_eccentricity": "difference",
+    "nucleolar_area_fraction": "fraction", "nucleolar_eccentricity": "difference", "largest_nucleolus_fraction": "difference",
     "log2_nucleoplasm_over_nucleolus": "log2",
 }
 

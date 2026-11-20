@@ -64,7 +64,7 @@ def run_descriptive(store, job, output):
             assert_reviewed_compartments(config, report, read_json(store.safe_path(rev["result_dir"], "provenance.json")))
         summaries = load_compartment_summaries(store, rev, report)
         shapes = (load_nucleolar_shapes(store, rev, report, summaries)
-                  if request.selection.metric == "nucleolar_eccentricity" else None)
+                  if request.selection.metric in ("nucleolar_eccentricity", "largest_nucleolus_fraction") else None)
         result = describe_compartment_summary(report, snapshot, request, summaries,
                                               nuclear=_gfp_source(store, rev, report, request), shapes=shapes)
     elif request.selection.source == "field-summary":

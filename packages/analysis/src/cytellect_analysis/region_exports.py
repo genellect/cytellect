@@ -335,7 +335,7 @@ def _statistics_methods_template(result):
 
 
 def _descriptive_shapes(result, dependencies, config):
-    if result["spec"]["selection"]["metric"] != "nucleolar_eccentricity":
+    if result["spec"]["selection"]["metric"] not in ("nucleolar_eccentricity", "largest_nucleolus_fraction"):
         return None
     from .nucleolar_shape import nucleolar_eccentricity
     from .region_export_dependencies import checked_parent

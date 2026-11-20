@@ -206,7 +206,7 @@ def _measurement(result, version="1.0.0"):
         if "area_only" in modes:
             summary_geometry = (result["spec"]["selection"]["source"] in ("field-summary", "compartment-summary")
                                 and metric in ("nucleus_count", "nucleus_density_per_mm2", "nucleolar_area_px",
-                                               "nucleolar_area_um2", "nucleolar_eccentricity"))
+                                               "nucleolar_area_um2", "nucleolar_eccentricity", "largest_nucleolus_fraction"))
             if metric not in ("area_px", "area_um2", *SHAPE_METRICS) and not summary_geometry:
                 raise ValueError("statistical_methods_source_invalid")
             lines.append("Area-only measurement used measurement protocol 2.0.0 and policy 1.0.0 (area_only). "

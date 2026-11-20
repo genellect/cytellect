@@ -71,6 +71,8 @@ export const METRIC_QUESTIONS: MetricQuestion[] = [
       definition: "核小体の総面積（px²）× 確認した画素の大きさ。画素の大きさが登録された視野だけで使えます。"},
     {id: "nucleolar_eccentricity", subjects: ["nucleoli"], unit: "核ごと（その核の核小体をまとめた値）", label: "核小体の離心率", target: "nucleoplasm", structure: "nucleoli", channel: false,
       definition: "核ごとの、核小体の離心率（0 = 円、1 に近いほど細長い）を面積で重みづけた平均。1 画素の核小体は測りません。比較では差で示します。"},
+    {id: "largest_nucleolus_fraction", subjects: ["nucleoli"], unit: "核ごと（その核の核小体をまとめた値）", label: "最大の核小体の割合", target: "nucleoplasm", structure: "nucleoli", channel: false,
+      definition: "核ごとの、最大の核小体の面積 ÷ その核の核小体の総面積（0〜1）。1 に近いほど 1 個の大きな核小体にまとまり、小さいほど同じくらいの核小体に分かれています。候補がない核は欠測です。"},
     {id: "nucleolar_count", subjects: ["nucleoli"], unit: "核ごと（その核の核小体をまとめた値）", label: "核小体数", target: "nucleoplasm", structure: "nucleoli", channel: false,
       definition: "採用した核小体がある核ごとの、核小体の数。候補がない核は 0 ではなく欠測として扱います。"},
     {id: "nucleolar_area_fraction", subjects: ["nucleoli"], unit: "核ごと（その核の核小体をまとめた値）", label: "核小体面積割合", target: "nucleoplasm", structure: "nucleoli", channel: false,
