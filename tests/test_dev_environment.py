@@ -320,3 +320,174 @@ def test_fiji_and_the_figure_font_are_installed_on_first_use(monkeypatch, tmp_pa
         monkeypatch.setattr(dev, "figure_font", lambda: next(fonts))
         dev.ensure_figure_font()
         assert commands == [("bash", "scripts/install_figure_font.sh")]
+
+
+def test_changed_areas_follow_the_pull_request_ci_rules():
+    import dev
+
+    assert dev.changed_areas([]) == frozenset()
+    assert dev.changed_areas(["docs/methods.md", ".claude/skills/cytellect-verify/SKILL.md"]) == frozenset()
+    assert dev.changed_areas(["services/proposal-worker/src/index.ts"]) == {"web"}
+
+
+def _check(dev, **given):
+    import argparse
+
+    dev.check(argparse.Namespace(**{"areas": [], "changed": False, "related": False, "base": "origin/main",
+                                    "fiji": False, **given}))
+
+
+def test_check_changed_runs_only_the_selected_local_areas(monkeypatch, capsys):
+    import dev
+    import pytest
+
+    calls: list[tuple[str, ...]] = []
+    monkeypatch.setattr(dev, "run", lambda argv, env=None, **_: calls.append(tuple(argv)))
+    monkeypatch.setattr(dev, "ensure_figure_font", lambda: None)
+
+    monkeypatch.setattr(dev, "changed_paths", lambda base: ["docs/methods.md"])
+    _check(dev, changed=True)
+    assert calls == list(dev.DOC_CHECKS)
+
+    calls.clear()
+    monkeypatch.setattr(dev, "changed_paths", lambda base: ["scripts/ci_changes.py"])
+    _check(dev, changed=True)
+    assert calls == list(dev.CHECKS["python"])  # the python area already runs the document checks
+    assert "Left to pull-request CI: fiji, windows" in capsys.readouterr().out
+
+    # A web change with a document: the web job has no document check, so it is added.
+    calls.clear()
+    monkeypatch.setattr(dev, "changed_paths", lambda base: ["services/proposal-worker/src/index.ts", "docs/methods.md"])
+    _check(dev, changed=True)
+    assert calls == [*dev.CHECKS["web"], *dev.DOC_CHECKS]
+
+    calls.clear()
+    monkeypatch.setattr(dev, "changed_paths", lambda base: ["apps/web/src/components/PublicLanding.tsx"])
+    _check(dev, changed=True)
+    assert calls == [*dev.LP_CHECKS, *dev.DOC_CHECKS]
+    assert "Local areas: lp (without its browser tests)" in capsys.readouterr().out
+
+    calls.clear()
+    monkeypatch.setattr(dev, "ensure_fiji", lambda: "")
+    monkeypatch.setattr(dev, "changed_paths", lambda base: ["docs/methods.md"])
+    _check(dev, changed=True, fiji=True)
+    assert calls == [*dev.DOC_CHECKS, dev.FIJI_CHECK]
+
+    for conflicting in ({"areas": ["web"], "changed": True}, {"changed": True, "related": True},
+                        {"areas": ["web"], "related": True}):
+        with pytest.raises(SystemExit):
+            _check(dev, **conflicting)
+
+
+def test_the_base_ref_reaches_both_the_file_list_and_the_area_rules(monkeypatch, capsys):
+    import argparse
+
+    import dev
+
+    seen: list[tuple[str, str]] = []
+    monkeypatch.setattr(dev, "changed_paths", lambda base: seen.append(("paths", base)) or ["docs/methods.md"])
+    monkeypatch.setattr(dev, "changed_areas", lambda paths, base="origin/main": seen.append(("areas", base)) or frozenset())
+    monkeypatch.setattr(dev, "related_tests", lambda root, paths: [])
+    monkeypatch.setattr(dev, "run", lambda argv, env=None, **_: None)
+    dev.changed(argparse.Namespace(base="origin/release"))
+    _check(dev, changed=True, base="origin/release")
+    _check(dev, related=True, base="origin/release")
+    assert seen == [("paths", "origin/release"), ("areas", "origin/release")] * 3
+    assert "Related Python tests: 0" in capsys.readouterr().out
+
+
+def test_related_checks_are_lint_types_related_tests_contracts_and_documents():
+    import dev
+
+    python = dev.related_commands(["packages/analysis/src/cytellect_analysis/statistics.py"],
+                                  frozenset({"python", "web", "fiji", "windows"}), ["tests/test_statistics.py"])
+    assert python == [dev.RUFF, dev.MYPY, ("uv", "run", "pytest", "tests/test_statistics.py", "-m", "not fiji"),
+                      *dev.CONTRACT_CHECKS, *dev.DOC_CHECKS]
+    # A script is outside the type check; no related test means no pytest run.
+    assert dev.related_commands(["scripts/dev.py"], frozenset({"python", "fiji", "windows"}), []) == [
+        dev.RUFF, *dev.DOC_CHECKS]
+    # The test configuration changed: the whole suite.
+    assert dev.PYTEST in dev.related_commands(["tests/conftest.py"], frozenset({"python"}), None)
+    web = dev.related_commands(["apps/web/src/lib/api.ts", "services/proposal-worker/src/access.ts"],
+                               frozenset({"web", "fiji"}), [])
+    assert web == [
+        dev.WEB_CHECK,
+        ("pnpm", "--filter", "@cytellect/web", "exec", "vitest", "related", "--run", "--passWithNoTests", "src/lib/api.ts"),
+        ("pnpm", "--filter", "@cytellect/proposal-worker", "exec", "vitest", "related", "--run", "--passWithNoTests",
+         "src/access.ts"),
+        dev.WORKER_CHECK, *dev.DOC_CHECKS]
+    assert dev.related_commands(["docs/methods.md"], frozenset(), []) == list(dev.DOC_CHECKS)
+
+
+def test_check_related_runs_the_short_loop_and_names_what_ci_keeps(monkeypatch, capsys):
+    import dev
+
+    calls: list[tuple[str, ...]] = []
+    monkeypatch.setattr(dev, "run", lambda argv, env=None, **_: calls.append(tuple(argv)))
+    monkeypatch.setattr(dev, "changed_paths", lambda base: ["scripts/ci_changes.py"])
+    monkeypatch.setattr(dev, "related_tests", lambda root, paths: ["tests/test_ci_changes.py"])
+    _check(dev, related=True)
+    assert calls == [dev.RUFF, ("uv", "run", "pytest", "tests/test_ci_changes.py", "-m", "not fiji"), *dev.DOC_CHECKS]
+    output = capsys.readouterr().out
+    assert "Related Python tests: 1" in output
+    assert "Left to pull-request CI: the full suites of python, fiji, windows" in output
+
+
+def test_related_tests_that_all_need_fiji_are_not_a_failure(monkeypatch):
+    import dev
+    import pytest
+
+    accepted: list[tuple[int, ...]] = []
+    monkeypatch.setattr(dev, "run", lambda argv, env=None, ok=(0,): accepted.append(ok))
+    monkeypatch.setattr(dev, "changed_paths", lambda base: ["engines/fiji/CytellectEngine.java"])
+    monkeypatch.setattr(dev, "related_tests", lambda root, paths: ["tests/test_fiji_engine.py"])
+    _check(dev, related=True)
+    assert accepted == [(0,), (0, 5), (0,), (0,)]  # lint, the related tests, then the two document checks
+    with pytest.raises(SystemExit, match="--base needs"):
+        _check(dev, base="origin/release")
+
+
+def test_public_inputs_offers_only_registered_datasets(monkeypatch, tmp_path, capsys):
+    import argparse
+
+    import dev
+    import pytest
+
+    calls: list[tuple[str, ...]] = []
+    monkeypatch.setattr(dev, "run", lambda argv, env=None, **_: calls.append(tuple(argv)))
+    with pytest.raises(SystemExit, match="Unknown dataset: private"):
+        dev.public_inputs(argparse.Namespace(datasets=["private"], out=tmp_path))
+    dev.public_inputs(argparse.Namespace(datasets=["bbbc013"], out=tmp_path))
+    assert calls == []  # already in the checkout
+    assert str(dev.ROOT / "fixtures/public/bbbc013") in capsys.readouterr().out
+    dev.public_inputs(argparse.Namespace(datasets=[], out=tmp_path))
+    assert [argv[3] for argv in calls] == ["scripts/public_bbbc007.py", "scripts/prepare_workspace_bbbc007.py",
+                                           "scripts/check_public_uploads.py"]
+    calls.clear()
+    dev.public_inputs(argparse.Namespace(datasets=["jump-plk1", "nucleolar"], out=tmp_path))
+    assert [argv[3] for argv in calls] == ["scripts/public_jump_plk1.py", "scripts/public_nucleolar.py"]
+    assert all((dev.ROOT / argv[3]).is_file() for argv in calls)
+
+
+def test_documents_can_check_the_commands_they_name():
+    import dev
+
+    options = dev.command_options()
+    assert {"--related", "--changed", "--base", "--fiji"} <= options["check"]
+    assert "--base" in options["changed"] and "public-inputs" in options
+
+
+def test_a_documentation_only_registry_edit_selects_no_area(monkeypatch, tmp_path):
+    import json
+
+    import dev
+
+    old = {"fixtures/public/a.tif": {"sha256": "1"}}
+    new = {**old, "docs/figure.png": {"sha256": "2"}}
+    (tmp_path / "fixtures/public").mkdir(parents=True)
+    (tmp_path / dev.REGISTRY).write_text(json.dumps(new), encoding="utf-8")
+    monkeypatch.setattr(dev, "ROOT", tmp_path)
+    monkeypatch.setattr(dev, "_registry_at", lambda revision: old)
+    assert dev.changed_areas([dev.REGISTRY, "docs/figure.png"]) == frozenset()
+    (tmp_path / dev.REGISTRY).write_text(json.dumps({**new, "fixtures/public/b.tif": {"sha256": "3"}}), encoding="utf-8")
+    assert dev.changed_areas([dev.REGISTRY]) != frozenset()

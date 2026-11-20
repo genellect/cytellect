@@ -5,7 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
-from dev import CHECKS  # noqa: E402
+from dev import CHECKS, DOC_CHECKS, LP_CHECKS  # noqa: E402
 
 TOOLS = ("uv ", "pnpm ", "node ", "git diff")
 # CI commands that `dev.py check` deliberately leaves out, and where they live instead.
@@ -79,3 +79,11 @@ def test_drift_in_either_direction_is_reported():
         "uv run python scripts/new_gate.py"]
     assert missing_in_ci([*local_commands("python"), "uv run ruff format --check ."], ci) == [
         "uv run ruff format --check ."]
+
+
+def test_the_landing_page_and_document_checks_follow_their_ci_jobs():
+    """`check --changed` adds these for landing-page-only and non-python changes; they must not drift either."""
+    landing = [normalize(" ".join(argv)) for argv in LP_CHECKS]
+    assert missing_in_ci(landing, ci_commands("lp")) == []
+    assert missing_locally(landing, ci_commands("lp")) == [], "lp: add these to scripts/dev.py LP_CHECKS or CI_ONLY"
+    assert missing_in_ci([normalize(" ".join(argv)) for argv in DOC_CHECKS], ci_commands("python")) == []

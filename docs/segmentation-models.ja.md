@@ -6,7 +6,7 @@ Cytellect は、対象の生物学的な特徴に合うモデルを選び、検�
 
 ## 解析基盤と追加学習モデル
 
-核の検出に StarDist、核小体・細胞領域の検出に Cellpose-SAM を用いる。核小体向けには Cellpose-SAM を追加学習し、`ncl-r1-step0750` と `ncl-r1-step0375` を [Genellect/Cytellect](https://huggingface.co/Genellect/Cytellect/tree/7670daa1edbfcb3d4611c9e053766d91f6125e74) で公開している。製品では核小体の検出条件から追加学習モデルを選択できる。既定は公式の `cpsam_v2` とし、保存済みの解析条件を維持する（[モデルの受入記録](#モデルの受入記録)）。基盤モデル、追加学習した重み、解析プロトコルは、それぞれ別に版管理する。
+核の検出に StarDist、核小体・細胞領域の検出に Cellpose-SAM を用いる。核小体向けには Cellpose-SAM を追加学習し、`ncl-r1-step0750` と `ncl-r1-step0375` を [Genellect/Cytellect](https://huggingface.co/Genellect/Cytellect/tree/7670daa1edbfcb3d4611c9e053766d91f6125e74) で公開している。プロダクトでは核小体の検出条件から追加学習モデルを選択できる。既定は公式の `cpsam_v2` とし、保存済みの解析条件を維持する（[モデルの受入記録](#モデルの受入記録)）。基盤モデル、追加学習した重み、解析プロトコルは、それぞれ別に版管理する。
 
 次の表は、リポジトリの `main` に固定されている実行構成を示す。
 
@@ -46,7 +46,7 @@ Cytellect の `cellpose-sam-ncl-parent/4.3.0` は、親核による条件付け�
 | 来歴 | モデル別 JSON に学習条件、基盤・学習コード・データ manifest のハッシュと評価記録を保存 |
 | 権利表示 | モデルカードの BSD-3-Clause、上流の `LICENSE.cellpose`、追加学習による変更を記した `NOTICE.md` |
 
-根拠は固定版の[モデルカード](https://huggingface.co/Genellect/Cytellect/blob/7670daa1edbfcb3d4611c9e053766d91f6125e74/README.md)、[750 更新版の記録](https://huggingface.co/Genellect/Cytellect/blob/7670daa1edbfcb3d4611c9e053766d91f6125e74/ncl/r1-step0750.json)、[NOTICE](https://huggingface.co/Genellect/Cytellect/blob/7670daa1edbfcb3d4611c9e053766d91f6125e74/NOTICE.md)。評価条件と製品への組み込み状況は、[モデルの受入記録](#モデルの受入記録)で管理する。
+根拠は固定版の[モデルカード](https://huggingface.co/Genellect/Cytellect/blob/7670daa1edbfcb3d4611c9e053766d91f6125e74/README.md)、[750 更新版の記録](https://huggingface.co/Genellect/Cytellect/blob/7670daa1edbfcb3d4611c9e053766d91f6125e74/ncl/r1-step0750.json)、[NOTICE](https://huggingface.co/Genellect/Cytellect/blob/7670daa1edbfcb3d4611c9e053766d91f6125e74/NOTICE.md)。評価条件とプロダクトへの組み込み状況は、[モデルの受入記録](#モデルの受入記録)で管理する。
 
 ## 拡張先とモデルの選び方
 
@@ -97,7 +97,7 @@ SaaS のモデル更新では、利用者が採用した版を保持し、新版
 | 対象 | 確認した状態 | 次の受入条件 |
 |---|---|---|
 | 追加学習と公開 | 核小体用 375・750 更新版の重み、学習条件、評価 metadata、ライセンス表示を公開済み | 追加の対象・撮影条件にも同じ来歴管理を適用 |
-| 製品との接続 | CPU・GPU・画面のモデル選択に 375／750 更新版を接続。固定 revision・SHA-256 を照合し、標準モデルと旧版 GPU クライアントの経路を保持 | デプロイ済み GPU で実行とモデル ID の一致、配布アプリで選択・保存・切戻しを確認 |
-| 評価範囲 | 学習は 1 実験の 8 個、評価は別に培養・処理した実験の 4 個の核小体。750 更新版は製品の後処理込みで、IoU ≥ 0.5 の F1 が 1.0、union Dice が 0.8951。IoU ≥ 0.7 では F1 0.75 で、1 個は面積が 40.8% 小さい。評価に使った 4 個は候補の選択にも使ったため、独立した最終試験ではない | 独立した実験回で輪郭・測定誤差・修正時間を評価。個々の境界誤差と IoU 閾値別の結果も含める |
+| プロダクトとの接続 | CPU・GPU・画面のモデル選択に 375／750 更新版を接続。固定 revision・SHA-256 を照合し、標準モデルと旧版 GPU クライアントの経路を保持 | デプロイ済み GPU で実行とモデル ID の一致、配布アプリで選択・保存・切戻しを確認 |
+| 評価範囲 | 学習は 1 実験の 8 個、評価は別に培養・処理した実験の 4 個の核小体。750 更新版はプロダクトの後処理込みで、IoU ≥ 0.5 の F1 が 1.0、union Dice が 0.8951。IoU ≥ 0.7 では F1 0.75 で、1 個は面積が 40.8% 小さい。評価に使った 4 個は候補の選択にも使ったため、独立した最終試験ではない | 独立した実験回で輪郭・測定誤差・修正時間を評価。個々の境界誤差と IoU 閾値別の結果も含める |
 
-更新回数や単一の一致率を製品全体の精度に置き換えず、モデルカードの対象・処理条件・評価単位とともに判断する。
+更新回数や単一の一致率をプロダクト全体の精度に置き換えず、モデルカードの対象・処理条件・評価単位とともに判断する。

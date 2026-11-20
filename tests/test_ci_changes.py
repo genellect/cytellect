@@ -14,8 +14,10 @@ from ci_changes import (  # noqa: E402
 
 def test_documentation_selects_no_heavy_area():
     for path in ["docs/methods.md", "docs/sub/a.png", "README.md", "README.en.md", "AGENTS.md", "LICENSE", "NOTICE",
-                 ".github/pull_request_template.md"]:
+                 ".github/pull_request_template.md", ".claude/skills/cytellect-verify/SKILL.md"]:
         assert areas_for(path) == frozenset(), path
+    for path in [".claude/settings.json", ".claude/hooks/session-start.sh", ".claude/cloud-setup.sh"]:
+        assert areas_for(path) == ALL, path
 
 
 def test_each_area_follows_what_its_jobs_build_or_run():

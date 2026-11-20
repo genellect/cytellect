@@ -7,12 +7,12 @@
 `scripts/build_windows_msix.py` は、現行の EXE と同じ ZIP、SHA-256 で固定した Windows x64 の Python、Tcl/Tk、ホイール、Fiji、JDK を使う。配布するソースの SHA を `--commit` で指定する。利用者の PC では同梱の Python を分離モード（`-I -B`）で起動し、依存ライブラリの取得や仮想環境の作成は不要。ワーカーと解析の子プロセスも同じ分離モードで起動するため、利用者の Python パッケージや `PYTHON*` 変数は読み込まれない。Fiji のブリッジはビルド時にコンパイルし、TensorFlow の JNI DLL もパッケージ内に置く。Store 版の Java プロセスでは、展開時に TurboJPEG を必要とする NDPI 読み込み器を対象外にする。Cytellect が Fiji に渡す入力は TIFF。
 
 - 版番号は `1.0.1.0` から始め、初回の限定配布と次の更新を `1.0.1.0`、`1.0.2.0` の順にする。引き続き Store の版番号が増えるようにする。配布 ZIP の版とソースの SHA はビルドの受領書に別々に残る。
-- 開発用のパッケージには `Cytellect.Development` の識別情報を使う。提出候補には Partner Center の発行者と製品の識別情報を `--identity` で設定する。JSON のキーは `name`、`publisher`、`publisher_display_name`。
+- 開発用のパッケージには `Cytellect.Development` の識別情報を使う。提出候補には Partner Center の発行者とプロダクトの識別情報を `--identity` で設定する。JSON のキーは `name`、`publisher`、`publisher_display_name`。
 - 同梱物のライセンスと [対応するソース](oss.md#gpl-などの対応するソース)はパッケージの `licenses/` にある。起動中のブラウザで `http://127.0.0.1:8765/v1/local/corresponding-source` を開くと、同梱版の対応ソース ZIP を取得できる。
 
 ## main から提出する
 
-[Windows Store release](../.github/workflows/windows-store-release.yml) は `main` の更新を Windows ランナーでビルドし、MSIX と受領書を保存する。Microsoft Store 用の製品識別子は `24D2FD66.Cytellect`。3 番目の版番号にはこのワークフローの実行番号に 3 を足した値を使う。1.0.3.0 までは手動で採番した版に残す。
+[Windows Store release](../.github/workflows/windows-store-release.yml) は `main` の更新を Windows ランナーでビルドし、MSIX と受領書を保存する。Microsoft Store 用のプロダクト識別子は `24D2FD66.Cytellect`。3 番目の版番号にはこのワークフローの実行番号に 3 を足した値を使う。1.0.3.0 までは手動で採番した版に残す。
 
 1. Partner Center に [Microsoft Entra テナントを関連付け](https://learn.microsoft.com/en-us/windows/apps/publish/partner-center/associate-existing-azure-ad-tenant-with-partner-center-account)、[Store 提出 API 用のアプリ](https://learn.microsoft.com/en-us/windows/uwp/monetize/create-and-manage-submissions-using-windows-store-services)を登録する。
 2. GitHub のリポジトリ変数 `STORE_MSIX_PUBLISHER` に Partner Center の発行者識別子を設定する。発行者の表示名はリポジトリの Secret `STORE_MSIX_PUBLISHER_DISPLAY_NAME` に保存して CI ログでマスクする。

@@ -30,6 +30,7 @@ PY_STACK = frozenset({"python", "web", "fiji", "windows"})  # API/analysis feed 
 RULES: tuple[tuple[str, frozenset[str]], ...] = (
     ("docs/*", frozenset()),
     (".github/*.md", frozenset()),  # pull-request and issue templates; workflows and other settings stay unlisted
+    (".claude/skills/*.md", frozenset()),  # agent instructions; hooks, settings and setup scripts stay unlisted
     ("LICENSE", frozenset()),
     ("NOTICE", frozenset()),
     ("apps/web/scripts/*", frozenset({"web", "fiji", "windows"})),

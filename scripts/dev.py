@@ -3,14 +3,20 @@
 Standard library only, so it runs before `uv sync` and on Windows:
 
     python3 scripts/dev.py setup [--fiji DIR] [--cellpose DIR]
-    python3 scripts/dev.py check [python] [web] [--fiji]
+    python3 scripts/dev.py check [python] [web] [--related | --changed] [--base REF] [--fiji]
+    python3 scripts/dev.py changed [--base REF]
     python3 scripts/dev.py contracts
     python3 scripts/dev.py audit [--out DIR]
     python3 scripts/dev.py doctor [--live]
     python3 scripts/dev.py serve [--data-dir DIR] [--skip-build]
+    python3 scripts/dev.py public-inputs [DATASET ...] [--out DIR]
 
 `check` runs the same commands as the `python` and `web` jobs in
 .github/workflows/ci.yml; tests/test_dev_commands.py fails when the two drift.
+`changed` and `check --changed` pick the areas from the changed files with the
+rules pull-request CI uses (scripts/ci_changes.py). `check --related` is the short
+local loop: lint, types, and only the tests that import or name the changed files
+(scripts/related_tests.py); pull-request CI still runs everything.
 Browser, container and Windows-installer checks stay CI-only (see docs/ci.md).
 
 `serve` runs the analysis screen as installations do (API, worker, production web
@@ -34,6 +40,9 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from ci_changes import AREAS, REGISTRY, documentation_registry_change, select_changes
+from related_tests import related_tests
+
 ROOT = Path(__file__).resolve().parents[1]
 API_ORIGIN = "http://localhost:8000"
 APP_ORIGIN = "http://localhost:3000"
@@ -56,24 +65,34 @@ CONTRACT_OUTPUTS = ("packages/contracts", "apps/web/src/lib/generated.ts", "apps
 OPENAPI = ("uv", "run", "cytellect", "openapi", "--output", "packages/contracts/openapi.json",
            "--recipe-defaults", "apps/web/src/lib/recipe-defaults.json")
 
+# The committed contracts match the API (the first steps of the web job).
+CONTRACT_CHECKS: tuple[tuple[str, ...], ...] = (
+    OPENAPI,
+    ("pnpm", "contracts"),
+    ("git", "diff", "--exit-code", "--", *CONTRACT_OUTPUTS),
+)
+WEB_CHECK = ("pnpm", "check")
+WORKER_CHECK = ("pnpm", "--filter", "@cytellect/proposal-worker", "check")
 # The checks each pull-request CI area runs, in CI order.
+RUFF = ("uv", "run", "ruff", "check", ".")
+MYPY = ("uv", "run", "mypy", "packages/analysis/src", "services")
+# The whole suite as parallel shards on this machine (scripts/run_test_shards.py).
+PYTEST = ("uv", "run", "python", "scripts/run_test_shards.py", "tests", "-m", "not fiji")
 CHECKS: dict[str, tuple[tuple[str, ...], ...]] = {
     "python": (
-        ("uv", "run", "ruff", "check", "."),
-        ("uv", "run", "mypy", "packages/analysis/src", "services"),
+        RUFF,
+        MYPY,
         ("uv", "run", "python", "scripts/generate_planning_fixtures.py", "--check"),
-        ("uv", "run", "pytest", "tests", "-m", "not fiji"),
+        PYTEST,
         ("uv", "run", "python", "scripts/check_public_tree.py"),
         ("uv", "run", "python", "scripts/check_docs.py"),
         ("uv", "run", "python", "scripts/proposal_schema.py", "--check"),
     ),
     "web": (
-        OPENAPI,
-        ("pnpm", "contracts"),
-        ("git", "diff", "--exit-code", "--", *CONTRACT_OUTPUTS),
-        ("pnpm", "check"),
+        *CONTRACT_CHECKS,
+        WEB_CHECK,
         ("pnpm", "test"),
-        ("pnpm", "--filter", "@cytellect/proposal-worker", "check"),
+        WORKER_CHECK,
         ("pnpm", "--filter", "@cytellect/proposal-worker", "test"),
         ("pnpm", "--filter", "@cytellect/proposal-worker", "test:deployment"),
         ("node", "--test", "apps/web/scripts/finalize-local-export.test.mjs"),
@@ -82,16 +101,24 @@ CHECKS: dict[str, tuple[tuple[str, ...], ...]] = {
         ("uv", "run", "python", "scripts/check_local_web_bundle.py"),
     ),
 }
+RELATED_PYTEST = ("uv", "run", "pytest")
 FIJI_CHECK = ("uv", "run", "pytest", "-m", "fiji")
+# The landing-page job without its browser tests, which stay in CI (tests/test_dev_commands.py compares both).
+LP_CHECKS: tuple[tuple[str, ...], ...] = (WEB_CHECK, ("pnpm", "test"), ("pnpm", "build"))
+# What the python job runs on every change, documentation-only ones included (docs/ci.md, ジョブの選び方).
+DOC_CHECKS: tuple[tuple[str, ...], ...] = (
+    ("uv", "run", "python", "scripts/check_docs.py"),
+    ("uv", "run", "python", "scripts/check_public_tree.py"),
+)
 
 
-def run(argv: tuple[str, ...] | list[str], env: dict[str, str] | None = None) -> None:
+def run(argv: tuple[str, ...] | list[str], env: dict[str, str] | None = None, ok: tuple[int, ...] = (0,)) -> None:
     print("$ " + shlex.join(argv), flush=True)
     executable = shutil.which(argv[0])
     if executable is None:
         sys.exit(f"{argv[0]} is not installed; see CONTRIBUTING.md for the required tools")
     result = subprocess.run([executable, *argv[1:]], cwd=ROOT, env=env)
-    if result.returncode:
+    if result.returncode not in ok:
         sys.exit(f"Failed ({result.returncode}): {shlex.join(argv)}")
 
 
@@ -131,8 +158,114 @@ def setup(args: argparse.Namespace) -> None:
         print("export " + " ".join(exports))
 
 
+def changed_paths(base: str) -> list[str]:
+    """Files that differ from `base`: this branch's commits, staged and unstaged edits, untracked files."""
+    paths: set[str] = set()
+    for argv in (("git", "diff", "--name-only", f"{base}...HEAD"), ("git", "diff", "--name-only", "HEAD"),
+                 ("git", "ls-files", "--others", "--exclude-standard")):
+        result = subprocess.run(argv, cwd=ROOT, capture_output=True, text=True)
+        if result.returncode:
+            sys.exit(f"Cannot list changes against {base}: {result.stderr.strip()} (run `git fetch origin main`)")
+        paths.update(line for line in result.stdout.splitlines() if line)
+    return sorted(paths)
+
+
+def _registry_at(revision: str) -> dict | None:
+    shown = subprocess.run(["git", "show", f"{revision}:{REGISTRY}"], cwd=ROOT, capture_output=True, text=True)
+    try:
+        loaded = json.loads(shown.stdout) if not shown.returncode else None
+    except json.JSONDecodeError:
+        return None
+    return loaded if isinstance(loaded, dict) else None
+
+
+def changed_areas(paths: list[str], base: str = "origin/main") -> frozenset[str]:
+    """The pull-request CI areas for these files (scripts/ci_changes.py); none for no files or documentation only."""
+    if not paths:
+        return frozenset()
+    documentation_registry = False
+    if REGISTRY in paths:
+        merge_base = subprocess.run(["git", "merge-base", base, "HEAD"], cwd=ROOT, capture_output=True, text=True)
+        old = _registry_at(merge_base.stdout.strip() or base)
+        try:
+            new = json.loads((ROOT / REGISTRY).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            new = None
+        documentation_registry = isinstance(old, dict) and isinstance(new, dict) and documentation_registry_change(old, new)
+    return select_changes(paths, documentation_registry)
+
+
+def changed(args: argparse.Namespace) -> None:
+    paths = changed_paths(args.base)
+    print(f"Changed files against {args.base} and the working tree: {len(paths)}")
+    for path in paths:
+        print(f"  {path}")
+    areas = changed_areas(paths, args.base)
+    print("CI areas: " + (", ".join(area for area in AREAS if area in areas) or "none (documentation only)"))
+    tests = related_tests(ROOT, paths) if paths else []
+    print("Related Python tests: " + ("all (the test configuration changed)" if tests is None
+                                      else f"{len(tests)}" + "".join(f"\n  {test}" for test in tests)))
+
+
+def related_commands(paths: list[str], selected: frozenset[str],
+                     tests: list[str] | None) -> list[tuple[str, ...]]:
+    """The short local loop for a change: lint and types, the related tests, contracts and documents."""
+    def under(*prefixes: str) -> list[str]:
+        return [path for path in paths if path.startswith(prefixes)]
+
+    commands: list[tuple[str, ...]] = []
+    python = [path for path in paths if path.endswith(".py")]
+    if python or "python" in selected:
+        commands.append(RUFF)
+    if any(path.startswith(("packages/analysis/src/", "services/")) for path in python):
+        commands.append(MYPY)
+    if tests is None:
+        commands.append(PYTEST)
+    elif tests:
+        commands.append((*RELATED_PYTEST, *tests, "-m", "not fiji"))
+    if "web" in selected and under("services/api/", "packages/analysis/", "packages/contracts/"):
+        commands += CONTRACT_CHECKS
+    web, worker = under("apps/web/"), under("services/proposal-worker/")
+    if web:
+        commands.append(WEB_CHECK)
+    for package, directory, changed_here in (("@cytellect/web", "apps/web/", web),
+                                             ("@cytellect/proposal-worker", "services/proposal-worker/", worker)):
+        sources = [path[len(directory):] for path in changed_here if (ROOT / path).is_file()]
+        if sources:
+            commands.append(("pnpm", "--filter", package, "exec", "vitest", "related", "--run",
+                             "--passWithNoTests", *sources))
+    if worker:
+        commands.append(WORKER_CHECK)
+    return [*commands, *DOC_CHECKS]
+
+
 def check(args: argparse.Namespace) -> None:
-    areas = args.areas or list(CHECKS)
+    extra: tuple[tuple[str, ...], ...] = ()
+    if sum((bool(args.areas), args.changed, args.related)) > 1:
+        sys.exit("Give areas, --changed or --related: only one of them")
+    if args.base != "origin/main" and not (args.changed or args.related):
+        sys.exit("--base needs --related or --changed")
+    if args.related:
+        paths = changed_paths(args.base)
+        selected = changed_areas(paths, args.base)
+        tests = related_tests(ROOT, paths) if paths else []
+        areas, extra = [], tuple(related_commands(paths, selected, tests))
+        print("Related Python tests: " + ("all (the test configuration changed)" if tests is None else str(len(tests))))
+        print("Left to pull-request CI: the full suites of " + (", ".join(a for a in AREAS if a in selected) or "no area"))
+    elif args.changed:
+        selected = changed_areas(changed_paths(args.base), args.base)
+        areas = [area for area in CHECKS if area in selected]
+        # The web job covers the landing page, so lp is selected only without web. The python
+        # area already runs the document checks; every other selection gets them here.
+        extra = (LP_CHECKS if "lp" in selected else ()) + (() if "python" in areas else DOC_CHECKS)
+        label = ", ".join(areas + (["lp (without its browser tests)"] if "lp" in selected else [])) or (
+            "none (documentation only)" if not selected else "none")
+        print("Local areas: " + label)
+        ci_only = [area for area in AREAS if area in selected and area not in CHECKS]
+        if ci_only:
+            print("Left to pull-request CI: " + ", ".join(ci_only))
+    else:
+        areas = args.areas or list(CHECKS)
     unknown = sorted(set(areas) - set(CHECKS))
     if unknown:
         sys.exit(f"Unknown area: {', '.join(unknown)} (choose from {', '.join(CHECKS)})")
@@ -145,6 +278,9 @@ def check(args: argparse.Namespace) -> None:
         for area in areas:
             for argv in CHECKS[area]:
                 run(argv, env)
+        for argv in extra:
+            # Related modules whose tests all need Fiji leave nothing to run (pytest exit 5): not a failure.
+            run(argv, env, ok=(0, 5) if args.related and argv[:3] == RELATED_PYTEST else (0,))
         if args.fiji:
             run(FIJI_CHECK, env)
     print("All selected checks passed.")
@@ -156,6 +292,41 @@ def contracts(_: argparse.Namespace) -> None:
         run(OPENAPI, env)
         run(("pnpm", "contracts"), env)
     print("Commit packages/contracts/openapi.json, recipe-defaults.json and generated.ts together.")
+
+
+# Registered public images for trying the screens by hand (fixtures/public holds each source and license).
+PUBLIC_INPUTS = {
+    "bbbc007": "DNA and actin, one field: nucleus detection and the workspace browser tests (CC0)",
+    "bbbc013": "DRAQ and FKHR-EGFP, three fields: channel gates, positive fraction and area-only (in the checkout)",
+    "jump-plk1": "PLK1 knockout and control, three runs: group comparison (about 400 MB, CC0)",
+    "nucleolar": "DAPI and NCL source image of the nucleolus validation (docs/public-nucleolar-validation.md)",
+}
+
+
+def public_inputs(args: argparse.Namespace) -> None:
+    """Fetch and verify registered public images with the scripts the tests use; nothing else is downloaded."""
+    unknown = sorted(set(args.datasets) - set(PUBLIC_INPUTS))
+    if unknown:
+        sys.exit(f"Unknown dataset: {', '.join(unknown)} (choose from {', '.join(PUBLIC_INPUTS)})")
+    out = outside_checkout(args.out, "Public inputs")
+    places = {}
+    for dataset in args.datasets or ["bbbc007"]:
+        target = out / dataset
+        if dataset == "bbbc007":  # the browser-e2e job's preparation
+            target = out / "workspace-inputs"
+            run(("uv", "run", "python", "scripts/public_bbbc007.py", "--data-dir", str(out / "bbbc007"), "--download"))
+            run(("uv", "run", "python", "scripts/prepare_workspace_bbbc007.py", "--data-dir", str(out / "bbbc007"),
+                 "--output", str(target)))
+            run(("uv", "run", "python", "scripts/check_public_uploads.py", str(target)))
+        elif dataset == "bbbc013":
+            target = ROOT / "fixtures/public/bbbc013"
+        elif dataset == "jump-plk1":
+            run(("uv", "run", "python", "scripts/public_jump_plk1.py", "--output", str(target)))
+        else:
+            run(("uv", "run", "python", "scripts/public_nucleolar.py", "--data-dir", str(target)))
+        places[dataset] = target
+    for dataset, target in places.items():
+        print(f"{dataset}: {target}\n  {PUBLIC_INPUTS[dataset]}")
 
 
 def audit(args: argparse.Namespace) -> None:
@@ -578,7 +749,7 @@ def serve(args: argparse.Namespace) -> None:
         stop(processes)
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
     p = sub.add_parser("setup", help="Install locked dependencies; optionally provision Fiji and Cellpose")
@@ -588,8 +759,17 @@ def main() -> None:
     p.set_defaults(func=setup)
     p = sub.add_parser("check", help="Run the pull-request CI checks for the python and/or web areas")
     p.add_argument("areas", nargs="*", metavar="AREA", help="python, web (default: both)")
+    p.add_argument("--related", action="store_true",
+                   help="Short local loop: lint, types and only the tests that import or name the changed files")
+    p.add_argument("--changed", action="store_true",
+                   help="Choose the areas from the changed files, as pull-request CI does")
+    p.add_argument("--base", default="origin/main", metavar="REF",
+                   help="With --related or --changed, compare against this ref (default: origin/main)")
     p.add_argument("--fiji", action="store_true", help="Also run the real-Fiji tests")
     p.set_defaults(func=check)
+    p = sub.add_parser("changed", help="List changed files and the pull-request CI areas they select")
+    p.add_argument("--base", default="origin/main", metavar="REF", help="Compare against this ref (default: origin/main)")
+    p.set_defaults(func=changed)
     p = sub.add_parser("contracts", help="Regenerate OpenAPI, default recipe and TypeScript contracts")
     p.set_defaults(func=contracts)
     p = sub.add_parser("audit", help="Dependency inventory, vulnerability audits and full-history secret scan")
@@ -608,7 +788,26 @@ def main() -> None:
                    help="Private runtime directory outside the checkout (default: ~/cytellect-data)")
     p.add_argument("--skip-build", action="store_true", help="Reuse the last `serve` web build")
     p.set_defaults(func=serve)
-    args = parser.parse_args()
+    p = sub.add_parser("public-inputs", help="Fetch and verify registered public images for trying the screens",
+                       epilog="\n".join(f"{name}: {use}" for name, use in PUBLIC_INPUTS.items()),
+                       formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("datasets", nargs="*", metavar="DATASET",
+                   help=f"{', '.join(PUBLIC_INPUTS)} (default: bbbc007)")
+    p.add_argument("--out", type=Path, default=Path.home() / "cytellect-public-inputs", metavar="DIR",
+                   help="Directory outside the checkout (default: ~/cytellect-public-inputs)")
+    p.set_defaults(func=public_inputs)
+    return parser
+
+
+def command_options() -> dict[str, set[str]]:
+    """Each subcommand's option names, so documents that name a command can be checked (scripts/check_docs.py)."""
+    parser = build_parser()
+    subcommands = next(action for action in parser._actions if isinstance(action, argparse._SubParsersAction))
+    return {name: set(sub._option_string_actions) for name, sub in subcommands.choices.items()}
+
+
+def main() -> None:
+    args = build_parser().parse_args()
     args.func(args)
 
 

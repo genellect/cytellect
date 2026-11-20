@@ -79,7 +79,7 @@ cytellect.app の LP を、今のページを土台に、世界一流の水準�
 | 動き | タブを選ぶと飛ぶカメラ、使命の文の出現、タブの文の出現。動きを減らす設定ではすべて止める |
 | タイポグラフィ | 書体、太さ、大きさ、色は本番の値のまま（Inter と Noto Sans JP、見出しは太さ 500、本文は 17 px 以上、文字は 1 色）。2026-11-13、オーナーの判定：現行の書体が最も洗練されている。灰色や細い字にすると、iPhone や Windows で読みにくくなる |
 | 色、部品 | 実験室の白と淡い灰、深緑、培地の桃色。ヘッダーは浮いた丸い帯で、明るい節と暗い節で切り替わる（`LandingHeaderTone`）。ボタンはすべて丸 |
-| 撮影の仕組み | 製品の画面は `apps/web/scripts/capture-lp-evidence.mjs` で公開デモから撮る。デモが更新されたら撮り直す |
+| 撮影の仕組み | プロダクトの画面は `apps/web/scripts/capture-lp-evidence.mjs` で公開デモから撮る。デモが更新されたら撮り直す |
 
 各章の「デモで開く」は、その場面のその画面へつなぐ。ワークスペース ID は `apps/web/public/showcase/snapshot/scenes.json` からビルド時に引く（`apps/web/src/lib/showcase/scene-links.ts`）。
 
