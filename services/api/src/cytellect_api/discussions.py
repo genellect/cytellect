@@ -107,7 +107,14 @@ def register_discussion_routes(api, store, settings, owner, job_record, credenti
     def discussion_history(jid: str, who: Owner):
         jid, job = result_job(jid, who)
         current = saved_discussion(jid, who)
-        identity = _comparison_identity(_saved_result(store, job))
+        try:
+            identity = _comparison_identity(_saved_result(store, job))
+        except HTTPException as error:
+            if error.status_code == 404 and error.detail == "artifact_not_found":
+                return DiscussionHistory(current=current)
+            raise
+        except (FileNotFoundError, ValueError):
+            return DiscussionHistory(current=current)
         with store.engine.connect() as conn:
             previous = conn.execute(select(result_discussions, jobs.c.result_dir.label("source_dir"),
                                            jobs.c.payload.label("source_payload"), jobs.c.kind.label("source_kind"),

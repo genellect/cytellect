@@ -2867,6 +2867,25 @@
         }
       }
     },
+    "/v1/ai/check": {
+      "post": {
+        "summary": "Ai Check",
+        "description": "An explicit, protocol-only check. Never accept a URL/token or send an idempotency key.",
+        "operationId": "ai_check_v1_ai_check_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiCompatibility"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/workspaces/{wid}/proposal-drafts": {
       "post": {
         "summary": "Draft Proposal",
@@ -3997,6 +4016,27 @@
           "accepted_at"
         ],
         "title": "AdoptedPlan"
+      },
+      "AiCompatibility": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "compatible",
+              "unconfigured",
+              "misconfigured",
+              "unavailable",
+              "unauthorized",
+              "incompatible"
+            ],
+            "title": "State"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state"
+        ],
+        "title": "AiCompatibility"
       },
       "AiStatus": {
         "properties": {

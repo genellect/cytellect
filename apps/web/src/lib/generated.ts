@@ -975,6 +975,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/ai/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ai Check
+         * @description An explicit, protocol-only check. Never accept a URL/token or send an idempotency key.
+         */
+        post: operations["ai_check_v1_ai_check_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/workspaces/{wid}/proposal-drafts": {
         parameters: {
             query?: never;
@@ -1340,6 +1360,14 @@ export interface components {
              * @constant
              */
             scope: "planning-intent-only";
+        };
+        /** AiCompatibility */
+        AiCompatibility: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "compatible" | "unconfigured" | "misconfigured" | "unavailable" | "unauthorized" | "incompatible";
         };
         /**
          * AiStatus
@@ -9255,6 +9283,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AiStatus"];
+                };
+            };
+        };
+    };
+    ai_check_v1_ai_check_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiCompatibility"];
                 };
             };
         };

@@ -40,7 +40,7 @@ export function DiscussionPanel({adapter, job, demo, workspace = "", summary}: {
   if (view === undefined) return null;
   // The public demo never calls a model: it shows an example only where the build recorded one (AC-08).
   if (!view && demo) return <section className={styles.panel} aria-label="考察"><h4>考察</h4>
-    <p>Windows 版・Docker 版では、この結果から考察を生成できます。</p></section>;
+    <p>考察の生成には、AI を有効にした Windows 版・Docker 版・開発環境が必要です。</p></section>;
   const make = async (retry: boolean) => {
     if(!access.available||busy)return;
     const ticket=generation.current;
@@ -52,7 +52,7 @@ export function DiscussionPanel({adapter, job, demo, workspace = "", summary}: {
       if(ticket===generation.current)setView(result);
     } catch (error) {
       if(ticket!==generation.current)return;
-      const rejected = error instanceof ApiError && error.status === 502 && error.code === "request_failed";
+      const rejected = error instanceof ApiError && error.status === 502 && ["request_failed","discussion_rejected"].includes(error.code);
       const again = error instanceof ApiError && error.code === "proposal_explicit_retry_required";
       setFailure({text: rejected ? "AI の出力を読み取れませんでした。再生成すると再度課金される場合があります。" :
         again ? "前回の依頼が未完了です。再生成には課金される場合があります。" : errorMessage(error), retry: rejected || again});

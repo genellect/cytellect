@@ -21,7 +21,8 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
  const result = showcase ? await showcaseTransport()!.fetch(path, {...options, headers}) : await fetch(API + path, {...options, headers, credentials: "include", cache: "no-store"});
  if (!result.ok) {
    let code = "request_failed";
-   try { const value = await result.json(); if (typeof value.detail === "string") code = value.detail; } catch {}
+   try { const value = await result.json(); if (typeof value.detail === "string") code = value.detail;
+     else if (value.detail && typeof value.detail.code === "string") code = value.detail.code; } catch {}
    throw new ApiError(code, result.status);
  }
  return result.json() as Promise<T>;
