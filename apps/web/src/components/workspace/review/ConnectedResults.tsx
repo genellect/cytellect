@@ -60,7 +60,8 @@ export interface ConnectedResultsProps {
 interface SavedSource {field_id:string;region_set?:{region_set_id:string};metadata?:{condition?:string}}
 interface SavedChannel {channel_id:string;label?:string;stain?:string|null}
 interface SavedRegion {region_set_id?:string;label?:string}
-interface ResultPayload {stratum?:{label:string;levels:Array<{factor:string;level:string}>;declared_stratum_count?:number;field_ids:string[];analysed_field_ids:string[];excluded_fields:Array<{field_id:string;reason:string|null}>};selection?:{channel_gate?:{channel?:{channel_id:string;label?:string;stain?:string|null}}};revision_id:string;analysis_kind?:string;source_kind?:string;source_job_id?:string;source_fields?:SavedSource[];x_source?:{source_fields?:SavedSource[];metric?:string;channel?:SavedChannel|null;region?:SavedRegion|null};y_source?:{source_fields?:SavedSource[];metric?:string;channel?:SavedChannel|null;region?:SavedRegion|null;plot_data?:Record<string,unknown>[]};figure:{source_files:string[];status?:string;forms?:FigureForm[];presentation?:Presentation;legend_gaps?:string[];style?:{width_mm?:number};compositions?:Composition[]};metric?:string;channel?:SavedChannel|null;region?:SavedRegion|null;spec?:{plot?:Record<string,unknown>;conditions?:string[];test?:string;design?:{kind?:string};selection?:{metric:string;channel_id?:string|null;source?:string;region_set_id?:string;positivity?:{channel_id?:string;gfp_channel_id?:string}|null}};field_summary?:Record<string,unknown>[];comparisons?:Record<string,unknown>[];associations?:Record<string,unknown>[];counts?:unknown;omnibus?:Record<string,unknown>|null;warnings?:string[];plot_data?:Record<string,unknown>[];estimates?:ComparisonEstimates|null;unit?:string;source_field_ledger?:FieldLedgerRow[];compartment_missing?:MissingSummary|null;mask_corrections?:{fields:MaskCorrectionRow[]}|null}
+interface SavedSelection {metric?:string;channel_id?:string|null;source?:string;region_set_id?:string}
+interface ResultPayload {stratum?:{label:string;levels:Array<{factor:string;level:string}>;declared_stratum_count?:number;field_ids:string[];analysed_field_ids:string[];excluded_fields:Array<{field_id:string;reason:string|null}>};selection?:{channel_gate?:{channel?:{channel_id:string;label?:string;stain?:string|null}}};revision_id:string;analysis_kind?:string;source_kind?:string;source_job_id?:string;source_fields?:SavedSource[];x_source?:{source_fields?:SavedSource[];metric?:string;channel?:SavedChannel|null;region?:SavedRegion|null};y_source?:{source_fields?:SavedSource[];metric?:string;channel?:SavedChannel|null;region?:SavedRegion|null;plot_data?:Record<string,unknown>[]};figure:{source_files:string[];status?:string;forms?:FigureForm[];presentation?:Presentation;legend_gaps?:string[];style?:{width_mm?:number};compositions?:Composition[]};metric?:string;channel?:SavedChannel|null;region?:SavedRegion|null;spec?:{plot?:Record<string,unknown>;conditions?:string[];test?:string;design?:{kind?:string};selection?:{metric:string;channel_id?:string|null;source?:string;region_set_id?:string;positivity?:{channel_id?:string;gfp_channel_id?:string}|null};x_selection?:SavedSelection;y_selection?:SavedSelection};field_summary?:Record<string,unknown>[];comparisons?:Record<string,unknown>[];associations?:Record<string,unknown>[];counts?:unknown;omnibus?:Record<string,unknown>|null;warnings?:string[];plot_data?:Record<string,unknown>[];estimates?:ComparisonEstimates|null;unit?:string;source_field_ledger?:FieldLedgerRow[];compartment_missing?:MissingSummary|null;mask_corrections?:{fields:MaskCorrectionRow[]}|null}
 type MissingSummary=components["schemas"]["CompartmentMissingSummary"];
 /** A form the saved result supports (common-statistics figure 2.0.0), as the analysis package lists it (FQ-02). */
 interface FigureForm {id:string;kind:RenderPlot["kind"];observations?:Observations}
@@ -87,15 +88,21 @@ function savedRegion(result:ResultPayload):ReviewTarget|undefined{const id=resul
 function resultMetricLabel(result:ResultPayload,metric:string){const selection=result.spec?.selection,label=metricLabels[metric]||metric;if(metric.startsWith("positive_")){const judged=result.selection?.channel_gate?.channel;return `${label}${judged?`（${judged.stain||judged.label||judged.channel_id}）`:""}`;}if(selection?.source!=="region")return label;const region=regionNames[selection.region_set_id||""];return `${region?`${region}の`:""}${label}${selection.channel_id?`（${selection.channel_id}）`:""}`;}
 const analysisNames:Record<ResultOperation,string>={comparison:"群間比較",association:"相関",distribution:"分布"};
 /** A saved figure by what it shows (FU-09): the measure, the analysis, the form and when it was drawn. */
-function sourceName(source:{metric?:string;channel?:SavedChannel|null;region?:SavedRegion|null}|undefined,metric:string){
-  const region=regionNames[source?.region?.region_set_id||""]||source?.region?.label,stain=source?.channel?.stain||source?.channel?.label||source?.channel?.channel_id;
-  return `${region?`${region}の`:""}${metricLabels[metric]||metric}${stain?`（${stain}）`:""}`;
+/** A measure by its region and stain when it is measured per region (「核質の平均輝度（5-EU）」); a summary
+ *  (「核小体の離心率」, 核数) names itself, as resultMetricLabel does. */
+function measureName(selection:SavedSelection|undefined,channel:SavedChannel|null|undefined,metric:string){
+  const label=metricLabels[metric]||metric;
+  if(selection?.source!=="region")return label;
+  const region=regionNames[selection.region_set_id||""],stain=channel?.stain||channel?.label||channel?.channel_id||selection.channel_id;
+  return `${region?`${region}の`:""}${label}${stain?`（${stain}）`:""}`;
 }
 function savedFigureName(entry:Saved){
   const metric=entry.result.spec?.selection?.metric??entry.result.estimates?.metric??entry.result.metric??"";
   // Each measure by its region, metric and stain (the channel's stain, not its identifier).
-  const measure=entry.operation==="association"?[entry.result.x_source,entry.result.y_source].map(source=>sourceName(source,source?.metric??"")).join(" × ")
-    :entry.result.channel||entry.result.region?sourceName(entry.result,metric):resultMetricLabel(entry.result,metric);
+  const spec=entry.result.spec;
+  const axes:Array<[SavedSelection|undefined,{metric?:string;channel?:SavedChannel|null}|undefined]>=[[spec?.x_selection,entry.result.x_source],[spec?.y_selection,entry.result.y_source]];
+  const measure=entry.operation==="association"?axes.map(([selection,source])=>measureName(selection,source?.channel,selection?.metric??source?.metric??"")).join(" × ")
+    :metric.startsWith("positive_")?resultMetricLabel(entry.result,metric):measureName(spec?.selection,entry.result.channel,metric);
   const observations=entry.plot.presentation?.observations??entry.figure.presentation?.observations??"points";
   const form=(entry.figure.forms||[]).find(value=>value.kind===entry.plot.kind&&(value.kind!=="superplot"||(value.observations??"points")===observations));
   const when=entry.created?new Date(entry.created*1000).toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}):"";
