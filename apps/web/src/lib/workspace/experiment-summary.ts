@@ -27,7 +27,9 @@ export function statusChips(design:ExperimentDesign, fields:SummaryField[]):Stat
   const chips:StatusChip[]=[
     {key:"runs",label:"実験回",value:String(runs.length),ok:runs.length>0&&!codes.has("experiment_design_missing_combination")},
     {key:"groups",label:"群",value:String(design.groups.length),ok:!codes.has("experiment_design_control_required")},
-    {key:"fields",label:"視野",value:`${assigned} / ${ids.length}`,ok:ids.length>0&&assigned===ids.length},
+    // Every field placed (and, in a stratified design, given its stratum), with no placement of an unknown field.
+    {key:"fields",label:"視野",value:`${assigned} / ${ids.length}`,ok:ids.length>0&&assigned===ids.length
+      &&!codes.has("experiment_design_unstratified_fields")&&!codes.has("experiment_design_unknown_fields")},
   ];
   if(design.layout==="pair")chips.push(design.independence_confirmed
     ?{key:"independence",label:"独立性",value:"確認済み",ok:true}
@@ -36,9 +38,13 @@ export function statusChips(design:ExperimentDesign, fields:SummaryField[]):Stat
 }
 
 /** Nuclei → fields → runs for the fields placed in the design and not excluded. The nuclei are counted only when
- * every one of those fields is measured, so a partial count is never shown as the experiment's. */
+ * every one of those fields is measured, so a partial count is never shown as the experiment's. n counts only the
+ * runs with values in every group (in a pair, the runs that make a pair), never the runs declared without them. */
 export function summaryCounts(design:ExperimentDesign, fields:SummaryField[]):SummaryCounts {
-  const placed=fields.filter(field=>field.id in (design.fields??{})&&!field.excluded);
+  const assignments=design.fields??{};
+  const placed=fields.filter(field=>field.id in assignments&&!field.excluded);
   const measured=placed.length>0&&placed.every(field=>typeof field.nuclei==="number");
-  return {nuclei:measured?placed.reduce((sum,field)=>sum+(field.nuclei as number),0):null,fields:placed.length,runs:(design.runs??[]).length};
+  const present=new Set(placed.map(field=>`${assignments[field.id].run_id}\u0000${assignments[field.id].group_id}`));
+  const runs=(design.runs??[]).filter(run=>design.groups.length>0&&design.groups.every(group=>present.has(`${run.id}\u0000${group.id}`))).length;
+  return {nuclei:measured?placed.reduce((sum,field)=>sum+(field.nuclei as number),0):null,fields:placed.length,runs};
 }

@@ -125,7 +125,7 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pendin
     </section>}
     <div className={styles.grid} style={{gridTemplateColumns:`minmax(200px,270px) repeat(${draft.groups.length},minmax(0,1fr))`}} role="table" aria-label="群と実験回">
       <div role="row" className={styles.row}>
-        <div role="columnheader" className={styles.corner}>実験回（n = {runs.length}）</div>
+        <div role="columnheader" className={styles.corner}>実験回（n = {counts.runs}）</div>
         {draft.groups.map(group=><div role="columnheader" key={group.id} className={styles.groupHead}>
           {readOnly?<p className={styles.groupName}><strong>{group.label}</strong>{draft.layout==="pair"&&draft.control_group_id===group.id&&<span className={styles.tag}>対照</span>}</p>:<>
           <label>群の名前<input value={labelOf(`group:${group.id}`,group.label)} maxLength={LABEL_LIMIT} disabled={locked}
@@ -176,7 +176,8 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pendin
       {runs.some(run=>run.performed_on===runDate)&&<small>同じ日の別の実験回は「{uniqueRunLabel(runDate,runs.map(run=>run.label))}」として追加します。</small>}
     </div>}
     {/* Settable for one group too: a correlation of one group also needs independent runs. */}
-    {!readOnly&&<label className={styles.independence}><input type="checkbox" checked={draft.independence_confirmed??false} disabled={locked} onChange={event=>void save({...draft,independence_confirmed:event.target.checked})}/>各実験回は独立に行った</label>}
+    {/* The definition stays one hover away (E-05): independence is never inferred from dates or plates. */}
+    {!readOnly&&<label className={styles.independence} title="別々に播種・処理・染色した実験回。日付やプレートの違いだけでは独立とは限りません。"><input type="checkbox" checked={draft.independence_confirmed??false} disabled={locked} onChange={event=>void save({...draft,independence_confirmed:event.target.checked})}/>各実験回は独立に行った</label>}
     <StrataEditor design={draft} locked={locked} readOnly={readOnly} onSave={save}/>
     {unassigned.length>0&&<section className={styles.unassigned} aria-label="群・実験回が未割り当ての視野">
       <h2>群・実験回が未割り当ての視野</h2>

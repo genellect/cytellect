@@ -81,7 +81,7 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   await choice.getByRole("button", {name: /^2 画面/}).click();
 
   const setup = page.getByRole("region", {name: "実験デザイン"});
-  // The heading is the purpose with the group names, control first (ED-01); the one next step sits beside it (ED-02).
+  // The heading is the purpose with the group names, control first (#257 ED-01); the one next step sits beside it (#257 ED-02).
   await expect(setup.getByRole("heading", {name: "2 群の比較：対照 × 処理", level: 1})).toBeVisible();
   await expect(setup.getByRole("button", {name: "統計で比べる →", exact: true})).toBeEnabled();
   await expect(page).toHaveURL(/[?&]id=[^&]+/);

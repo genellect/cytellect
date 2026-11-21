@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { emptyDesign, type PlainExperimentDesign as ExperimentDesign } from "./experiment-design";
+import { assignStratum, declareStrata, emptyDesign, type PlainExperimentDesign as ExperimentDesign } from "./experiment-design";
 import { adoptedNuclei, experimentHeading, statusChips, summaryCounts } from "./experiment-summary";
 
 const design = (overrides: Partial<ExperimentDesign> = {}): ExperimentDesign => ({
@@ -42,6 +42,13 @@ describe("status chips", () => {
     expect(chips.runs.ok).toBe(false);
     expect(chips.groups.ok).toBe(false);
   });
+  it("marks fields without a stratum in a stratified design", () => {
+    const declared = declareStrata(design(), "細胞株", ["U2OS"]);
+    const stratified = assignStratum(declared, ["f2", "f3", "f4"], declared.strata[0].id);
+    const chips = Object.fromEntries(statusChips(stratified, fields([1, 2, 3, 4])).map(chip => [chip.key, chip]));
+    expect(statusChips(assignStratum(stratified, ["f1"], declared.strata[0].id), fields([1, 2, 3, 4])).find(chip => chip.key === "fields")?.ok).toBe(true);
+    expect(chips.fields).toMatchObject({ value: "4 / 4", ok: false });
+  });
   it("leaves independence out of a single-group design and marks a design without runs", () => {
     const chips = statusChips(emptyDesign("single"), []);
     expect(chips.map(chip => chip.key)).toEqual(["runs", "groups", "fields"]);
@@ -51,13 +58,23 @@ describe("status chips", () => {
 });
 
 describe("summary counts", () => {
-  it("adds the adopted nuclei of the placed, included fields; n is the number of runs", () => {
+  it("adds the adopted nuclei of the placed, included fields", () => {
     expect(summaryCounts(design(), [...fields([10, 18, 9, 12]), { id: "f5", nuclei: 7 }])).toEqual({ nuclei: 49, fields: 4, runs: 2 });
-    expect(summaryCounts(design(), [{ id: "f1", nuclei: 10 }, { id: "f2", nuclei: 18, excluded: true }, ...fields([0, 0, 9, 12]).slice(2)])).toEqual({ nuclei: 31, fields: 3, runs: 2 });
+    expect(summaryCounts(design(), [{ id: "f1", nuclei: 10 }, { id: "f2", nuclei: 18, excluded: true }, ...fields([0, 0, 9, 12]).slice(2)])).toEqual({ nuclei: 31, fields: 3, runs: 1 });
+  });
+  it("counts as n only the runs with values in every group", () => {
+    const halfRun = { f1: { group_id: "dmso", run_id: "r1", sample: null, acquired_on: null }, f2: { group_id: "drug", run_id: "r1", sample: null, acquired_on: null },
+      f3: { group_id: "dmso", run_id: "r2", sample: null, acquired_on: null } };
+    expect(summaryCounts(design({ fields: halfRun }), fields([1, 2, 3]))).toEqual({ nuclei: 6, fields: 3, runs: 1 });
+    // A run whose only treated field is excluded makes no pair either.
+    expect(summaryCounts(design(), [...fields([1, 2, 3]), { id: "f4", nuclei: 4, excluded: true }]).runs).toBe(1);
+    const single = { ...emptyDesign("single"), runs: [{ id: "r1", label: "Rep1", performed_on: null, acquired_on: null }, { id: "r2", label: "Rep2", performed_on: null, acquired_on: null }],
+      fields: { f1: { group_id: "group-1", run_id: "r1", sample: null, acquired_on: null } } };
+    expect(summaryCounts(single, fields([5])).runs).toBe(1);
   });
   it("never shows a partial nucleus count", () => {
     expect(summaryCounts(design(), fields([10, null, 9, 12]))).toEqual({ nuclei: null, fields: 4, runs: 2 });
-    expect(summaryCounts(design({ fields: {} }), fields([10]))).toEqual({ nuclei: null, fields: 0, runs: 2 });
+    expect(summaryCounts(design({ fields: {} }), fields([10]))).toEqual({ nuclei: null, fields: 0, runs: 0 });
   });
   it("counts each region once and leaves out the regions a correction excluded", () => {
     const regions = [{ id: 1 }, { id: 2 }, { id: 2 }, { id: 3 }];
