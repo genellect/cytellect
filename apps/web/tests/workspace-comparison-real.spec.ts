@@ -76,7 +76,7 @@ test("synthetic fields reach real independent-unit comparison and editable expor
   await expect(panel.locator('input[aria-label$=" condition"]').first()).toHaveValue("A");
   expect(writes.filter(value => value.endsWith("/review"))).toHaveLength(0);
   await panel.getByLabel("A / B", {exact:true}).check();
-  await panel.getByLabel("実験回の定義、撮影・画素条件、採否と欠測の扱いを確認済み", {exact:true}).check();
+  await panel.getByLabel(/撮影・画素条件/).check();
   await panel.getByLabel("測定領域と採用する視野を確認済み", {exact:true}).check();
   await panel.getByRole("button", {name:"計算", exact:true}).click();
   // Include operation errors rather than reporting only a missing-table timeout.

@@ -68,3 +68,7 @@
 /* Primary or exploratory measure (#257 RP-04): a quiet tag after the condition, stronger only for the primary. */
 .outcomeRole{display:inline-block;margin-left:8px;padding:0 6px;border-radius:4px;border:1px solid #c7ced8;color:#4b5563;font-size:12px;line-height:1.6}
 .outcomeRole[data-outcome-role="primary"]{border-color:#2164cf;color:#1a4fa3;font-weight:600}
+/* A design declared on 実験 is named, not entered again (D-6). */
+.declaredDesign{margin:4px 0;color:#374151;font-size:14px;line-height:1.6}
+.link{border:0;background:none;color:#2164cf;text-decoration:underline;padding:0;margin-left:6px;cursor:pointer;font:inherit}
+.autoNote{display:block;color:#586474;font-size:13px;line-height:1.5;margin-bottom:4px}

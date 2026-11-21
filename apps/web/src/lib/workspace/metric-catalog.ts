@@ -93,10 +93,6 @@ export function metricLabel(id: string): string {return choices.get(id)?.label ?
 export function metricTarget(id: string, chosen: ReviewTarget): ReviewTarget {return choices.get(id)?.target ?? chosen;}
 /** The structure a metric's values are checked on in the image (V-04, X-01). */
 export function metricStructure(id: string, chosen: ReviewTarget): ReviewTarget {return choices.get(id)?.structure ?? metricTarget(id, chosen);}
-/** Metrics added after the public demo was recorded (#257 A-3, E-1, E-3, E-7). The demo answers only recorded requests,
- * so it does not offer them until it is recorded again (requirement DM-10 limits the recording's size). */
-export const DEMO_UNRECORDED: ReadonlySet<string> = new Set(["solidity", "axis_ratio", "eccentricity", "cv", "cv_corrected",
-  "positive_area_fraction", "largest_nucleolus_fraction"]);
 /** The positive count and fraction of nuclei (field summary), judged by a recorded classification of a channel. Not the
  * positive-area fraction, which is a pixel measure of a region (region-features/1.0.0). */
 export function nucleusPositivity(id: string): boolean {return id === "positive_count" || id === "positive_fraction";}

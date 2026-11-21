@@ -6,7 +6,7 @@ import type {useWorkspaceRuntime} from "@/lib/workspace/use-workspace-runtime";
 import {fieldsIn,pairPanes,paneKey,stratumLabel,type ExperimentDesign,type FieldAssignment} from "@/lib/workspace/experiment-design";
 import {decodedPreview,percentileRange,planeRange,redrawnPreview,remapTable,sharedRange} from "@/lib/shared-display";
 import {ReviewImageCanvas,type ReviewImageViewport} from "./ReviewImageCanvas";
-import {MeasurementTable} from "./MeasurementTable";
+import {FeatureMeasurementTable} from "./MeasurementTable";
 import {ConnectedNucleusTable} from "./NucleusTable";
 import {pairPaneLayout} from "./image-stage-layout";
 import {NextStep,TableHeading,type ColorView} from "./ColorView";
@@ -93,6 +93,9 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
       const shown=field&&field.id===selectedField?region:undefined;
       const view=linked?viewport.shared:field?viewport[field.id]:undefined;
       const rows=value?.rows.filter(row=>row.channel_id===channel)??[];
+      // Shape and pixel-signal columns of this pane's table, loaded when asked (#257 A-4).
+      const featureChannel=rows.some(row=>row.mean!=null)?channel:null;
+      const featureKey=value&&field?`${value.revision}:${field.id}:${featureChannel??""}`:"";
       const count=value?new Set(value.masks.regions.map(region=>region.id)).size:null;
       const select=(n:number)=>{if(field)onSelect(field.id,channel,n);};
       // Beside the nucleoli and the nucleoplasm too: each nucleus's nucleolar summary is read in its nucleus table (A-1).
@@ -137,7 +140,8 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
           {nuclear&&(nucleusView||colorBy==="positivity")?<ConnectedNucleusTable load={r.adapter.nucleusTable} save={r.adapter.saveNucleusTable} field={field.id} nuclearRevision={nuclear.revision}
             nucleolarRevision={r.currentResult(field.id,"nucleoli")?.revision} exclusion={field.exclusionReason} channels={field.channels} gate={colorBy==="positivity"?gateTable(field.id):undefined} selected={shown} onSelect={select}
             aside={index===panes.length-1&&next?<NextStep next={next}/>:undefined}/>
-          :rows.length?<MeasurementTable rows={rows} selected={shown} onSelect={select}/>:<p className={styles.tableEmpty}>{value?"この染色の測定値はありません。":"未測定"}</p>}</>}</div>}
+          :rows.length?<FeatureMeasurementTable rows={rows} selected={shown} onSelect={select} loadKey={featureKey}
+            load={value&&!saved&&!candidate?()=>r.adapter.regionFeatures(value.revision,field.id,featureChannel):undefined}/>:<p className={styles.tableEmpty}>{value?"この染色の測定値はありません。":"未測定"}</p>}</>}</div>}
         </div>
       </section>;
     })}

@@ -1,5 +1,7 @@
 "use client";
-import {useEffect,useRef} from "react";
+import {useEffect,useRef,useState} from "react";
+import {ApiError,errorCodeMessage,errorMessage} from "@/lib/api";
+import styles from "./connected-workspace.module.css";
 import type {MeasurementRow,RegionFeatureTable} from "@/lib/workspace/api-adapter";
 
 /** The saved measurements of one field, one row per region; a row selects its outline, and an
@@ -23,4 +25,29 @@ export function MeasurementTable({rows,selected,onSelect,features}:{rows:Measure
   const extra=features?.metrics.filter(metric=>metric in FEATURE_COLUMNS)??[];
   const byRegion=new Map((features?.rows??[]).map(row=>[row.region_id,row.values]));
   return <table><thead><tr><th>番号</th><th>面積 / px²</th><th>平均輝度</th><th>積算輝度</th>{corrected&&<><th>平均（背景補正）</th><th>積算（背景補正）</th></>}{extra.map(metric=><th key={metric}>{FEATURE_COLUMNS[metric]}</th>)}</tr></thead><tbody ref={body}>{rows.map(row=><tr key={row.region_id} aria-selected={row.region_id===selected}><td><button onClick={()=>onSelect(row.region_id)}>{row.region_id}</button></td>{[row.area_px,row.mean,row.integrated,...(corrected?[row.mean_corrected,row.integrated_corrected]:[])].map((value,i)=><td key={i} title={value==null?row.correction_missing_reason||row.intensity_missing_reason||row.area_missing_reason||undefined:String(value)}>{value==null?"—":shown(value)}</td>)}{extra.map(metric=>{const value=byRegion.get(row.region_id)?.[metric];return <td key={metric} title={value?.value==null?(value?.missing_reason?FEATURE_REASONS[value.missing_reason]??value.missing_reason:undefined):String(value.value)}>{value?.value==null?"—":shown(value.value)}</td>;})}</tr>)}</tbody></table>;
+}
+
+/** The table with its shape and pixel-signal columns, loaded from the API when asked (#257 A-4, region-features/1.0.0).
+ * Asked for once, the columns follow the field, stain and revision in view (`loadKey`). A failure is shown with its
+ * reason, and the button comes back to try again. Without `load` (a candidate or an earlier version) the measured
+ * columns only. */
+export function FeatureMeasurementTable({rows,selected,onSelect,load,loadKey}:{rows:MeasurementRow[];selected?:number;onSelect:(n:number)=>void;
+  load?:()=>Promise<RegionFeatureTable>;loadKey:string}){
+  const [wanted,setWanted]=useState(false);
+  const [state,setState]=useState<{key:string;value:RegionFeatureTable|null;error?:string}>();
+  useEffect(()=>{
+    if(!wanted||!load)return;
+    let live=true;
+    load().then(value=>{if(live)setState({key:loadKey,value});},error=>{
+      if(!live)return;
+      setState({key:loadKey,value:null,error:error instanceof ApiError?errorMessage(error):error instanceof Error?errorCodeMessage(error.message):"形と信号の値を読み込めませんでした。"});
+      setWanted(false);});
+    return()=>{live=false;};
+  },[wanted,loadKey]);// eslint-disable-line react-hooks/exhaustive-deps -- `load` is a new function each render; `loadKey` names what it loads
+  const current=state?.key===loadKey?state:undefined;
+  return <>
+    <MeasurementTable rows={rows} selected={selected} onSelect={onSelect} features={current?.value??null}/>
+    {current?.error&&<p role="alert">形と信号の値を読み込めませんでした：{current.error}</p>}
+    {load&&!wanted&&<button type="button" className={styles.linkButton} onClick={()=>{setState(undefined);setWanted(true);}}>形と信号の値を表示</button>}
+  </>;
 }

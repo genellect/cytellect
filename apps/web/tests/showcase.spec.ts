@@ -474,7 +474,7 @@ async function calculate(page: Page) {
   const results = page.getByRole("region", {name: "測定結果の統計解析"});
   await fillIfEmpty(results.getByRole("textbox", {name: "実験回の定義", exact: true}), "公開画像の反復（デモ）");
   await fillIfEmpty(results.getByRole("textbox", {name: "対応の根拠", exact: true}), "同じ反復（Rep）内の 2 条件");
-  const confirm = results.getByLabel("実験回の定義、撮影・画素条件、採否と欠測の扱いを確認済み");
+  const confirm = results.getByLabel(/撮影・画素条件/);
   if (await confirm.count() && !await confirm.isChecked()) await confirm.check();
   const reviewed = results.getByLabel("測定領域と採用する視野を確認済み");
   if (!await reviewed.isChecked()) await reviewed.check();
@@ -482,7 +482,11 @@ async function calculate(page: Page) {
   const keep = results.getByLabel("この一覧を確認し、欠測として残して計算する", {exact: true});
   await expect(results.getByRole("button", {name: "計算", exact: true}).and(page.locator(":enabled")).or(keep).first()).toBeVisible({timeout: live});
   if (await keep.count() && !await keep.isChecked()) await keep.check();
-  await results.getByRole("button", {name: "計算", exact: true}).click();
+  // D-5: a description (no test) starts once everything is confirmed; 計算 is pressed only while the condition still waits.
+  const waiting = results.getByRole("region", {name: "選択中の条件"});
+  await expect.poll(async () => !await waiting.count() || await waiting.getByRole("button", {name: "計算", exact: true}).isEnabled(), {timeout: live}).toBe(true);
+  if (await waiting.count()) await waiting.getByRole("button", {name: "計算", exact: true}).click();
+  await expect(waiting).toHaveCount(0, {timeout: live});
   await expect(results.getByRole("button", {name: "計算", exact: true})).toBeEnabled({timeout: live});
   await expect(results.getByText("測定結果または解析条件が変わりました。再計算してください。")).toHaveCount(0);
   expect(await alerts(page)).toEqual([]);

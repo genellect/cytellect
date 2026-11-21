@@ -82,6 +82,10 @@ interface Presentation {version:"1.0.0";observations?:Observations|null;color_by
 const formNames:Record<string,string>={points:"全データ点",density:"分布（バイオリン）",box:"箱ひげ",bar:"平均の棒",
   "run-box":"実験回の箱ひげ","run-violin":"実験回のバイオリン","run-histogram":"実験回のヒストグラム","run-paired":"実験回の対応",scatter:"散布図"};
 const sizeNames:Record<FigureSize,string>={panel:"パネル","single-column":"1段幅 · 89 mm","double-column":"2段幅 · 183 mm",custom:"カスタム"};
+/** The confirmation before 計算 (S-10). With a design declared on 実験 (D-6), the runs, control and pairing come from that
+ * declaration, and only the acquisition and the inclusion of fields remain to confirm here. */
+export const DESIGN_CONFIRMATION="実験回の定義、撮影・画素条件、採否と欠測の扱いを確認済み";
+export const ACQUISITION_CONFIRMATION="撮影・画素条件と、採否・欠測の扱いを確認済み";
 interface Saved {job:string;revision:string;result:ResultPayload;identity:string;requestIdentity:string;plot:RenderPlot;figureJob:string;figure:ResultPayload["figure"];operation:ResultOperation;sources?:Array<{field:string;label:string}>;historical?:boolean;target?:ReviewTarget;created?:number;
   /** The primary declaration in force when this session calculated the result (server time; none for history). */
   declaredAt?:number|null}
@@ -299,7 +303,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   // Everything 計算 needs is known before it is pressed (SR-03); the request then carries no unconfirmed design.
   const needs=calculationNeeds({stratumMissing:stratifiedDesign&&!stratumRequest,unstratified:stratifiedDesign?unstratified:0,sources:sources.length,missing,reviewed,
     ledgerError:compartment&&!!currentLedger?.error,unresolvedUnconfirmed:compartment&&unresolved&&!unresolvedConfirmed,designUnconfirmed,metadata:metadataProblem,
-    datesMissing,independenceMissing,positivityMissing,classificationMissing:!!channelGate&&!currentGate&&!positivityMissing,unsupportedAxes});
+    datesMissing,independenceMissing,positivityMissing,classificationMissing:!!channelGate&&!currentGate&&!positivityMissing,unsupportedAxes,declaredDesign:!!declared});
   const ready=(!stratifiedDesign||!!stratumRequest&&!unstratified)&&!!sources.length&&!missing&&!disabled&&!busy&&reviewed&&ledgerReady&&!unsupportedAxes&&!independenceMissing&&!datesMissing&&!positivityMissing&&(!channelGate||!!currentGate)&&!designUnconfirmed&&!metadataProblem;
   const svgFiles=saved?.figure.source_files.filter(name=>name.endsWith(".svg"))||[];
   // Publication figures list their forms; the saved presentation tells which one is drawn.
@@ -503,6 +507,16 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
     appliedChoice.current=choiceKey;
     if(pending&&available.current)restoreFigure(available.current);
   },[choiceKey,shown,busy]);// eslint-disable-line react-hooks/exhaustive-deps
+  // D-5 (owner decision 2, 2026-11-21): with every confirmation given, a chosen condition without a saved result is
+  // described at once (the runs' values and differences, or the distribution; no test). A test always waits for 計算.
+  const describesOnly=operation==="distribution"||(operation==="comparison"&&!design.inference);
+  const autoDescribed=useRef("");
+  useEffect(()=>{
+    if(mode!=="statistics"||!shown||busy||!ready||!describesOnly||!pending||available.current||!choiceKey)return;
+    if(autoDescribed.current===choiceKey)return;
+    autoDescribed.current=choiceKey;
+    void calculate();
+  },[choiceKey,ready,describesOnly,pending,shown,busy,mode]);// eslint-disable-line react-hooks/exhaustive-deps
   // The opening region's commit is over (whether or not the effect above ran in it).
   useEffect(()=>{openingApplied.current=false;});
   const savedChannel=saved?.result.channel?.channel_id??saved?.result.y_source?.channel?.channel_id??saved?.result.spec?.selection?.channel_id??saved?.result.selection?.channel_gate?.channel?.channel_id??saved?.result.spec?.selection?.positivity?.channel_id??null;
@@ -514,7 +528,8 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   // and beside the analysis settings once it has one (to calculate again after a change). Where the result will appear,
   // what is still needed is listed too (SR-03); beside the settings the confirmations stand right above 計算.
   const calculation=(inResult:boolean)=><div className={styles.calculation} data-calculation="">
-    {operation!=="distribution"&&<label className={styles.check}><input type="checkbox" checked={confirmed} disabled={disabled} onChange={event=>setConfirmed(event.target.checked)}/>実験回の定義、撮影・画素条件、採否と欠測の扱いを確認済み</label>}
+    {describesOnly&&<small className={styles.autoNote}>確認が済むと、記述（{operation==="distribution"?"分布":"実験回ごとの値と差"}）は条件を選ぶだけで計算します。検定は「計算」を押したときだけ行います。</small>}
+    {operation!=="distribution"&&<label className={styles.check}><input type="checkbox" checked={confirmed} disabled={disabled} onChange={event=>setConfirmed(event.target.checked)}/>{declared?ACQUISITION_CONFIRMATION:DESIGN_CONFIRMATION}</label>}
     {compartment&&currentLedger?.error&&<p role="alert">{currentLedger.error}</p>}
     {compartment&&unresolved&&<UnresolvedList fields={unresolvedFields} ledger={currentLedger!.fields} metadata={fields} labels={Object.fromEntries(sources.map(source=>[source.field,source.label]))}
       confirmed={unresolvedConfirmed} disabled={disabled||!!busy} onConfirm={value=>setConfirmedLedgers(previous=>value?[...new Set([...previous,ledgerKey])]:previous.filter(key=>key!==ledgerKey))}/>}
@@ -558,8 +573,11 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
           <div className={styles.row}>{operation==="comparison"&&(unconfirmed||exploratory)?<div className={styles.methodNone}><label>方法<select value="none" disabled><option value="none">記述統計</option></select></label><details><summary>検定の条件</summary><p>{exploratory?"検定には、陰性対照に基づくしきい値が必要です。":"検定には、実験回の独立性の確認が必要です。"}{!exploratory&&onEditExperiment&&<> <button type="button" onClick={onEditExperiment}>実験デザインを編集</button></>}</p></details></div>:<label>方法<select value={rank?"rank":"parametric"} onChange={event=>setRank(event.target.value==="rank")}><option value="parametric">{operation==="association"?"Pearson":"t 検定 / Welch ANOVA"}</option><option value="rank">{operation==="association"?"Spearman":"順位に基づく検定"}</option></select></label>}{operation==="comparison"&&<label>対応<select value={paired?"paired":"independent"} onChange={event=>{setPaired(event.target.value==="paired");setConfirmed(false);}}><option value="independent">対応なし</option><option value="paired">対応あり</option></select></label>}</div>
           {operation==="association"&&<div className={styles.row}><label>横軸<select value={xMetric} onChange={event=>setXMetric(event.target.value)}>{xAxes.map(value=><option key={value} value={value}>{metricLabel(value)}</option>)}</select></label><label>横軸チャンネル<select value={xChannel||""} onChange={event=>setXChannel(event.target.value||null)}><option value="">選択</option>{channels.map(value=><option key={value}>{value}</option>)}</select></label></div>}
 
-          <label>実験回の定義<input value={unit} maxLength={200} placeholder="例：別の日に独立に播種・処理・染色した実験" onChange={event=>{setUnit(event.target.value);setConfirmed(false);}}/></label>
-          {paired&&operation==="comparison"&&<label>対応の根拠<input value={pairing} maxLength={200} onChange={event=>{setPairing(event.target.value);setConfirmed(false);}}/></label>}
+          {/* D-6: a design declared on 実験 defines the runs, the control and the pairing; it is not confirmed again here. */}
+          {declared?<p className={styles.declaredDesign}>実験回・対照・対応は「実験」の宣言を使います（{experiment?.runs?.length??0} 実験回、独立性：{experiment?.independence_confirmed?"確認済み":"未確認"}）。
+            {onEditExperiment&&<button type="button" className={styles.link} onClick={onEditExperiment}>実験デザインを編集</button>}</p>
+          :<><label>実験回の定義<input value={unit} maxLength={200} placeholder="例：別の日に独立に播種・処理・染色した実験" onChange={event=>{setUnit(event.target.value);setConfirmed(false);}}/></label>
+          {paired&&operation==="comparison"&&<label>対応の根拠<input value={pairing} maxLength={200} onChange={event=>{setPairing(event.target.value);setConfirmed(false);}}/></label>}</>}
           {operation==="comparison"&&<fieldset><legend>比較する群</legend>{pairs.length?pairs.map(pair=><label className={styles.check} key={JSON.stringify(pair)}><input type="checkbox" disabled={!unsaturatedPair(pair)} checked={contrasts.some(value=>JSON.stringify(value)===JSON.stringify(pair))} onChange={event=>setContrasts(previous=>event.target.checked?[...previous,pair]:previous.filter(value=>JSON.stringify(value)!==JSON.stringify(pair)))}/>{declared&&JSON.stringify(pair)===JSON.stringify(declared.contrasts[0])?`${pair[0]} − ${pair[1]}（処理 − 対照）`:pair.join(" / ")}{unsaturatedPair(pair)?"":"（飽和画素を含む）"}</label>):<p>実験情報に群名を入力してください。</p>}</fieldset>}
         </>}
         {!pending&&calculation(false)}

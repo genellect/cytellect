@@ -71,6 +71,8 @@ test("the primary measure is declared before results and every result names its 
   const primary=page.getByRole("region",{name:"主要指標"});
   await expect(primary).toContainText("結果を見る前に");
   // The theme names each measure's stain, region and observation before any comparison (NS-01).
+  // The registered fields name the stains the theme matches; wait for them before reading it.
+  await expect(page.getByRole("complementary",{name:"視野一覧"})).toContainText("視野 1");
   await page.getByText("研究テーマから指標を選ぶ：核小体ストレス").click();
   const theme=page.getByRole("table",{name:"核小体ストレスの指標"});
   const cv=theme.getByRole("row").filter({hasText:"核内で信号はどれだけ偏っているか"});

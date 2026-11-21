@@ -2114,6 +2114,16 @@ def opening_channel(manifest: dict) -> dict:
     return {"channel": channel} if channel and plan.get("final_target") else {}
 
 
+def primary_outcome(manifest: dict) -> dict | None:
+    """The scene's primary measure: its opening comparison, planned before anything was measured (dataset manifest,
+    `scenario.statistics.comparison`). The demo shows it as declared, and every other measure as exploratory
+    (#257 RP-04, NS-06)."""
+    plan = (manifest["scenario"].get("statistics") or {}).get("comparison")
+    if not isinstance(plan, dict) or not plan.get("metric") or not plan.get("target"):
+        return None
+    return {"version": "1.0.0", "metric": plan["metric"], "region_set_id": plan["target"], "channel_id": plan.get("channel")}
+
+
 def scene_note(manifest: dict, scene: dict, examples: list[dict]) -> dict:
     """What the demo shows about one scene's public images (snapshot/scenes.json, dataset.json)."""
     dataset = manifest.get("dataset", {})
@@ -2126,6 +2136,7 @@ def scene_note(manifest: dict, scene: dict, examples: list[dict]) -> dict:
             "caveats": dataset.get("caveats", []), "reportedChange": dataset.get("reported_change"), "explainer": dataset.get("explainer"),
             "regions": scene_regions(manifest), "target": manifest["scenario"].get("final_target", "nuclei"),
             "gateChannels": manifest["scenario"].get("gate_channels", []),
+            "primaryOutcome": primary_outcome(manifest),
             **opening_channel(manifest), "examples": examples, "assistantScope": manifest.get("assistant_scope"),
             "fields": [{"field": f"視野 {index + 1}", "source_file": item["id"], **item["metadata"]}
                        for index, item in enumerate(scene.get("prepared", []))]}

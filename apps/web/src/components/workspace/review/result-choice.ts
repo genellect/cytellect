@@ -138,6 +138,8 @@ export function calculationNeeds(state: {
   stratumMissing: boolean; unstratified: number; sources: number; missing: number; reviewed: boolean;
   ledgerError: boolean; unresolvedUnconfirmed: boolean; designUnconfirmed: boolean; metadata: string | null;
   datesMissing: boolean; independenceMissing: boolean; positivityMissing: boolean; classificationMissing: boolean; unsupportedAxes: boolean;
+  /** A design declared on 実験 (D-6): only the acquisition and the inclusion of fields are confirmed here. */
+  declaredDesign?: boolean;
 }): string[] {
   return [
     state.stratumMissing && "比べる層の選択",
@@ -152,7 +154,7 @@ export function calculationNeeds(state: {
     state.independenceMissing && "実験回の独立性の確認",
     state.ledgerError && "核小体を確定できない核の一覧の読み込み",
     state.unresolvedUnconfirmed && "核小体を確定できない核の一覧の確認",
-    state.designUnconfirmed && "実験回の定義と解析条件の確認",
+    state.designUnconfirmed && (state.declaredDesign ? "撮影・画素条件と採否の確認" : "実験回の定義と解析条件の確認"),
     !state.reviewed && "測定領域と採用する視野の確認",
   ].filter((value): value is string => !!value);
 }

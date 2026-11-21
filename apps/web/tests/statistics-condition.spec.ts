@@ -69,11 +69,14 @@ test("a chosen condition shows its saved result, or its name, what is missing an
   await expect(calculate).toBeDisabled();
   await expect(pending).toContainText("計算に必要なこと：");
   await expect(pending).toContainText("測定領域と採用する視野の確認");
-  for (const name of ["実験回の定義、撮影・画素条件、採否と欠測の扱いを確認済み", "測定領域と採用する視野を確認済み"]) await pending.getByLabel(name, {exact: true}).check();
+  // D-6: the design declared on 実験 defines the runs; only the acquisition and the fields are confirmed here.
+  await expect(results).toContainText("実験回・対照・対応は「実験」の宣言を使います");
+  await expect(results.getByRole("textbox", {name: "実験回の定義"})).toHaveCount(0);
   const keep = pending.getByLabel("この一覧を確認し、欠測として残して計算する", {exact: true});
   if (await keep.count()) await keep.check();
-  await expect(pending).not.toContainText("計算に必要なこと：");
-  await calculate.click();
+  await pending.getByLabel("撮影・画素条件と、採否・欠測の扱いを確認済み", {exact: true}).check();
+  // D-5: once everything is confirmed, the description (no test) is calculated without 計算.
+  await pending.getByLabel("測定領域と採用する視野を確認済み", {exact: true}).check();
   await expect(summary.getByRole("heading", {level: 3})).toContainText("核小体の平均輝度（NPM1）", {timeout: live});
   await expect(pending).toHaveCount(0);
 
@@ -81,7 +84,7 @@ test("a chosen condition shows its saved result, or its name, what is missing an
   // calculated result is shown at once and the confirmations are still given.
   await choose("mean", "nucleoplasm", "npm1");
   await expect(pending.getByRole("heading", {level: 3})).toHaveText("核質の平均輝度（NPM1）");
-  await expect(pending.getByLabel("実験回の定義、撮影・画素条件、採否と欠測の扱いを確認済み", {exact: true})).toBeChecked();
+  await expect(pending.getByLabel(/撮影・画素条件/)).toBeChecked();
   await expect(pending.getByLabel("測定領域と採用する視野を確認済み", {exact: true})).not.toBeChecked();
   await choose("mean", "nucleoli", "npm1");
   await expect(summary.getByRole("heading", {level: 3})).toContainText("核小体の平均輝度（NPM1）");
@@ -123,8 +126,8 @@ test("the subject comes first: only its metrics are listed, by what one observat
   await expect(metric.locator("optgroup").first()).toHaveAttribute("label", "核小体ごと");
   await expect(metric.locator("option[value=nucleolar_eccentricity]")).toHaveCount(1);
   await expect(metric.locator("option[value=nucleus_count]")).toHaveCount(0);
-  // Metrics added after the recording are not offered until the demo is recorded again (#257).
-  for (const unrecorded of ["solidity", "cv", "largest_nucleolus_fraction"]) await expect(metric.locator(`option[value=${unrecorded}]`)).toHaveCount(0);
+  // The shape and pixel-signal measures and the largest nucleolus's share are recorded too (#257, owner decision 2026-11-21).
+  for (const recorded of ["solidity", "cv", "largest_nucleolus_fraction"]) await expect(metric.locator(`option[value=${recorded}]`)).toHaveCount(1);
   await metric.selectOption("nucleolar_eccentricity");
   await expect(side.getByTestId("metric-definition")).toContainText("対象：核小体。観測の単位：核ごと（その核の核小体をまとめた値）。");
   // On the nuclei a metric of another subject is replaced by the first of the nuclei, which the sentence names.

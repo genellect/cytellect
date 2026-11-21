@@ -145,7 +145,8 @@ const sidebar = page => page.getByRole("complementary", {name: "解析対象"});
 const expected = new Set();
 async function calculate(page, refusal = null) {
   const results = statistics(page);
-  for (const label of ["独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み", "測定領域と採用する視野を確認済み"]) {
+  // The design's confirmation (its wording follows a design declared on 実験, D-6) and the review of the regions.
+  for (const label of [/撮影・画素条件/, "測定領域と採用する視野を確認済み"]) {
     const box = results.getByLabel(label);
     if (await box.count() && !await box.isChecked()) await box.check();
   }
@@ -163,8 +164,15 @@ async function calculate(page, refusal = null) {
   await page.waitForFunction(text => document.body.innerText.includes(text) || [...document.querySelectorAll("button")].some(button => button.textContent === "計算" && !button.disabled), keep, {timeout: LIVE});
   const listed = results.getByLabel(keep, {exact: true});
   if (await listed.count() && !await listed.isChecked()) await listed.check();
-  const button = results.getByRole("button", {name: "計算", exact: true});
-  await button.click();
+  // D-5: a description (no test) starts once everything is confirmed; 計算 is pressed only while the chosen condition
+  // still waits where its result will appear (a test, or a condition the description did not start for).
+  const waiting = results.getByRole("region", {name: "選択中の条件"});
+  await idle(page);
+  for (let index = 0; index < LIVE / 500; index++) {
+    if (!await waiting.count() || await waiting.getByRole("button", {name: "計算", exact: true}).isEnabled()) break;
+    await page.waitForTimeout(500);
+  }
+  if (await waiting.count()) await waiting.getByRole("button", {name: "計算", exact: true}).click();
   await page.waitForFunction(() => [...document.querySelectorAll("button")].some(button => button.textContent === "計算" && !button.disabled), null, {timeout: LIVE});
   await idle(page);
   const refused = (await results.getByRole("alert").allTextContents()).filter(text => text.trim());
@@ -206,12 +214,18 @@ async function figures(page, _comparison, images = false) {
 // Every metric of the catalog (metric-catalog.ts); a scene skips a metric the panel does not offer
 // for its region (the demo's recorded regions, a missing calibration).
 const METRICS = ["area_px", "area_um2", "nucleus_count", "nucleus_density_per_mm2", "mean", "median", "integrated",
-  "mean_corrected", "integrated_corrected", "nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity",
-  "nucleolar_count", "nucleolar_area_fraction", "log2_nucleoplasm_over_nucleolus"];
+  "mean_corrected", "integrated_corrected", "solidity", "axis_ratio", "eccentricity", "cv", "cv_corrected",
+  "positive_area_fraction", "nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity",
+  "largest_nucleolus_fraction", "nucleolar_count", "nucleolar_area_fraction", "log2_nucleoplasm_over_nucleolus"];
 // Metrics whose values come from a fixed region set; the panel then shows no region choice.
 const FIXED = {nucleus_count: "nuclei", nucleus_density_per_mm2: "nuclei", nucleolar_area_px: "nucleoplasm",
   nucleolar_area_um2: "nucleoplasm", nucleolar_eccentricity: "nucleoplasm", nucleolar_count: "nucleoplasm",
-  nucleolar_area_fraction: "nucleoplasm", log2_nucleoplasm_over_nucleolus: "nucleoplasm"};
+  nucleolar_area_fraction: "nucleoplasm", largest_nucleolus_fraction: "nucleoplasm", log2_nucleoplasm_over_nucleolus: "nucleoplasm"};
+// The subject (対象) the side panel lists a metric under (metric-catalog.ts `subjects`): a per-nucleus nucleolar summary
+// is read from the nucleoplasm set but listed under the nucleoli; a per-region metric under its own region.
+const SUBJECT = {nucleus_count: "nuclei", nucleus_density_per_mm2: "nuclei", nucleolar_area_px: "nucleoli",
+  nucleolar_area_um2: "nucleoli", nucleolar_eccentricity: "nucleoli", nucleolar_count: "nucleoli",
+  nucleolar_area_fraction: "nucleoli", largest_nucleolus_fraction: "nucleoli", log2_nucleoplasm_over_nucleolus: "nucleoplasm"};
 const offered = (region, metric) => !FIXED[metric] || FIXED[metric] === region;
 const choices = select => select.locator("option:not([disabled])").evaluateAll(options => options.map(option => option.value).filter(Boolean));
 // Every statistic the panel offers for one region and metric, from the seed: each stain, each
@@ -222,13 +236,14 @@ function statisticsScene(region, metric, kinds = null, refusal = null) {
   return async page => {
     await tab(page, "統計");
     await statistics(page).waitFor({timeout: LIVE});
+    // The subject first, then its metric (B-1): the subject lists only its metrics.
+    const subject = sidebar(page).getByRole("combobox", {name: "対象", exact: true});
+    const wanted = SUBJECT[metric] ?? region;
+    if (!(await choices(subject)).includes(wanted)) return;
+    if (await subject.inputValue() !== wanted) {await subject.selectOption(wanted); await idle(page);}
     const metrics = sidebar(page).getByRole("combobox", {name: "指標", exact: true});
     if (!(await choices(metrics)).includes(metric)) return;
-    // The metric first: after a metric of a fixed region (a positive count, a nucleolar measure) the panel shows
-    // no region choice, so a region chosen before the metric would be skipped and the previous region kept.
     await metrics.selectOption(metric); await idle(page);
-    const regions = sidebar(page).getByRole("combobox", {name: "領域", exact: true});
-    if (await regions.count() && await regions.inputValue() !== region) {await regions.selectOption(region); await idle(page);}
     const stain = sidebar(page).getByRole("combobox", {name: "染色", exact: true});
     const stains = await stain.count() && await stain.isEnabled() ? await choices(stain) : [null];
     for (const channel of stains) {
@@ -414,6 +429,41 @@ function walksOf(demo) {
       await nextStep(page, /^陽性率を群間で比較/);
     };
   }
+  // The image tables' shape and pixel-signal columns (#257 A-4, region-features/1.0.0): asked once in each pane, they
+  // follow every region, run, field of each pane and stain, as a visitor's table does.
+  scenes.features = async page => {
+    const bar = page.getByRole("toolbar", {name: "画像の表示"});
+    const tables = bar.getByRole("button", {name: "測定値", exact: true});
+    if (await tables.count() && await tables.getAttribute("aria-pressed") !== "true") {await tables.click(); await idle(page);}
+    const region = bar.getByRole("combobox", {name: "領域", exact: true});
+    const stains = bar.getByRole("group", {name: "染色"}).getByRole("button").filter({hasNotText: "重ねて表示"});
+    const everyStain = async () => {
+      for (let index = 0; index < await stains.count(); index++) {await stains.nth(index).click(); await idle(page);}
+    };
+    for (const target of REGIONS) {
+      if (await region.inputValue() !== target) {await region.selectOption(target); await idle(page);}
+      const panes = page.getByRole("region", {name: /の測定値$/});
+      for (let pane = 0; pane < await panes.count(); pane++) {
+        // The per-region table (not the nucleus table), then its columns.
+        const views = panes.nth(pane).getByRole("group", {name: /表の切り替え$/});
+        if (await views.count()) {await views.getByRole("button").first().click(); await idle(page);}
+        const show = panes.nth(pane).getByRole("button", {name: "形と信号の値を表示", exact: true});
+        if (await show.count()) {await show.click(); await idle(page);}
+      }
+      const runs = bar.getByRole("combobox", {name: "実験回", exact: true});
+      for (const run of await runs.count() ? await choices(runs) : [null]) {
+        if (run) {await runs.selectOption(run); await idle(page);}
+        await everyStain();
+        const fieldSelects = page.getByRole("combobox", {name: / の視野$/});
+        for (let select = 0; select < await fieldSelects.count(); select++) {
+          for (const value of await choices(fieldSelects.nth(select))) {
+            await fieldSelects.nth(select).selectOption(value); await idle(page);
+            await everyStain();
+          }
+        }
+      }
+    }
+  };
   // The nucleolus-and-nucleoplasm colour mode and its next step (the nucleoplasm ÷ nucleolus ratio).
   if (REGIONS.includes("nucleoli") && REGIONS.includes("nucleoplasm")) scenes["compartments-next"] = async page => {
     await colorMode(page).selectOption("compartments"); await idle(page);
