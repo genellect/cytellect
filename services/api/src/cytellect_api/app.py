@@ -1064,6 +1064,10 @@ def create_app(settings: Settings | None = None, *, proposal_credentials=None):
             "figure-caption.md": "text/markdown; charset=utf-8",
             # The English legend draft of a publication figure (common-statistics figure 2.0.0).
             "figure-legend.md": "text/markdown; charset=utf-8",
+            # The fields behind a comparison, group → run → field (genellect/cytellect#257, check of the result).
+            "fields.svg": "image/svg+xml",
+            "fields.png": "image/png",
+            "fields.pdf": "application/pdf",
             "figure-data.json": "application/json",
             "model-predictions.csv": "text/csv",
             "figure.pdf": "application/pdf",
