@@ -97,12 +97,43 @@ def test_synthetic_minimum_area_held_out_and_decision_rules():
                                                      "reason": "tolerance_exceeded"}
     assert module.held_out(rows, "solidity", None)["passed"] is False
     assert module.minimum_area([row(4, 50, 0.01), row(8, 30, 0.2)], "solidity") is None
-    passing = module.decide({"a": [0.85, 0.90], "b": [0.95, 0.85]}, True, 16)
+    def rates(**sets):
+        return {name: dict(enumerate(values)) for name, values in sets.items()}
+
+    passing = module.decide(rates(a=[0.85, 0.90], b=[0.95, 0.85]), True, 16)
     assert passing["show_for_nucleoli"] is True
-    assert module.decide({"a": [0.85, 0.96]}, True, 16)["show_for_nucleoli"] is False  # spread 11 points
-    assert module.decide({"a": [0.79, 0.85]}, True, 16)["show_for_nucleoli"] is False
-    assert module.decide({"a": [0.90, 0.90]}, False, 16)["show_for_nucleoli"] is False
+    assert module.decide(rates(a=[0.85, 0.96]), True, 16)["show_for_nucleoli"] is False  # spread 11 points
+    assert module.decide(rates(a=[0.79, 0.85]), True, 16)["show_for_nucleoli"] is False
+    assert module.decide(rates(a=[0.90, 0.90]), False, 16)["show_for_nucleoli"] is False
     assert module.decide({}, True, 16)["show_for_nucleoli"] is False
+    # A condition without a rate, or a failed evaluation field, never lets the rest pass on their own.
+    missing = module.decide(rates(a=[0.90, None], b=[0.90, 0.90]), True, 16)
+    assert missing["show_for_nucleoli"] is False and missing["sets"]["a"]["conditions_without_rate"] == [1]
+    assert module.decide(rates(a=[0.90, 0.90]), True, 16, evaluation_fields_not_ok=1)["show_for_nucleoli"] is False
+
+
+def test_synthetic_evaluation_rates_list_every_registered_condition():
+    module = load()
+    manifest = {"datasets": {
+        "ds6b": {"files": [{"split": "evaluation", "group": "4hrs", "condition": "A"},
+                           {"split": "evaluation", "group": "4hrs", "condition": "B"},
+                           {"split": "tuning", "group": "2hrs", "condition": "A"}]},
+        "ds1": {"files": [{"split": "evaluation", "group": "U2OS", "condition": "A"}]}}}
+    tables = {"ds6b": [{"split": "evaluation", "group": "4hrs", "condition": "A",
+                        "rates_at_minimum": {"solidity": {"rate": 0.9}}}], "ds1": []}
+    assert module.evaluation_rates(manifest, tables, "solidity", 16) == {
+        "ds6b/4hrs": {"A": 0.9, "B": None}, "ds1/U2OS": {"A": None}}
+    assert module.evaluation_rates(manifest, tables, "solidity", None) == {
+        "ds6b/4hrs": {"A": None, "B": None}, "ds1/U2OS": {"A": None}}
+    assert module.decide(module.evaluation_rates(manifest, tables, "solidity", 16), True, 16)["show_for_nucleoli"] is False
+
+
+def test_paths_are_redacted_from_committed_errors():
+    module = load()
+    message = "FileNotFoundError: [Errno 2] No such file or directory: '/private/data/ds6b/x.tif'"
+    assert module.redact(message) == "FileNotFoundError: [Errno 2] No such file or directory: '<path>'"
+    assert module.redact("C:\\Users\\a\\x.tif missing") == "<path> missing"
+    assert module.redact(None) is None
 
 
 def test_subset_rule_reads_names_only():
@@ -146,13 +177,11 @@ def test_summary_matches_registration_and_decision_rule():
     for dataset, counts in summary["fields"].items():
         assert counts["ok"] + counts["not_ok"] == counts["registered"]
         assert counts["not_ok"] == sum(1 for key in listed if key[0] == dataset)
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    not_ok = sum(1 for item in summary["failures"] if item["split"] == "evaluation")
     for metric, decision in summary["decision4"].items():
-        rates: dict[str, list[float]] = {}
         minimum = summary["minimum_area"][metric]["minimum_area_px"]
-        if minimum is not None:
-            for dataset in ("ds6b", "ds1"):
-                for row in summary["conditions"][dataset]:
-                    if row["split"] == "evaluation":
-                        rates.setdefault(f"{dataset}/{row['group']}", []).append(row["rates_at_minimum"][metric]["rate"])
-        again = module.decide(rates, summary["minimum_area"][metric]["held_out_passed"], minimum)
-        assert again["show_for_nucleoli"] == decision["show_for_nucleoli"]
+        rates = module.evaluation_rates(manifest, summary["conditions"], metric, minimum)
+        assert set(rates) == {"ds6b/4hrs", "ds1/HCT116", "ds1/U2OS"}
+        again = module.decide(rates, summary["minimum_area"][metric]["held_out_passed"], minimum, not_ok)
+        assert again == decision

@@ -26,8 +26,10 @@ Rules fixed on 2026-11-21, before any nucleolar value of these files was read (t
    values are nuclear-signal/1.0.0 applied to nucleoli: raw CV, CV after the product's automatic background (DS6b),
    and the positive-area fraction at the field's Otsu threshold of all nucleolar pixels.
 3. An independent implementation (NumPy moments, SciPy convex hull and ndimage statistics, a separate Otsu) is
-   compared with the #258 code on every object; agreement means a difference of at most ``AGREEMENT``.
-4. Resolution error. ``mask``: the same outline sampled every second pixel (the #258 method, applied to nucleoli).
+   compared with this script's copy of the #258 formulas on every object; agreement means a difference of at most
+   ``AGREEMENT``. #258 itself is not on main and does not run here.
+4. Resolution error. ``mask``: the same outline sampled every second pixel (the #258 method, applied to nucleoli;
+   as there, a sampled object that falls apart under 4-connectivity has no partner).
    ``image``: the field binned 2 x 2 (mean of four pixels, rounded to uint16), detected again with the same rule and
    matched one to one at IoU >= ``MATCH_IOU``. DS6b goes from 0.325 to 0.65 um/px, DS1 from 0.1625 to 0.325 um/px
    (the DS6b resolution; DS6b itself was acquired with 2 x 2 camera binning). Errors are |delta solidity|,
@@ -193,11 +195,34 @@ NAME_PATTERN = {
 # --------------------------------------------------------------------------------------------------------------
 # Registration
 # --------------------------------------------------------------------------------------------------------------
+def checkouts() -> set[Path]:
+    """This checkout and, when it is a git worktree, the main checkout that owns it."""
+    import subprocess
+
+    roots = {ROOT}
+    try:
+        common = subprocess.run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], cwd=ROOT,
+                                capture_output=True, text=True, check=True, timeout=30).stdout.strip()
+        roots.add(Path(common).resolve().parent)
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return roots
+
+
 def outside_checkout(path: Path) -> Path:
     path = Path(path).resolve()
-    if path.is_relative_to(ROOT):
+    if any(path.is_relative_to(root) for root in checkouts()):
         raise ValueError("public_original_must_stay_outside_checkout")
     return path
+
+
+def redact(text: str | None) -> str | None:
+    """Error text without file paths, for anything that is committed."""
+    return None if text is None else re.sub(r"(?:[A-Za-z]:)?[\\/][^\s'\"]+", "<path>", text)
+
+
+def detectors_sha256(detectors: dict[str, Any]) -> str:
+    return hashlib.sha256(json.dumps(detectors, sort_keys=True).encode("utf-8")).hexdigest()
 
 
 def parse_name(dataset: str, name: str) -> dict[str, str]:
@@ -269,20 +294,27 @@ def download(url: str, target: Path, size: int, md5: str, attempts: int = 3) -> 
             target.unlink()
         if target.exists():
             break
+        import http.client
+
         partial = target.with_name(target.name + ".part")
-        with urllib.request.urlopen(url, timeout=300) as response, partial.open("wb") as stream:
-            received = 0
-            while block := response.read(1 << 20):
-                received += len(block)
-                if received > size:
-                    raise ValueError("public_download_size_mismatch")
-                stream.write(block)
+        received = 0
+        try:
+            with urllib.request.urlopen(url, timeout=300) as response, partial.open("wb") as stream:
+                while block := response.read(1 << 20):
+                    received += len(block)
+                    if received > size:
+                        raise ValueError("public_download_size_mismatch")
+                    stream.write(block)
+        except (OSError, http.client.HTTPException) as error:
+            print(f"download interrupted ({type(error).__name__}), attempt {attempt + 1}: {target.name}", flush=True)
         # A connection can end early without an error: a short file is never given the final name.
-        if received == size:
+        if received == size and partial.exists():
             partial.rename(target)
         else:
-            partial.unlink()
+            partial.unlink(missing_ok=True)
             print(f"incomplete download ({received} of {size} bytes), attempt {attempt + 1}: {target.name}", flush=True)
+    if not target.exists():
+        raise ValueError(f"public_download_incomplete: {target.name}")
     data = target.read_bytes()
     if len(data) != size or hashlib.md5(data).hexdigest() != md5:
         raise ValueError(f"public_original_md5_mismatch: {target.name}")
@@ -299,6 +331,8 @@ def register(data_dir: Path) -> dict[str, Any]:
     for dataset, spec in DATASETS.items():
         with urllib.request.urlopen(ZENODO_RECORD.format(record=spec["record"]), timeout=120) as response:
             record = json.loads(response.read())
+        if (record["metadata"].get("license") or {}).get("id") != "cc-by-4.0":
+            raise ValueError("public_license_changed")
         files = {item["key"]: item for item in record["files"]}
         chosen = select_files(dataset, list(files))
         (data_dir / dataset).mkdir(parents=True, exist_ok=True)
@@ -682,14 +716,18 @@ def process_field(task: dict[str, Any]) -> dict[str, Any]:
     target = work / "fields" / dataset
     target.mkdir(parents=True, exist_ok=True)
     result_path, arrays_path = target / f"{stem}.json", target / f"{stem}.npz"
+    settings = detectors_sha256(task["detectors"])
     if result_path.is_file():
         previous = json.loads(result_path.read_text(encoding="utf-8"))
+        # A cached field is reused only for the same source, protocol and detector settings.
         if (previous.get("protocol") == PROTOCOL and previous.get("sha256") == entry["sha256"]
+                and previous.get("detectors_sha256") == settings
                 and previous.get("status") == "ok" and arrays_path.is_file()):
             return previous
     info: dict[str, Any] = {"protocol": PROTOCOL, "dataset": dataset, "name": entry["name"],
-                            "sha256": entry["sha256"], "split": entry["split"], "group": entry["group"],
-                            "condition": entry["condition"], "status": "failed", "stage": "verify"}
+                            "sha256": entry["sha256"], "detectors_sha256": settings, "split": entry["split"],
+                            "group": entry["group"], "condition": entry["condition"], "status": "failed",
+                            "stage": "verify"}
     scratch = work / "tmp" / stem
     started = time.perf_counter()
     try:
@@ -816,13 +854,16 @@ def small_objects_field(task: dict[str, Any]) -> dict[str, Any]:
     target = work / "small"
     target.mkdir(parents=True, exist_ok=True)
     result_path, arrays_path = target / f"{stem}.json", target / f"{stem}.npz"
+    settings = detectors_sha256(task["detectors"])
     if result_path.is_file():
         previous = json.loads(result_path.read_text(encoding="utf-8"))
-        if previous.get("sha256") == entry["sha256"] and previous.get("status") == "ok" and arrays_path.is_file():
+        if (previous.get("protocol") == PROTOCOL and previous.get("sha256") == entry["sha256"]
+                and previous.get("detectors_sha256") == settings
+                and previous.get("status") == "ok" and arrays_path.is_file()):
             return previous
     info: dict[str, Any] = {"protocol": PROTOCOL, "dataset": dataset, "name": entry["name"], "sha256": entry["sha256"],
-                            "split": entry["split"], "group": entry["group"], "condition": entry["condition"],
-                            "status": "failed"}
+                            "detectors_sha256": settings, "split": entry["split"], "group": entry["group"],
+                            "condition": entry["condition"], "status": "failed"}
     scratch = work / "tmp" / f"small-{stem}"
     try:
         path = Path(task["data_dir"]) / dataset / entry["name"]
@@ -931,7 +972,7 @@ def concentration(small_counts: np.ndarray) -> float | None:
     return float(np.sort(small_counts)[::-1][:top].sum() / total)
 
 
-def small_objects_summary(work: Path, manifest: dict[str, Any]) -> dict[str, Any] | None:
+def small_objects_summary(work: Path, manifest: dict[str, Any], settings: str | None = None) -> dict[str, Any] | None:
     folder = work / "small"
     if not folder.is_dir():
         return None
@@ -944,6 +985,9 @@ def small_objects_summary(work: Path, manifest: dict[str, Any]) -> dict[str, Any
         path = folder / f"{entry['name'].removesuffix('.tif')}.json"
         info = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {
             "name": entry["name"], "status": "not_run", "group": entry["group"], "condition": entry["condition"]}
+        if info["status"] == "ok" and (info.get("sha256") != entry["sha256"] or info.get("protocol") != PROTOCOL
+                                       or info.get("detectors_sha256", settings) != settings):
+            info = {**info, "status": "stale"}
         infos.append(info)
         if info["status"] == "ok":
             with np.load(path.with_suffix(".npz")) as data:
@@ -1037,8 +1081,10 @@ def small_objects_summary(work: Path, manifest: dict[str, Any]) -> dict[str, Any
         "permutations": SMALL_PERMUTATIONS, "seed": SMALL_SEED, "near_gap_px": NEAR_GAP_PX,
         "enrichment_definition": "raw NPM1: object mean / parent nucleus median; also / parent nucleoplasm mean; "
                                  "corrected: both minus the product's automatic NPM1 background",
-        "fields": {"registered": len(infos), "ok": len(ok)},
-        "failures": [{key: info.get(key) for key in ("name", "status", "error")} for info in infos if info["status"] != "ok"],
+        "fields": {"registered": len(infos), "ok": len(ok),
+                   "detectors_hash_not_recorded": sum(1 for info in ok if "detectors_sha256" not in info)},
+        "failures": [{"name": info.get("name"), "status": info.get("status"), "error": redact(info.get("error"))}
+                     for info in infos if info["status"] != "ok"],
         "same_objects_as_main_run": Counter(str(info.get("same_objects_as_main_run")) for info in ok),
         "background_not_established_fields": sum(1 for info in ok if info.get("background") is None),
         "conditions": [{"group": group, "condition": condition, **describe(items)}
@@ -1098,26 +1144,55 @@ def held_out(rows: list[dict[str, Any]], metric: str, minimum: int | None) -> di
             "reason": None if not failing else "tolerance_exceeded"}
 
 
-def decide(rates: dict[str, list[float]], held_out_passed: bool, minimum: int | None) -> dict[str, Any]:
-    """Decision 4 from the measurable rates of each evaluation comparison set (condition rates in [0, 1])."""
+def evaluation_rates(manifest: dict[str, Any], tables: dict[str, list[dict[str, Any]]], metric: str,
+                     minimum: int | None) -> dict[str, dict[str, float | None]]:
+    """Every registered evaluation condition by comparison set, with its measurable rate (None when it has none)."""
+    rates: dict[str, dict[str, float | None]] = {}
+    for dataset in ("ds6b", "ds1"):
+        for entry in manifest["datasets"][dataset]["files"]:
+            if entry["split"] == "evaluation":
+                rates.setdefault(f"{dataset}/{entry['group']}", {})[entry["condition"]] = None
+    if minimum is None:
+        return rates
+    for dataset in ("ds6b", "ds1"):
+        for row in tables[dataset]:
+            key = f"{dataset}/{row['group']}"
+            if row["split"] == "evaluation" and row["condition"] in rates.get(key, {}):
+                rates[key][row["condition"]] = (row["rates_at_minimum"][metric] or {}).get("rate")
+    return rates
+
+
+def decide(rates: dict[str, dict[str, float | None]], held_out_passed: bool, minimum: int | None,
+           evaluation_fields_not_ok: int = 0) -> dict[str, Any]:
+    """Decision 4 from the measurable rate of every evaluation condition (in [0, 1]), by comparison set.
+
+    A condition without a rate, or any evaluation field that is not ok, fails the decision: rule 7 asks for every
+    condition, and nothing is dropped silently.
+    """
     sets = {}
-    for name, values in rates.items():
+    for name, by_condition in rates.items():
+        values = [value for value in by_condition.values() if value is not None]
+        missing = sorted(condition for condition, value in by_condition.items() if value is None)
         low, high = (min(values), max(values)) if values else (None, None)
-        sets[name] = {"minimum_rate": low, "maximum_rate": high,
+        sets[name] = {"conditions": len(by_condition), "conditions_without_rate": missing,
+                      "minimum_rate": low, "maximum_rate": high,
                       "spread": None if low is None or high is None else high - low,
                       "all_at_least_minimum": bool(values) and low is not None and low >= RATE_MINIMUM,
                       "spread_within": bool(values) and high is not None and low is not None
                       and high - low <= RATE_SPREAD + 1e-12}
-    passed = (minimum is not None and held_out_passed and bool(sets)
-              and all(item["all_at_least_minimum"] and item["spread_within"] for item in sets.values()))
-    return {"minimum_area_px": minimum, "held_out_shape_error_passed": held_out_passed, "sets": sets,
-            "show_for_nucleoli": passed}
+    passed = (minimum is not None and held_out_passed and bool(sets) and evaluation_fields_not_ok == 0
+              and all(not item["conditions_without_rate"] and item["all_at_least_minimum"] and item["spread_within"]
+                      for item in sets.values()))
+    return {"minimum_area_px": minimum, "held_out_shape_error_passed": held_out_passed,
+            "evaluation_fields_not_ok": evaluation_fields_not_ok, "sets": sets, "show_for_nucleoli": passed}
 
 
 class Fields:
     """Per-field results of a work directory, grouped."""
 
-    def __init__(self, work: Path, manifest: dict[str, Any]):
+    def __init__(self, work: Path, manifest: dict[str, Any], settings: str | None = None):
+        """``settings``: the detectors' hash of the work directory; a field recorded with other settings is stale.
+        Fields from before the hash was recorded are kept and counted (``detectors_hash_not_recorded``)."""
         self.infos: list[dict[str, Any]] = []
         self.arrays: dict[str, dict[str, np.ndarray]] = {}
         for dataset, spec in manifest["datasets"].items():
@@ -1130,7 +1205,8 @@ class Fields:
                                        "status": "not_run", "sha256": entry["sha256"]})
                     continue
                 info = json.loads(path.read_text(encoding="utf-8"))
-                if info.get("sha256") != entry["sha256"] or info.get("protocol") != PROTOCOL:
+                if (info.get("sha256") != entry["sha256"] or info.get("protocol") != PROTOCOL
+                        or info.get("detectors_sha256", settings) != settings):
                     info = {**info, "status": "stale"}
                 self.infos.append(info)
                 if info["status"] == "ok":
@@ -1352,10 +1428,11 @@ def summarize(work: Path, output: Path) -> dict[str, Any]:
     work = outside_checkout(work)
     manifest_text = MANIFEST.read_text(encoding="utf-8")
     manifest = json.loads(manifest_text)
-    fields = Fields(work, manifest)
     detectors = json.loads((work / "detectors.json").read_text(encoding="utf-8"))
-    failures = [{key: info.get(key) for key in ("dataset", "name", "split", "condition", "status", "stage", "error")}
-                for info in fields.infos if info["status"] != "ok"]
+    settings = detectors_sha256(detectors)
+    fields = Fields(work, manifest, settings)
+    failures = [{**{key: info.get(key) for key in ("dataset", "name", "split", "condition", "status", "stage")},
+                 "error": redact(info.get("error"))} for info in fields.infos if info["status"] != "ok"]
     cohorts = {"ds6b/tuning": ("ds6b", "tuning"), "ds6b/evaluation": ("ds6b", "evaluation"),
                "ds1/evaluation": ("ds1", "evaluation")}
     resolution: dict[str, Any] = {}
@@ -1382,15 +1459,11 @@ def summarize(work: Path, output: Path) -> dict[str, Any]:
               "ds1": condition_table(fields, "ds1", "n_", chosen_minima),
               "ds1_binned": condition_table(fields, "ds1", "c_", chosen_minima)}
     decisions = {}
+    evaluation_not_ok = sum(1 for info in fields.infos if info["split"] == "evaluation" and info["status"] != "ok")
     for metric in SHAPE_METRICS:
-        rates: dict[str, list[float]] = defaultdict(list)
         minimum = chosen_minima[metric]
-        if minimum is not None:
-            for dataset in ("ds6b", "ds1"):
-                for row in tables[dataset]:
-                    if row["split"] == "evaluation" and row["rates_at_minimum"][metric]["rate"] is not None:
-                        rates[f"{dataset}/{row['group']}"].append(row["rates_at_minimum"][metric]["rate"])
-        decisions[metric] = decide(dict(rates), minima[metric]["held_out_passed"], minimum)
+        decisions[metric] = decide(evaluation_rates(manifest, tables, metric, minimum),
+                                   minima[metric]["held_out_passed"], minimum, evaluation_not_ok)
     bias = {metric: {f"{dataset}@{minimum}": missingness(fields, dataset, metric, minimum)
                      for dataset in DATASETS
                      for minimum in sorted({value for value in (chosen_minima[metric], PR258_MINIMUM_AREA_PX)
@@ -1427,6 +1500,8 @@ def summarize(work: Path, output: Path) -> dict[str, Any]:
         "detectors": detectors,
         "fields": {dataset: {"registered": len(spec["files"]),
                              "ok": len(fields.ok(dataset)),
+                             "detectors_hash_not_recorded": sum(1 for info in fields.ok(dataset)
+                                                                if "detectors_sha256" not in info),
                              "not_ok": sum(1 for info in fields.infos if info["dataset"] == dataset and info["status"] != "ok")}
                    for dataset, spec in manifest["datasets"].items()},
         "failures": failures,
@@ -1436,7 +1511,7 @@ def summarize(work: Path, output: Path) -> dict[str, Any]:
         "implementation_agreement": agreement(fields),
         "resolution": resolution, "minimum_area": minima, "conditions": tables, "decision4": decisions,
         "missingness": bias, "signal": signal_summary(fields), "ds1_substitute_on_ds6b": substitute,
-        "tuning_small_objects": small_objects_summary(work, manifest),
+        "tuning_small_objects": small_objects_summary(work, manifest, settings),
     }
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(summary, indent=1, ensure_ascii=False, default=float) + "\n", encoding="utf-8")

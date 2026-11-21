@@ -1,7 +1,7 @@
 {
  "protocol": "nucleolar-shape-validation/1.0.0",
  "manifest_sha256": "d9c8f8817a196b37dcd8a5f8d578a0f71cb06fa82d2873a267bc88fd40f299bd",
- "script_sha256": "604ff536c8ab666351c423738c20d11c46994b7528fdcf6ba9d0ac5c16bf2135",
+ "script_sha256": "c9c3a151a6aaecb7685c84eb246fc18a6e7da69e8c2a5dce75614bd60178c903",
  "rules": {
   "tolerance": {
    "solidity": 0.05,
@@ -62,11 +62,13 @@
   "ds6b": {
    "registered": 360,
    "ok": 360,
+   "detectors_hash_not_recorded": 360,
    "not_ok": 0
   },
   "ds1": {
    "registered": 180,
    "ok": 180,
+   "detectors_hash_not_recorded": 180,
    "not_ok": 0
   }
  },
@@ -4431,19 +4433,175 @@
   "solidity": {
    "minimum_area_px": null,
    "held_out_shape_error_passed": false,
-   "sets": {},
+   "evaluation_fields_not_ok": 0,
+   "sets": {
+    "ds6b/4hrs": {
+     "conditions": 8,
+     "conditions_without_rate": [
+      "ActD1",
+      "ActD10",
+      "Cis10",
+      "Cis100",
+      "Ox10",
+      "Ox100",
+      "UntreatedNoEU",
+      "UntreatedWithEU"
+     ],
+     "minimum_rate": null,
+     "maximum_rate": null,
+     "spread": null,
+     "all_at_least_minimum": false,
+     "spread_within": false
+    },
+    "ds1/HCT116": {
+     "conditions": 6,
+     "conditions_without_rate": [
+      "ActD1",
+      "Cis10",
+      "Cis100",
+      "Ox10",
+      "Ox100",
+      "Untreated"
+     ],
+     "minimum_rate": null,
+     "maximum_rate": null,
+     "spread": null,
+     "all_at_least_minimum": false,
+     "spread_within": false
+    },
+    "ds1/U2OS": {
+     "conditions": 6,
+     "conditions_without_rate": [
+      "ActD1",
+      "Cis10",
+      "Cis100",
+      "Ox10",
+      "Ox100",
+      "Untreated"
+     ],
+     "minimum_rate": null,
+     "maximum_rate": null,
+     "spread": null,
+     "all_at_least_minimum": false,
+     "spread_within": false
+    }
+   },
    "show_for_nucleoli": false
   },
   "axis_ratio": {
    "minimum_area_px": null,
    "held_out_shape_error_passed": false,
-   "sets": {},
+   "evaluation_fields_not_ok": 0,
+   "sets": {
+    "ds6b/4hrs": {
+     "conditions": 8,
+     "conditions_without_rate": [
+      "ActD1",
+      "ActD10",
+      "Cis10",
+      "Cis100",
+      "Ox10",
+      "Ox100",
+      "UntreatedNoEU",
+      "UntreatedWithEU"
+     ],
+     "minimum_rate": null,
+     "maximum_rate": null,
+     "spread": null,
+     "all_at_least_minimum": false,
+     "spread_within": false
+    },
+    "ds1/HCT116": {
+     "conditions": 6,
+     "conditions_without_rate": [
+      "ActD1",
+      "Cis10",
+      "Cis100",
+      "Ox10",
+      "Ox100",
+      "Untreated"
+     ],
+     "minimum_rate": null,
+     "maximum_rate": null,
+     "spread": null,
+     "all_at_least_minimum": false,
+     "spread_within": false
+    },
+    "ds1/U2OS": {
+     "conditions": 6,
+     "conditions_without_rate": [
+      "ActD1",
+      "Cis10",
+      "Cis100",
+      "Ox10",
+      "Ox100",
+      "Untreated"
+     ],
+     "minimum_rate": null,
+     "maximum_rate": null,
+     "spread": null,
+     "all_at_least_minimum": false,
+     "spread_within": false
+    }
+   },
    "show_for_nucleoli": false
   },
   "eccentricity": {
    "minimum_area_px": null,
    "held_out_shape_error_passed": false,
-   "sets": {},
+   "evaluation_fields_not_ok": 0,
+   "sets": {
+    "ds6b/4hrs": {
+     "conditions": 8,
+     "conditions_without_rate": [
+      "ActD1",
+      "ActD10",
+      "Cis10",
+      "Cis100",
+      "Ox10",
+      "Ox100",
+      "UntreatedNoEU",
+      "UntreatedWithEU"
+     ],
+     "minimum_rate": null,
+     "maximum_rate": null,
+     "spread": null,
+     "all_at_least_minimum": false,
+     "spread_within": false
+    },
+    "ds1/HCT116": {
+     "conditions": 6,
+     "conditions_without_rate": [
+      "ActD1",
+      "Cis10",
+      "Cis100",
+      "Ox10",
+      "Ox100",
+      "Untreated"
+     ],
+     "minimum_rate": null,
+     "maximum_rate": null,
+     "spread": null,
+     "all_at_least_minimum": false,
+     "spread_within": false
+    },
+    "ds1/U2OS": {
+     "conditions": 6,
+     "conditions_without_rate": [
+      "ActD1",
+      "Cis10",
+      "Cis100",
+      "Ox10",
+      "Ox100",
+      "Untreated"
+     ],
+     "minimum_rate": null,
+     "maximum_rate": null,
+     "spread": null,
+     "all_at_least_minimum": false,
+     "spread_within": false
+    }
+   },
    "show_for_nucleoli": false
   }
  },
@@ -9359,7 +9517,8 @@
   "enrichment_definition": "raw NPM1: object mean / parent nucleus median; also / parent nucleoplasm mean; corrected: both minus the product's automatic NPM1 background",
   "fields": {
    "registered": 239,
-   "ok": 239
+   "ok": 239,
+   "detectors_hash_not_recorded": 239
   },
   "failures": [],
   "same_objects_as_main_run": {
