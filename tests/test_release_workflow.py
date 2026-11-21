@@ -196,9 +196,14 @@ def test_manual_and_automatic_routes_enforce_their_release_protections():
     assert "format('windows-release-idle-{0}', github.run_id) || 'windows-release' }}\n  cancel-in-progress: false" in RELEASE
     channel = job(RELEASE, "channel")
     assert "environment: windows-exe-channel" in channel
-    assert "contents: read" in channel and "contents: write" not in channel
-    assert "ssh-key: ${{ secrets.WINDOWS_EXE_CHANNEL_DEPLOY_KEY }}" in channel
-    assert RELEASE.count("secrets.WINDOWS_EXE_CHANNEL_DEPLOY_KEY") == 1
+    assert "\n      contents: read\n" in channel and "\n      contents: write\n" not in channel
+    assert "private-key: ${{ secrets.WINDOWS_EXE_CHANNEL_APP_PRIVATE_KEY }}" in channel
+    assert RELEASE.count("secrets.WINDOWS_EXE_CHANNEL_APP_PRIVATE_KEY") == 1
+    assert "owner: genellect\n          repositories: cytellect\n          permission-contents: write" in channel
+    assert "token: ${{ steps.channel-token.outputs.token }}" in channel
+    assert "services/api/src/cytellect_api/update_signature.py" in channel
+    assert "!inputs.channel_only" in source
+    assert "inputs.channel_only && vars.WINDOWS_EXE_AUTO_RELEASE != 'true'" in channel
 
 
 def test_ai_compatibility_gates_the_exact_source_without_exposing_tokens_to_packaging():
