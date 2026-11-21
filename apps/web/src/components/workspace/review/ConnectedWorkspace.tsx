@@ -378,9 +378,10 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
     if(metricUsesChannel(metric)&&!resultChannelOffered(actualChannel)){const next=(field?.channels||data?.channels||[]).find(ch=>resultChannelOffered(ch.id));if(next)setChannel(next.id);}
   },[recordedStats,resultChoices,metric,target,actualChannel]);// eslint-disable-line react-hooks/exhaustive-deps -- the predicates read the same choice
   /** Statistics: the subject sets the region as the region choice did, when that region has the metric kept for it;
-   *  a metric of the subject keeps that region (M-01). */
-  function chooseSubject(subject:ReviewTarget){const next=metricForSubject(metric,subject,id=>resultMetricOffered(id,subject));if(resultRegionOffered(subject,next))changeTarget(subject);setMetric(next);}
-  function chooseMetric(id:string,subject:ReviewTarget){setMetric(id);if(!metricChoice(id)?.target&&target!==subject)changeTarget(subject);}
+   *  a metric of the subject keeps that region (M-01). A choice made here is the researcher's: the opening result,
+   *  read later, no longer sets the metric or the region. */
+  function chooseSubject(subject:ReviewTarget){explicitMetric.current=true;if(subject===metricStructure(metric,target))return;const next=metricForSubject(metric,subject,id=>resultMetricOffered(id,subject));if(resultRegionOffered(subject,next))changeTarget(subject);setMetric(next);}
+  function chooseMetric(id:string,subject:ReviewTarget){explicitMetric.current=true;setMetric(id);if(!metricChoice(id)?.target&&target!==subject)changeTarget(subject);}
   // The colour modes the shown field can be coloured by, and the one in effect (MV-01). They are per nucleus.
   const colorChoices=colorByChoices({nuclei:!!field&&!!r.currentResult(field.id,"nuclei"),gateChannels:gateChannels.length,
     nucleoli:!!field&&!!r.currentResult(field.id,"nucleoli"),nucleoplasm:!!field&&!!r.currentResult(field.id,"nucleoplasm"),saved:!!historicResult||!!candidate});

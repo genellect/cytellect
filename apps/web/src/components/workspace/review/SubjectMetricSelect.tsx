@@ -22,7 +22,7 @@ function Pictogram({subject}: {subject: MetricSubject}) {
 
 interface Radio<T extends string> {value: T; label: ReactNode; disabled?: boolean; title?: string}
 /** A choice of one (WAI-ARIA radio group): a single Tab stop on the checked radio; the arrow keys move to the next
- * choosable radio and choose it. */
+ * choosable radio and choose it. A click on the checked radio is passed on too: it confirms the choice. */
 function RadioGroup<T extends string>({radios, value, onChoose, className, label}: {
   radios: Radio<T>[]; value: T; onChoose: (value: T) => void; className: string;
   label: {"aria-labelledby": string} | {"aria-label": string};
@@ -42,7 +42,7 @@ function RadioGroup<T extends string>({radios, value, onChoose, className, label
   }
   return <div className={className} role="radiogroup" {...label}>
     {radios.map((radio, index) => <button key={radio.value} type="button" role="radio" aria-checked={radio.value === value} tabIndex={radio.value === focusable ? 0 : -1}
-      disabled={radio.disabled} title={radio.title} onKeyDown={event => move(event, index)} onClick={() => {if (radio.value !== value) onChoose(radio.value);}}>{radio.label}</button>)}
+      disabled={radio.disabled} title={radio.title} onKeyDown={event => move(event, index)} onClick={() => onChoose(radio.value)}>{radio.label}</button>)}
   </div>;
 }
 

@@ -161,3 +161,19 @@ test("a chosen condition shows its own recorded result at once, named as chosen 
   await expect(summary.getByRole("heading", {level: 3})).toContainText("核小体数", {timeout: live});
   expect(errors).toEqual([]);
 });
+
+test("a subject chosen before the opening result arrives stays chosen (M-01)", async ({page}) => {
+  test.setTimeout(600_000);
+  const errors = await open(page, "step=statistics");
+  // The subject shown before the opening result (核) and another one (核質), each chosen before that result arrives.
+  for (const subject of ["nuclei", "nucleoplasm"]) {
+    await page.goto(url("step=statistics"));
+    await expect(subjectRadio(page, subject)).toBeVisible({timeout: live});
+    await subjectRadio(page, subject).click();
+    await expect(page.getByRole("region", {name: "結果のまとめ"})).toBeVisible({timeout: live});
+    await page.waitForLoadState("networkidle");
+    // Neither the opening comparison nor the move to a recorded region takes the researcher's subject back.
+    await expect(subjectRadio(page, subject)).toBeChecked();
+  }
+  expect(errors).toEqual([]);
+});
