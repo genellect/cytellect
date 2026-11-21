@@ -1370,6 +1370,13 @@ def start_next(command: str, web: Path, env: dict, origin_port: int, ready_path:
     """Start ``next dev`` or ``next start`` and wait until it answers. The Next.js CLI sometimes stops
     once to show a notice instead of serving; a server that exits before answering is started again."""
     url = f"http://127.0.0.1:{origin_port}{ready_path}"
+    # A server left on the port (an interrupted build's) would answer for the new one and be recorded instead.
+    try:
+        urllib.request.urlopen(url, timeout=timeout)
+    except OSError:
+        pass
+    else:
+        raise SystemExit(f"port {origin_port} already answers; stop the server there before building")
     for _attempt in range(4):
         process = subprocess.Popen(["pnpm", "exec", "next", command, "--hostname", "127.0.0.1", "--port", str(origin_port)],
                                    cwd=web, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
