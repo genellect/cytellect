@@ -546,8 +546,9 @@ A design records what the researcher declared: `layout` (`single`: one group
 described; `pair`: two groups compared), the groups (1 or 2), the control group
 (required before a pair comparison), the independent runs, each field's group,
 run and optional sample (coverslip or well), whether the researcher confirmed
-that the runs were performed independently, and whether the researcher stated that every field was
-acquired with the same imaging and pixel settings (`acquisition_confirmed`, added 2026-11-21 by owner
+that the runs were performed independently, and whether the researcher stated that the acquisition and pixel
+settings are comparable between the groups: the same settings, or, for areas in µm², a calibrated pixel size
+(`acquisition_confirmed`, added 2026-11-21 by owner
 decision 11 of genellect/cytellect#257). The acquisition statement is additive: it is written only while
 it is stated, so a design saved before it keeps its bytes and its hash, and reads as not stated. Group, run and sample labels are at
 most 24 characters, without leading or trailing spaces, control characters or the
@@ -576,7 +577,10 @@ owner decision 11 (2026-11-21) the workspace builds a comparison's `acquisition_
 independence statements, its regions and fields from the adoption in 画像, and
 `missingness_confirmed` from the saved missingness policies, whose missing values the
 result's n breakdown lists; it asks for no separate confirmation in 統計. A workspace
-without a declared design states no acquisition settings, so it is described but not compared.
+registered without a design has no place to declare them, so it keeps one confirmation in 統計 for its typed
+groups, units and acquisition (owner decision on genellect/cytellect#273, 2026-11-21). The acquisition statement
+is sent as `acquisition_review.basis` `calibrated-area` for areas in µm² and `same-settings` otherwise, the two
+cases the API accepts.
 
 ### Experiment design 1.1.0: declared strata (2026-11-09)
 

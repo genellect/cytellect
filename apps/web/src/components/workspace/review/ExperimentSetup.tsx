@@ -183,7 +183,7 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pendin
     {!readOnly&&<label className={styles.independence} title="別々に播種・処理・染色した実験回。日付やプレートの違いだけでは独立とは限りません。"><input type="checkbox" checked={draft.independence_confirmed??false} disabled={locked} onChange={event=>void save({...draft,independence_confirmed:event.target.checked})}/>各実験回は独立に行った</label>}
     {/* The statement 統計 used to ask for (S10, genellect/cytellect#257 decision 11): it backs the acquisition review and
         the spatial sampling of a comparison. The key is written only while it is stated (an additive field). */}
-    {!readOnly&&<label className={styles.independence} title="露光・ゲイン・対物レンズ・画素の大きさ（µm/px）が全視野で同じ。表示をそろえても、撮影の違いは解消されません。"><input type="checkbox" checked={draft.acquisition_confirmed??false} disabled={locked} onChange={event=>void save(withAcquisition(draft,event.target.checked))}/>全視野を同じ撮影・画素条件で撮影した</label>}
+    {!readOnly&&<label className={styles.independence} title="輝度と画素数：全視野で同じ撮影設定（露光・ゲイン・対物レンズ・画素の大きさ）。面積（µm²）：画素の大きさを較正済み。表示をそろえても、撮影の違いは解消されません。"><input type="checkbox" checked={draft.acquisition_confirmed??false} disabled={locked} onChange={event=>void save(withAcquisition(draft,event.target.checked))}/>群の間で撮影・画素条件を比べられる</label>}
     <StrataEditor design={draft} locked={locked} readOnly={readOnly} onSave={save}/>
     {unassigned.length>0&&<section className={styles.unassigned} aria-label="群・実験回が未割り当ての視野">
       <h2>群・実験回が未割り当ての視野</h2>

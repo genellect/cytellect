@@ -105,13 +105,15 @@ review route `/workspace-review` (the workspace without its session gate) redire
   (1 画面 takes them, 2 画面 asks which run and group, 実験デザインなしで登録 keeps typing groups per field
   in statistics, 取り消す drops them), so they never open in a view the researcher did not choose.
 - Production only, 統計 has no confirmations (owner decision 11, 2026-11-21, genellect/cytellect#257): the
-  regions and fields are those adopted in 画像, the acquisition and pixel settings (全視野を同じ撮影・画素条件で撮影した)
+  regions and fields are those adopted in 画像, the acquisition and pixel settings (群の間で撮影・画素条件を比べられる)
   and the runs' independence are declared in 実験 beside each other and shown there as status marks (撮影条件、
   独立性), pairing follows the declared layout, and nuclei without an established nucleolus are kept as missing
   under `unresolved-as-missing/1.0.0` and counted in the result's n. A request states exactly these
   declarations. While earlier work is missing, the result's place shows that one item in one line that opens its
-  screen (「実験：撮影条件 未確認 →」, 「画像：未測定 3 視野 →」); a workspace without a declared design compares
-  nothing (「実験：実験デザイン 未宣言 →」) and still describes its fields. The demo shows no such line and no
+  screen (「実験：撮影条件 未確認 →」, 「画像：未測定 3 視野 →」). The statement covers both cases of S10: the same
+  settings, or a calibrated pixel size for areas in µm² (sent as `calibrated-area`; otherwise `same-settings`). A
+  workspace registered without a design has no place to declare them, so it keeps one confirmation in 統計 for its
+  typed groups, units and acquisition (owner decision on genellect/cytellect#273, 2026-11-21). The demo shows no such line and no
   撮影条件 mark: its recorded design states no acquisition settings and its calculations replay the tour's record.
 - Demo only: the AI composer also offers the recorded instructions (`snapshot/proposal-examples.json`)
   as examples. The header shows a デモ badge with the image source and limits (`snapshot/dataset.json`)

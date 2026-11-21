@@ -50,6 +50,13 @@ describe("connected result contracts",()=>{
     expect(resultRequest({...design,independence:false,inference:false},fields,plot)).toMatchObject({test:"none",design:{confirmed:true},acquisition_review:{confirmed:true,basis:"same-settings"},missingness_confirmed:true});
     expect(()=>resultRequest({...design,operation:"association",independence:false},fields,plot)).toThrow("独立性");
   });
+  it("maps the acquisition statement to the API's basis: calibrated areas, otherwise the same settings (owner decision on #273)",()=>{
+    // 「群の間で撮影・画素条件を比べられる」 covers both cases of S10; the API accepts calibrated-area only for µm² areas.
+    expect(resultRequest({...design,metric:"area_um2",channel:null},fields,plot)).toMatchObject({acquisition_review:{confirmed:true,basis:"calibrated-area"}});
+    expect(resultRequest(design,fields,plot)).toMatchObject({acquisition_review:{confirmed:true,basis:"same-settings"}});
+    expect(resultRequest({...design,metric:"area_px",channel:null},fields,plot)).toMatchObject({acquisition_review:{basis:"same-settings",spatial_sampling_confirmed:true}});
+    expect(resultRequest({...design,operation:"association"},fields,plot)).toMatchObject({acquisition_review:{basis:"same-settings"}});
+  });
   it("states spatial sampling only from the acquisition statement",()=>{
     expect(resultRequest({...design,metric:"area_px",channel:null},fields,plot)).toMatchObject({acquisition_review:{spatial_sampling_confirmed:true}});
     expect(()=>resultRequest({...design,metric:"area_px",channel:null,sampling:false},fields,plot)).toThrow("空間サンプリング");

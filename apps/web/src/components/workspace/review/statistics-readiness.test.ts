@@ -37,8 +37,16 @@ describe("remaining work",()=>{
     expect(remainingWork({demo:false,experiment:pair(),unmeasured:0,operation:"distribution"})).toBeNull();
     expect(remainingWork({demo:false,experiment:null,unmeasured:2,operation:"distribution"})).toEqual({screen:"image",label:"画像：未測定 2 視野"});
   });
-  it("does not compare a workspace without a declared design: it points to 実験 (an owner question)",()=>{
-    expect(remainingWork({demo:false,experiment:null,unmeasured:0,operation:"comparison"})).toEqual({screen:"experiment",label:"実験：実験デザイン 未宣言"});
+  it("keeps the confirmation in 統計 for a workspace without a declared design (owner decision on #273)",()=>{
+    // Nothing earlier is asked for: the typed groups and units are confirmed beside the comparison.
+    expect(remainingWork({demo:false,experiment:null,unmeasured:0,operation:"comparison"})).toBeNull();
+    expect(remainingWork({demo:false,experiment:null,unmeasured:1,operation:"association"})).toEqual({screen:"image",label:"画像：未測定 1 視野"});
+    // Until it is ticked the request states nothing; once ticked it states the units, acquisition and sampling, and
+    // the runs' independence, so the comparison can be tested as before.
+    expect(declarations({demo:false,experiment:null,unmeasured:0,typedConfirmed:false})).toMatchObject({independence:false,acquisition:false,sampling:false});
+    expect(declarations({demo:false,experiment:null,unmeasured:0,typedConfirmed:true})).toEqual({regions:true,independence:true,acquisition:true,sampling:true,missingness:true});
+    // A declared design never takes the confirmation of 統計.
+    expect(declarations({demo:false,experiment:pair(),unmeasured:0,typedConfirmed:true})).toMatchObject({independence:false,acquisition:false});
   });
   it("does not depend on independence: an unconfirmed design is described, never sent to 実験 first (E-05)",()=>{
     expect(remainingWork({demo:false,experiment:withAcquisition(pair(),true),unmeasured:0,operation:"comparison"})).toBeNull();

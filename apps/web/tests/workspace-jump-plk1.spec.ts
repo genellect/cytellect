@@ -167,7 +167,7 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   await expect(chip("独立性").getByRole("img", {name: "要確認"})).toBeVisible();
   // S10 (genellect/cytellect#257 decisions 11 and 13): the acquisition and pixel settings are the researcher's statement
   // in 実験 too; nothing states them before it is ticked.
-  await expect(setup.getByRole("checkbox", {name: "全視野を同じ撮影・画素条件で撮影した"})).not.toBeChecked();
+  await expect(setup.getByRole("checkbox", {name: "群の間で撮影・画素条件を比べられる"})).not.toBeChecked();
   await expect(chip("撮影条件")).toHaveText("撮影条件：未確認");
   await expect(chip("撮影条件").getByRole("img", {name: "要確認"})).toBeVisible();
   const fieldCount = RUNS.length * GROUPS.length * SITES.length;
@@ -300,7 +300,7 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   expect(statisticsPosts).toEqual([]);
   // The line opens 実験. The tester's statement for this workflow check, not a fact the JUMP source records.
   await remaining.click();
-  await setup.getByRole("checkbox", {name: "全視野を同じ撮影・画素条件で撮影した"}).check();
+  await setup.getByRole("checkbox", {name: "群の間で撮影・画素条件を比べられる"}).check();
   await expect(chip("撮影条件")).toHaveText("撮影条件：確認済み");
   await expect(chip("撮影条件").getByRole("img", {name: "完了"})).toBeVisible();
   // Back in 統計 the chosen comparison is described at once (D-5): no confirmation, no 計算.

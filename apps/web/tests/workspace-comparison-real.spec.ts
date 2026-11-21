@@ -76,15 +76,16 @@ test("synthetic fields reach real independent-unit comparison and editable expor
   await expect(panel.locator('input[aria-label$=" condition"]').first()).toHaveValue("A");
   expect(writes.filter(value => value.endsWith("/review"))).toHaveLength(0);
   await panel.getByLabel("A / B", {exact:true}).check();
-  // genellect/cytellect#257 decision 11: 統計 has no confirmation, and a workspace registered without a design has no
-  // place to state its acquisition settings. Nothing is compared; the result's place points to 実験.
-  await expect(panel.getByRole("checkbox", {name:/確認済み/})).toHaveCount(0);
-  await expect(panel.getByRole("button", {name:"実験：実験デザイン 未宣言", exact:true})).toBeVisible();
+  // A workspace registered without a design confirms its typed groups, units and acquisition in 統計 (owner decision on
+  // genellect/cytellect#273, 2026-11-21). The regions and fields are those adopted in 画像 (decision 11): no tick for them.
+  await expect(panel.getByRole("checkbox", {name:"測定領域と採用する視野を確認済み"})).toHaveCount(0);
   expect(writes.filter(value => value.endsWith("/common-statistics"))).toHaveLength(0);
-  // The independent-unit (Welch) comparison below is reachable again only once the owner decides how a workspace without
-  // a declared design states its acquisition settings (question in the decision 11 PR).
-  test.fixme(true, "Independent-unit comparison of a workspace without a declared design awaits the owner decision (genellect/cytellect#257 decision 11)");
+  await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み", {exact:true}).check();
+  // Chosen, the comparison is described at once (D-5); the Welch test runs on 計算.
+  const tested = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname.endsWith("/common-statistics")
+    && (response.request().postDataJSON() as {test?: string}).test === "welch-t", {timeout: 300_000});
   await panel.getByRole("button", {name:"計算", exact:true}).click();
+  const testedJob = ((await (await tested).json()) as {job_id: string}).job_id;
   // Include operation errors rather than reporting only a missing-table timeout.
   await expect.poll(async()=>{
     const errors=await panel.getByRole("alert").allTextContents();
@@ -93,7 +94,7 @@ test("synthetic fields reach real independent-unit comparison and editable expor
   },{timeout:120000}).toBeGreaterThan(0);
   await expect(panel.getByText("Welch t-test", {exact:true}).first()).toBeVisible();
   const jobs = await (await page.request.get(`${api}/v1/workspaces/${workspace}/jobs`)).json();
-  const job = jobs.find((value: {analysis_mode?: string; analysis_version?: string; state: string}) => value.analysis_mode === "region-experimental-unit" && value.analysis_version === "2.0.0" && value.state === "succeeded");
+  const job = jobs.find((value: {id: string; analysis_mode?: string; analysis_version?: string; state: string}) => value.id === testedJob && value.analysis_mode === "region-experimental-unit" && value.analysis_version === "2.0.0" && value.state === "succeeded");
   expect(job).toBeTruthy();
   const result = await (await page.request.get(`${api}/v1/jobs/${job.id}/common-statistics`)).json();
   expect(result.spec.test).toBe("welch-t");

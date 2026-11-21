@@ -88,9 +88,9 @@ class ExperimentDesign(RegionModel):
     runs: Annotated[list[ExperimentRun], Field(max_length=50)] = Field(default_factory=list)
     # The researcher's statement that runs were performed independently (E-05).
     independence_confirmed: bool = False
-    # The researcher's statement that every field was acquired with the same imaging and pixel settings
-    # (S10; genellect/cytellect#257 decision 11). Additive: omitted while false, so a design saved
-    # before it keeps its bytes and its hash.
+    # The researcher's statement that the acquisition and pixel settings are comparable between the groups: the
+    # same settings, or a calibrated pixel size for areas in µm² (S10; genellect/cytellect#257 decision 11).
+    # Additive: omitted while false, so a design saved before it keeps its bytes and its hash.
     acquisition_confirmed: bool = Field(default=False, exclude_if=_not_stated)
     fields: Annotated[dict[Id, FieldAssignment], Field(max_length=100)] = Field(default_factory=dict)
 

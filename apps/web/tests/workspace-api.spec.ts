@@ -117,3 +117,42 @@ test("failed saved entries remain visible until explicitly excluded from compari
   expect(fixture.statistics()).toMatchObject({acquisition_review:{confirmed:true,spatial_sampling_confirmed:true},missingness_confirmed:true});
   expect(fixture.unexpected).toEqual([]);
 });
+
+test("without a declared design, the typed groups and units are confirmed in 統計 and tested as before (owner decision on #273)",async({page,context})=>{
+  const fixture=await savedWorkspace(context,page,true);await page.goto("/workspace?id=w");
+  const navigation=page.getByRole("navigation",{name:"作業の切替"});
+  await navigation.getByRole("button",{name:"統計",exact:true}).click();
+  const panel=page.getByRole("region",{name:"測定結果の統計解析"});
+  await panel.getByRole("combobox",{name:"解析",exact:true}).selectOption("comparison");
+  await page.getByRole("complementary",{name:"解析対象"}).getByRole("combobox",{name:"指標",exact:true}).selectOption("area_px");
+  await expect(panel.getByText("2 視野の測定が未完了です。",{exact:true})).toBeVisible();
+  await expect(panel.getByRole("button",{name:"計算",exact:true})).toBeDisabled();
+  await navigation.getByRole("button",{name:"画像",exact:true}).click();
+  for(const number of [3,4]){
+    await page.getByRole("complementary",{name:"視野一覧"}).getByRole("button").filter({hasText:`${number} 視野 ${number}`}).click();
+    await page.getByRole("button",{name:"この視野を除外",exact:true}).click();
+    await expect.poll(()=>fixture.selection().entries[number-1].exclusion_reason).toBe("利用者が解析対象から除外");
+  }
+  await page.reload();await expect(page.getByRole("button",{name:"領域 1",exact:true})).toBeVisible();await navigation.getByRole("button",{name:"統計",exact:true}).click();
+  await expect(panel.getByText("2 視野の測定が未完了です。",{exact:true})).toHaveCount(0);
+  await panel.getByRole("combobox",{name:"解析",exact:true}).selectOption("comparison");
+  await page.getByRole("complementary",{name:"解析対象"}).getByRole("combobox",{name:"指標",exact:true}).selectOption("area_px");
+  await panel.getByLabel("独立実験単位",{exact:true}).fill("Transport independent units");
+  for(let i=0;i<2;i++)for(const key of ["condition","sample","experimental_unit"])await panel.locator(`input[aria-label$=" ${key}"]`).nth(i).fill(`${key}-${i}`);
+  await panel.getByLabel("condition-0 / condition-1",{exact:true}).check();
+  // The regions and fields are those adopted in 画像 (decision 11); the typed design keeps its one confirmation here,
+  // and nothing earlier is pointed to. Until it is ticked nothing is calculated.
+  await expect(panel.getByRole("checkbox",{name:"測定領域と採用する視野を確認済み"})).toHaveCount(0);
+  await expect(panel.getByRole("button",{name:/^(画像|実験)：/})).toHaveCount(0);
+  await expect(panel.getByRole("button",{name:"計算",exact:true})).toBeDisabled();
+  expect(fixture.cohort()).toBeNull();
+  await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み",{exact:true}).check();
+  // Ticked, the comparison is described at once (D-5) and 計算 tests it with the typed independent units.
+  await expect.poll(()=>fixture.cohort()).not.toBeNull();
+  await expect.poll(()=>fixture.statistics()?.test).toBe("none");
+  await panel.getByRole("button",{name:"計算",exact:true}).click();
+  await expect.poll(()=>fixture.statistics()?.test).toBe("welch-t");
+  expect(fixture.statistics()).toMatchObject({design:{kind:"independent",confirmed:true,unit_definition:"Transport independent units"},acquisition_review:{confirmed:true,spatial_sampling_confirmed:true},missingness_confirmed:true});
+  expect(fixture.cohort()).toMatchObject({sources:[{field_id:"f1",revision_id:"r1"},{field_id:"f2",revision_id:"r2"}],workspace_selection:{entries:fixture.selection().entries}});
+  expect(fixture.unexpected).toEqual([]);
+});

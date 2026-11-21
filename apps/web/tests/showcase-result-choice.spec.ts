@@ -115,6 +115,6 @@ test("the demo never asks the visitor for earlier work or a declaration (#257 de
   const status = page.getByRole("region", {name: "実験デザイン"}).getByRole("list", {name: "実験デザインの状態"});
   await expect(status.getByRole("listitem").filter({hasText: /^独立性：/})).toBeVisible({timeout: live});
   await expect(status.getByRole("listitem").filter({hasText: /^撮影条件：/})).toHaveCount(0);
-  await expect(page.getByRole("checkbox", {name: "全視野を同じ撮影・画素条件で撮影した"})).toHaveCount(0);
+  await expect(page.getByRole("checkbox", {name: "群の間で撮影・画素条件を比べられる"})).toHaveCount(0);
   expect(errors).toEqual([]);
 });

@@ -97,7 +97,7 @@ test("unresolved nucleoli stay as missing without a confirmation of their own, c
   const status=setup.getByRole("list",{name:"実験デザインの状態"});
   await expect(status.getByRole("listitem").filter({hasText:/^撮影条件：/})).toHaveText("撮影条件：未確認");
   await expect(status.getByRole("listitem").filter({hasText:/^撮影条件：/}).getByRole("img",{name:"要確認"})).toBeVisible();
-  await setup.getByLabel("全視野を同じ撮影・画素条件で撮影した",{exact:true}).check();
+  await setup.getByLabel("群の間で撮影・画素条件を比べられる",{exact:true}).check();
   await expect.poll(()=>fixture.design()?.acquisition_confirmed).toBe(true);
   await expect(status.getByRole("listitem").filter({hasText:/^撮影条件：/})).toHaveText("撮影条件：確認済み");
   await expect(status.getByRole("listitem").filter({hasText:/^撮影条件：/}).getByRole("img",{name:"完了"})).toBeVisible();

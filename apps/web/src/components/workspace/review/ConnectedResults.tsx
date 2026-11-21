@@ -157,13 +157,16 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   const selectedProposal=proposals[proposedIndex];
   const unsupportedAxes=operation==="association"&&invalidMethod(selectedProposal);
   const displayMetric=(value:string)=>({area:"area_px",mean_raw:"mean",integral_raw:"integrated",integral_corrected:"integrated_corrected",ncl_log2_nucleoplasm_over_nucleoli:"log2_nucleoplasm_over_nucleolus"}[value]??value);
-  function selectProposal(index:number){const method=proposals[index];if(!method)return;setProposedIndex(index);compareWanted.current=false;setOperation(method.kind==="descriptive"?"distribution":method.kind);setRank(["mann-whitney-u","wilcoxon"].includes(method.test||"")||method.association==="spearman");setPaired(["paired-t","wilcoxon"].includes(method.test||""));
+  function selectProposal(index:number){const method=proposals[index];if(!method)return;setProposedIndex(index);compareWanted.current=false;setOperation(method.kind==="descriptive"?"distribution":method.kind);setRank(["mann-whitney-u","wilcoxon"].includes(method.test||"")||method.association==="spearman");setPaired(["paired-t","wilcoxon"].includes(method.test||""));setTypedConfirmed(false);
     const figure=initialSpec?.figure_proposals?.find(value=>value.analysis_index===index),axis=method.y??figure;
     if(axis){onMetricChange?.(displayMetric(axis.metric),axis.channel??null);const region=axis.region;onAnalysisTargetChange?.(region==="nucleus"?"nuclei":region==="supplied"?"cell":region==="nucleoli"||region==="nucleoplasm"?region:target);}
     if(method.x){setXMetric(displayMetric(method.x.metric));setXChannel(method.x.channel??null);}
   }
   const [metadata,setMetadata]=useState<Record<string,Metadata>>({});
   const [paired,setPaired]=useState(false),[rank,setRank]=useState(false),[unit,setUnit]=useState(""),[pairing,setPairing]=useState("");
+  // A workspace without a declared design keeps the confirmation of its typed groups, units and acquisition in 統計
+  // (owner decision on #273, 2026-11-21); a declared design is confirmed in 実験 (decision 11).
+  const [typedConfirmed,setTypedConfirmed]=useState(false);
   const [contrasts,setContrasts]=useState<string[][]>([]);
   const [xMetric,setXMetric]=useState("area_px"),[xChannel,setXChannel]=useState<string|null>(channel);
   // A size left unchosen follows the page: a distribution keeps 183 × 100 mm, a publication figure's custom size starts at 89 × 60 mm.
@@ -268,11 +271,13 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   // Fields included in the comparison without an adopted measurement of this region (画像's work, not done yet).
   const missing=items.filter(item=>!item.excluded&&!item.result).length;
   // 統計 asks for no confirmation (genellect/cytellect#257 decision 11): what a request states comes from 画像 and 実験.
-  const stated=statisticsDeclarations({demo,experiment,unmeasured:missing});
+  const stated=statisticsDeclarations({demo,experiment,unmeasured:missing,typedConfirmed});
+  // A comparison or an association states its design: declared in 実験, or confirmed here for typed groups.
+  const designStated=demo||operation==="distribution"||!!experiment||typedConfirmed;
   const remaining=remainingWork({demo,experiment,unmeasured:missing,operation});
   const openRemaining=(work:RemainingWork)=>{(work.screen==="image"?onImages:onEditExperiment)?.();};
   // A described comparison of a design that can be tested waits for 計算 (D-5); its basis says so, not "unconfirmed".
-  const testable=!demo&&operation==="comparison"&&!!experiment?.independence_confirmed&&!exploratory;
+  const testable=!demo&&operation==="comparison"&&(experiment?!!experiment.independence_confirmed:typedConfirmed)&&!exploratory;
   const design:ResultDesign={operation,metric,channel,regionSet,paired,rank,unit,pairing,independence:stated.independence,acquisition:stated.acquisition,sampling:stated.sampling,missingness:stated.missingness,contrasts,xMetric,xChannel,gfp,channelGate:currentGate?.filter??channelGate,estimates:!!experiment&&experiment.layout==="pair",inference:!unconfirmed&&!exploratory};
   // A declared two-group design compares the same runs as pairs, treatment − control (T-01).
   const designDefaults=declared;
@@ -293,7 +298,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
     // The specification the workspace opens with sets the opening metric, under the same first-look rule as the opening
     // result (DM-04): it is not applied after a measurement, and a later measurement of another region replaces it.
     const chooseMetric=(value:string,stain:string|null)=>{if(!firstLook)onMetricChange?.(value,stain);else if(!measured)onOpening?.(value,stain);};
-    if(stat?.method&&statChanged){const compare=compareWanted.current;compareWanted.current=false;appliedStatistics.current=true;setOperation(compare?"comparison":stat.method.kind==="descriptive"?"distribution":stat.method.kind);setPaired(stat.design==="paired");setRank(["mann-whitney-u","wilcoxon"].includes(stat.method.test||"")||stat.method.association==="spearman");setUnit(stat.unit_definition);setPairing(stat.pairing_basis);setContrasts(stat.comparisons||[]);setMetadata(stat.field_metadata||{});
+    if(stat?.method&&statChanged){const compare=compareWanted.current;compareWanted.current=false;appliedStatistics.current=true;setOperation(compare?"comparison":stat.method.kind==="descriptive"?"distribution":stat.method.kind);setPaired(stat.design==="paired");setRank(["mann-whitney-u","wilcoxon"].includes(stat.method.test||"")||stat.method.association==="spearman");setUnit(stat.unit_definition);setPairing(stat.pairing_basis);setContrasts(stat.comparisons||[]);setMetadata(stat.field_metadata||{});setTypedConfirmed(false);
       const restored=restoredMetric(stat);if(restored)chooseMetric(restored,stat.channel_id??null);
       const sx=stat as typeof stat & {x_metric?:string|null;x_channel_id?:string|null};if(stat.method.y)chooseMetric(displayMetric(stat.method.y.metric),stat.method.y.channel??null);if(stat.method.x){setXMetric(displayMetric(stat.method.x.metric));setXChannel(stat.method.x.channel??null);}else if(sx.x_metric){setXMetric(sx.x_metric);setXChannel(sx.x_channel_id??null);}
     }
@@ -310,7 +315,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   const tested=(entry:Saved)=>entry.operation==="association"||entry.operation==="comparison"&&!!entry.result.spec?.test&&entry.result.spec.test!=="none";
   const stale=!!saved&&!saved.historical&&(saved.identity!==identity||saved.requestIdentity!==requestIdentity||(design.inference===false&&tested(saved)));
   const excludedCount=items.filter(item=>item.excluded).length;
-  const ready=(!stratifiedDesign||!!stratumRequest&&!unstratified)&&!!sources.length&&!missing&&!disabled&&!busy&&stated.regions&&!remaining&&ledgerReady&&!unsupportedAxes&&!independenceMissing&&!datesMissing&&!positivityMissing&&(!channelGate||!!currentGate);
+  const ready=(!stratifiedDesign||!!stratumRequest&&!unstratified)&&!!sources.length&&!missing&&!disabled&&!busy&&stated.regions&&!remaining&&designStated&&ledgerReady&&!unsupportedAxes&&!independenceMissing&&!datesMissing&&!positivityMissing&&(!channelGate||!!currentGate);
   // The fields behind a comparison (fields.svg) are a check inside the result, not a figure of its own (owner decisions 15, 19).
   const svgFiles=saved?.figure.source_files.filter(name=>name.endsWith(".svg")&&name!=="fields.svg")||[];
   const fieldCheck=!!saved?.figure.source_files.includes("fields.svg");
@@ -371,7 +376,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   // specification's statistics have been applied, a later one (an adopted AI proposal) sets its own analysis.
   const compareWanted=useRef(false),appliedStatistics=useRef(false);
   const receivedStatistics=useRef<string|null>(null);
-  useEffect(()=>{if(!compareRequest)return;compareWanted.current=!appliedStatistics.current;setOperation("comparison");},[compareRequest]);
+  useEffect(()=>{if(!compareRequest)return;compareWanted.current=!appliedStatistics.current;setOperation("comparison");setTypedConfirmed(false);},[compareRequest]);
   const runPendingReclassify=useEffectEvent(()=>{pendingReclassify.current=0;void classifyForResults();});
   // The request answers that one click: it lapses when the decision is already current or the researcher moves on,
   // so a later change of the experiment or exclusions never judges again unasked.
@@ -443,7 +448,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   }
   /** The drawn figure as an image on the clipboard, for a slide (FU-08). */
   async function copyPng(){if(!saved)return;try{const blob=await fetchBlob(`/v1/jobs/${saved.figureJob}/files/figure.png`);await navigator.clipboard.write([new ClipboardItem({"image/png":blob.type==="image/png"?blob:new Blob([blob],{type:"image/png"})})]);setSavedNote("PNG をコピーしました。");}catch(cause){setError(fail(cause));}}
-  function editMetadata(id:string,key:keyof Metadata,value:string){setMetadata(previous=>({...previous,[id]:{...fields[id],[key]:value||null}}));}
+  function editMetadata(id:string,key:keyof Metadata,value:string){setMetadata(previous=>({...previous,[id]:{...fields[id],[key]:value||null}}));setTypedConfirmed(false);}
   function restoreFigure(selected:Saved){setSaved(selected);setOperation(selected.operation);setFigureKind(selected.plot.kind);setWidth(selected.plot.width_inches*25.4);setHeight(selected.plot.height_inches*25.4);setFont(selected.plot.font_size);setXLabel(selected.plot.x_label);setYLabel(selected.plot.y_label);setYMin(selected.plot.y_min==null?"":String(selected.plot.y_min));setYMax(selected.plot.y_max==null?"":String(selected.plot.y_max));setPointSize(selected.plot.point_size??null);restorePresentation(selected.plot.presentation);setColors(selected.plot.style?.series_colors||{});setLegend(selected.plot.style?.show_legend??true);setOrder(selected.plot.group_order);setXAxis({min:selected.plot.axes?.x_min==null?"":String(selected.plot.axes.x_min),max:selected.plot.axes?.x_max==null?"":String(selected.plot.axes.x_max),step:selected.plot.axes?.x_tick_step==null?"":String(selected.plot.axes.x_tick_step),scale:selected.plot.axes?.x_scale||"linear"});setYAxis({min:"",max:"",step:selected.plot.y_tick_step==null?"":String(selected.plot.y_tick_step),scale:selected.plot.axes?.y_scale||"linear"});}
   // Statistics and figures open on the latest saved result (as the researcher's last session left it), not an empty view.
   // Saved comparisons are one click apart (in the demo, the opening comparison and the source's other recorded
@@ -573,16 +578,17 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
         {invalidSaved&&<button disabled={!!busy||disabled} onClick={()=>void repairUnsupported().catch(cause=>setError(fail(cause)))}>未対応の相関案を解除</button>}
         {unsupportedAxes&&<p role="alert">保存した相関案の横軸と縦軸の測定領域が一致していません。同じ領域を指定して解析案を作り直してください。</p>}
         {proposals.length>1&&<label>AIの解析案<select value={proposedIndex} disabled={!!busy} onChange={event=>selectProposal(Number(event.target.value))}>{proposals.map((value,index)=><option key={index} value={index}>{index+1} · {value.kind==="association"?"相関":value.kind==="comparison"?"群間比較":"分布"}</option>)}</select></label>}
-        <label>解析<select value={operation} disabled={!!busy} onChange={event=>{compareWanted.current=false;setSwitched(null);setOperation(event.target.value as ResultOperation);}}>{(!comparable||saturated)&&<option value="distribution" disabled={!descriptiveSupported(metric)||!recordedOperation("distribution")}>{descriptiveSupported(metric)?"分布":"分布（この指標は群間比較のみ）"}</option>}<option value="comparison" disabled={saturated||!recordedOperation("comparison")}>{saturated?"群間比較（飽和画素を含む）":"群間比較"}</option><option value="association" disabled={!canAssociate||unconfirmed||!recordedOperation("association")}>{unconfirmed?"相関（独立性：未確認）":canAssociate?"相関":saturatedSet.size?"相関（飽和画素を含む）":"相関（面積・輝度のみ）"}</option></select></label>
+        <label>解析<select value={operation} disabled={!!busy} onChange={event=>{compareWanted.current=false;setSwitched(null);setOperation(event.target.value as ResultOperation);setTypedConfirmed(false);}}>{(!comparable||saturated)&&<option value="distribution" disabled={!descriptiveSupported(metric)||!recordedOperation("distribution")}>{descriptiveSupported(metric)?"分布":"分布（この指標は群間比較のみ）"}</option>}<option value="comparison" disabled={saturated||!recordedOperation("comparison")}>{saturated?"群間比較（飽和画素を含む）":"群間比較"}</option><option value="association" disabled={!canAssociate||unconfirmed||!recordedOperation("association")}>{unconfirmed?"相関（独立性：未確認）":canAssociate?"相関":saturatedSet.size?"相関（飽和画素を含む）":"相関（面積・輝度のみ）"}</option></select></label>
         {switched?.key===measureKey&&<p className={styles.switched} role="status">{switched.reason}</p>}
         {operation!=="distribution"&&<>
-          <div className={styles.row}>{operation==="comparison"&&(unconfirmed||exploratory)?<div className={styles.methodNone}><label>方法<select value="none" disabled><option value="none">記述統計</option></select></label><details><summary>検定の条件</summary><p>{exploratory?"検定には、陰性対照に基づくしきい値が必要です。":"検定には、実験回の独立性の確認が必要です。"}{!exploratory&&onEditExperiment&&<> <button type="button" onClick={onEditExperiment}>実験デザインを編集</button></>}</p></details></div>:<label>方法<select value={rank?"rank":"parametric"} onChange={event=>setRank(event.target.value==="rank")}><option value="parametric">{operation==="association"?"Pearson":"t 検定 / Welch ANOVA"}</option><option value="rank">{operation==="association"?"Spearman":"順位に基づく検定"}</option></select></label>}{operation==="comparison"&&<label>対応<select value={paired?"paired":"independent"} disabled={demo} onChange={event=>setPaired(event.target.value==="paired")}><option value="independent">対応なし</option><option value="paired">対応あり</option></select></label>}</div>
+          <div className={styles.row}>{operation==="comparison"&&(unconfirmed||exploratory)?<div className={styles.methodNone}><label>方法<select value="none" disabled><option value="none">記述統計</option></select></label><details><summary>検定の条件</summary><p>{exploratory?"検定には、陰性対照に基づくしきい値が必要です。":"検定には、実験回の独立性の確認が必要です。"}{!exploratory&&onEditExperiment&&<> <button type="button" onClick={onEditExperiment}>実験デザインを編集</button></>}</p></details></div>:<label>方法<select value={rank?"rank":"parametric"} onChange={event=>setRank(event.target.value==="rank")}><option value="parametric">{operation==="association"?"Pearson":"t 検定 / Welch ANOVA"}</option><option value="rank">{operation==="association"?"Spearman":"順位に基づく検定"}</option></select></label>}{operation==="comparison"&&<label>対応<select value={paired?"paired":"independent"} disabled={demo} onChange={event=>{setPaired(event.target.value==="paired");setTypedConfirmed(false);}}><option value="independent">対応なし</option><option value="paired">対応あり</option></select></label>}</div>
           {operation==="association"&&<div className={styles.row}><label>横軸<select value={xMetric} onChange={event=>setXMetric(event.target.value)}>{xAxes.map(value=><option key={value} value={value}>{metricLabels[value]}</option>)}</select></label><label>横軸チャンネル<select value={xChannel||""} onChange={event=>setXChannel(event.target.value||null)}><option value="">選択</option>{channels.map(value=><option key={value}>{value}</option>)}</select></label></div>}
 
           {declared?<p className={styles.designLine}><span>実験回 {experiment?.runs?.length??0}</span><span>{paired?"対応あり":"対応なし"}</span>{onEditExperiment&&<button type="button" onClick={onEditExperiment}>実験 ↗</button>}</p>:<>
-          <label>独立実験単位<input value={unit} maxLength={200} placeholder="例：別の日に独立に調製した培養" onChange={event=>setUnit(event.target.value)}/></label>
-          {paired&&operation==="comparison"&&<label>対応の根拠<input value={pairing} maxLength={200} onChange={event=>setPairing(event.target.value)}/></label>}</>}
+          <label>独立実験単位<input value={unit} maxLength={200} placeholder="例：別の日に独立に調製した培養" onChange={event=>{setUnit(event.target.value);setTypedConfirmed(false);}}/></label>
+          {paired&&operation==="comparison"&&<label>対応の根拠<input value={pairing} maxLength={200} onChange={event=>{setPairing(event.target.value);setTypedConfirmed(false);}}/></label>}</>}
           {operation==="comparison"&&<fieldset><legend>比較する群</legend>{pairs.length?pairs.map(pair=><label className={styles.check} key={JSON.stringify(pair)}><input type="checkbox" disabled={demo||!unsaturatedPair(pair)} checked={contrasts.some(value=>JSON.stringify(value)===JSON.stringify(pair))} onChange={event=>setContrasts(previous=>event.target.checked?[...previous,pair]:previous.filter(value=>JSON.stringify(value)!==JSON.stringify(pair)))}/>{declared&&JSON.stringify(pair)===JSON.stringify(declared.contrasts[0])?`${pair[0]} − ${pair[1]}（処理 − 対照）`:pair.join(" / ")}{unsaturatedPair(pair)?"":"（飽和画素を含む）"}</label>):<p>実験情報に群名を入力してください。</p>}</fieldset>}
+          {!demo&&!experiment&&<label className={styles.check}><input type="checkbox" checked={typedConfirmed} disabled={disabled} onChange={event=>setTypedConfirmed(event.target.checked)}/>独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み</label>}
         </>}
         {compartment&&currentLedger?.error&&<p role="alert">{currentLedger.error}</p>}
         {datesMissing&&<p role="status">輝度の比較には撮影日が必要です（推定による補完はしません）。{onEditExperiment&&<button type="button" onClick={onEditExperiment}>撮影日を入力</button>}</p>}
