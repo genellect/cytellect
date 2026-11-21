@@ -277,7 +277,9 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
     if(!unit.trim())setUnit("独立に行った実験回（別々に播種・処理・染色した実験日）");if(!pairing.trim())setPairing("同じ実験回の対照と処理");},[operation,designDefaults?.contrasts.join("\n")]);// eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>{
     if(!initialSpec)return;const key=JSON.stringify(initialSpec);if(receivedSpec.current===key)return;receivedSpec.current=key;
-    if(skipOwnSpec.current){skipOwnSpec.current=false;return;}
+    // This component's own save: its statistics part is what the researcher chose, so a later save of something else
+    // (the experiment, a setting) does not read it as a changed analysis and switch the metric back.
+    if(skipOwnSpec.current){skipOwnSpec.current=false;receivedStatistics.current=JSON.stringify(initialSpec.statistics??null);return;}
     const stat=initialSpec.statistics,figure=initialSpec.figure;
     // A saved specification changes for many reasons (settings, measurement policy): only a changed statistics part
     // replaces the analysis, so a measurement or a background setting never brings back an earlier metric (DM-04).
