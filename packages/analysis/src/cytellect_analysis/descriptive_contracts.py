@@ -37,7 +37,11 @@ LegacyMetric = Literal[
 RegionMetric = Literal[
     "area_px", "area_um2", "mean", "median", "integrated",
     "mean_corrected", "median_corrected", "integrated_corrected",
+    # nuclear-features/1.0.0 (nuclear_features.py), nuclei only: shape reads no stain, the signal metrics read one.
+    "solidity", "axis_ratio", "eccentricity", "cv_corrected", "positive_area_fraction",
 ]
+NUCLEAR_SHAPE_METRICS = ("solidity", "axis_ratio", "eccentricity")
+NUCLEAR_FEATURE_METRICS = (*NUCLEAR_SHAPE_METRICS, "cv_corrected", "positive_area_fraction")
 
 
 class GfpGateFilter(StrictModel):
@@ -196,11 +200,14 @@ class RegionSelection(_OptionalGate):
 
     @model_validator(mode="after")
     def channel_for_intensity_only(self):
-        if self.metric.startswith("area_"):
+        if self.metric.startswith("area_") or self.metric in NUCLEAR_SHAPE_METRICS:
             if self.channel_id is not None:
                 raise ValueError("descriptive_area_channel_must_be_unset")
         elif self.channel_id is None:
             raise ValueError("descriptive_intensity_channel_required")
+        # Nuclear features describe nuclei only (nucleolar shape failed the public-image check).
+        if self.metric in NUCLEAR_FEATURE_METRICS and self.region_set_id != "nuclei":
+            raise ValueError("nuclear_features_nuclei_only")
         return self
 
 
@@ -241,7 +248,7 @@ FIELD_SUMMARY_VERSION: Literal["1.0.0"] = "1.0.0"
 COMPARTMENT_SUMMARY_SELECTION_V11: Literal["1.1.0"] = "1.1.0"
 
 FieldSummaryMetric = Literal["nucleus_count", "nucleus_density_per_mm2", "positive_count", "positive_fraction"]
-NucleolarSummaryMetric = Literal["nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity"]
+NucleolarSummaryMetric = Literal["nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity", "largest_nucleolus_fraction"]
 
 
 class FieldSummarySelection(StrictModel):

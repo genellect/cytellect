@@ -32,6 +32,7 @@ from .region_contracts import (
     scientific_specification,
     validate_region_report_policy,
 )
+from .nuclear_features import compute_features, selections_of
 from .region_measurement_v2 import measure_regions_versioned
 from .regions import _array_hash
 from .roi import export_roi_zip
@@ -334,7 +335,7 @@ def _statistics_methods_template(result):
 
 
 def _descriptive_shapes(result, dependencies, config):
-    if result["spec"]["selection"]["metric"] != "nucleolar_eccentricity":
+    if result["spec"]["selection"]["metric"] not in ("nucleolar_eccentricity", "largest_nucleolus_fraction"):
         return None
     from .nucleolar_shape import nucleolar_eccentricity
     from .region_export_dependencies import checked_parent
@@ -348,7 +349,7 @@ def _descriptive_shapes(result, dependencies, config):
     return shapes
 
 
-def _recompute_statistics(report, config, result, dependencies=None, provenance=None):
+def _recompute_statistics(report, config, result, dependencies=None, provenance=None, features=None):
     from .descriptive import describe_regions
     from .descriptive_contracts import parse_descriptive_request
     from .region_export_dependencies import inputs
@@ -373,10 +374,11 @@ def _recompute_statistics(report, config, result, dependencies=None, provenance=
 
         request = parse_common_statistics_request(result["spec"])
         if request.mode == "region-association":
-            calculated = analyze_region_association(report, config, request, nuclear=nuclear)
+            calculated = analyze_region_association(report, config, request, nuclear=nuclear, features=features)
         else:
             calculated = analyze_region_comparison(report, config, request, summaries=summaries, nuclear=nuclear,
-                                                    shapes=_descriptive_shapes(result, dependencies or {}, config))
+                                                    shapes=_descriptive_shapes(result, dependencies or {}, config),
+                                                    features=features)
     elif result["analysis_kind"] == "region-comparison":
         from .region_comparison import compare_regions
         from .region_comparison_contracts import RegionComparisonRequest
@@ -392,7 +394,8 @@ def _recompute_statistics(report, config, result, dependencies=None, provenance=
             from .field_summary_source import describe_field_summary
             calculated = describe_field_summary(report, config["field_snapshot"], parse_descriptive_request(result["spec"]), nuclear=nuclear)
         else:
-            calculated = describe_regions(report, config["field_snapshot"], parse_descriptive_request(result["spec"]), nuclear=nuclear)
+            calculated = describe_regions(report, config["field_snapshot"], parse_descriptive_request(result["spec"]),
+                                          nuclear=nuclear, features=features)
     calculated["revision_id"] = report["revision_id"]
     if result.get("analysis_kind") == "descriptive":
         from .experiment_strata import with_stratum
@@ -435,8 +438,9 @@ def _render_statistics(calculated, folder, *, methods_template=None, saved_figur
 
 def build_region_bundle(destination: Path, *, report, config, provenance, mask_files,
                         raw_files=(), statistics_results=(), statistics_roots=(), include_raw=False,
-                        omitted_statistics=(), dependencies=None):
-    """Bundle owned server paths only; public URL/access checks belong to the API."""
+                        omitted_statistics=(), dependencies=None, features=None):
+    """Bundle owned server paths only; public URL/access checks belong to the API. ``features`` carries the
+    nuclear-features/1.0.0 values of nuclear shape or signal results (worker ``load_nuclear_features``)."""
     request = _request(config)
     validate_region_report_policy(region_report_from_json(json.dumps(report)), config)
     if report.get("analysis_kind") != "region-2d" or report.get("recipe") != request.recipe.model_dump(mode="json"):
@@ -463,7 +467,7 @@ def build_region_bundle(destination: Path, *, report, config, provenance, mask_f
                     raise ValueError("region_bundle_background_exclusion_mismatch")
     descriptions = []
     for result in statistics_results:
-        calculated = _recompute_statistics(report, config, result, dependencies, provenance)
+        calculated = _recompute_statistics(report, config, result, dependencies, provenance, features)
         if any(result.get(key) != value for key, value in calculated.items()):
             raise ValueError("region_export_statistics_source_mismatch")
         descriptions.append(calculated)
@@ -615,6 +619,7 @@ def replay_region_bundle(bundle_dir: Path, raw_dir: Path, output_dir: Path):
         raise ValueError("region_bundle_revision_mismatch")
     output_dir.mkdir(parents=True, exist_ok=False)
     tables = {}
+    replay_labels, replay_channels = {}, {}
     for fid in sorted(report["field_tables"]):
         info = RegionImageInfo.model_validate(config["field_snapshot"][fid]["image_info"])
         for slot, source in info.inputs.items():
@@ -632,6 +637,7 @@ def replay_region_bundle(bundle_dir: Path, raw_dir: Path, output_dir: Path):
         validate_label_array(labels)
         if _array_hash(labels, "<u4") != mask_record["mask_sha256"] or list(labels.shape) != mask_record["shape"]:
             raise ValueError("region_bundle_mask_pixels_mismatch")
+        replay_labels[fid], replay_channels[fid] = labels, channels
         backgrounds = ({cid: polygon_mask(labels.shape, background.polygon)
                         for cid, background in request.backgrounds[fid].items()}
                        if request.measurement is None else {})
@@ -654,7 +660,9 @@ def replay_region_bundle(bundle_dir: Path, raw_dir: Path, output_dir: Path):
     paged_outputs = []
     for path in sorted((bundle_dir / "statistics").glob("*/result.json")):
         result = json.loads(path.read_text(encoding="utf-8"))
-        replayed = _recompute_statistics(reproduced, config, result, dependencies, provenance)
+        replayed = _recompute_statistics(reproduced, config, result, dependencies, provenance, compute_features(
+            selections_of(result.get("spec")), reproduced, config["field_snapshot"], replay_labels.__getitem__,
+            lambda fid, channel: replay_channels[fid][channel]))
         matches = all(result.get(key) == value for key, value in replayed.items())
         if result["analysis_kind"] == "region-comparison":
             has_comparisons = True

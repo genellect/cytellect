@@ -1,4 +1,5 @@
 """Persistent editable analysis intent; saving a draft never executes or adopts results."""
+import time
 from typing import Annotated, Literal
 
 from cytellect_analysis.channel_gate_contracts import ChannelGateFilter
@@ -145,6 +146,28 @@ class SavedProcessing(RegionModel):
     cells: SavedCellProcessing | None = None
 
 
+def _now() -> float:
+    return time.time()
+
+
+class PrimaryOutcome(RegionModel):
+    """The measure declared primary before results are read (genellect/cytellect#257 RP-04); any other measure is
+    exploratory. The server sets `declared_at` when the declared measure changes, so it cannot be backdated."""
+    version: Literal["1.0.0"] = "1.0.0"
+    metric: DraftOutcome
+    region_set_id: Literal["nuclei", "nucleoli", "nucleoplasm", "cell"]
+    channel_id: Id | None = None
+    declared_at: float | None = None
+
+    @model_validator(mode="after")
+    def nuclear_features_on_nuclei(self):
+        # Nuclear shape and pixel-signal metrics describe nuclei only (nuclear-features/1.0.0).
+        if self.metric in ("solidity", "axis_ratio", "eccentricity", "cv_corrected", "positive_area_fraction") \
+                and self.region_set_id != "nuclei":
+            raise ValueError("nuclear_features_nuclei_only")
+        return self
+
+
 class AnalysisSpec(RegionModel):
     schema_version: Literal["1.0.0"] = "1.0.0"
     channel_assignment_version: int = Field(ge=0)
@@ -165,6 +188,8 @@ class AnalysisSpec(RegionModel):
     # Experiment design 1.0.0 (additive): groups, runs and samples entered before analysis;
     # 1.1.0 adds declared strata compared one at a time.
     experiment: AnyExperimentDesign | None = None
+    # Primary outcome 1.0.0 (additive): omitted until one is declared, so earlier specs keep their shape.
+    primary_outcome: PrimaryOutcome | None = Field(default=None, exclude_if=lambda value: value is None)
 
     @model_validator(mode="after")
     def consistent_measurement(self):
@@ -277,7 +302,14 @@ def register_analysis_spec_routes(api, store, owner, workspace, touch):
                 referenced.update(body.spec.experiment.fields)
             if referenced - set(registered):
                 raise HTTPException(422, "analysis_spec_unknown_field")
-            updated = {"version": body.version + 1, "spec": body.spec.model_dump(mode="json")}
+            spec = body.spec.model_dump(mode="json")
+            spec_primary = spec.get("primary_outcome")
+            if spec_primary is not None:
+                earlier = (previous["spec"] or {}).get("primary_outcome") or {}
+                same = all(earlier.get(key) == spec_primary[key] for key in ("metric", "region_set_id", "channel_id"))
+                # The time of a declaration is the server's: kept while the measure is unchanged, renewed when it changes.
+                spec_primary["declared_at"] = earlier.get("declared_at") if same and earlier.get("declared_at") else _now()
+            updated = {"version": body.version + 1, "spec": spec}
             if previous["version"]:
                 conn.execute(workspace_analysis_specs.update().where(
                     workspace_analysis_specs.c.workspace_id == wid).values(**updated))

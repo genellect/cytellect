@@ -6,6 +6,7 @@ import math
 from collections import Counter, defaultdict
 from typing import Any
 
+from . import nuclear_features
 from .descriptive_contracts import (
     DescriptiveResult,
     LegacySelection,
@@ -24,7 +25,7 @@ from .review import unresolved_nucleolar_failures
 
 VERSION = "1.0.0"
 METADATA = ("condition", "experimental_unit", "sample", "acquisition_date", "pair")
-SAFE_ERROR_CODES = frozenset({
+SAFE_ERROR_CODES = nuclear_features.SAFE_ERROR_CODES | frozenset({
     "descriptive_source_mismatch", "descriptive_unresolved_field_failures",
     "descriptive_exclusion_reason_required", "descriptive_field_coverage_mismatch",
     "descriptive_invalid_metadata", "descriptive_invalid_value", "descriptive_duplicate_observation",
@@ -97,6 +98,8 @@ def _quantile(values, probability):
 
 
 def _metric_unit(metric):
+    if nuclear_features.is_feature(metric):
+        return nuclear_features.UNITS[metric]
     if metric.endswith("area_px") or metric == "area_px":
         return "pixel²"
     if metric.endswith("area_um2") or metric == "area_um2":
@@ -261,8 +264,16 @@ def region_report_measurement_policy(report):
     raise ValueError("region_measurement_protocol_mismatch")
 
 
-def prepare_region_observations(report, field_snapshot, selector):
-    """Validate every source observation before selection or statistical aggregation."""
+# Kept beside a nucleus's pixel CV (nuclear-features/1.0.0) in the observation ledger.
+CV_DETAILS = ("mean_corrected", "sd_corrected", "cv_raw")
+
+
+def prepare_region_observations(report, field_snapshot, selector, features=None):
+    """Validate every source observation before selection or statistical aggregation.
+
+    ``features`` maps (metric, channel ID) to field -> nuclear-features/1.0.0 record; it is required only for a
+    nuclear shape or signal metric, whose values are bound to the measured nuclei by identity and pixel area.
+    """
     selector = RegionSelection.model_validate(selector)
     measurement = region_report_measurement_policy(report)
     require_region_metric(measurement, selector.metric)
@@ -352,28 +363,54 @@ def prepare_region_observations(report, field_snapshot, selector):
     exclusions = _region_exclusions(report, set(field_snapshot), objects, selector.region_set_id)
     if any(exclusions.get((item["field_id"], None)) != item["reason"] for item in excluded):
         raise ValueError("descriptive_failure_exclusion_mismatch")
+    feature_values: dict[str, dict[int, dict[str, Any]]] = {}
+    if nuclear_features.is_feature(selector.metric):
+        if any(table.region_set.source != nuclear_features.NUCLEAR_SOURCE for table in tables.values()):
+            raise ValueError("nuclear_features_nuclei_only")
+        key = (selector.metric, None if selector.metric in nuclear_features.SHAPE_METRICS else selector.channel_id)
+        by_field = (features or {}).get(key)
+        if not isinstance(by_field, dict) or set(by_field) != {field["field_id"] for field in fields}:
+            raise ValueError("nuclear_features_unavailable")
+        for field in fields:
+            fid = field["field_id"]
+            areas = {rid: row.area_px for (f, rid), row in objects.items() if f == fid}
+            feature_values[fid] = nuclear_features.bind(by_field[fid], selector.metric, areas)
+            field["nuclear_features"] = nuclear_features.provenance(by_field[fid])
     observations = []
     for (fid, rid), row in sorted(objects.items()):
         reason = exclusions.get((fid, None)) or exclusions.get((fid, rid))
+        details = {}
+        if feature_values:
+            feature = feature_values[fid][rid]
+            value, value_reason = feature["value"], feature["missing_reason"]
+            if selector.metric == "cv_corrected":
+                details = {key: feature[key] for key in CV_DETAILS}
+        else:
+            value = getattr(row, selector.metric)
+            value_reason = row.area_missing_reason if selector.metric == "area_um2" else None
         observations.append({"observation_id": json.dumps([fid, selector.region_set_id, rid], separators=(",", ":")),
                              "field_id": fid, "region_id": rid, "region_set_id": selector.region_set_id,
                              "mask_revision_id": row.mask_revision_id, "analysis_revision_id": row.analysis_revision_id,
                              "channel_id": selector.channel_id, **_metadata(field_snapshot[fid]),
-                             "value": getattr(row, selector.metric), "excluded": bool(reason),
+                             "value": value, "excluded": bool(reason),
                              "exclusion_reason": reason, "gate_selected": True,
-                             "missing_reason": row.area_missing_reason if selector.metric == "area_um2" else None})
+                             "missing_reason": value_reason if value is None else None, **details})
     return observations, fields, _metric_unit(selector.metric), excluded
 
 
-def describe_regions(report, field_snapshot, request, nuclear=None):
-    """``nuclear`` binds a GFP nucleus filter on a nucleoplasm revision to its adopted nuclei."""
+def describe_regions(report, field_snapshot, request, nuclear=None, features=None):
+    """``nuclear`` binds a GFP nucleus filter on a nucleoplasm revision to its adopted nuclei; ``features`` carries
+    the nuclear shape or signal values (see :func:`prepare_region_observations`)."""
     request = _request(request, "region")
-    observations, fields, unit, excluded = prepare_region_observations(report, field_snapshot, request.selection)
+    observations, fields, unit, excluded = prepare_region_observations(report, field_snapshot, request.selection,
+                                                                       features)
+    details = CV_DETAILS if request.selection.metric == "cv_corrected" else ()
     if gate_of(request.selection) is None:
-        return _finish(observations, fields, request, "region-2d", "regions", unit, excluded)
+        return _finish(observations, fields, request, "region-2d", "regions", unit, excluded, details)
     observations, record = gate_source_observations(report, report.get("recipe"), field_snapshot, request.selection,
                                                     observations, excluded, nuclear=nuclear)
-    result = _finish(observations, fields, request, "region-2d", "regions", unit, excluded, gate_record_keys(record))
+    result = _finish(observations, fields, request, "region-2d", "regions", unit, excluded,
+                     (*gate_record_keys(record), *details))
     return finish_gated_description(result, record)
 
 

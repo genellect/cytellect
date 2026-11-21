@@ -348,14 +348,19 @@ def validate_area_backgrounds(measurement: MeasurementPolicy | None, backgrounds
 
 
 def require_region_metric(measurement: MeasurementPolicy | None, metric: str) -> None:
+    # Nuclear features (nuclear-features/1.0.0): shape reads labels only; the signal metrics are defined on the
+    # automatic background candidate, so protocol 1.0.0 (confirmed ROI) and raw measurements do not have them.
+    shape, signal = ("solidity", "axis_ratio", "eccentricity"), ("cv_corrected", "positive_area_fraction")
     if measurement is None:
+        if metric in signal:
+            raise ValueError("region_metric_not_measured")
         return
     measurement = MEASUREMENT_POLICY.validate_python(measurement)
     allowed = {
-        "area_only": ("area_px", "area_um2"),
-        "raw_intensity": ("area_px", "area_um2", "mean", "median", "integrated"),
+        "area_only": ("area_px", "area_um2", *shape),
+        "raw_intensity": ("area_px", "area_um2", "mean", "median", "integrated", *shape),
         "automatic_background": ("area_px", "area_um2", "mean", "median", "integrated",
-                                 "mean_corrected", "median_corrected", "integrated_corrected"),
+                                 "mean_corrected", "median_corrected", "integrated_corrected", *shape, *signal),
     }[measurement.mode]
     if metric not in allowed:
         raise ValueError("region_metric_not_measured")
