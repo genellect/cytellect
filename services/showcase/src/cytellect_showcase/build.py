@@ -529,15 +529,18 @@ def plot(operation: str, kind: str = "distribution") -> dict:
 
 
 COMPARTMENT_METRICS = ("log2_nucleoplasm_over_nucleolus", "nucleolar_area_fraction", "nucleolar_count",
-                       "nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity")
+                       "nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity", "largest_nucleolus_fraction")
 # Nucleolar total area and shape need compartment-summary selection 1.1.0 (comparison-adapter.ts NUCLEOLAR_V11).
-NUCLEOLAR_V11 = ("nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity")
+NUCLEOLAR_V11 = ("nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity", "largest_nucleolus_fraction")
+# Nuclear shape (nuclear-features/1.0.0) reads no stain (metric-catalog.ts).
+NUCLEAR_SHAPE = ("solidity", "axis_ratio", "eccentricity")
 FIELD_SUMMARY_METRICS = ("nucleus_count", "nucleus_density_per_mm2")
 
 
 def channel_neutral(metric: str) -> bool:
     """metricUsesChannel() negated (metric-catalog.ts)."""
-    return metric.startswith("area_") or metric in ("nucleolar_count", "nucleolar_area_fraction", *NUCLEOLAR_V11, *FIELD_SUMMARY_METRICS)
+    return metric.startswith("area_") or metric in ("nucleolar_count", "nucleolar_area_fraction", *NUCLEOLAR_V11, *NUCLEAR_SHAPE,
+                                                    *FIELD_SUMMARY_METRICS)
 
 
 def selection_for(region_set: str, metric: str, channel: str | None) -> dict:
@@ -548,7 +551,7 @@ def selection_for(region_set: str, metric: str, channel: str | None) -> dict:
         return {"source": "compartment-summary", "version": "1.1.0" if metric in NUCLEOLAR_V11 else "1.0.0",
                 "region_set_id": region_set, "metric": metric,
                 "channel_id": channel if metric == "log2_nucleoplasm_over_nucleolus" else None}
-    neutral = metric.startswith("area_") or metric in ("nucleolar_count", "nucleolar_area_fraction")
+    neutral = metric.startswith("area_") or metric in ("nucleolar_count", "nucleolar_area_fraction", *NUCLEAR_SHAPE)
     return {"source": "region", "region_set_id": region_set, "metric": metric, "channel_id": None if neutral else channel}
 
 

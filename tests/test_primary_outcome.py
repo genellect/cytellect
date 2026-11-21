@@ -43,6 +43,14 @@ def test_declaration_time_is_the_servers_and_kept_while_the_measure_is_unchanged
     assert "primary_outcome" not in AnalysisSpec(channel_assignment_version=0).model_dump(mode="json")
     with pytest.raises(ValidationError, match="nuclear_features_nuclei_only"):
         PrimaryOutcome(metric="solidity", region_set_id="nucleoli")
+    # A declaration must name a measure a result can have.
+    with pytest.raises(ValidationError, match="primary_outcome_channel_mismatch"):
+        PrimaryOutcome(metric="solidity", region_set_id="nuclei", channel_id="c1")
+    with pytest.raises(ValidationError, match="primary_outcome_channel_mismatch"):
+        PrimaryOutcome(metric="mean", region_set_id="nucleoli")
+    with pytest.raises(ValidationError, match="primary_outcome_region_mismatch"):
+        PrimaryOutcome(metric="nucleolar_count", region_set_id="nuclei")
+    assert PrimaryOutcome(metric="largest_nucleolus_fraction", region_set_id="nucleoplasm").channel_id is None
 
 
 def test_a_redrawn_figure_keeps_the_time_of_its_statistics(tmp_path, monkeypatch):

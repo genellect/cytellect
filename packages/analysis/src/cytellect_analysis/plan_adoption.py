@@ -110,9 +110,11 @@ def resolve_plan(value, resolution, recipe, fields, workflow, measurement=None):
     metric = chosen.metric
     if metric not in get_args(RegionMetric if generic else LegacyMetric):
         raise ValueError("planning_metric_unavailable")
-    if actual_policy is not None and metric not in {"area_px", "area_um2"}:
+    # Area and nuclear shape (nuclear-features/1.0.0) read no stain.
+    from .nuclear_features import SHAPE_METRICS, reads_no_stain
+    if actual_policy is not None and metric not in {"area_px", "area_um2", *SHAPE_METRICS}:
         raise ValueError("planning_metric_unavailable")
-    area = metric.startswith("area_") if generic else "_area_" in metric
+    area = reads_no_stain(metric) if generic else "_area_" in metric
     source_channel = None
     if generic:
         if recipe.get("id") != "region-2d":

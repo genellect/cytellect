@@ -87,6 +87,9 @@ def features_for(report, snapshot, images, labels, keys):
 def test_public_shape_values_match_first_principles():
     for _, _, labels in public_fields():
         rows = nuclear_shapes(labels)
+        # Sparse, large saved IDs give the same values under the same IDs.
+        sparse = np.where(labels > 0, labels.astype(np.uint32) * 1000 + 7, 0).astype(np.uint32)
+        assert {rid * 1000 + 7: row for rid, row in rows.items()} == nuclear_shapes(sparse)
         border = independent.border_ids(labels)
         checked = 0
         for rid, row in rows.items():
@@ -198,6 +201,11 @@ def test_public_comparison_keeps_runs_and_sampling():
                "missingness_policy": "available-observations_require-unexcluded-units-v1"}
     with pytest.raises(ValueError, match="region_comparison_incompatible_sampling"):
         analyze_region_comparison(report, config, request, features=features)
+    # The older request 1.0.0 has no nuclear features: it is refused before any calculation.
+    from cytellect_analysis.region_comparison_contracts import RegionComparisonRequest
+    older = {key: value for key, value in request.items() if key != "test"}
+    with pytest.raises(ValueError, match="nuclear_features_unsupported_request"):
+        RegionComparisonRequest.model_validate({**older, "version": "1.0.0"})
     sampled = copy.deepcopy(request)
     sampled["acquisition_review"]["spatial_sampling_confirmed"] = True
     result = analyze_region_comparison(report, config, sampled, features=features)
@@ -252,6 +260,8 @@ def test_reasons_never_become_zero():
     rows = nuclear_signal(labels, image, background=100.0, spread=10.0, minimum_ratio=FLOOR)
     assert rows[1]["cv_corrected"] == 0 and rows[1]["signal_to_background"] == 4
     assert rows[2]["missing_reason"] == "saturated_pixels" and rows[2]["cv_corrected"] is None
+    sparse = np.where(labels == 2, 4_000_000_000, labels).astype(np.uint32)
+    assert nuclear_signal(sparse, image, background=100.0, spread=10.0, minimum_ratio=FLOOR)[4_000_000_000] == rows[2]
     limited = nuclear_signal(labels, np.where(labels == 2, 200, image).astype(np.uint16), background=100.0, spread=10.0,
                              minimum_ratio=FLOOR, saturation_value=200)
     assert limited[2]["missing_reason"] == "saturated_pixels"

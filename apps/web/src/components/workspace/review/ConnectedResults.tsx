@@ -552,7 +552,8 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   // 主要 or 探索 only when a primary measure is declared (#257 RP-04): a saved result by the server time of its
   // statistics, never of a re-drawn figure; the chosen condition before it is calculated by its measure alone.
   const roleOf=(entry:Saved):OutcomeRole=>outcomeRole(primary,savedCondition(entry.operation,entry.result as SavedResultLike),entry.calculated??null);
-  const shownRole:OutcomeRole=saved&&!pending?roleOf(saved):outcomeRole(primary,{metric,regionSet,channel:condition.channel});
+  // The mark follows the label it stands beside: グラフ names the saved result even while another choice is pending.
+  const shownRole:OutcomeRole=saved&&(!pending||mode==="figure")?roleOf(saved):outcomeRole(primary,{metric,regionSet,channel:condition.channel});
   const roleMark=(role:OutcomeRole)=>role&&<span className={styles.outcomeRole} data-outcome-role={role}>{OUTCOME_ROLE_LABELS[role]}</span>;
   const savedChips=<div className={styles.recorded} role="group" aria-label="保存した比較">{recorded.map(entry=><button key={entry.job} aria-pressed={!pending&&saved?.job===entry.job} onClick={()=>showRecorded(entry)}>{resultMetricLabel(entry.result,entry.result.estimates?.metric??"",stainName)}{roleMark(roleOf(entry))}</button>)}</div>;
   if(csv)return <ConnectedCsvResults workspace={workspace} mode={mode} onImages={()=>setCsv(false)}/>;

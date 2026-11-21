@@ -1,6 +1,6 @@
 """Persistent editable analysis intent; saving a draft never executes or adopts results."""
 import time
-from typing import Annotated, Literal
+from typing import Annotated, Literal, get_args
 
 from cytellect_analysis.channel_gate_contracts import ChannelGateFilter
 from cytellect_analysis.common_statistics_contracts import AssociationPlot, CommonComparisonPlot
@@ -160,11 +160,20 @@ class PrimaryOutcome(RegionModel):
     declared_at: float | None = None
 
     @model_validator(mode="after")
-    def nuclear_features_on_nuclei(self):
-        # Nuclear shape metrics describe nuclei only (nuclear-features/1.0.0).
-        if self.metric in ("solidity", "axis_ratio", "eccentricity") \
-                and self.region_set_id != "nuclei":
+    def declared_measure_exists(self):
+        """A declaration names a measure a result can have: its region set and whether it reads a stain."""
+        nuclear = ("solidity", "axis_ratio", "eccentricity", "nucleus_count", "nucleus_density_per_mm2")
+        summaries = ("nucleolar_count", "nucleolar_area_fraction", "nucleolar_area_px", "nucleolar_area_um2",
+                     "nucleolar_eccentricity", "largest_nucleolus_fraction")
+        if self.metric in ("solidity", "axis_ratio", "eccentricity") and self.region_set_id != "nuclei":
+            # Nuclear shape metrics describe nuclei only (nuclear-features/1.0.0).
             raise ValueError("nuclear_features_nuclei_only")
+        if ((self.metric in nuclear and self.region_set_id != "nuclei")
+                or (self.metric in (*summaries, "log2_nucleoplasm_over_nucleolus") and self.region_set_id != "nucleoplasm")):
+            raise ValueError("primary_outcome_region_mismatch")
+        no_stain = self.metric.startswith("area_") or self.metric in (*nuclear, *summaries)
+        if self.metric not in get_args(LegacyMetric) and no_stain != (self.channel_id is None):
+            raise ValueError("primary_outcome_channel_mismatch")
         return self
 
 

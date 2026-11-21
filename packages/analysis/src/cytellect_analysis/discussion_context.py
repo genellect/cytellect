@@ -28,6 +28,8 @@ _REGION_METRICS = {
     "area_px": "面積（px²）", "area_um2": "面積", "mean": "平均輝度", "median": "輝度の中央値",
     "integrated": "積算輝度", "mean_corrected": "平均輝度（背景補正）", "median_corrected": "輝度の中央値（背景補正）",
     "integrated_corrected": "積算輝度（背景補正）",
+    # nuclear-features/1.0.0, as the workspace names them.
+    "solidity": "核のソリディティ", "axis_ratio": "核の長短軸比", "eccentricity": "核の離心率",
 }
 
 

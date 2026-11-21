@@ -65,7 +65,8 @@ DEFINITIONS = {
                               "date's Otsu threshold / nucleus pixels; the threshold pools the corrected pixels of "
                               f"every measurable, not excluded nucleus of that date ({PROTOCOL})",
 }
-SAFE_ERROR_CODES = frozenset({"nuclear_features_unavailable", "nuclear_features_mismatch", "nuclear_features_nuclei_only"})
+SAFE_ERROR_CODES = frozenset({"nuclear_features_unavailable", "nuclear_features_mismatch", "nuclear_features_nuclei_only",
+                              "nuclear_features_unsupported_request"})
 SignalReason = Literal["background_not_established", "touches_border", "saturated_pixels", "nonpositive_mean",
                        "background_spread_zero", "below_background_spread"]
 
@@ -101,8 +102,12 @@ def nuclear_shapes(labels: np.ndarray, *, minimum_area_px: int = MINIMUM_AREA_PX
 
     touching = _border_ids(labels)
     rows: dict[int, dict[str, Any]] = {}
-    for region in regionprops(labels.astype(np.int64)):
-        rid, area = int(region.label), int(region.area)
+    # regionprops makes one slot per label value: compact sparse saved IDs first.
+    present = np.unique(labels[labels > 0])
+    compact = np.zeros(labels.shape, np.int64)
+    compact[labels > 0] = np.searchsorted(present, labels[labels > 0]) + 1
+    for region in regionprops(compact):
+        rid, area = int(present[region.label - 1]), int(region.area)
         row: dict[str, Any] = {"area_px": area, "solidity": None, "axis_ratio": None, "eccentricity": None,
                                "missing_reason": None}
         if rid in touching:
@@ -170,12 +175,16 @@ def nuclear_signal(labels: np.ndarray, image: np.ndarray, *, background: float |
     from scipy import ndimage as ndi
 
     rows: dict[int, dict[str, Any]] = {}
-    slices = ndi.find_objects(labels.astype(np.int64))
-    for index, window in enumerate(slices):
+    # Compact the labels first: find_objects makes one slot per label value, and saved IDs can be large and sparse.
+    present = np.unique(labels[labels > 0])
+    compact = np.zeros(labels.shape, np.int64)
+    inside = labels > 0
+    compact[inside] = np.searchsorted(present, labels[inside]) + 1
+    for index, window in enumerate(ndi.find_objects(compact)):
         if window is None:
             continue
-        rid = index + 1
-        original = image[window][labels[window] == rid]
+        rid = int(present[index])
+        original = image[window][compact[window] == index + 1]
         raw = original.astype(np.float64)
         mean_raw, sd_raw = float(raw.mean()), float(raw.std(ddof=0))
         row: dict[str, Any] = {"area_px": int(raw.size), "mean_raw": mean_raw, "sd_raw": sd_raw,
