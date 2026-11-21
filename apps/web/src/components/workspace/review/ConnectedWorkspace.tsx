@@ -360,9 +360,13 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
   // The demo's statistics offer only what its tour recorded: a choice without a recorded result would end without one
   // (genellect/cytellect#257 D-1, owner decision 2026-11-21). Elsewhere every choice is offered.
   const recordedStats=demo?showcase.statistics:null;
-  const resultMetricOffered=(id:string)=>metricOffered(id)&&(!recordedStats||recordedStats.some(item=>item.metric===id));
-  const resultRegionOffered=(id:ReviewTarget)=>regionOffered(id)&&(!recordedStats||recordedStats.some(item=>item.metric===metric&&item.region===metricTarget(metric,id)));
-  const resultChannelOffered=(id:string)=>!recordedStats||!metricUsesChannel(metric)||recordedStats.some(item=>item.metric===metric&&item.region===metricTarget(metric,target)&&item.channel===id);
+  // A nucleus filter in effect (positive or negative nuclei of a stain) is part of what was recorded: a measure recorded
+  // only for all nuclei is not offered for the filtered ones (genellect/cytellect#257 review, 2026-11-21).
+  const recordedGate=channelFilter?`${channelFilter.channel_id}:${channelFilter.keep}`:null;
+  const sameGate=(item:{gate?:string|null},id:string)=>id.startsWith("positive_")||(item.gate??null)===recordedGate;
+  const resultMetricOffered=(id:string)=>metricOffered(id)&&(!recordedStats||recordedStats.some(item=>item.metric===id&&sameGate(item,id)));
+  const resultRegionOffered=(id:ReviewTarget)=>regionOffered(id)&&(!recordedStats||recordedStats.some(item=>item.metric===metric&&sameGate(item,metric)&&item.region===metricTarget(metric,id)));
+  const resultChannelOffered=(id:string)=>!recordedStats||!metricUsesChannel(metric)||recordedStats.some(item=>item.metric===metric&&sameGate(item,metric)&&item.region===metricTarget(metric,target)&&item.channel===id);
   // A metric chosen in the demo brings a recorded region and stain with it.
   const resultChoices=mode==="statistics"||mode==="figure";
   useEffect(()=>{if(!recordedStats||!resultChoices||!recordedStats.some(item=>item.metric===metric))return;

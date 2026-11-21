@@ -19,7 +19,7 @@ export function experimentHeading(design:ExperimentDesign):string {
   return `2 群の比較：${ordered.map(group=>group.label).join(" × ")}`;
 }
 
-/** The state of the design as 項目：値, each complete (✓) or missing or limiting (▲). The acquisition statement and
+/** The state of the design as 項目：値, each complete (a check mark) or missing or limiting (a warning triangle). The acquisition statement and
  * independence are shown only for two groups: one group is described, never compared. A recorded design (the public
  * demo, `recorded`) shows the acquisition statement only when it states it: nothing is declared for public data. */
 export function statusChips(design:ExperimentDesign, fields:SummaryField[], recorded=false):StatusChip[] {
