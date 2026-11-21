@@ -19,9 +19,11 @@ export interface LegacyNucleolarProcessingDetector {
   smoothing_sigma_px: number; minimum_area_px: number; maximum_area_px: number | null; split_touching: boolean;
 }
 export interface NucleolarProcessingDetector {
-  engine: "cytellect-nucleolar-v2"; protocol_version: "2.0.0" | "2.1.0"; source: "dapi_poor" | "marker";
+  engine: "cytellect-nucleolar-v2"; protocol_version: "2.0.0" | "2.1.0" | "2.2.0"; source: "dapi_poor" | "marker";
   smoothing_sigma_px: number; rim_exclusion_px: number; relative_threshold: number; marker_fraction: number;
   background_radius_px: number; minimum_area_px: number; maximum_area_px: number | null; minimum_solidity: number;
+  /** Protocol 2.2.0 only: physical minimum (converted with each field's calibration) and the marker contrast rule. */
+  minimum_area_um2?: number | null; minimum_contrast_snr?: number;
 }
 export interface ProposalProcessing {
   version: "1.0.0";

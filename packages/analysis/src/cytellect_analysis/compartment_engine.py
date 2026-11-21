@@ -19,7 +19,7 @@ from .contracts import Recipe
 from .masks import validate_label_array, validate_labels
 from .measurement import normalize_nucleolar_states
 from .ncl_objects import NclObjectDetector, detect_ncl_objects
-from .nucleolar_detector_v2 import NucleolarDetectorV20, NucleolarDetectorV21, detect_nucleoli_v2
+from .nucleolar_detector_v2 import NucleolarDetectorV20, NucleolarDetectorV21, NucleolarDetectorV22, detect_nucleoli_v2
 from .regions import RegionModel, _array_hash
 
 
@@ -51,7 +51,7 @@ class NucleolarDetectorV11(RegionModel):
         return self
 
 
-NucleolarDetector = Annotated[NucleolarDetectorSpec | NucleolarDetectorV11 | NucleolarDetectorV20 | NucleolarDetectorV21 | NclObjectDetector | CellposeDetectorSpec | NclCellposeDetectorSpec | NclParentCellposeDetectorSpec,
+NucleolarDetector = Annotated[NucleolarDetectorSpec | NucleolarDetectorV11 | NucleolarDetectorV20 | NucleolarDetectorV21 | NucleolarDetectorV22 | NclObjectDetector | CellposeDetectorSpec | NclCellposeDetectorSpec | NclParentCellposeDetectorSpec,
                               Field(discriminator="protocol_version")]
 
 
@@ -152,12 +152,13 @@ def nucleoplasm_from_adopted_nucleoli(nuclei: np.ndarray, nucleoli: np.ndarray, 
 
 def detect_compartments(
     channels: dict[str, np.ndarray], nuclei: np.ndarray, parameters: NucleolarDetector,
-    output_dir: Path, executable: str, scratch_root: Path | None = None,
+    output_dir: Path, executable: str, scratch_root: Path | None = None, *, pixel_area_um2: float | None = None,
 ) -> tuple[dict[str, np.ndarray], dict]:
     """Reuse ImageJ per-nucleus Otsu / MorphoLibJ, never rerun StarDist.
 
     The caller verifies source revision ownership/hash and records native versus
-    display-RGB semantics. These internal role names do not infer a stain from an
+    display-RGB semantics. ``pixel_area_um2`` is the field's confirmed calibration; only the
+    marker protocol 2.2.0 reads it (physical minimum area). These internal role names do not infer a stain from an
     arbitrary plane. All returned masks and measurements use original coordinates.
     """
     from . import engine
@@ -184,7 +185,8 @@ def detect_compartments(
             nucleoli, info = detect_ncl_objects(channels["ncl"], parameters, nuclei=nuclei)
         else:
             marker = channels["ncl"] if parameters.source == "marker" else None
-            nucleoli, info = detect_nucleoli_v2(channels["dapi"], marker, nuclei, parameters)
+            nucleoli, info = detect_nucleoli_v2(channels["dapi"], marker, nuclei, parameters,
+                                                pixel_area_um2=pixel_area_um2)
         masks, details = derive_compartment_masks(nuclei, nucleoli, normalize_nucleolar_states(info),
                                                 retain_review_candidates=isinstance(parameters, NclParentCellposeDetectorSpec))
         info.update(details)

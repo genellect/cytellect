@@ -430,6 +430,8 @@ def run_region_analysis(store, settings, job, output):
                             nuclei=source_nuclei, parameters=request.recipe.detector,
                             output_dir=destination / "engine", executable=settings.fiji_executable or "",
                             scratch_root=output.parent,
+                            pixel_area_um2=(image_info.calibration.pixel_size_x_um * image_info.calibration.pixel_size_y_um
+                                            if image_info.calibration is not None else None),
                         )
                         labels = masks[request.recipe.compartment]
                     elif isinstance(request.recipe, RegionCellposeRecipe):
@@ -448,7 +450,7 @@ def run_region_analysis(store, settings, job, output):
                         )
                     elif isinstance(request.recipe, AutoScaledNuclearRecipe):
                         # The detection copy is sized from this field's own nuclear pixels.
-                        scale_record = estimate_nuclear_diameter(image)
+                        scale_record = estimate_nuclear_diameter(image, request.recipe.detection_scale)
                         scale_record["detection_max_side_px"] = automatic_detection_max_side(
                             image.shape, scale_record["diameter_px"])
                         labels, engine_info = detect_nuclei(

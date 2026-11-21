@@ -92,6 +92,12 @@ export function runtimeRecipe(target:ReviewTarget,channel:ChannelDefinition,sett
     ...(target==="nucleoplasm"?{nucleolar_revision_id:targets.nucleoli!.result.revision}:{})};
 }
 
+/** An explicit pixel minimum is the minimum: marker protocol 2.2.0 then has no physical minimum (as in run_recipes.py). */
+function withExplicitMinimum<T extends {protocol_version:string;minimum_area_px:number;minimum_area_um2?:number|null}>(detector:T,minimum:number|null):T{
+  if(minimum===null)return detector;
+  return {...detector,minimum_area_px:minimum,...(detector.protocol_version==="2.2.0"?{minimum_area_um2:null}:{})};
+}
+
 /** Shared detector settings; parent revisions are attached only for execution. */
 function runtimeNucleolarRecipe(channel:ChannelDefinition,settings:RuntimeSettings,targets:RuntimeTargets,processing:ProposalProcessing|null):Recipe {
   const definition=settings.nucleolarDefinition;
@@ -106,12 +112,12 @@ function runtimeNucleolarRecipe(channel:ChannelDefinition,settings:RuntimeSettin
   const detector=definition.source === "ncl" ? definition.algorithm==="cellpose" ? isCellposeDetector(previous)?previous:nclCellposeDetector()
     : definition.algorithm==="legacy" ? previous?.engine==="fiji-nucleolar-compartments"?previous:{engine:"fiji-nucleolar-compartments" as const,protocol_version:"1.1.0" as const,threshold_method:"otsu" as const,threshold:null,smoothing_sigma_px:0,minimum_area_px:1,maximum_area_px:null,split_touching:false}
     : previous?.engine === "fiji-nucleolar-compartments" || previous?.engine === "cytellect-ncl-objects" || (!definition.algorithm&&isCellposeDetector(previous)) ? previous : nclObjectDetector()
-    : {...nucleolarDetectorV2(definition),...(settings.nucleolarSigma !== null ? {smoothing_sigma_px:settings.nucleolarSigma}:{}),...(settings.nucleolarRim !== null ? {rim_exclusion_px:settings.nucleolarRim}:{}),...(settings.nucleolarMinimumArea !== null ? {minimum_area_px:settings.nucleolarMinimumArea}:{}),maximum_area_px:settings.nucleolarMaximumArea};
+    : withExplicitMinimum({...nucleolarDetectorV2(definition),...(settings.nucleolarSigma !== null ? {smoothing_sigma_px:settings.nucleolarSigma}:{}),...(settings.nucleolarRim !== null ? {rim_exclusion_px:settings.nucleolarRim}:{}),maximum_area_px:settings.nucleolarMaximumArea},settings.nucleolarMinimumArea);
   const recipe:Recipe={id:"region-2d",version:"1.4.0",source:"fiji_nuclear_compartment",region_set_id:"nucleoli",label:labels.nucleoli,compartment:"nucleoli",defining_channel_id:defining,detector};
   const proposed=withProcessingSettings(recipe,processing);
-  if(proposed.detector?.engine === "cytellect-nucleolar-v2") return {...proposed,detector:{...proposed.detector,relative_threshold:definition.relative,
+  if(proposed.detector?.engine === "cytellect-nucleolar-v2") return {...proposed,detector:withExplicitMinimum({...proposed.detector,relative_threshold:definition.relative,
     ...(settings.nucleolarSigma !== null && !(proposed.detector.source==="marker" && proposed.detector.protocol_version==="2.0.0") ? {smoothing_sigma_px:settings.nucleolarSigma}:{}),...(settings.nucleolarRim !== null ? {rim_exclusion_px:settings.nucleolarRim}:{}),
-    ...(settings.nucleolarMinimumArea !== null ? {minimum_area_px:settings.nucleolarMinimumArea}:{}),maximum_area_px:settings.nucleolarMaximumArea}};
+    maximum_area_px:settings.nucleolarMaximumArea},settings.nucleolarMinimumArea)};
   if(proposed.detector?.engine === "cytellect-ncl-objects") return {...proposed,detector:{...proposed.detector,
     ...(settings.nucleolarSigma !== null ? {smoothing_sigma_px:settings.nucleolarSigma}:{}),
     ...(settings.nucleolarMinimumArea !== null ? {minimum_area_px:settings.nucleolarMinimumArea}:{}),
@@ -442,7 +448,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
         const previous=processing?.nucleoli?.channel===definition.marker?processing.nucleoli.detector:null;
         const detector=previous?.engine==="cytellect-nucleolar-v2" && previous.source==="marker"?previous:nucleolarDetectorV2(definition);
         processing={...(processing??{version:"1.0.0",nuclei:null,nucleoli:null,signal:null}),nucleoli:{channel:definition.marker,
-          detector:{...detector,source:"marker",protocol_version:"2.1.0",smoothing_sigma_px:value??.7}}};
+          detector:{...detector,source:"marker",protocol_version:detector.protocol_version==="2.2.0"?"2.2.0":"2.1.0",smoothing_sigma_px:value??.7}}};
       }
       publish({settings,processing});
     },

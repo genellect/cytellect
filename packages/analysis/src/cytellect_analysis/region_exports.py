@@ -233,9 +233,13 @@ def region_methods(config, report, provenance):
                      "no upscaling. Runtime capacity can reduce detection further. "
                      "The actual transform is recorded per field; measurements retain original pixels.")
     if isinstance(request.recipe, AutoScaledNuclearRecipe):
-        lines.append("Detection scale: nuclear-size/1.0.0. Per field, the typical nucleus diameter was estimated from "
-                     "the nuclear channel (block mean to a <=512 px grid, Gaussian sigma 2 grid px, Otsu threshold, "
-                     "hole filling, area-weighted median component), and the detection copy was reduced so that this "
+        flattened = request.recipe.detection_scale != "nuclear-size/1.0.0"
+        lines.append(f"Detection scale: {request.recipe.detection_scale}. Per field, the typical nucleus diameter was "
+                     "estimated from the nuclear channel (block mean to a <=512 px grid, Gaussian sigma 2 grid px, "
+                     + ("subtraction of the large-scale background by a grey opening with a square of a quarter of the "
+                        "grid's long side, " if flattened else "")
+                     + "Otsu threshold, hole filling, area-weighted median component), and the detection copy was "
+                     "reduced so that this "
                      f"diameter is about {TARGET_DIAMETER_PX} px; small images are not enlarged. StarDist segments "
                      "nuclei of the size range of its training data (Schmidt et al. 2018). The estimate and the "
                      "detection size are recorded per field; label edges are coarser by the reduction factor and can be "

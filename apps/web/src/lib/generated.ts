@@ -1601,7 +1601,7 @@ export interface components {
         };
         /**
          * AutoScaledNuclearRecipe
-         * @description Nuclei with a detection copy sized from the estimated nucleus diameter (nuclear-size/1.0.0).
+         * @description Nuclei with a detection copy sized from the estimated nucleus diameter (nuclear-size/1.1.0; 1.0.0 replays).
          */
         AutoScaledNuclearRecipe: {
             /**
@@ -1634,10 +1634,10 @@ export interface components {
             nuclear_role_source: "recorded_stain" | "user_selected_role";
             /**
              * Detection Scale
-             * @default nuclear-size/1.0.0
-             * @constant
+             * @default nuclear-size/1.1.0
+             * @enum {string}
              */
-            detection_scale: "nuclear-size/1.0.0";
+            detection_scale: "nuclear-size/1.0.0" | "nuclear-size/1.1.0";
             detector?: components["schemas"]["NuclearDetectorSpec"];
         };
         /** AutomaticBackgroundConstants */
@@ -2939,7 +2939,7 @@ export interface components {
             /** Channel */
             channel: string;
             /** Detector */
-            detector: components["schemas"]["NucleolarDetectorV11"] | components["schemas"]["NucleolarDetectorV20"] | components["schemas"]["NucleolarDetectorV21"] | components["schemas"]["NclObjectDetector"] | components["schemas"]["CellposeDetectorSpec"] | components["schemas"]["NclCellposeDetectorSpec"] | components["schemas"]["NclParentCellposeDetectorSpec"];
+            detector: components["schemas"]["NucleolarDetectorV11"] | components["schemas"]["NucleolarDetectorV20"] | components["schemas"]["NucleolarDetectorV21"] | components["schemas"]["NucleolarDetectorV22"] | components["schemas"]["NclObjectDetector"] | components["schemas"]["CellposeDetectorSpec"] | components["schemas"]["NclCellposeDetectorSpec"] | components["schemas"]["NclParentCellposeDetectorSpec"];
         };
         /**
          * DraftProcessing
@@ -4131,6 +4131,76 @@ export interface components {
              * @default 0.6
              */
             minimum_solidity: number;
+        };
+        /**
+         * NucleolarDetectorV22
+         * @description Marker revision with a noise-based contrast rule per parent and a physical minimum area.
+         */
+        NucleolarDetectorV22: {
+            /**
+             * Engine
+             * @default cytellect-nucleolar-v2
+             * @constant
+             */
+            engine: "cytellect-nucleolar-v2";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            protocol_version: "2.2.0";
+            /**
+             * Source
+             * @default marker
+             * @constant
+             */
+            source: "marker";
+            /**
+             * Smoothing Sigma Px
+             * @default 0.7
+             */
+            smoothing_sigma_px: number;
+            /**
+             * Rim Exclusion Px
+             * @default 4
+             */
+            rim_exclusion_px: number;
+            /**
+             * Relative Threshold
+             * @default 0.7
+             */
+            relative_threshold: number;
+            /**
+             * Marker Fraction
+             * @default 0.4
+             */
+            marker_fraction: number;
+            /**
+             * Background Radius Px
+             * @default 10
+             */
+            background_radius_px: number;
+            /**
+             * Minimum Area Px
+             * @default 4
+             */
+            minimum_area_px: number;
+            /** Maximum Area Px */
+            maximum_area_px?: number | null;
+            /**
+             * Minimum Solidity
+             * @default 0.6
+             */
+            minimum_solidity: number;
+            /**
+             * Minimum Contrast Snr
+             * @default 5
+             */
+            minimum_contrast_snr: number;
+            /**
+             * Minimum Area Um2
+             * @default 0.3
+             */
+            minimum_area_um2: number | null;
         };
         /** NucleolarMorphology */
         NucleolarMorphology: {
@@ -5346,7 +5416,7 @@ export interface components {
             /** Defining Channel Id */
             defining_channel_id: string;
             /** Detector */
-            detector?: components["schemas"]["NucleolarDetectorSpec"] | components["schemas"]["NucleolarDetectorV11"] | components["schemas"]["NucleolarDetectorV20"] | components["schemas"]["NucleolarDetectorV21"] | components["schemas"]["NclObjectDetector"] | components["schemas"]["CellposeDetectorSpec"] | components["schemas"]["NclCellposeDetectorSpec"] | components["schemas"]["NclParentCellposeDetectorSpec"];
+            detector?: components["schemas"]["NucleolarDetectorSpec"] | components["schemas"]["NucleolarDetectorV11"] | components["schemas"]["NucleolarDetectorV20"] | components["schemas"]["NucleolarDetectorV21"] | components["schemas"]["NucleolarDetectorV22"] | components["schemas"]["NclObjectDetector"] | components["schemas"]["CellposeDetectorSpec"] | components["schemas"]["NclCellposeDetectorSpec"] | components["schemas"]["NclParentCellposeDetectorSpec"];
             /** Nucleolar Revision Id */
             nucleolar_revision_id?: string | null;
         };
@@ -6388,7 +6458,7 @@ export interface components {
             /** Channel */
             channel: string;
             /** Detector */
-            detector: components["schemas"]["NucleolarDetectorV11"] | components["schemas"]["NucleolarDetectorV20"] | components["schemas"]["NucleolarDetectorV21"] | components["schemas"]["NclObjectDetector"] | components["schemas"]["CellposeDetectorSpec"] | components["schemas"]["NclCellposeDetectorSpec"] | components["schemas"]["NclParentCellposeDetectorSpec"];
+            detector: components["schemas"]["NucleolarDetectorV11"] | components["schemas"]["NucleolarDetectorV20"] | components["schemas"]["NucleolarDetectorV21"] | components["schemas"]["NucleolarDetectorV22"] | components["schemas"]["NclObjectDetector"] | components["schemas"]["CellposeDetectorSpec"] | components["schemas"]["NclCellposeDetectorSpec"] | components["schemas"]["NclParentCellposeDetectorSpec"];
         };
         /** SavedProcessing */
         SavedProcessing: {

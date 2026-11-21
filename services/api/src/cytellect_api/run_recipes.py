@@ -4,6 +4,7 @@ from math import floor
 
 from cytellect_analysis.cellpose_engine import CellposeDetectorSpec, NclParentCellposeDetectorSpec
 from cytellect_analysis.ncl_objects import NclObjectDetector
+from cytellect_analysis.nucleolar_detector_v2 import MINIMUM_CONTRAST_SNR
 from cytellect_analysis.region_contracts import RegionAnalysisRequest
 
 from .analysis_spec import AnalysisSpec
@@ -20,13 +21,20 @@ def _nucleolar_defaults(definition):
     def pixels(length, fallback, maximum):
         return min(maximum, max(1, _round(length / um))) if um else fallback
 
-    return {"engine": "cytellect-nucleolar-v2", "protocol_version": "2.1.0" if definition["source"] == "marker" else "2.0.0",
-            "source": "marker" if definition["source"] == "marker" else "dapi_poor",
-            "smoothing_sigma_px": 0.7 if definition["source"] == "marker" else (min(20, _round(0.35 / um * 10) / 10) if um else 2),
-            "rim_exclusion_px": pixels(0.6, 4, 100), "relative_threshold": definition["relative"],
-            "marker_fraction": 0.4, "background_radius_px": pixels(1.0, 10, 200),
-            "minimum_area_px": max(1, _round(0.3 / (um * um))) if um else 4,
-            "maximum_area_px": None, "minimum_solidity": 0.6}
+    marker = definition["source"] == "marker"
+    detector = {"engine": "cytellect-nucleolar-v2", "protocol_version": "2.2.0" if marker else "2.0.0",
+                "source": "marker" if marker else "dapi_poor",
+                "smoothing_sigma_px": 0.7 if marker else (min(20, _round(0.35 / um * 10) / 10) if um else 2),
+                "rim_exclusion_px": pixels(0.6, 4, 100), "relative_threshold": definition["relative"],
+                "marker_fraction": 0.4, "background_radius_px": pixels(1.0, 10, 200),
+                "minimum_area_px": max(1, _round(0.3 / (um * um))) if um else 4,
+                "maximum_area_px": None, "minimum_solidity": 0.6}
+    if marker:
+        # Protocol 2.2.0 (owner decision 20, 2026-11-21): the 4 px floor and 0.3 um2 converted with the
+        # field's own calibration in the worker; the noise-based marker contrast rule per nucleus.
+        detector.update(minimum_area_px=max(4, detector["minimum_area_px"]), minimum_area_um2=0.3,
+                        minimum_contrast_snr=MINIMUM_CONTRAST_SNR)
+    return detector
 
 
 def build_run_request(spec: dict, target: str, field_id: str, parents: dict,
@@ -81,7 +89,7 @@ def build_run_request(spec: dict, target: str, field_id: str, parents: dict,
         recipe = {"id": "region-2d", "version": "1.7.0" if side is None else "1.5.0", "region_set_id": "nuclei",
                   "label": "核", "source": "stardist_nuclear", "defining_channel_id": channel,
                   "nuclear_role_source": role or "user_selected_role", "detector": detector,
-                  **({"detection_scale": "nuclear-size/1.0.0"} if side is None else {"detection_max_side_px": side})}
+                  **({"detection_scale": "nuclear-size/1.1.0"} if side is None else {"detection_max_side_px": side})}
     else:
         if not parent or parent_recipe.get("source") != "stardist_nuclear" or parent_recipe.get("defining_channel_id") != channel:
             raise ValueError("analysis_run_nuclear_parent_required")
@@ -133,6 +141,8 @@ def build_run_request(spec: dict, target: str, field_id: str, parents: dict,
                     and detector["protocol_version"] == "2.0.0"
                 ):
                     detector[destination] = settings[source]
+            if settings["nucleolarMinimumArea"] is not None and detector["protocol_version"] == "2.2.0":
+                detector["minimum_area_um2"] = None  # an explicit pixel minimum is the minimum
             detector["maximum_area_px"] = settings["nucleolarMaximumArea"]
         recipe = {"id": "region-2d", "version": "1.4.0", "source": "fiji_nuclear_compartment", "region_set_id": target,
                   "label": "核小体" if target == "nucleoli" else "核質", "compartment": target,
