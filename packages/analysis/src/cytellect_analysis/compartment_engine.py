@@ -19,7 +19,12 @@ from .contracts import Recipe
 from .masks import validate_label_array, validate_labels
 from .measurement import normalize_nucleolar_states
 from .ncl_objects import NclObjectDetector, detect_ncl_objects
-from .nucleolar_detector_v2 import NucleolarDetectorV20, NucleolarDetectorV21, NucleolarDetectorV22, detect_nucleoli_v2
+from .nucleolar_detector_v2 import (
+    NucleolarDetectorV20,
+    NucleolarDetectorV21,
+    NucleolarDetectorV22,
+    detect_nucleoli_v2,
+)
 from .regions import RegionModel, _array_hash
 
 
