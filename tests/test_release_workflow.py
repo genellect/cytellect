@@ -32,7 +32,8 @@ def job(text: str, name: str) -> str:
 
 def resolve_script() -> str:
     lines = job(RELEASE, "source").splitlines()
-    start = next(i for i, line in enumerate(lines) if line.strip() == "script: |") + 1
+    manual = lines.index("        id: resolve")
+    start = next(i for i in range(manual, len(lines)) if lines[i].strip() == "script: |") + 1
     indent = len(lines[start]) - len(lines[start].lstrip())
     body = []
     for line in lines[start:]:
@@ -98,14 +99,14 @@ def run_resolve(requested: str, *, checks: list[str] = CHECKS, tag_exists: bool 
 def test_empty_commit_releases_the_dispatched_main_head():
     result = run_resolve("")
     assert result["ok"], result
-    assert result["outputs"] == {"commit": HEAD}
+    assert result["outputs"] == {"commit": HEAD, "version": "0.1.0-local.21"}
     assert result["calls"]["checksRef"] == HEAD
 
 
 def test_an_earlier_green_main_commit_is_released_and_gated_on_its_own_checks():
     result = run_resolve(OLDER)
     assert result["ok"], result
-    assert result["outputs"] == {"commit": OLDER}
+    assert result["outputs"] == {"commit": OLDER, "version": "0.1.0-local.21"}
     assert result["calls"] == {"checksRef": OLDER, "basehead": f"{OLDER}...{HEAD}"}
 
 
@@ -151,7 +152,8 @@ def test_every_job_that_builds_signs_or_tags_uses_the_resolved_commit():
         assert "RELEASE_COMMIT: ${{ needs.source.outputs.commit }}" in text, name
         checkouts = re.findall(r"- uses: actions/checkout@v\d+(?:\.\d+)*\n\s+with: \{(.*)\}", text)
         assert checkouts and all('ref: "${{ needs.source.outputs.commit }}"' in c for c in checkouts), name
-        assert text.count("actions/checkout@") == len(checkouts), name
+        helper_checkout_count = 1 if name == "draft" else 0
+        assert text.count("actions/checkout@") == len(checkouts) + helper_checkout_count, name
     package = job(RELEASE, "package")
     assert "(git rev-parse HEAD) -cne $env:RELEASE_COMMIT" in package
     assert package.count("$env:RELEASE_COMMIT") >= 7
@@ -165,22 +167,49 @@ def test_every_job_that_builds_signs_or_tags_uses_the_resolved_commit():
     assert "release_notes.py --release-dir release --version \"$RELEASE_VERSION\" --commit \"$RELEASE_COMMIT\"" in draft
     assert draft.index("test -f scripts/release_notes.py") < draft.index("sha: process.env.RELEASE_COMMIT")
     assert "GITHUB_SHA" not in draft
+    helper_checkout = next(step for step in draft.split("      - ") if "path: automation" in step)
+    assert "if: env.AUTOMATIC == 'true'" in helper_checkout
+    assert "sparse-checkout: scripts/windows_exe_release.cjs" in helper_checkout
+    assert "persist-credentials: false" in helper_checkout
+    assert "UPDATE_SIGNING_KEY" not in helper_checkout
 
 
-def test_release_protections_are_unchanged():
-    assert "if: github.ref == 'refs/heads/main'" in job(RELEASE, "source")
-    assert "if: github.ref == 'refs/heads/main'" in job(RELEASE, "package")
+def test_manual_and_automatic_routes_enforce_their_release_protections():
+    source = job(RELEASE, "source")
+    assert "github.ref == 'refs/heads/main' &&" in source
+    assert "github.event_name == 'workflow_dispatch' && !inputs.automatic" in source
+    assert "vars.WINDOWS_EXE_AUTO_RELEASE == 'true'" in source
+    assert "github.event.workflow_run.conclusion == 'success'" in source
+    assert "github.event.workflow_run.event == 'push'" in source
+    assert "github.event.workflow_run.head_repository.id == github.event.repository.id" in source
+    package = job(RELEASE, "package")
+    assert "!cancelled() && needs.proposal-compatibility.result == 'success' &&" in package
+    assert "github.ref == 'refs/heads/main' && needs.source.outputs.artifact-run == ''" in package
     assert "needs: [source, proposal-compatibility]" in job(RELEASE, "package")
     draft = job(RELEASE, "draft")
-    assert "needs: [source, package]" in draft and "    environment: release" in draft
+    assert "needs: [source, proposal-compatibility, package]" in draft
+    assert "inputs.automatic) && 'windows-exe-publish' || 'release'" in draft
+    assert "needs.proposal-compatibility.result == 'success'" in draft
+    assert "if: env.AUTOMATIC == 'true'" in draft
     assert 'if [ -z "$UPDATE_SIGNING_KEY" ]' in draft
     assert "update_manifest.py verify --release-dir release" in draft and '--previous-source "$previous"' in draft
-    assert "group: windows-release\n  cancel-in-progress: false" in RELEASE
+    assert "format('windows-release-idle-{0}', github.run_id) || 'windows-release' }}\n  cancel-in-progress: false" in RELEASE
+    channel = job(RELEASE, "channel")
+    assert "environment: windows-exe-channel" in channel
+    assert "\n      contents: read\n" in channel and "\n      contents: write\n" not in channel
+    assert "private-key: ${{ secrets.WINDOWS_EXE_CHANNEL_APP_PRIVATE_KEY }}" in channel
+    assert RELEASE.count("secrets.WINDOWS_EXE_CHANNEL_APP_PRIVATE_KEY") == 1
+    assert "owner: genellect\n          repositories: cytellect\n          permission-contents: write" in channel
+    assert "token: ${{ steps.channel-token.outputs.token }}" in channel
+    assert "services/api/src/cytellect_api/update_signature.py" in channel
+    assert "!inputs.channel_only" in source
+    assert "inputs.channel_only && vars.WINDOWS_EXE_AUTO_RELEASE != 'true'" in channel
 
 
 def test_ai_compatibility_gates_the_exact_source_without_exposing_tokens_to_packaging():
     gate = job(RELEASE, "proposal-compatibility")
-    assert "needs: source" in gate
+    assert "needs: [source, reserve]" in gate
+    assert "needs.source.result == 'success'" in gate
     assert 'ref: "${{ needs.source.outputs.commit }}"' in gate
     assert "scripts/dev.py doctor --proposal-version" in gate
     assert "secrets.PROPOSAL_PREFLIGHT_DEVICE_TOKEN" in gate and "vars.PROPOSAL_PREFLIGHT_URL" in gate
