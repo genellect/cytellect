@@ -184,7 +184,7 @@ def nuclear_signal(labels: np.ndarray, image: np.ndarray, *, background: float |
                                "missing_reason": None}
         if keep_pixels:
             row["pixels"] = original
-        if background is None:
+        if background is None or spread is None:
             row["missing_reason"] = background_reason
         elif rid in touching:
             row["missing_reason"] = "touches_border"
@@ -278,9 +278,9 @@ def compute_features(keys, report: dict[str, Any], field_snapshot: dict[str, Any
             image = np.asarray(channel_of(fid, channel_id))
             if image.shape != field_labels.shape or image.dtype not in (np.uint8, np.uint16):
                 raise ValueError("nuclear_features_mismatch")
-            record = _channel_record(tables[fid], channel_id)
-            median, spread, reason = background_spread(image, field_labels, record["background"])
-            limit = record["channel"].get("acquisition_saturation_value")
+            provenance_record = _channel_record(tables[fid], channel_id)
+            median, spread, reason = background_spread(image, field_labels, provenance_record["background"])
+            limit = provenance_record["channel"].get("acquisition_saturation_value")
             signals[fid] = nuclear_signal(field_labels, image, background=median, spread=spread,
                                           background_reason=reason, saturation_value=limit,
                                           keep_pixels=metric == "positive_area_fraction")
@@ -374,7 +374,8 @@ def methods_lines(fields: list[dict[str, Any]], metric: str) -> list[str]:
                      "from the digitisation error of public nucleus masks. Nuclei without shape values still count in "
                      "nucleus numbers and areas. They are not volumes or sphericities.")
         return lines
-    ratios = {record.get("minimum_signal_to_background") for record in records}
+    saved = [record for record in records if isinstance(record, dict)]
+    ratios = {record.get("minimum_signal_to_background") for record in saved}
     ratio = next(iter(ratios)) if len(ratios) == 1 else None
     lines.append("The background was the field's automatic background candidate median of the channel. A nucleus had "
                  "no value when the background was not established, it touched the image border, any pixel was "
@@ -383,7 +384,7 @@ def methods_lines(fields: list[dict[str, Any]], metric: str) -> list[str]:
                  + "the background spread (1.4826 x MAD of the background pixels; Signal QC 1.0.0 ratio).")
     if metric == "positive_area_fraction":
         dates = {}
-        for record in records:
+        for record in saved:
             threshold = record.get("threshold") or {}
             dates[threshold.get("acquisition_date")] = threshold
         values = [item["value"] for item in dates.values() if item.get("value") is not None]

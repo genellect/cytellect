@@ -369,8 +369,8 @@ def prepare_region_observations(report, field_snapshot, selector, features=None)
             raise ValueError("nuclear_features_unavailable")
         for field in fields:
             fid = field["field_id"]
-            areas = {rid: row.area_px for (f, rid), row in objects.items() if f == fid}
-            feature_values[fid] = nuclear_features.bind(by_field[fid], selector.metric, areas)
+            region_areas = {rid: row.area_px for (f, rid), row in objects.items() if f == fid}
+            feature_values[fid] = nuclear_features.bind(by_field[fid], selector.metric, region_areas)
             field["nuclear_features"] = nuclear_features.provenance(by_field[fid])
     observations = []
     for (fid, rid), row in sorted(objects.items()):
