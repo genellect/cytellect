@@ -23,7 +23,7 @@ const methodNames: Record<string, string> = {
 };
 const reasons: Record<string, string> = {
   rank_test: "順位に基づく検定では、平均の差の信頼区間を出しません。",
-  too_few_pairs: "対が 2 つ未満のため、差の信頼区間を計算できません。", too_few_units: "実験単位が 2 つ未満の群があるため、差の信頼区間を計算できません。",
+  too_few_pairs: "対が 2 つ未満のため、差の信頼区間を計算できません。", too_few_units: "実験回が 2 つ未満の群があるため、差の信頼区間を計算できません。",
   zero_variance: "値のばらつきが 0 のため、差の信頼区間を計算できません。", nonpositive_values: "0 以下の値を含むため、比は示しません。",
   ratio_not_applicable: "この指標では比を示しません。",
 };
@@ -162,7 +162,7 @@ export function summarize(estimates: ComparisonEstimates, comparison: SavedCompa
     points.push(`実験回ごとの${ratios ? "変化" : "差"}：${runs.map(run => `${run.pair} ${ratios ? signedPercent(run.ratio!) : signed(run.difference)}`).join("、")}${ratios ? "" : suffix}`);
 
   // Basis (RS-04, NT-01): the only place that states the premises.
-  const n = paired ? `n = ${estimates.n_pairs ?? 0} 回` : `n = ${estimates.n_control}・${estimates.n_treatment}（実験単位）`;
+  const n = paired ? `n = ${estimates.n_pairs ?? 0} 回` : `n = ${estimates.n_control}・${estimates.n_treatment}（実験回）`;
   const method = descriptive ? (options.exploratory ? "記述統計（探索的なしきい値）" : "記述統計") : methodNames[comparison.method ?? ""] ?? comparison.method ?? "検定";
   const parts = [method, n, descriptive ? "" : formatP(comparison.p_value), options.missing ?? ""].filter(Boolean);
   const basis: ResultBasis = {label: parts.join(" · "), reason: descriptive ? (options.exploratory ? EXPLORATORY_REASON : DESCRIPTIVE_REASON) : null,

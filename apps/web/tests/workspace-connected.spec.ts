@@ -98,13 +98,13 @@ for (const viewport of [{width:1920,height:1080},{width:1440,height:900},{width:
   await loaded;
   // A new workspace starts by choosing the form of the experiment (requirements E-01).
   await expect(page.getByRole("heading", {name: "実験デザイン", exact: true, level: 1})).toBeVisible();
-  await expect(page.getByRole("button", {name: /^1 画面/})).toBeEnabled();
-  await expect(page.getByRole("button", {name: /^2 画面/})).toBeEnabled();
+  await expect(page.getByRole("button", {name: /^1 群を記述する/})).toBeEnabled();
+  await expect(page.getByRole("button", {name: /^対照と処理を比べる/})).toBeEnabled();
   await page.getByTestId("file-input").setInputFiles([{name: "A01_c1.tif", mimeType: "image/tiff", buffer: Buffer.from([1, 2, 3])}, {name: "A01_c2.tif", mimeType: "image/tiff", buffer: Buffer.from([4, 5, 6])}]);
   // Images added before the form is chosen wait for it; one screen takes them and opens on them.
   await expect(page.getByRole("status").filter({hasText: "受け取った画像：2 件。"})).toBeVisible();
   expect(writes.some(value => /region-fields/.test(value))).toBe(false);
-  await page.getByRole("button", {name: /^1 画面/}).click();
+  await page.getByRole("button", {name: /^1 群を記述する/}).click();
   await expect(page.getByRole("toolbar",{name:"画像の表示"}).getByRole("combobox",{name:"領域",exact:true})).toBeEnabled();
   await expect(page).toHaveURL(/[?&]id=synthetic-workspace(?:&|$)/);
   expect(runCount).toBe(0);
@@ -190,7 +190,7 @@ for (const viewport of [{width:1920,height:1080},{width:1440,height:900},{width:
   const beforeNew=workspaceReads;
   await page.getByRole("button",{name:"新しいワークスペース",exact:true}).click();
   await expect(page).not.toHaveURL(/[?&]id=/);
-  await expect(page.getByRole("button",{name:/^2 画面/})).toBeVisible();
+  await expect(page.getByRole("button",{name:/^対照と処理を比べる/})).toBeVisible();
   await expect(page.getByRole("button",{name:"DAPI · c1",exact:true})).toHaveCount(0);
   expect(workspaceReads).toBe(beforeNew);
   expect(writes).toHaveLength(savedWrites);

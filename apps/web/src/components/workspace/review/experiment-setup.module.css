@@ -68,3 +68,35 @@
 .factors{list-style:none;padding:0;margin:6px 0;font-size:14px}.factors li{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0}.level{display:inline-flex;align-items:center;gap:2px;padding:1px 8px;border-radius:10px;background:#eef2f7}.inlineAdd{display:inline-flex;gap:6px;align-items:center;margin-left:8px}.inlineAdd input{width:8em}.addFactor{margin:8px 0}.addFactor summary{font-size:14px;cursor:pointer}.strataTable{border-collapse:collapse;font-size:14px;margin:8px 0}.strataTable th,.strataTable td{padding:4px 10px;border-bottom:1px solid #e8ebef;text-align:left}
 .strata summary{font-size:15px;font-weight:600;cursor:pointer}
 .inlineHeading{display:inline;font-size:15px;margin:0}
+
+/* The purpose leads; the number of screens is the supplement (C-1). */
+.setupHeader h1 small{margin-left:10px;font-size:13px;font-weight:500;color:#65707d}
+.headerActions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.setup .next{background:#2164cf;color:#fff;border:1px solid #2164cf;border-radius:6px;padding:8px 14px;font-weight:600;cursor:pointer;white-space:nowrap}
+.setup .next:disabled{opacity:.5;cursor:default}
+/* What a run is and how the values are combined (ED-01): one sentence and the order of the summaries. */
+.explain{margin:8px 0 10px;font-size:14px;line-height:1.6;color:#374151}
+.explain p{margin:0 0 6px}
+.flow{list-style:none;display:flex;flex-wrap:wrap;align-items:center;gap:6px 22px;margin:0;padding:0;font-size:13px}
+.flow li{position:relative;padding:3px 8px;border:1px solid #c9d8f2;border-radius:12px;background:#f5f9ff;color:#1d2b45}
+.flow li+li::before{content:"→";position:absolute;left:-17px;color:#65707d}
+.status{margin:0 0 12px;font-size:14px;color:#1d2b45;font-weight:500}
+/* The demo shows the recorded design as text, never as disabled inputs (ED-03). */
+.record{margin:0 0 12px;padding:8px 12px;border-left:3px solid #9fb6dc;background:#f5f9ff;font-size:14px;line-height:1.6;color:#374151}
+.runHead>.recorded{grid-column:1/-1}
+.recorded{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;margin:0;font-size:14px;color:#4b5563}
+.recorded strong{color:#20252b;font-size:15px}
+.badge{font-size:12px;padding:1px 8px;border-radius:10px;background:#e7eefb;color:#1d4ea8}
+.primaryForm{display:grid;gap:8px;max-width:520px}
+.primaryForm label{display:grid;gap:4px}
+.primaryForm small{color:#4b5563;line-height:1.5}
+.theme{margin:8px 0 12px;font-size:14px;line-height:1.6;color:#374151}
+.theme summary{cursor:pointer;font-weight:600}
+.themeScroll{overflow-x:auto}
+.theme table{border-collapse:collapse;width:100%;min-width:640px;font-size:13px}
+/* Above the workspace's numeric-table rule (right-aligned, one line): these cells are words. */
+.theme table th,.theme table td{border-bottom:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top;white-space:normal}
+.theme td small{display:block;color:#6b7280}
+.theme tr[data-available="false"]{color:#6b7280}
+.theme td .link+.link{margin-left:10px}
+.hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}

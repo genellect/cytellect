@@ -413,7 +413,7 @@ def render_figures(result, output: Path):
                     ticks.append(textwrap.fill(group, width=16) + f"\nn = {count['experimental_units']}")
                 ax.set_xticks(range(len(order)), ticks)
                 ax.set_xlim(-.6, len(order) - .4)
-                ax.set_xlabel(plot["x_label"] or ("条件（n：独立実験単位）" if ja else "Condition (n: independent units)"))
+                ax.set_xlabel(plot["x_label"] or ("条件（n：実験回）" if ja else "Condition (n: independent units)"))
                 labels = (["観測値", "視野中央値", "独立単位", "平均・95% CI"] if ja else
                           ["Observation", "Field median", "Independent unit", "Mean, 95% CI"])
                 fig.legend(handles=[Line2D([], [], marker=marker, linestyle="", color="#555555", label=label,

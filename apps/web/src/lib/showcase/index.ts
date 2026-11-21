@@ -75,7 +75,9 @@ export interface ShowcaseDataset {title: string; attribution: string; licence: s
   gateChannels: string[] | null;
   /** A plain-language note for visitors who are not biologists (DM-11): what was done to which cells, what the
    * colours show and what was found, one sentence each, and the terms worth a one-line explanation. */
-  explainer: SceneExplainer | null}
+  explainer: SceneExplainer | null;
+  /** The scene's primary measure: its opening comparison, planned before measuring (#257 RP-04, NS-06). Null: none recorded. */
+  primaryOutcome: {version: "1.0.0"; metric: string; region_set_id: "nuclei" | "nucleoli" | "nucleoplasm" | "cell"; channel_id: string | null} | null}
 export interface SceneExplainer {what: string; colors: string; finding: string; terms: string[]}
 const httpsUrl = (value: unknown) => {try {return typeof value === "string" && new URL(value).protocol === "https:" ? value : "";} catch {return "";}};
 export function validDataset(value: unknown): ShowcaseDataset | null {
@@ -88,7 +90,16 @@ export function validDataset(value: unknown): ShowcaseDataset | null {
     regions: Array.isArray(record.regions) ? record.regions.filter((item): item is "nuclei" | "nucleoli" | "nucleoplasm" => item === "nuclei" || item === "nucleoli" || item === "nucleoplasm") : null,
     reported: reportedChange(record.reportedChange),
     gateChannels: Array.isArray(record.gateChannels) ? record.gateChannels.filter((item): item is string => typeof item === "string" && /^[\w.-]{1,64}$/.test(item)) : null,
-    explainer: sceneExplainer(record.explainer)};
+    explainer: sceneExplainer(record.explainer), primaryOutcome: primaryOutcomeOf(record.primaryOutcome)};
+}
+function primaryOutcomeOf(value: unknown): ShowcaseDataset["primaryOutcome"] {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const regions = ["nuclei", "nucleoli", "nucleoplasm", "cell"] as const;
+  const region = regions.find(item => item === record.region_set_id);
+  if (typeof record.metric !== "string" || !/^[a-z0-9_]{1,64}$/.test(record.metric) || !region) return null;
+  const channel = typeof record.channel_id === "string" && /^[\w.-]{1,64}$/.test(record.channel_id) ? record.channel_id : null;
+  return {version: "1.0.0", metric: record.metric, region_set_id: region, channel_id: channel};
 }
 function sceneExplainer(value: unknown): SceneExplainer | null {
   if (!value || typeof value !== "object") return null;

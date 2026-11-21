@@ -32,6 +32,9 @@ from .figures import (
     series_color,
 )
 from .gfp_selection import recorded_gate_lines
+from .region_features import LABELS as FEATURE_LABELS
+from .region_features import is_feature
+from .region_features import methods_lines as feature_methods_lines
 from .regions import RegionModel
 
 # 2.0.0: publication figures (docs/drafts/publication-figures/plan.md). 1.0.0 and 1.0.1 replay saved figures.
@@ -55,6 +58,7 @@ COMPARTMENT_LABELS = {
     "nucleolar_area_px": ("Nucleolar area per nucleus", "核あたりの核小体の総面積"),
     "nucleolar_area_um2": ("Nucleolar area per nucleus", "核あたりの核小体の総面積"),
     "nucleolar_eccentricity": ("Nucleolar eccentricity", "核小体の離心率"),
+    "largest_nucleolus_fraction": ("Largest nucleolus / all nucleoli", "最大の核小体 / 核小体全体"),
 }
 FIELD_SUMMARY_LABELS = {
     "nucleus_count": ("Nucleus count", "核数"),
@@ -83,7 +87,8 @@ def _label(source, ja=False):
     metric = source["metric"]
     labels = {"area_px": ("Region area", "領域面積"), "area_um2": ("Region area", "領域面積"),
               "mean": ("Mean intensity", "平均輝度"), "median": ("Median intensity", "輝度中央値"),
-              "integrated": ("Integrated intensity", "積算輝度"), **COMPARTMENT_LABELS, **FIELD_SUMMARY_LABELS}
+              "integrated": ("Integrated intensity", "積算輝度"), **COMPARTMENT_LABELS, **FIELD_SUMMARY_LABELS,
+              **FEATURE_LABELS}
     label = labels[metric.removesuffix("_corrected")][ja]
     if channel:
         label = f"{channel['label']}: {label}"
@@ -153,6 +158,8 @@ def common_statistics_methods(result):
                                                       spec.get("selection", {}).get("version", "1.0.0")))
         elif source["metric"] in FIELD_SUMMARY_LABELS:
             lines.append(field_summary_methods_sentence(axis, source["metric"]))
+        elif is_feature(source["metric"]):
+            lines.extend(f"{axis}: {line}" for line in feature_methods_lines(source["source_fields"], source["metric"]))
         elif source["metric"].endswith("_corrected"):
             automatic = any((item.get("measurement") or {}).get("mode") == "automatic_background" for item in source["source_fields"])
             basis = "saved automatic background candidate median" if automatic else "saved confirmed background ROI median"
@@ -245,7 +252,7 @@ def _unit_axis(spec, ja):
     if spec.get("test") == "none":
         # Short enough for every figure width; the legend states that independence is not confirmed.
         return "条件（n：記録した実験回）" if ja else "Condition (n: recorded runs)"
-    return "条件（n：独立実験単位）" if ja else "Condition (n: independent units)"
+    return "条件（n：実験回）" if ja else "Condition (n: independent units)"
 
 
 def _unit_interval(values):
@@ -388,7 +395,7 @@ def render_common_statistics(result, output: Path, *, methods_template=None, fig
                 ticks = MaxNLocator(integer=True, min_n_ticks=2).tick_values(0, max_count)
                 ax.set_yticks([value for value in ticks if 0 <= value <= max_count])
                 ax.set_xlabel(plot["x_label"] or _label(canonical, ja))
-                ax.set_ylabel(plot["y_label"] or ("独立実験単位数" if ja else "Independent-unit count"))
+                ax.set_ylabel(plot["y_label"] or ("実験回の数" if ja else "Independent-unit count"))
                 ax.legend(frameon=False)
                 note = "Histogram counts independent units using shared equal-width bins; rugs show every unit."
             elif plot["kind"] in ("superplot", "unit-mean-bar"):

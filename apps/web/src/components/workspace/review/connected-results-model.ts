@@ -1,5 +1,5 @@
 import {comparisonRequest, comparisonSelection, FIELD_SUMMARY_METRICS, type ComparisonChoices, type ComparisonMetric, type Metadata, type GfpSelectionChoice} from "../../../lib/workspace/comparison-adapter";
-import {metricUsesChannel} from "../../../lib/workspace/metric-catalog";
+import {metricUsesChannel,nucleusPositivity} from "../../../lib/workspace/metric-catalog";
 import {defaultFigureEdits} from "../../../lib/figure-controls";
 import type {AssociationRequest} from "../../../lib/common-statistics";
 import type {MeasurementRow} from "../../../lib/workspace/api-adapter";
@@ -51,7 +51,8 @@ export type RenderPlot = ReturnType<typeof defaultFigureEdits> & {
   presentation?:{version:"1.0.0";observations?:"points"|"violin"|"box"|"none"|null;color_by?:"run"|"group"|null;annotation:"value"|"stars"|"none";size:"panel"|"single-column"|"double-column"|"custom";composition:"quantification"|"images-quantification";image_fields?:Record<string,string>;outlines:boolean};
   axes?:{version:"1.0.0";x_scale:"linear"|"log10"|"log2";y_scale:"linear"|"log10"|"log2";x_min:number|null;x_max:number|null;x_tick_step:number|null};
 };
-const metrics = new Set(["area_px","area_um2","mean","median","integrated","mean_corrected","median_corrected","integrated_corrected","nucleolar_count","nucleolar_area_fraction","log2_nucleoplasm_over_nucleolus","nucleolar_area_px","nucleolar_area_um2","nucleolar_eccentricity",...FIELD_SUMMARY_METRICS]);
+const metrics = new Set(["area_px","area_um2","mean","median","integrated","mean_corrected","median_corrected","integrated_corrected",
+  "solidity","axis_ratio","eccentricity","cv","cv_corrected","positive_area_fraction","nucleolar_count","nucleolar_area_fraction","log2_nucleoplasm_over_nucleolus","nucleolar_area_px","nucleolar_area_um2","nucleolar_eccentricity","largest_nucleolus_fraction",...FIELD_SUMMARY_METRICS]);
 export function resultSelection(design: Pick<ResultDesign,"regionSet"|"metric"|"channel"|"gfp"|"channelGate">) {
   if (!metrics.has(design.metric)) throw new Error("対応する測定項目を選択してください。");
   return comparisonSelection(design.regionSet, design.metric as ComparisonMetric, metricUsesChannel(design.metric) ? design.channel : null, design.gfp??null,design.channelGate??null);
@@ -96,15 +97,22 @@ export function seriesOrder(order: string[], series: string[]): string[] {
 export function comparisonKind(): "superplot" {
   return "superplot";
 }
+/** The compared fields (not a channel gate's negative controls) whose group, sample, experimental unit,
+ * acquisition date (when brightness or positivity is compared) or pair (paired) is still empty; null when complete. */
+export function metadataMissing(design: Pick<ResultDesign,"operation"|"metric"|"xMetric"|"paired"|"channelGate">, fields: Record<string, Metadata>): string | null {
+  if (design.operation === "distribution") return null;
+  const compared=Object.entries(fields).filter(([fid])=>!(design.channelGate?.control_field_ids??[]).includes(fid)).map(([,value])=>value);
+  return compared.some(value=>!value.condition?.trim() || !value.sample?.trim() || !value.experimental_unit?.trim()
+    || ((metricUsesChannel(design.metric) || nucleusPositivity(design.metric) || (design.operation === "association" && metricUsesChannel(design.xMetric))) && !value.acquisition_date?.trim())
+    || (design.operation === "comparison" && design.paired && !value.pair?.trim())) ? "視野の群・試料・実験回と、必要な撮影日・対応ペアの入力" : null;
+}
 export function resultRequest(design: ResultDesign, fields: Record<string, Metadata>, plot: RenderPlot) {
   const selection = resultSelection(design);
   if (design.operation === "distribution") return {mode:"descriptive",selection,group_by:"field",figure_policy:{version:"2.0.0",layout:"field-pages"},plot:{...plot,kind:"distribution"}};
   const compared=Object.entries(fields).filter(([fid])=>!(design.channelGate?.control_field_ids??[]).includes(fid)).map(([,value])=>value);
   const conditions = [...new Set(compared.map(value=>value.condition?.trim()).filter((value):value is string=>!!value))];
-  if (!design.confirmed || !design.unit.trim()) throw new Error("独立実験単位と解析条件を確認してください。");
-  if (compared.some(value=>!value.condition?.trim() || !value.sample?.trim() || !value.experimental_unit?.trim()
-    || ((metricUsesChannel(design.metric) || design.metric.startsWith("positive_") || (design.operation === "association" && metricUsesChannel(design.xMetric))) && !value.acquisition_date?.trim())
-    || (design.operation === "comparison" && design.paired && !value.pair?.trim()))) throw new Error("視野の群・試料・独立実験単位と、必要な撮影日・対応ペアを入力してください。");
+  if (!design.confirmed || !design.unit.trim()) throw new Error("実験回の定義と解析条件を確認してください。");
+  if (metadataMissing(design, fields)) throw new Error("視野の群・試料・実験回と、必要な撮影日・対応ペアを入力してください。");
   if (design.operation === "comparison") {
     const choices: ComparisonChoices = {metric:design.metric as ComparisonMetric,channel:design.channel,regionSet:design.regionSet,
       design:design.paired?"paired":"independent",method:design.rank?"rank":"parametric",unitDefinition:design.unit,pairingBasis:design.pairing,
@@ -148,5 +156,5 @@ export function runTable(design:{groups:Array<{id:string;label:string}>;control_
 /** A positive count or fraction judged by a threshold that no negative control fixed (manual, Otsu) is
  * exploratory: it is described (test "none"), never tested. The API refuses a test for it. */
 export function exploratoryPositivity(metric:string,gate:{method:string}|null|undefined){
-  return metric.startsWith("positive_")&&!!gate&&gate.method!=="negative_control";
+  return nucleusPositivity(metric)&&!!gate&&gate.method!=="negative_control";
 }

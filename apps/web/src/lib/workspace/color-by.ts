@@ -1,5 +1,5 @@
 import type {ChannelGateFilter, ChannelGateResult} from "./channel-gate";
-import {metricChoice} from "./metric-catalog";
+import {measureLabel,metricChoice,metricSubjects,metricUsesChannel,perRegionMetric} from "./metric-catalog";
 import type {ReviewTarget} from "./review-preview";
 
 /** How the image colours its regions (requirements MV-01). The colour mode is the entry to a measurement:
@@ -94,18 +94,27 @@ export function tableHeading(view:
   | {colorBy: "compartments"; stain: string; target: string; reference: string}): string {
   if (view.colorBy === "positivity") return `核ごと · ${view.stain}で判定（${view.values === "corrected" ? "背景補正値" : "原値"}、${gateMethodLabel(view.method)}）`;
   if (view.colorBy === "compartments") return `核ごと · ${view.target} ÷ ${view.reference} · ${view.stain}`;
-  if (view.nucleusTable) return "核ごと · すべての染色";
+  // On the nucleoli or the nucleoplasm the nucleus table carries each nucleus's nucleolar summary (A-1).
+  if (view.nucleusTable) return view.target === "nuclei" ? "核ごと · すべての染色" : "核ごと · 核小体のまとめとすべての染色";
   return `${regionNames[view.target]}ごと · ${view.stain}${view.corrected ? "（原値・背景補正）" : "（原値）"}`;
 }
 
 /** The one next step beside the table (MV-09): the comparison of groups that the colour mode leads to. */
 export interface NextComparison {label: string; metric: string; target: ReviewTarget; channel: string | null; reclassify: boolean; note?: string}
-export function nextComparison(view: {colorBy: ColorBy; metric: string; target: ReviewTarget; channel: string; stain: string}): NextComparison {
+export function nextComparison(view: {colorBy: ColorBy; metric: string; target: ReviewTarget; channel: string; stain: string; nucleusTable?: boolean}): NextComparison {
   if (view.colorBy === "positivity") return {label: "陽性率を群間で比較", metric: "positive_fraction", target: "nuclei", channel: null, reclassify: true,
     note: "比較する視野を同じ規則で再判定してから計算します。"};
   if (view.colorBy === "compartments") return {label: "核質／核小体の比を群間で比較", metric: "log2_nucleoplasm_over_nucleolus", target: "nucleoplasm", channel: view.channel, reclassify: false};
-  const choice = metricChoice(view.metric);
-  const channel = choice?.channel ? view.channel : null;
-  const target = choice?.target ?? view.target;
-  return {label: `${choice?.label ?? view.metric}${channel ? `（${view.stain}）` : ""}を群間で比較`, metric: view.metric, target, channel, reclassify: false};
+  // The comparison of what the table beside the image lists (A-2, TB-02): the chosen metric when the table has it,
+  // otherwise the table's own value (a stain's brightness of these regions, or the nucleoli's total area per nucleus).
+  const nucleolar = metricSubjects(view.metric).length === 1 && metricSubjects(view.metric)[0] === "nucleoli";
+  let metric = view.metric, target: ReviewTarget = view.target;
+  if (view.nucleusTable) {
+    if (nucleolar) target = metricChoice(metric)?.target ?? "nucleoplasm";
+    else if (perRegionMetric(metric)) target = "nuclei";
+    else if (view.target !== "nuclei") {metric = "nucleolar_area_px"; target = "nucleoplasm";}
+    else {metric = "area_px"; target = "nuclei";}
+  } else if (!perRegionMetric(metric)) metric = "mean";
+  const channel = metricUsesChannel(metric) ? view.channel : null;
+  return {label: `${measureLabel(metric, target, channel ? view.stain : null)}を群間で比較`, metric, target, channel, reclassify: false};
 }

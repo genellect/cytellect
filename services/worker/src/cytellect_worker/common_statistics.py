@@ -15,6 +15,14 @@ from cytellect_api.workspace_selection import selection_at
 from pydantic import TypeAdapter
 
 
+def _features(store, rev, report, request):
+    """Shape or pixel-signal values (region-features/1.0.0) as a keyword, only for a request that chooses them."""
+    from .feature_sources import load_region_features
+
+    features = load_region_features(store, rev, report, (request,))
+    return {} if features is None else {"features": features}
+
+
 def run_common_statistics(store, job, output):
     from cytellect_analysis.common_statistics import analyze_region_association, analyze_region_comparison
     from cytellect_analysis.common_statistics_figures import render_common_statistics
@@ -61,16 +69,17 @@ def run_common_statistics(store, job, output):
         summaries = (load_compartment_summaries(store, rev, report)
                      if request.selection.source == "compartment-summary" else None)
         shapes = (load_nucleolar_shapes(store, rev, report, summaries)
-                  if request.selection.metric == "nucleolar_eccentricity" else None)
+                  if request.selection.metric in ("nucleolar_eccentricity", "largest_nucleolus_fraction") else None)
         nuclear = load_gate_nuclear_source(store, rev, report, request.selection) if gate_of(request.selection) is not None else None
-        value = analyze_region_comparison(report, config, request, summaries=summaries, nuclear=nuclear, shapes=shapes)
+        value = analyze_region_comparison(report, config, request, summaries=summaries, nuclear=nuclear, shapes=shapes,
+                                          **_features(store, rev, report, request))
     elif isinstance(request, RegionAssociationRequest) and gate_of(request.x_selection) is not None:
         from .gfp_sources import load_gate_nuclear_source
         nuclear = load_gate_nuclear_source(store, rev, report, request.x_selection)
-        value = analyze_region_association(report, config, request, nuclear=nuclear)
+        value = analyze_region_association(report, config, request, nuclear=nuclear, **_features(store, rev, report, request))
     else:
         calculate = analyze_region_association if request.mode == "region-association" else analyze_region_comparison
-        value = calculate(report, config, request)
+        value = calculate(report, config, request, **_features(store, rev, report, request))
     result: dict[str, Any] = TypeAdapter(CommonStatisticsResult).validate_python(value).model_dump(mode="json")
     result["figure"] = render_common_statistics(result, output)
     write_json(output / "source-review.json", accepted)

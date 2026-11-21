@@ -30,7 +30,7 @@ export function ProposalSummary({ proposal, grouping, onRun, onName, children }:
       <ol className={styles.flow} aria-label="実行する処理">
         <li>{proposal.regions.length ? `${proposal.regions.join("・")}を検出` : "領域を検出"}</li>
         <li>{proposal.metrics.length ? `${proposal.metrics.map((metric) => metric.label).join("、")}を測定` : "面積と輝度を測定"}</li>
-        <li>{proposal.statistics.kind === "descriptive" ? "視野別の分布グラフを作成" : "実験単位で群間比較"}</li>
+        <li>{proposal.statistics.kind === "descriptive" ? "視野別の分布グラフを作成" : "実験回で群間比較"}</li>
       </ol>
       <p className={styles.target}>{proposal.fieldCount} 視野 · {grouping.channels.map(channelText).join("、")}</p>
       {others.length > 0 && <ul className={styles.unresolved} role="status">{others.map((item) => <li key={item}>{item}</li>)}</ul>}
@@ -41,7 +41,7 @@ export function ProposalSummary({ proposal, grouping, onRun, onName, children }:
         <dl>
           <div><dt>核検出</dt><dd>Fiji / StarDist 2D Versatile　正規化 1–99.8%　確率 0.5　NMS 0.3</dd></div>
           <div><dt>背景補正</dt><dd>なし（補正前の値）</dd></div>
-          <div><dt>集計</dt><dd>視野内中央値 → 試料平均 → 実験単位平均</dd></div>
+          <div><dt>集計</dt><dd>視野内中央値 → 試料平均 → 実験回の平均</dd></div>
         </dl>
         <fieldset className={styles.names}>
           <legend>染色名（任意）</legend>

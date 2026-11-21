@@ -67,21 +67,21 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   // Product alerts are inside the workspace; the empty Next.js route announcer outside it is not one.
   const noAlerts = async () => expect(await page.getByRole("main").getByRole("alert").allTextContents()).toEqual([]);
 
-  // E-01: the first screen offers one or two screens, each with a short description.
+  // E-01: the first screen offers the two purposes (one group described, control and treatment compared), the number of screens as a supplement (C-1).
   await page.goto(entry);
   const choice = page.getByRole("region", {name: "実験デザイン"});
   await expect(choice.getByRole("heading", {name: "実験デザイン", level: 1})).toBeVisible();
-  await expect(choice.getByRole("button", {name: /^1 画面/})).toBeEnabled();
-  await expect(choice.getByRole("button", {name: /^1 画面/})).toContainText("1 群の記述");
-  await expect(choice.getByRole("button", {name: /^1 画面/})).toContainText("検定はしません。");
-  await expect(choice.getByRole("button", {name: /^2 画面/})).toBeEnabled();
-  await expect(choice.getByRole("button", {name: /^2 画面/})).toContainText("2 群の比較");
-  await expect(choice.getByRole("button", {name: /^2 画面/})).toContainText("同じ実験回で対にして比較します。");
+  await expect(choice.getByRole("button", {name: /^1 群を記述する/})).toBeEnabled();
+  await expect(choice.getByRole("button", {name: /^1 群を記述する/})).toContainText("1 画面");
+  await expect(choice.getByRole("button", {name: /^1 群を記述する/})).toContainText("検定はしません。");
+  await expect(choice.getByRole("button", {name: /^対照と処理を比べる/})).toBeEnabled();
+  await expect(choice.getByRole("button", {name: /^対照と処理を比べる/})).toContainText("2 画面");
+  await expect(choice.getByRole("button", {name: /^対照と処理を比べる/})).toContainText("同じ実験回で対にして比較します。");
   await choice.getByLabel("最初の実験回の実施日").fill(PERFORMED.Run1);
-  await choice.getByRole("button", {name: /^2 画面/}).click();
+  await choice.getByRole("button", {name: /^対照と処理を比べる/}).click();
 
   const setup = page.getByRole("region", {name: "実験デザイン"});
-  await expect(setup.getByRole("heading", {name: "2 画面：2 群の比較", level: 1})).toBeVisible();
+  await expect(setup.getByRole("heading", {name: /^対照と処理を、実験回ごとに対にして比べる/, level: 1})).toBeVisible();
   await expect(page).toHaveURL(/[?&]id=[^&]+/);
   const workspace = new URL(page.url()).searchParams.get("id")!;
   // Choosing the form saves the design only; nothing is detected or measured (requirements E-01).
@@ -237,7 +237,7 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   const metadata = panel.locator("details").filter({has: page.getByText("実験情報", {exact: true})});
   // With a declared experiment the table starts folded; the researcher opens it to check the record.
   if (!await metadata.evaluate(element => (element as HTMLDetailsElement).open)) await metadata.getByText("実験情報", {exact: true}).click();
-  await expect(metadata.getByText("群・試料・独立実験単位・撮影日・対応ペアは、実験デザインから決まります。")).toBeVisible();
+  await expect(metadata.getByText("群・試料・実験回・撮影日・対応ペアは、実験デザインから決まります。")).toBeVisible();
   const conditions = metadata.locator('input[aria-label$=" condition"]'), units = metadata.locator('input[aria-label$=" experimental_unit"]'), pairs = metadata.locator('input[aria-label$=" pair"]');
   await expect(conditions).toHaveCount(registeredFields.length);
   const entered: Record<string, number> = {};
@@ -248,16 +248,17 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   }
   expect(entered).toEqual(Object.fromEntries(combinations.map(([run, groupIndex]) => [`${run} · ${GROUPS[groupIndex].label}|${GROUPS[groupIndex].label}|${run}`, SITES.length])));
 
-  await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み", {exact: true}).check();
-  await panel.getByLabel("測定領域と採用する視野を確認済み", {exact: true}).check();
+  // D-6: the declared design defines the runs, the control and the pairing; it is not entered again here.
+  await expect(panel).toContainText("実験回・対照・対応は「実験」の宣言を使います（3 実験回、独立性：未確認）");
+  await panel.getByLabel("撮影・画素条件と、採否・欠測の扱いを確認済み", {exact: true}).check();
   // E-05: without the independence statement the comparison is descriptive: run values and differences, no test or interval.
   const method = panel.getByRole("combobox", {name: "方法", exact: true});
   await expect(method).toHaveValue("none");
   await expect(method).toBeDisabled();
   await expect(panel.getByRole("combobox", {name: "解析", exact: true}).locator("option[value=association]")).toHaveAttribute("disabled", "");
-  await expect(panel.getByRole("button", {name: "計算", exact: true})).toBeEnabled();
+  // D-5: the last confirmation starts the description at once (no test); 計算 is not pressed.
   const described = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname.endsWith("/common-statistics"), {timeout: 300_000});
-  await panel.getByRole("button", {name: "計算", exact: true}).click();
+  await panel.getByLabel("測定領域と採用する視野を確認済み", {exact: true}).check();
   const describedResponse = await described;
   expect((describedResponse.request().postDataJSON() as {test: string}).test).toBe("none");
   const describedJob = ((await describedResponse.json()) as {job_id: string}).job_id;
@@ -295,6 +296,37 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
     scope: "Goals C1 on the unconfirmed design (E-05): descriptive comparison, figure and Methods; workflow acceptance only, not detection accuracy or biological validation",
     workspace, job: describedJob, sentence: descriptiveSentence, estimates: describedResult.estimates}, null, 2));
 
+  // SR-06 (#257): on this real workspace the statistics follow the side panel, as on the demo (SR-01–SR-04).
+  const pendingCondition = panel.getByRole("region", {name: "選択中の条件"});
+  // SR-02 with D-5: another metric shows its own description, calculated at once (no test); never the earlier graph.
+  const areaDescribed = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname.endsWith("/common-statistics"), {timeout: 300_000});
+  await options.getByRole("combobox", {name: "対象", exact: true}).selectOption("nuclei");
+  await options.getByRole("combobox", {name: "指標", exact: true}).selectOption("area_px");
+  const areaRequest = (await areaDescribed).request().postDataJSON() as {test: string; selection: {metric: string}};
+  expect(areaRequest).toMatchObject({test: "none", selection: {metric: "area_px"}});
+  await expect(descriptive.getByRole("heading", {level: 3})).toContainText("核の面積", {timeout: 300_000});
+  await expect(pendingCondition).toHaveCount(0);
+  // SR-03: the design's confirmation is not undone by another metric.
+  await expect(panel.getByLabel(/撮影・画素条件/)).toBeChecked();
+  // SR-04: the figure view shows the chosen condition's figure, without a note that it is another's.
+  await page.getByRole("navigation", {name: "作業の切替"}).getByRole("button", {name: "グラフ", exact: true}).click();
+  const figureView = page.getByRole("region", {name: "図の作成・保存"});
+  await expect(figureView.getByRole("button", {name: /^グラフを選択/}).first()).toBeVisible({timeout: 120_000});
+  await expect(figureView.getByRole("status").filter({hasText: "の図はまだありません"})).toHaveCount(0);
+  await page.getByRole("navigation", {name: "作業の切替"}).getByRole("button", {name: "統計", exact: true}).click();
+  // SR-01: back on the nucleus count, its saved result opens without another calculation.
+  let recalculated = false;
+  const watchPost = (request: import("@playwright/test").Request) => {if (request.method() === "POST" && new URL(request.url()).pathname.endsWith("/common-statistics")) recalculated = true;};
+  page.on("request", watchPost);
+  await options.getByRole("combobox", {name: "指標", exact: true}).selectOption("nucleus_count");
+  await expect(descriptiveBasis).toBeVisible({timeout: 60_000});
+  await expect(pendingCondition).toHaveCount(0);
+  page.off("request", watchPost);
+  expect(recalculated).toBe(false);
+  // The saved result is the chosen condition's: nothing asks for it to be calculated again.
+  await expect(panel.getByRole("status").filter({hasText: "再計算してください"})).toHaveCount(0);
+  await page.screenshot({path: path.join(output, "statistics-follows-choice.png")});
+
   // A separate path: after the researcher confirms independence, the declared paired t test is offered.
   // This checks the inferential route only; the JUMP source does not state that the runs are independent.
   await descriptiveBasis.click();
@@ -307,7 +339,7 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   await expect(method).toHaveValue("parametric");
   await expect(method).toBeEnabled();
   await expect(panel.getByRole("combobox", {name: "解析", exact: true})).toHaveValue("comparison");
-  if (!await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み", {exact: true}).isChecked()) await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み", {exact: true}).check();
+  if (!await panel.getByLabel(/撮影・画素条件/).isChecked()) await panel.getByLabel(/撮影・画素条件/).check();
   if (!await panel.getByLabel("測定領域と採用する視野を確認済み", {exact: true}).isChecked()) await panel.getByLabel("測定領域と採用する視野を確認済み", {exact: true}).check();
   await expect(panel.getByRole("button", {name: "計算", exact: true})).toBeEnabled();
   const accepted = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname.endsWith("/common-statistics"), {timeout: 300_000});

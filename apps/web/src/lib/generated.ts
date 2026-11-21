@@ -856,6 +856,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/revisions/{rid}/region-features": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Region Features
+         * @description Solidity, axis ratio and eccentricity of every region of one measured field; with `channel_id`, also the
+         *     pixel CV (raw and, with an established automatic background, corrected) and positive-area fraction.
+         */
+        get: operations["get_region_features_v1_revisions__rid__region_features_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/revisions/{rid}/region-partition": {
         parameters: {
             query?: never;
@@ -1448,6 +1469,7 @@ export interface components {
             figure_presentation?: components["schemas"]["DraftFigurePresentation"] | null;
             /** Experiment */
             experiment?: (components["schemas"]["ExperimentDesign"] | components["schemas"]["StratifiedExperimentDesign"]) | null;
+            primary_outcome?: components["schemas"]["PrimaryOutcome"] | null;
         };
         /** AnalysisSpecView */
         AnalysisSpecView: {
@@ -2631,7 +2653,7 @@ export interface components {
             /** Channel Id */
             channel_id?: string | null;
             /** Metric */
-            metric: ("log2_nucleoplasm_over_nucleolus" | "nucleolar_area_fraction" | "nucleolar_count") | ("nucleolar_area_px" | "nucleolar_area_um2" | "nucleolar_eccentricity");
+            metric: ("log2_nucleoplasm_over_nucleolus" | "nucleolar_area_fraction" | "nucleolar_count") | ("nucleolar_area_px" | "nucleolar_area_um2" | "nucleolar_eccentricity" | "largest_nucleolus_fraction");
             /** Gfp Gate */
             gfp_gate?: components["schemas"]["GfpGateFilter"] | components["schemas"]["ExploratoryGfpGateFilter"] | null;
             channel_gate?: components["schemas"]["ChannelGateFilter"] | null;
@@ -3247,7 +3269,7 @@ export interface components {
              * Metric
              * @default area_px
              */
-            metric: ("area_px" | "area_um2" | "mean" | "median" | "integrated" | "mean_corrected" | "median_corrected" | "integrated_corrected") | ("ncl_nucleus_mean" | "ncl_nucleus_median" | "ncl_nucleus_integrated" | "ncl_nucleus_mean_corrected" | "ncl_nucleus_median_corrected" | "ncl_nucleus_integrated_corrected" | "ncl_nucleoli_mean" | "ncl_nucleoli_median" | "ncl_nucleoli_integrated" | "ncl_nucleoli_mean_corrected" | "ncl_nucleoli_median_corrected" | "ncl_nucleoli_integrated_corrected" | "ncl_nucleoplasm_mean" | "ncl_nucleoplasm_median" | "ncl_nucleoplasm_integrated" | "ncl_nucleoplasm_mean_corrected" | "ncl_nucleoplasm_median_corrected" | "ncl_nucleoplasm_integrated_corrected" | "gfp_mean" | "gfp_median" | "gfp_integrated" | "gfp_mean_corrected" | "gfp_median_corrected" | "gfp_integrated_corrected" | "nucleus_area_px" | "nucleus_area_um2" | "nucleolar_area_px" | "nucleolar_area_um2" | "nucleoplasm_area_px" | "nucleoplasm_area_um2" | "nucleolar_count" | "nucleolar_area_fraction" | "ncl_nucleoplasm_over_nucleoli" | "ncl_log2_nucleoplasm_over_nucleoli" | "ncl_legacy_release") | ("nucleus_count" | "nucleus_density_per_mm2" | "positive_count" | "positive_fraction") | ("nucleolar_area_px" | "nucleolar_area_um2" | "nucleolar_eccentricity");
+            metric: ("area_px" | "area_um2" | "mean" | "median" | "integrated" | "mean_corrected" | "median_corrected" | "integrated_corrected" | "solidity" | "axis_ratio" | "eccentricity" | "cv" | "cv_corrected" | "positive_area_fraction") | ("ncl_nucleus_mean" | "ncl_nucleus_median" | "ncl_nucleus_integrated" | "ncl_nucleus_mean_corrected" | "ncl_nucleus_median_corrected" | "ncl_nucleus_integrated_corrected" | "ncl_nucleoli_mean" | "ncl_nucleoli_median" | "ncl_nucleoli_integrated" | "ncl_nucleoli_mean_corrected" | "ncl_nucleoli_median_corrected" | "ncl_nucleoli_integrated_corrected" | "ncl_nucleoplasm_mean" | "ncl_nucleoplasm_median" | "ncl_nucleoplasm_integrated" | "ncl_nucleoplasm_mean_corrected" | "ncl_nucleoplasm_median_corrected" | "ncl_nucleoplasm_integrated_corrected" | "gfp_mean" | "gfp_median" | "gfp_integrated" | "gfp_mean_corrected" | "gfp_median_corrected" | "gfp_integrated_corrected" | "nucleus_area_px" | "nucleus_area_um2" | "nucleolar_area_px" | "nucleolar_area_um2" | "nucleoplasm_area_px" | "nucleoplasm_area_um2" | "nucleolar_count" | "nucleolar_area_fraction" | "ncl_nucleoplasm_over_nucleoli" | "ncl_log2_nucleoplasm_over_nucleoli" | "ncl_legacy_release") | ("nucleus_count" | "nucleus_density_per_mm2" | "positive_count" | "positive_fraction") | ("nucleolar_area_px" | "nucleolar_area_um2" | "nucleolar_eccentricity" | "largest_nucleolus_fraction");
             /** Channel Id */
             channel_id?: string | null;
             /** Plot */
@@ -4712,6 +4734,30 @@ export interface components {
             /** Point Size */
             point_size?: number | null;
         };
+        /**
+         * PrimaryOutcome
+         * @description The measure declared primary before results are read (genellect/cytellect#257 RP-04); any other measure is
+         *     exploratory. The server sets `declared_at` when the declared measure changes, so it cannot be backdated.
+         */
+        PrimaryOutcome: {
+            /**
+             * Version
+             * @default 1.0.0
+             * @constant
+             */
+            version: "1.0.0";
+            /** Metric */
+            metric: ("area_px" | "area_um2" | "mean" | "median" | "integrated" | "mean_corrected" | "median_corrected" | "integrated_corrected" | "solidity" | "axis_ratio" | "eccentricity" | "cv" | "cv_corrected" | "positive_area_fraction") | ("ncl_nucleus_mean" | "ncl_nucleus_median" | "ncl_nucleus_integrated" | "ncl_nucleus_mean_corrected" | "ncl_nucleus_median_corrected" | "ncl_nucleus_integrated_corrected" | "ncl_nucleoli_mean" | "ncl_nucleoli_median" | "ncl_nucleoli_integrated" | "ncl_nucleoli_mean_corrected" | "ncl_nucleoli_median_corrected" | "ncl_nucleoli_integrated_corrected" | "ncl_nucleoplasm_mean" | "ncl_nucleoplasm_median" | "ncl_nucleoplasm_integrated" | "ncl_nucleoplasm_mean_corrected" | "ncl_nucleoplasm_median_corrected" | "ncl_nucleoplasm_integrated_corrected" | "gfp_mean" | "gfp_median" | "gfp_integrated" | "gfp_mean_corrected" | "gfp_median_corrected" | "gfp_integrated_corrected" | "nucleus_area_px" | "nucleus_area_um2" | "nucleolar_area_px" | "nucleolar_area_um2" | "nucleoplasm_area_px" | "nucleoplasm_area_um2" | "nucleolar_count" | "nucleolar_area_fraction" | "ncl_nucleoplasm_over_nucleoli" | "ncl_log2_nucleoplasm_over_nucleoli" | "ncl_legacy_release") | ("nucleus_count" | "nucleus_density_per_mm2" | "positive_count" | "positive_fraction") | ("nucleolar_area_px" | "nucleolar_area_um2" | "nucleolar_eccentricity" | "largest_nucleolus_fraction");
+            /**
+             * Region Set Id
+             * @enum {string}
+             */
+            region_set_id: "nuclei" | "nucleoli" | "nucleoplasm" | "cell";
+            /** Channel Id */
+            channel_id?: string | null;
+            /** Declared At */
+            declared_at?: number | null;
+        };
         /** ProposalChannelLink */
         ProposalChannelLink: {
             /** Token */
@@ -5367,6 +5413,49 @@ export interface components {
             region_id?: number | null;
             /** Reason */
             reason: string;
+        };
+        /** RegionFeatureRow */
+        RegionFeatureRow: {
+            /** Region Id */
+            region_id: number;
+            /** Area Px */
+            area_px: number;
+            /** Excluded */
+            excluded: boolean;
+            /** Values */
+            values: {
+                [key: string]: components["schemas"]["RegionFeatureValue"];
+            };
+        };
+        /** RegionFeatureTable */
+        RegionFeatureTable: {
+            /** Protocol */
+            protocol: string;
+            /** Field Id */
+            field_id: string;
+            /** Region Set Id */
+            region_set_id: string;
+            /** Mask Revision Id */
+            mask_revision_id: string;
+            /** Channel Id */
+            channel_id: string | null;
+            /** Minimum Area Px */
+            minimum_area_px: number;
+            /** Metrics */
+            metrics: string[];
+            /** Thresholds */
+            thresholds: {
+                [key: string]: unknown;
+            };
+            /** Rows */
+            rows: components["schemas"]["RegionFeatureRow"][];
+        };
+        /** RegionFeatureValue */
+        RegionFeatureValue: {
+            /** Value */
+            value: number | null;
+            /** Missing Reason */
+            missing_reason: string | null;
         };
         /** RegionFieldFailure */
         RegionFieldFailure: {
@@ -6168,7 +6257,7 @@ export interface components {
              * Metric
              * @enum {string}
              */
-            metric: "area_px" | "area_um2" | "mean" | "median" | "integrated" | "mean_corrected" | "median_corrected" | "integrated_corrected";
+            metric: "area_px" | "area_um2" | "mean" | "median" | "integrated" | "mean_corrected" | "median_corrected" | "integrated_corrected" | "solidity" | "axis_ratio" | "eccentricity" | "cv" | "cv_corrected" | "positive_area_fraction";
             /** Gfp Gate */
             gfp_gate?: components["schemas"]["GfpGateFilter"] | components["schemas"]["ExploratoryGfpGateFilter"] | null;
             channel_gate?: components["schemas"]["ChannelGateFilter"] | null;
@@ -6353,7 +6442,7 @@ export interface components {
         /** SavedDraftMetric */
         SavedDraftMetric: {
             /** Metric */
-            metric: ("area" | "mean_raw" | "integral_raw" | "mean_corrected" | "integral_corrected" | "ncl_log2_nucleoplasm_over_nucleoli" | "nucleolar_area_fraction" | "nucleolar_count") | ("area_px" | "area_um2" | "mean" | "median" | "integrated" | "mean_corrected" | "median_corrected" | "integrated_corrected") | ("ncl_nucleus_mean" | "ncl_nucleus_median" | "ncl_nucleus_integrated" | "ncl_nucleus_mean_corrected" | "ncl_nucleus_median_corrected" | "ncl_nucleus_integrated_corrected" | "ncl_nucleoli_mean" | "ncl_nucleoli_median" | "ncl_nucleoli_integrated" | "ncl_nucleoli_mean_corrected" | "ncl_nucleoli_median_corrected" | "ncl_nucleoli_integrated_corrected" | "ncl_nucleoplasm_mean" | "ncl_nucleoplasm_median" | "ncl_nucleoplasm_integrated" | "ncl_nucleoplasm_mean_corrected" | "ncl_nucleoplasm_median_corrected" | "ncl_nucleoplasm_integrated_corrected" | "gfp_mean" | "gfp_median" | "gfp_integrated" | "gfp_mean_corrected" | "gfp_median_corrected" | "gfp_integrated_corrected" | "nucleus_area_px" | "nucleus_area_um2" | "nucleolar_area_px" | "nucleolar_area_um2" | "nucleoplasm_area_px" | "nucleoplasm_area_um2" | "nucleolar_count" | "nucleolar_area_fraction" | "ncl_nucleoplasm_over_nucleoli" | "ncl_log2_nucleoplasm_over_nucleoli" | "ncl_legacy_release");
+            metric: ("area" | "mean_raw" | "integral_raw" | "mean_corrected" | "integral_corrected" | "ncl_log2_nucleoplasm_over_nucleoli" | "nucleolar_area_fraction" | "nucleolar_count") | ("area_px" | "area_um2" | "mean" | "median" | "integrated" | "mean_corrected" | "median_corrected" | "integrated_corrected" | "solidity" | "axis_ratio" | "eccentricity" | "cv" | "cv_corrected" | "positive_area_fraction") | ("ncl_nucleus_mean" | "ncl_nucleus_median" | "ncl_nucleus_integrated" | "ncl_nucleus_mean_corrected" | "ncl_nucleus_median_corrected" | "ncl_nucleus_integrated_corrected" | "ncl_nucleoli_mean" | "ncl_nucleoli_median" | "ncl_nucleoli_integrated" | "ncl_nucleoli_mean_corrected" | "ncl_nucleoli_median_corrected" | "ncl_nucleoli_integrated_corrected" | "ncl_nucleoplasm_mean" | "ncl_nucleoplasm_median" | "ncl_nucleoplasm_integrated" | "ncl_nucleoplasm_mean_corrected" | "ncl_nucleoplasm_median_corrected" | "ncl_nucleoplasm_integrated_corrected" | "gfp_mean" | "gfp_median" | "gfp_integrated" | "gfp_mean_corrected" | "gfp_median_corrected" | "gfp_integrated_corrected" | "nucleus_area_px" | "nucleus_area_um2" | "nucleolar_area_px" | "nucleolar_area_um2" | "nucleoplasm_area_px" | "nucleoplasm_area_um2" | "nucleolar_count" | "nucleolar_area_fraction" | "ncl_nucleoplasm_over_nucleoli" | "ncl_log2_nucleoplasm_over_nucleoli" | "ncl_legacy_release");
             /** Channel */
             channel: string | null;
             /** Region */
@@ -6516,11 +6605,11 @@ export interface components {
              * Metric
              * @default area_px
              */
-            metric: ("area_px" | "area_um2" | "mean" | "median" | "integrated" | "mean_corrected" | "median_corrected" | "integrated_corrected") | ("ncl_nucleus_mean" | "ncl_nucleus_median" | "ncl_nucleus_integrated" | "ncl_nucleus_mean_corrected" | "ncl_nucleus_median_corrected" | "ncl_nucleus_integrated_corrected" | "ncl_nucleoli_mean" | "ncl_nucleoli_median" | "ncl_nucleoli_integrated" | "ncl_nucleoli_mean_corrected" | "ncl_nucleoli_median_corrected" | "ncl_nucleoli_integrated_corrected" | "ncl_nucleoplasm_mean" | "ncl_nucleoplasm_median" | "ncl_nucleoplasm_integrated" | "ncl_nucleoplasm_mean_corrected" | "ncl_nucleoplasm_median_corrected" | "ncl_nucleoplasm_integrated_corrected" | "gfp_mean" | "gfp_median" | "gfp_integrated" | "gfp_mean_corrected" | "gfp_median_corrected" | "gfp_integrated_corrected" | "nucleus_area_px" | "nucleus_area_um2" | "nucleolar_area_px" | "nucleolar_area_um2" | "nucleoplasm_area_px" | "nucleoplasm_area_um2" | "nucleolar_count" | "nucleolar_area_fraction" | "ncl_nucleoplasm_over_nucleoli" | "ncl_log2_nucleoplasm_over_nucleoli" | "ncl_legacy_release") | ("nucleus_count" | "nucleus_density_per_mm2" | "positive_count" | "positive_fraction") | ("nucleolar_area_px" | "nucleolar_area_um2" | "nucleolar_eccentricity");
+            metric: ("area_px" | "area_um2" | "mean" | "median" | "integrated" | "mean_corrected" | "median_corrected" | "integrated_corrected" | "solidity" | "axis_ratio" | "eccentricity" | "cv" | "cv_corrected" | "positive_area_fraction") | ("ncl_nucleus_mean" | "ncl_nucleus_median" | "ncl_nucleus_integrated" | "ncl_nucleus_mean_corrected" | "ncl_nucleus_median_corrected" | "ncl_nucleus_integrated_corrected" | "ncl_nucleoli_mean" | "ncl_nucleoli_median" | "ncl_nucleoli_integrated" | "ncl_nucleoli_mean_corrected" | "ncl_nucleoli_median_corrected" | "ncl_nucleoli_integrated_corrected" | "ncl_nucleoplasm_mean" | "ncl_nucleoplasm_median" | "ncl_nucleoplasm_integrated" | "ncl_nucleoplasm_mean_corrected" | "ncl_nucleoplasm_median_corrected" | "ncl_nucleoplasm_integrated_corrected" | "gfp_mean" | "gfp_median" | "gfp_integrated" | "gfp_mean_corrected" | "gfp_median_corrected" | "gfp_integrated_corrected" | "nucleus_area_px" | "nucleus_area_um2" | "nucleolar_area_px" | "nucleolar_area_um2" | "nucleoplasm_area_px" | "nucleoplasm_area_um2" | "nucleolar_count" | "nucleolar_area_fraction" | "ncl_nucleoplasm_over_nucleoli" | "ncl_log2_nucleoplasm_over_nucleoli" | "ncl_legacy_release") | ("nucleus_count" | "nucleus_density_per_mm2" | "positive_count" | "positive_fraction") | ("nucleolar_area_px" | "nucleolar_area_um2" | "nucleolar_eccentricity" | "largest_nucleolus_fraction");
             /** Channel Id */
             channel_id?: string | null;
             /** X Metric */
-            x_metric?: ("area_px" | "area_um2" | "mean" | "median" | "integrated" | "mean_corrected" | "median_corrected" | "integrated_corrected") | null;
+            x_metric?: ("area_px" | "area_um2" | "mean" | "median" | "integrated" | "mean_corrected" | "median_corrected" | "integrated_corrected" | "solidity" | "axis_ratio" | "eccentricity" | "cv" | "cv_corrected" | "positive_area_fraction") | null;
             /** X Channel Id */
             x_channel_id?: string | null;
             /** Design */
@@ -9050,6 +9139,40 @@ export interface operations {
                 };
                 content: {
                     "application/zip": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_region_features_v1_revisions__rid__region_features_get: {
+        parameters: {
+            query: {
+                field_id: string;
+                channel_id?: string | null;
+            };
+            header?: never;
+            path: {
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegionFeatureTable"];
                 };
             };
             /** @description Validation Error */

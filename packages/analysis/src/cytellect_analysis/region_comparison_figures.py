@@ -19,11 +19,11 @@ def _caption(result):
                 if channel else "area; no intensity channel")
     lines = ["# 図の説明" if ja else "# Figure legend", "",
              f"{result['region']['label']}; {identity}; {result['metric']} ({result['unit']}).",
-             ("小さい点は領域測定値、四角は視野中央値、色付きの点は独立実験単位の要約値。"
-              "黒い菱形は独立実験単位の平均と点ごとの95%信頼区間を示す。" if ja else
+             ("小さい点は領域測定値、四角は視野中央値、色付きの点は実験回の要約値。"
+              "黒い菱形は実験回の平均と点ごとの95%信頼区間を示す。" if ja else
               "Small points are region observations, squares are field medians, and colored points are independent-unit summaries. "
               "Black diamonds show independent-unit means and pointwise 95% confidence intervals."),
-             ("視野内中央値 → 試料内の視野平均 → 独立実験単位内の試料平均。領域数を独立nに数えない。" if ja else
+             ("視野内中央値 → 試料内の視野平均 → 実験回内の試料平均。領域数を独立nに数えない。" if ja else
               "Aggregation: field median → mean of fields within sample → mean of samples within independent unit. "
               "Region observations do not increase independent n."),
              ("検定は両側。Holm補正は事前指定の比較集合全体に適用し、平均や差の95%信頼区間は同時信頼区間ではない。" if ja else

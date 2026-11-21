@@ -349,13 +349,18 @@ def validate_area_backgrounds(measurement: MeasurementPolicy | None, backgrounds
 
 def require_region_metric(measurement: MeasurementPolicy | None, metric: str) -> None:
     if measurement is None:
+        # Protocol 1.0.0 corrects with a confirmed ROI; the corrected pixel CV is defined on the automatic background only.
+        if metric == "cv_corrected":
+            raise ValueError("region_metric_not_measured")
         return
     measurement = MEASUREMENT_POLICY.validate_python(measurement)
+    from .region_shape import OFFERED_METRICS as shape
     allowed = {
-        "area_only": ("area_px", "area_um2"),
-        "raw_intensity": ("area_px", "area_um2", "mean", "median", "integrated"),
+        "area_only": ("area_px", "area_um2", *shape),
+        "raw_intensity": ("area_px", "area_um2", "mean", "median", "integrated", *shape, "cv", "positive_area_fraction"),
         "automatic_background": ("area_px", "area_um2", "mean", "median", "integrated",
-                                 "mean_corrected", "median_corrected", "integrated_corrected"),
+                                 "mean_corrected", "median_corrected", "integrated_corrected",
+                                 *shape, "cv", "cv_corrected", "positive_area_fraction"),
     }[measurement.mode]
     if metric not in allowed:
         raise ValueError("region_metric_not_measured")

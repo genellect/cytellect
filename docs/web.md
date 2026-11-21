@@ -45,6 +45,15 @@ comparison, and an association, which analyses every group, is withheld, each wi
 With a GFP nucleus filter the analysed nuclei are known only to the API, which then decides.
 Numeric CSV import handles already measured assays; no instrument-specific processing.
 
+Shape and pixel-signal measures (genellect/cytellect#257, requirements M-10, M-11): solidity, axis ratio and eccentricity
+of each region, and a stain's pixel CV and positive-area fraction, are chosen like area and brightness. The API computes
+them from the saved regions (`region-features/1.0.0`, docs/methods.md); the browser never does. The image table loads
+them on request (「形と信号の値を表示」, `GET /v1/revisions/{rid}/region-features`), with the reason a region has no value.
+The experiment view declares one primary measure before results (`primary_outcome` in the analysis spec; the API sets
+the declaration time), and the statistics view names every condition and shown result 主要指標 or 探索的な指標. The
+核小体ストレス theme lists each question's measure, stain, region and observation, and opens the region on the image.
+The public demo records these values for every scene and shows each scene's opening comparison, planned before measuring, as its declared primary measure (`primaryOutcome` in `snapshot/dataset.json`).
+
 ## Data boundary
 
 Research pixels go directly from browser to API. No Next.js server action, image
@@ -90,7 +99,11 @@ review route `/workspace-review` (the workspace without its session gate) redire
   open on the nucleolar marker with the adopted nuclei outlined faintly; side by side (2 画面) each
   pane has the outline tools of one field; focusing the AI composer opens the AI panel;
   `?step=image|statistics|figure` opens that tab; statistics and figures open on the latest saved
-  result, and saved comparisons switch with one click (保存した比較); the settings panel starts
+  result, and saved comparisons switch with one click (保存した比較). Choosing another analysis, region,
+  metric or stain shows that condition's saved result at once, or, where the result appears, its name, what
+  the calculation still needs and 計算 (requirements S-09–S-12); confirmations stay through other metrics
+  and regions, an analysis the view changes states why, and measures are named by region and stain
+  (「核小体の平均輝度（5-EU）」), not channel identifiers; the settings panel starts
   closed and opens with 設定. In production a drop of files or folders adds images as the 画像 and
   フォルダ buttons do; the first images of a workspace without a form wait for the choice of the form
   (1 画面 takes them, 2 画面 asks which run and group, 実験デザインなしで登録 keeps typing groups per field

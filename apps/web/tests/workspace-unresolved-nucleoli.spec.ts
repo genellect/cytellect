@@ -70,18 +70,18 @@ test("unresolved nucleoli are confirmed by group, unit and reason, then kept as 
   const navigation=page.getByRole("navigation",{name:"作業の切替"});
   await navigation.getByRole("button",{name:"統計",exact:true}).click();
   const side=page.getByRole("complementary",{name:"解析対象"});
-  await side.getByRole("combobox",{name:"領域",exact:true}).selectOption("nucleoli");
+  await side.getByRole("combobox",{name:"対象",exact:true}).selectOption("nucleoli");
   await side.getByRole("combobox",{name:"指標",exact:true}).selectOption("area_px");
   const panel=page.getByRole("region",{name:"測定結果の統計解析"});
   // The settings saved by choosing the region and metric come back and set the analysis they hold;
   // the comparison is chosen once that round trip has settled.
   await page.waitForLoadState("networkidle");
   const analysis=panel.getByRole("combobox",{name:"解析",exact:true});
-  await expect(async()=>{await analysis.selectOption("comparison");await expect(panel.getByLabel("独立実験単位",{exact:true})).toBeVisible({timeout:2000});}).toPass({timeout:30000});
-  await panel.getByLabel("独立実験単位",{exact:true}).fill("Transport independent units");
+  await expect(async()=>{await analysis.selectOption("comparison");await expect(panel.getByLabel("実験回の定義",{exact:true})).toBeVisible({timeout:2000});}).toPass({timeout:30000});
+  await panel.getByLabel("実験回の定義",{exact:true}).fill("Transport independent units");
   for(let i=0;i<2;i++)for(const [key,value] of [["condition",i?"B":"A"],["sample",`sample-${i}`],["experimental_unit",`unit-${i}`]])await panel.locator(`input[aria-label$=" ${key}"]`).nth(i).fill(value);
   await panel.getByLabel("A / B",{exact:true}).check();
-  await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み",{exact:true}).check();
+  await panel.getByLabel(/撮影・画素条件/).check();
   await panel.getByLabel("測定領域と採用する視野を確認済み",{exact:true}).check();
   // The list names each group and unit with its missing nuclei over all nuclei and the reason.
   const list=panel.getByRole("region",{name:"核小体を確定できない核"});

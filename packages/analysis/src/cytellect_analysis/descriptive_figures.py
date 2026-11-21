@@ -26,6 +26,7 @@ from .figures import (
 )
 from .gfp_selection import recorded_gate_lines
 from .mask_corrections import mask_correction_caption_lines
+from .region_features import LABELS as FEATURE_LABELS
 from .statistical_methods import (
     methods_metadata,
     readable_descriptive_methods,
@@ -93,7 +94,7 @@ def _caption(result, labels, methods_template=None, *, paged=False):
                  f"点は{observation}の測定値、" + ("横線" if paged else "四角") + "は"
                  + ("CSV の測定グループ" if numeric else "視野") + "内の中央値を示す。",
                  f"採用した {counts['observations']} 観測を表示した。",
-                 "観測数・視野数は独立した実験反復数ではない。この記述解析では実験単位の独立性を判定していない。",
+                 "観測数・視野数は実験回の数ではない。この記述解析では実験回の独立性を判定していない。",
                  "検定、回帰、標準誤差、信頼区間は計算していない。撮影条件の比較可能性は確認していない。",
                  "四分位数は観測分布の記述であり信頼区間ではない。隣接順位間の線形補間 h=(n−1)p を使用した。",
                  selection_line,
@@ -222,7 +223,8 @@ def _ylabel(result, ja):
               "nucleus_count": ("Nuclei per field", "視野あたりの核数"),
               "nucleus_density_per_mm2": ("Nuclear density", "核の密度"),
               "positive_count": ("Positive nuclei per field", "視野あたりの陽性核数"),
-              "positive_fraction": ("Positive fraction of evaluable nuclei", "判定可能な核の陽性率")}
+              "positive_fraction": ("Positive fraction of evaluable nuclei", "判定可能な核の陽性率"),
+              **{key: ("Region " + en[:1].lower() + en[1:], "領域の" + ja) for key, (en, ja) in FEATURE_LABELS.items()}}
     if metric in COMPARTMENT_LABELS:
         channel = _selected_channel(result)
         label = (f"{channel['label']}: " if channel else "") + COMPARTMENT_LABELS[metric][ja]
@@ -231,7 +233,7 @@ def _ylabel(result, ja):
     channel = _selected_channel(result)
     if channel:
         label = label.replace("Region ", channel["label"] + " ").replace("領域の", channel["label"] + "の")
-        if metric.startswith("positive_"):
+        if metric in ("positive_count", "positive_fraction"):
             label = f"{channel['label']}: {label}"
     correction = ("背景補正" if ja else "background corrected") if metric.endswith("_corrected") else ""
     suffix = ", ".join(item for item in (correction, unit) if item)

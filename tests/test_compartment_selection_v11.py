@@ -86,3 +86,30 @@ def test_historical_selection_without_version_stays_1_0_0():
     parsed = RegionComparisonRequestV2.model_validate(raw)
     assert parsed.selection.version == "1.0.0"
     assert parsed.model_dump(mode="json")["selection"]["version"] == "1.0.0"
+
+
+def test_largest_nucleolus_fraction_reads_the_bound_shapes_like_the_nucleus_table():
+    """#257 A-3: the largest nucleolus over all of a nucleus's nucleoli, compared as a difference; none without nucleoli."""
+    import numpy as np
+    from cytellect_analysis.nucleolar_shape import nucleolar_eccentricity
+
+    report, config, summaries = compartment_fixture()
+    by_unit = {"a1": 1.0, "a2": 0.9, "a3": 0.95, "b1": 0.5, "b2": 0.6, "b3": 0.55}
+    shapes = shapes_for(summaries)
+    for fid, nuclei in shapes.items():
+        for shape in nuclei.values():
+            shape["largest_nucleolus_fraction"] = by_unit[fid[:2]] if shape["objects"] else None
+    result = analyze_region_comparison(report, config, v11("largest_nucleolus_fraction", estimates="comparison-estimates/1.0.0"),
+                                       summaries=summaries, shapes=shapes)
+    assert set(values(result).values()) == set(by_unit.values())
+    assert {row["missing_reason"] for row in result["observation_ledger"] if row["value"] is None} <= {"no_nucleolus"}
+    assert result["estimates"]["scale"] == "fraction" and result["unit"] == "dimensionless"
+    with pytest.raises(ValueError, match="compartment_summary_shape_unavailable"):
+        analyze_region_comparison(report, config, v11("largest_nucleolus_fraction"), summaries=summaries)
+    # The shape module computes it as the nucleus table does: largest object area / union area.
+    nuclei = np.zeros((12, 12), np.uint32)
+    nuclei[1:11, 1:11] = 1
+    nucleoli = np.zeros_like(nuclei)
+    nucleoli[2:5, 2:5] = 1  # 9 px
+    nucleoli[7:9, 7:9] = 2  # 4 px
+    assert nucleolar_eccentricity(nuclei, nucleoli)[1]["largest_nucleolus_fraction"] == pytest.approx(9 / 13)

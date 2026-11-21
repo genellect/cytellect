@@ -134,7 +134,7 @@ export function descriptiveFieldNumber(result:DescriptiveResult,fieldId:string){
 }
 export const descriptiveFieldStatus = (status: string) => statuses[status] ?? status;
 const warnings: Record<string, string> = {
-  descriptive_independence_not_assessed: "独立反復は評価していません。観測数・視野数は独立した実験反復数ではありません。",
+  descriptive_independence_not_assessed: "実験回の独立性は評価していません。観測数・視野数は実験回の数ではありません。",
   acquisition_comparability_not_established: "撮影条件の比較可能性は未確認です。視野間の差を処置の効果とみなす前に、撮影条件を確認してください。",
   missing_outcomes_excluded_inspect_fieldwise_missingness: "指標が欠測した観測は図に含まれません。視野ごとの欠測と理由を確認してください。",
   ncl_defined_regions_can_change_with_the_measured_ncl_distribution: "NCLから定義した領域は、測定対象であるNCLの分布とともに変化することがあります。",

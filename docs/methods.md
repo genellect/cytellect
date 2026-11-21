@@ -728,6 +728,11 @@ Adds to the 1.0.0 metrics, for nuclei with at least one adopted nucleolus
   object (`λmax = 0`) is not measured; a one-pixel-wide line has `e = 1`. The nucleus value is the area-weighted mean of its measured objects;
   if none is measurable it is missing (`degenerate_objects`). Larger values mean
   more elongated nucleoli; rounder nucleoli have smaller values.
+- `largest_nucleolus_fraction` (added 2026-11-21, genellect/cytellect#257 A-3): the pixel area of the nucleus's
+  largest adopted nucleolus divided by the pixel area of its adopted nucleoli together (0–1], the nucleus table's
+  `largest_nucleolus_fraction`. Near 1, the nucleolar area is in one large nucleolus; smaller values mean it is
+  divided among similar nucleoli. It is compared as a difference in percentage points, like the nucleolar area
+  fraction, and read from the same per-nucleus shapes as eccentricity (below).
 - Eccentricity is computed when the comparison runs, from each field's adopted
   nuclear mask (with its exclusions) and adopted nucleolar mask, the same inputs as
   the saved summary. Every summarized nucleus must have the same nuclear and
@@ -1020,3 +1025,113 @@ native pixel arithmetic and JSON/CSV agreement without running a model or
 changing scientific review decisions. It is not an independent detector benchmark
 or evidence of biological validity, experimental independence or researcher task
 completion time.
+
+## Per-nucleus signal heterogeneity and positive area 1.0.0 (2026-11-20)
+
+`nuclear-signal/1.0.0` (`nuclear_signal.py`, genellect/cytellect#257 E-7) measures one channel's original pixels inside
+each saved nuclear label. Pixel values are not changed. No nucleolar boundary is needed.
+
+- Value basis: raw, or corrected by subtracting the confirmed background median `b` of that channel (`I − b`). A
+  corrected request without `b` is refused; there is no raw fallback, epsilon, clipping or smoothing.
+- Coefficient of variation: `CV = SD / mean` of the nucleus's pixels, with the population standard deviation (`ddof = 0`).
+  The mean and SD are returned with it. A nucleus whose mean is not positive has no CV (`nonpositive_mean`). CV depends
+  on staining, exposure and focus: compare it within the same acquisition settings.
+- Positive-area fraction: pixels at or above a threshold divided by the nucleus's pixels (0–1; shown as %). The threshold
+  is a recorded value (`manual`) or Otsu's threshold of all non-excluded nuclear pixels of the field (`field_otsu`:
+  scikit-image `threshold_otsu` on float values with 256 equal-width bins between their minimum and maximum, the
+  threshold being a bin centre, as the GFP gate). The
+  method, value basis, value and the unit it was applied to (`field`) are returned. Without a threshold the fraction is
+  missing (`threshold_not_set`); pooled pixels of one value give no Otsu threshold (`threshold_not_established`).
+  Exposure and overall brightness also move this fraction; report the nuclear mean beside it. Thresholds from other
+  images or publications are not reused.
+- Excluded nuclei keep their row with every value missing (`nucleus_excluded`) and do not enter the field's Otsu
+  threshold.
+
+Statistics, the image table, CSV and Methods use these values through region features 1.0.0 (below).
+
+## Region shape 1.0.0 (2026-11-20)
+
+`region-shape/1.0.0` (`region_shape.py`, genellect/cytellect#257 E-1) reads saved original-coordinate labels of nuclei
+or nucleoli. For each object: area `A` (pixels); perimeter `P` by the Crofton estimate with 4 directions on the object's
+binary image (scikit-image `perimeter_crofton`, `directions=4`; the estimator is fixed with the version); circularity
+`4πA/P²`; solidity `A / convex-hull pixel area`; axis ratio `major / minor` of the ellipse with the same second moments;
+eccentricity `sqrt(1 − λmin/λmax)` of the same covariance (equal to the nucleolar eccentricity of compartment-summary
+selection 1.1.0).
+
+An object that touches the image border, is smaller than the minimum area, or has a zero perimeter or minor axis has no
+shape values (`touches_border`, `below_minimum_area`, `degenerate`), never zero. It still counts in numbers and areas,
+and the number of objects with shape values is reported beside them. The minimum area of version 1.0.0 is **96 px** and
+is recorded with every result. Version 1.0.0 offers **solidity, axis ratio and eccentricity**; circularity and the
+perimeter are computed for checking only and are not offered (below). 2D values are not volumes or sphericities.
+Solidity, axis ratio and eccentricity are ratios of pixel quantities and need no pixel size.
+
+Public-image check of the digitisation error (2026-11-20, `scripts/evaluate_shape_minimum_area.py`, requirement
+RP-02). Adopted nuclear masks of the public demo were measured at full resolution (nuclei of at least 400 px away from
+the border) and again on the same mask sampled every k-th pixel (k = 2–20). The tolerance was fixed before reading the
+data: 90th percentile |Δ circularity| ≤ 0.05, |Δ solidity| ≤ 0.05 and |Δ axis ratio| / axis ratio ≤ 0.10 in an area bin
+and every larger bin. The minimum area was chosen on JUMP cpg0016 (PLK1 scene, 18 masks) and checked unchanged on DS6a
+(29 masks). Eccentricity (|Δ| ≤ 0.05) was added after the first run, before its values were read; it is reported and
+took no part in choosing the minimum.
+
+| Data | Role | First area bin within tolerance | Circularity p90 at 96–128 px | Solidity p90 at 96–128 px | Axis-ratio p90 at 96–128 px | Eccentricity p90 at 96–128 px |
+|---|---|---|---|---|---|---|
+| JUMP cpg0016 nuclei | choose | 96 px | 0.048 | 0.037 | 0.035 | 0.029 |
+| DS6a nuclei | check | 64 px except circularity (none) | 0.208 | 0.035 | 0.036 | 0.043 |
+
+Solidity, axis ratio and eccentricity met the tolerance from 96 px on both sets, so 96 px is the minimum area of
+version 1.0.0 (owner decision 5 of #257: the minimum is set from the error measured on public real images). Circularity
+did not on DS6a at any size (p90 0.18–0.21 even above 256 px): its outlines are rough at the pixel scale, sampling smooths
+them and shortens the Crofton perimeter, so circularity depends on the pixel size itself. It is therefore not offered,
+and neither is the perimeter it rests on. This measures the formulas on pixel grids only, not the segmentation error of
+small, dim objects (requirement NS-03, which needs independent hand-drawn outlines).
+
+## Region features 1.0.0 (2026-11-21)
+
+`region-features/1.0.0` (`region_features.py`, genellect/cytellect#257 E-1, E-3, E-7, RP-03) makes the shape and
+pixel-signal values region metrics of the common statistics. A region selection may choose:
+
+| Metric | Definition | Stain | Measurement |
+|---|---|---|---|
+| `solidity`, `axis_ratio`, `eccentricity` | Region shape 1.0.0, minimum area 96 px | none (like area) | any (area only included) |
+| `cv` | Pixel CV of the region's raw original pixels of the channel | required | raw intensity or automatic background |
+| `cv_corrected` | Pixel CV after subtracting the measurement's automatic background median of the channel (4.0.0) | required | automatic background only |
+| `positive_area_fraction` | Region pixels at or above Otsu's threshold of all adopted, not excluded regions' raw pixels of the field | required | raw intensity or automatic background |
+
+The values are not stored in the measurement table and do not change its protocol. Each time statistics, the image
+table (`GET /v1/revisions/{rid}/region-features`), an export or an offline replay need them, they are recomputed from
+the field's hash-checked adopted labels and, for a stain, its hash-checked original channel array, and bound to the
+measured regions by region identity and pixel area (`region_features_mismatch` otherwise). A region without a value is
+a missing observation with its reason (`below_minimum_area`, `touches_border`, `degenerate`, `nonpositive_mean`,
+`threshold_not_established`, or the background's failure reason); it is never zero. A field without an established
+automatic background has no corrected CV, as for corrected intensities.
+
+Each result records, per source field, the protocol, the metric, the source protocol (`region-shape/1.0.0` or
+`nuclear-signal/1.0.0`), the minimum area and perimeter estimator for shape, and the value basis, background and the
+field's Otsu threshold for pixel signal. Treatment − control estimates are differences (shape, CV) or differences in
+percentage points (positive-area fraction), never ratios. Methods state the definition, the minimum area or the range of field
+thresholds, and the limits (2D values; staining, exposure and focus for CV; exposure and brightness for the positive
+area).
+
+The same review rules as area and intensity apply: shape reads no stain, so it needs no acquisition batch, but, like pixel
+area, it needs the same spatial sampling (`spatial_sampling_confirmed`, one calibration). Pixel-signal metrics are
+intensity outcomes: acquisition batches are required, one dtype, no batch confounded with the contrast, and regions with
+saturated or storage-limit pixels in the channel are refused (`region_comparison_saturated_signal`).
+
+Verification (`tests/test_region_features_statistics.py`): arithmetic fixtures with known rectangles and two-level
+pixels give the expected solidity, axis ratio, eccentricity, raw and corrected CV and positive-area fraction through the
+worker's description, comparison and association; the image table returns the value the description uses; the export
+bundle's offline replay recomputes and matches the saved comparison and association. Public-image agreement of the
+shape formulas and the minimum area are in Region shape 1.0.0 above.
+
+Public original images (2026-11-21, `scripts/check_nuclear_signal_public.py`, requirement NS-02): on the registered DS6a
+images in the demo seed (29 fields, adopted nuclear masks; Hoechst, NPM1 and 5-EU, 218 nuclei each), the mean,
+population SD, CV and positive-area fraction of every nucleus agreed with an independent calculation (scipy.ndimage
+per-label mean and variance; positive pixels counted with numpy at the same recorded field threshold): 654 nucleus ×
+channel pairs, largest relative difference 7.8 × 10⁻¹⁴, no nucleus missing in one and not the other. NCL is not among
+the registered channels, so the NCL area fraction was checked on another public source (#257 F-6):
+`scripts/check_ncl_area_public.py` reads OpenCell's NCL field FID00034252 (CZ Biohub, CC BY-SA 4.0; used for this
+check only, not redistributed) by its SHA-256, makes a nuclear mask from the Hoechst channel (Otsu, holes filled,
+≥ 200 px; its only role is to be the same for both calculations), and compares region features with numpy. For its
+20 nuclei the recorded field threshold equals Otsu's threshold written out from the definition above, and every
+nucleus's NCL positive-area fraction equals the independent count at that threshold (2026-11-21). This checks the
+calculation on real NCL pixels; it is not a biological validation of NCL redistribution.

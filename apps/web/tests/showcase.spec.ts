@@ -287,7 +287,9 @@ test("demo: image, outline, measurement, statistics and figure features run with
   // Statistics: the opening result and its group comparison, then their figures.
   await header.getByRole("button", {name: "統計", exact: true}).click();
   const results = page.getByRole("region", {name: "測定結果の統計解析"});
-  await expect(shownTable(results)).toBeVisible({timeout: live});
+  // After a measurement the side panel keeps the measured condition (DM-04): its result place shows that condition, with
+  // 計算 there, and no saved result of another condition as if it were this one's (S-09).
+  await expect(results.getByRole("region", {name: "選択中の条件"}).or(shownTable(results)).first()).toBeVisible({timeout: live});
   await calculate(page);
   await results.getByRole("combobox", {name: "解析", exact: true}).selectOption("comparison");
   await calculate(page);
@@ -460,9 +462,8 @@ async function openSettings(page: Page) {
 /** A metric of a fixed region (such as nucleolar count) hides the region choice; area brings it back. */
 async function chooseMetric(page: Page, region: string, metric: string, channel: string | null) {
   const side = page.getByRole("complementary", {name: "解析対象"});
-  const choice = side.getByRole("combobox", {name: "領域", exact: true});
-  if (!await choice.count()) await side.getByRole("combobox", {name: "指標", exact: true}).selectOption("area_px");
-  await choice.selectOption(region);
+  // The subject first, then its metric and stain (B-1).
+  await side.getByRole("combobox", {name: "対象", exact: true}).selectOption(region);
   await side.getByRole("combobox", {name: "指標", exact: true}).selectOption(metric);
   if (channel) await side.getByRole("combobox", {name: "染色", exact: true}).selectOption(channel);
 }
@@ -471,9 +472,9 @@ async function fillIfEmpty(control: Locator, value: string) {
 }
 async function calculate(page: Page) {
   const results = page.getByRole("region", {name: "測定結果の統計解析"});
-  await fillIfEmpty(results.getByRole("textbox", {name: "独立実験単位", exact: true}), "公開画像の反復（デモ）");
+  await fillIfEmpty(results.getByRole("textbox", {name: "実験回の定義", exact: true}), "公開画像の反復（デモ）");
   await fillIfEmpty(results.getByRole("textbox", {name: "対応の根拠", exact: true}), "同じ反復（Rep）内の 2 条件");
-  const confirm = results.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み");
+  const confirm = results.getByLabel(/撮影・画素条件/);
   if (await confirm.count() && !await confirm.isChecked()) await confirm.check();
   const reviewed = results.getByLabel("測定領域と採用する視野を確認済み");
   if (!await reviewed.isChecked()) await reviewed.check();
@@ -481,7 +482,11 @@ async function calculate(page: Page) {
   const keep = results.getByLabel("この一覧を確認し、欠測として残して計算する", {exact: true});
   await expect(results.getByRole("button", {name: "計算", exact: true}).and(page.locator(":enabled")).or(keep).first()).toBeVisible({timeout: live});
   if (await keep.count() && !await keep.isChecked()) await keep.check();
-  await results.getByRole("button", {name: "計算", exact: true}).click();
+  // D-5: a description (no test) starts once everything is confirmed; 計算 is pressed only while the condition still waits.
+  const waiting = results.getByRole("region", {name: "選択中の条件"});
+  await expect.poll(async () => !await waiting.count() || await waiting.getByRole("button", {name: "計算", exact: true}).isEnabled(), {timeout: live}).toBe(true);
+  if (await waiting.count()) await waiting.getByRole("button", {name: "計算", exact: true}).click();
+  await expect(waiting).toHaveCount(0, {timeout: live});
   await expect(results.getByRole("button", {name: "計算", exact: true})).toBeEnabled({timeout: live});
   await expect(results.getByText("測定結果または解析条件が変わりました。再計算してください。")).toHaveCount(0);
   expect(await alerts(page)).toEqual([]);
@@ -550,7 +555,8 @@ test("measuring nucleoli or nucleoplasm, then statistics of the nuclei, shows re
     await idle(page);
     await header.getByRole("button", {name: "統計", exact: true}).click();
     const results = page.getByRole("region", {name: "測定結果の統計解析"});
-    await expect(shownTable(results)).toBeVisible({timeout: live});
+    // The measured condition's result place: its saved result, or its name with 計算 (S-09).
+    await expect(results.getByRole("region", {name: "選択中の条件"}).or(shownTable(results)).first()).toBeVisible({timeout: live});
     await calculate(page);
     await results.getByRole("combobox", {name: "解析", exact: true}).selectOption("comparison");
     await calculate(page);
@@ -684,7 +690,7 @@ test("measuring again with another background correction is answered from the re
   await expect(notRecorded(page)).toHaveCount(0);
   // The statistics view then compares the new measurement: the opening result's region is for the first look only.
   await page.locator("header").getByRole("button", {name: "統計", exact: true}).click();
-  await expect(page.getByRole("complementary", {name: "解析対象"}).getByRole("combobox", {name: "領域", exact: true})).toHaveValue("nuclei");
+  await expect(page.getByRole("complementary", {name: "解析対象"}).getByRole("combobox", {name: "対象", exact: true})).toHaveValue("nuclei");
   await expect(notRecorded(page)).toHaveCount(0);
   await noErrors(page, watch);
 });
@@ -725,13 +731,13 @@ test("the ActD scene's statistics open on the nucleolar 5-EU and switch to the e
   const recorded = results.getByRole("group", {name: "保存した比較"});
   await expect(recorded.getByRole("button")).toHaveCount(2, {timeout: live});
   const sentence = results.getByRole("region", {name: "結果のまとめ"}).getByRole("heading", {level: 3});
-  // The opening comparison names its region and channel, and the side panel already agrees with it.
-  await expect(sentence).toContainText("核小体の平均輝度（eu5）");
+  // The opening comparison names its region and stain (not the channel identifier), and the side panel already agrees with it.
+  await expect(sentence).toContainText("核小体の平均輝度（5-EU）");
   await expect(results.getByRole("status").filter({hasText: /前の結果|記録した結果/})).toHaveCount(0);
   await recorded.getByRole("button", {name: /離心率/}).click();
   await expect(sentence).toContainText("離心率");
   await expect(page.getByRole("complementary", {name: "解析対象"}).getByRole("combobox", {name: "指標", exact: true})).toHaveValue("nucleolar_eccentricity");
-  await recorded.getByRole("button", {name: /eu5/}).click();
+  await recorded.getByRole("button", {name: /5-EU/}).click();
   await expect(sentence).toContainText("平均輝度");
   await expect(results.getByRole("status").filter({hasText: /前の結果|記録した結果/})).toHaveCount(0);
   await expect(notRecorded(page)).toHaveCount(0);
@@ -759,7 +765,7 @@ test("statistics of nucleoli, nucleoplasm and nucleolar measures show results, d
   await recorded.getByRole("button", {name: /総面積/}).click();
   await expect(sentence).toContainText("総面積");
   await expect(metric).toHaveValue("nucleolar_area_px");
-  await recorded.getByRole("button", {name: /eu5/}).click();
+  await recorded.getByRole("button", {name: /5-EU/}).click();
   await expect(sentence).toContainText("平均輝度");
   await expect(metric).toHaveValue("mean");
   await recorded.getByRole("button", {name: /離心率/}).click();
@@ -769,8 +775,8 @@ test("statistics of nucleoli, nucleoplasm and nucleolar measures show results, d
   const operation = results.getByRole("combobox", {name: "解析", exact: true});
   const cases: Array<[string, string, string | null, string]> = [
     ["nucleoli", "area_px", null, "distribution"], ["nucleoli", "mean", "npm1", "comparison"],
-    ["nucleoplasm", "mean", "npm1", "distribution"], ["nuclei", "nucleolar_count", null, "comparison"],
-    ["nuclei", "nucleolar_area_fraction", null, "distribution"], ["nuclei", "log2_nucleoplasm_over_nucleolus", "npm1", "comparison"],
+    ["nucleoplasm", "mean", "npm1", "distribution"], ["nucleoli", "nucleolar_count", null, "comparison"],
+    ["nucleoli", "nucleolar_area_fraction", null, "distribution"], ["nucleoplasm", "log2_nucleoplasm_over_nucleolus", "npm1", "comparison"],
     ["nucleoli", "mean", "eu5", "comparison"],
   ];
   for (const [region, metric, channel, kind] of cases) {
@@ -800,7 +806,7 @@ test("the statistics view states the premise once, in the basis line, and opens 
       // The discussion is a frame apart from the computed result (AC-01); its limits (AC-04) are not statements of the premise.
       .filter(element => (element as HTMLElement).offsetParent !== null && !element.closest("details:not([open]) > :not(summary)") && !element.closest("section[aria-label='考察']"))
       .map(element => element.textContent ?? "")
-      // The folded counts table names its unit column (独立実験単位); it is a heading, not a statement of the premise.
+      // The folded counts table names its unit column (実験回); it is a heading, not a statement of the premise.
       .filter(text => /独立|検定なし|記述のみ|記述統計/.test(text) && !text.startsWith("数の内訳")));
     expect(statements, scene?.id).toHaveLength(1);
     expect(statements[0]).toMatch(/^記述統計/);
@@ -849,15 +855,16 @@ test("a per-nucleus nucleolar result is read and checked on the nucleoli, and un
   const recorded = results.getByRole("group", {name: "保存した比較"});
   await expect(recorded.getByRole("button")).toHaveCount(2, {timeout: live});
   // Both recorded comparisons count the same unresolved nuclei, and never also say nothing is missing (Q-05, S-03).
-  for (const name of [/eu5/, /離心率/]) {
+  for (const name of [/5-EU/, /離心率/]) {
     await recorded.getByRole("button", {name}).click();
     await summary.getByText("n の内訳と除外").click();
     await expect(summary).toContainText(/核小体を確定できない核 \d+（欠測）/);
     await expect(summary).not.toContainText("除外・欠測：なし");
   }
   // The eccentricity comes from the per-nucleus summary but is a shape of the nucleoli, and reads so everywhere.
-  await expect(results.locator("[class*=current]")).toContainText("核小体（核ごとの値） · 核小体の離心率");
-  await expect(page.getByRole("complementary", {name: "解析対象"})).toContainText("領域：核小体（核ごとの値）");
+  await expect(results.locator("[class*=current]")).toContainText("計算する条件：核小体の離心率");
+  await expect(page.getByRole("complementary", {name: "解析対象"}).getByRole("combobox", {name: "対象", exact: true})).toHaveValue("nucleoli");
+  await expect(page.getByRole("complementary", {name: "解析対象"})).toContainText("対象：核小体。観測の単位：核ごと（その核の核小体をまとめた値）。");
   await expect(results.getByRole("status").filter({hasText: /前の結果|記録した結果/})).toHaveCount(0);
   await header.getByRole("button", {name: "画像", exact: true}).click();
   await expect(page.locator("[class*=fieldCard] small").first()).toHaveText(/^核小体 \d+/, {timeout: live});
@@ -921,7 +928,8 @@ test("an AI example on another field, then measuring and statistics of each regi
   const results = page.getByRole("region", {name: "測定結果の統計解析"});
   const statistics = async (region: string, metric: string, channel: string | null, kind: string) => {
     await header.getByRole("button", {name: "統計", exact: true}).click();
-    await expect(shownTable(results)).toBeVisible({timeout: live});
+    // After a measurement the result place shows the measured condition: its saved result, or its name with 計算 (S-09).
+    await expect(results.getByRole("region", {name: "選択中の条件"}).or(shownTable(results)).first()).toBeVisible({timeout: live});
     await chooseMetric(page, region, metric, channel);
     await results.getByRole("combobox", {name: "解析", exact: true}).selectOption(kind);
     await calculate(page);

@@ -19,3 +19,13 @@ describe("scene explainer (DM-11)", () => {
     for (const text of [...Object.values(TERMS), ...Object.values(METRIC_HINTS)]) expect(text).not.toMatch(/\d+(\.\d+)?\s*%/);
   });
 });
+
+describe("the scene's primary measure (#257 NS-06)", () => {
+  it("reads the planned opening comparison, and nothing that is not one", () => {
+    expect(validDataset({...base, primaryOutcome: {metric: "nucleolar_eccentricity", region_set_id: "nucleoplasm", channel_id: null}})?.primaryOutcome)
+      .toEqual({version: "1.0.0", metric: "nucleolar_eccentricity", region_set_id: "nucleoplasm", channel_id: null});
+    expect(validDataset({...base, primaryOutcome: {metric: "mean", region_set_id: "nucleoli", channel_id: "eu5"}})?.primaryOutcome?.channel_id).toBe("eu5");
+    expect(validDataset({...base, primaryOutcome: {metric: "mean", region_set_id: "tissue"}})?.primaryOutcome).toBeNull();
+    expect(validDataset(base)?.primaryOutcome).toBeNull();
+  });
+});

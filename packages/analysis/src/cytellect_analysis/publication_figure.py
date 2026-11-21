@@ -96,11 +96,17 @@ def axis_title(source) -> tuple[str, str]:
         "nucleolar_area_um2": ("Nucleolar area per nucleus", "µm²"),
         "nucleolar_area_fraction": ("Nucleolar area fraction of nucleus", ""),
         "nucleolar_eccentricity": ("Nucleolar eccentricity", ""),
+        "largest_nucleolus_fraction": ("Largest nucleolus fraction", ""),
         "log2_nucleoplasm_over_nucleolus": (" ".join(p for p in (stain, "nucleoplasm/nucleolus ratio") if p), "log2"),
         "nucleus_count": ("Nuclei per field", ""),
         "nucleus_density_per_mm2": ("Nuclear density", "nuclei per mm²"),
         "positive_count": (f"{stain}-positive nuclei per field" if stain else "Positive nuclei per field", ""),
         "positive_fraction": (f"{stain}-positive nuclei" if stain else "Positive nuclei", ""),
+        "solidity": (f"{region or 'Region'} solidity", ""),
+        "axis_ratio": (f"{region or 'Region'} axis ratio", ""),
+        "eccentricity": (f"{region or 'Region'} eccentricity", ""),
+        "cv": (" ".join(p for p in (region, stain, "pixel CV") if p), "background-subtracted" if corrected else ""),
+        "positive_area_fraction": (" ".join(p for p in (region, stain, "positive-area fraction") if p), ""),
     }
     if base in titles:
         return titles[base]

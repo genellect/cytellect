@@ -18,6 +18,7 @@ from pydantic.json_schema import SkipJsonSchema
 from .channel_gate_contracts import ChannelGateFilter
 from .contracts import PlotSpec, StrictModel
 from .experiment_strata import StratumRecord
+from .region_shape import OFFERED_METRICS
 from .regions import Id
 from .statistical_methods import StatisticalMethodsTemplate
 
@@ -37,7 +38,10 @@ LegacyMetric = Literal[
 RegionMetric = Literal[
     "area_px", "area_um2", "mean", "median", "integrated",
     "mean_corrected", "median_corrected", "integrated_corrected",
+    # region-features/1.0.0 (region_features.py): shape reads no stain, the pixel CV and positive area read one.
+    "solidity", "axis_ratio", "eccentricity", "cv", "cv_corrected", "positive_area_fraction",
 ]
+SHAPE_METRICS = OFFERED_METRICS
 
 
 class GfpGateFilter(StrictModel):
@@ -196,7 +200,7 @@ class RegionSelection(_OptionalGate):
 
     @model_validator(mode="after")
     def channel_for_intensity_only(self):
-        if self.metric.startswith("area_"):
+        if self.metric.startswith("area_") or self.metric in SHAPE_METRICS:
             if self.channel_id is not None:
                 raise ValueError("descriptive_area_channel_must_be_unset")
         elif self.channel_id is None:
@@ -241,7 +245,7 @@ FIELD_SUMMARY_VERSION: Literal["1.0.0"] = "1.0.0"
 COMPARTMENT_SUMMARY_SELECTION_V11: Literal["1.1.0"] = "1.1.0"
 
 FieldSummaryMetric = Literal["nucleus_count", "nucleus_density_per_mm2", "positive_count", "positive_fraction"]
-NucleolarSummaryMetric = Literal["nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity"]
+NucleolarSummaryMetric = Literal["nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity", "largest_nucleolus_fraction"]
 
 
 class FieldSummarySelection(StrictModel):
