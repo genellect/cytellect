@@ -60,10 +60,13 @@ RULES: tuple[tuple[str, frozenset[str]], ...] = (
     # The web job checks the compiled local UI against this packager's boundary.
     ("scripts/build_local_bundle.py", PY_STACK),
     ("scripts/check_local_web_bundle.py", PY_STACK),
+    # The web job checks the web imports against this container's COPY lines.
+    ("scripts/check_web_container_context.py", PY_STACK),
     ("scripts/*", frozenset({"python", "fiji", "windows"})),
     ("tests/*", frozenset({"python", "fiji", "windows"})),
     ("validation/*", frozenset({"python"})),
     ("fixtures/public/allowlist.json", frozenset({"python", "lp"})),
+    ("infra/Dockerfile.web", frozenset({"python", "web", "fiji"})),
     ("infra/*", frozenset({"python", "fiji"})),
     ("compose.yaml", frozenset({"python", "fiji"})),
 )

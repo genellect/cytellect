@@ -130,6 +130,10 @@ jobs:
       - run: uv run cytellect openapi --output packages/contracts/openapi.json --recipe-defaults apps/web/src/lib/recipe-defaults.json
       - run: pnpm contracts
       - run: git diff --exit-code -- packages/contracts apps/web/src/lib/generated.ts apps/web/src/lib/recipe-defaults.json
+      # fiji-browser builds infra/Dockerfile.web only after merge; a web import outside its COPY
+      # lines (for example a shared fixture read by a test) must fail here, before merge.
+      - name: Production web container copies every repository file the web build imports
+        run: uv run python scripts/check_web_container_context.py
       - run: pnpm check
       - run: pnpm test
       - name: Verify the proposal service source (not deployed by CI)
