@@ -251,8 +251,13 @@ def check_ome(dataset: str, record: dict[str, Any]) -> None:
         raise ValueError("public_ome_metadata_changed")
 
 
-def download(url: str, target: Path, size: int, md5: str) -> str:
-    if not target.exists():
+def download(url: str, target: Path, size: int, md5: str, attempts: int = 3) -> str:
+    for attempt in range(attempts):
+        if target.exists() and target.stat().st_size != size:
+            print(f"incomplete earlier download removed: {target.name}", flush=True)
+            target.unlink()
+        if target.exists():
+            break
         partial = target.with_name(target.name + ".part")
         with urllib.request.urlopen(url, timeout=300) as response, partial.open("wb") as stream:
             received = 0
@@ -261,7 +266,12 @@ def download(url: str, target: Path, size: int, md5: str) -> str:
                 if received > size:
                     raise ValueError("public_download_size_mismatch")
                 stream.write(block)
-        partial.rename(target)
+        # A connection can end early without an error: a short file is never given the final name.
+        if received == size:
+            partial.rename(target)
+        else:
+            partial.unlink()
+            print(f"incomplete download ({received} of {size} bytes), attempt {attempt + 1}: {target.name}", flush=True)
     data = target.read_bytes()
     if len(data) != size or hashlib.md5(data).hexdigest() != md5:
         raise ValueError(f"public_original_md5_mismatch: {target.name}")
