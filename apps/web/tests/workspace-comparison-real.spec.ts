@@ -113,21 +113,29 @@ test("synthetic fields reach real independent-unit comparison and editable expor
   const beforeFigure=statisticsPosts().length;
   await page.getByRole("navigation", {name:"作業の切替"}).getByRole("button", {name:"グラフ", exact:true}).click();
   const figurePanel=page.getByRole("region", {name:"図の作成・保存"});
+  await figurePanel.getByRole("combobox", {name:"大きさ", exact:true}).selectOption("custom");
+  const resized = page.waitForResponse(response => {
+    const request = response.request();
+    if (request.method() !== "POST" || !new URL(response.url()).pathname.endsWith("/figure-render")) return false;
+    const {plot} = request.postDataJSON() as {plot: {width_inches: number; presentation?: {size: string}}};
+    return plot.presentation?.size === "custom" && Math.abs(plot.width_inches * 25.4 - 120) < 0.001;
+  }, {timeout:120000});
   await figurePanel.getByLabel("幅 / mm", {exact:true}).fill("120");
-  await figurePanel.getByRole("button", {name:"図を更新", exact:true}).click();
-  await expect(figurePanel.getByRole("button", {name:"図を更新", exact:true})).toBeEnabled({timeout:120000});
+  expect((await resized).status()).toBe(202);
+  const save = figurePanel.getByRole("button", {name:"保存", exact:true});
+  await expect(save).toBeEnabled({timeout:120000});
+  await expect(figurePanel.getByRole("alert")).toHaveCount(0);
   expect(statisticsPosts()).toHaveLength(beforeFigure);
-  expect(writes.some(value=>value.endsWith("/figure-render"))).toBeTruthy();
   await expect(figurePanel.getByLabel("元画像を含める",{exact:true})).not.toBeChecked();
   await figurePanel.getByLabel("元画像を含める",{exact:true}).check();
   const exported=page.waitForResponse(response=>new URL(response.url()).pathname.endsWith("/export")&&response.request().method()==="POST");
   const downloaded=page.waitForEvent("download",{timeout:120000});
-  await figurePanel.getByRole("button", {name:"保存", exact:true}).click();
+  await save.click();
   const exportResponse=await exported;expect(exportResponse.status()).toBe(202);
   expect(new URL(exportResponse.url()).searchParams.get("include_raw")).toBe("true");
   const publication=await downloaded;
   await publication.saveAs(path.join(output,"publication.zip"));
-  await expect(figurePanel.getByRole("button", {name:"保存", exact:true})).toBeEnabled({timeout:120000});
+  await expect(save).toBeEnabled({timeout:120000});
   const replay=JSON.parse(execFileSync(python,["-B","-c",[
     "import sys,json,io,zipfile,hashlib", "from pathlib import Path",
     "from cytellect_analysis.region_exports import replay_region_bundle",

@@ -52,13 +52,13 @@ UPDATE_PUBLIC_KEY = "ssh-ed25519 AAAA... cytellect-update"
 
 ### EXE の自動配布
 
-オーナーが有効化すると、`main` への push の `Verify` が成功した時点で `Prepare Windows release` が起動する。直近に成功したコミットを `main` の履歴順で選び、同じ SHA の配布を再開するときは、予約済みのタグと有効期限内の検証済み成果物を使う。手動の配布と同じインストール試験と署名を通し、下書きの添付物の SHA-256 を照合して公開する。公開済み EXE と署名済み manifest が一致したら、`windows-exe-channel` ブランチの `windows-exe.json` を更新する。公式サイトはこの記録から版を選び、アプリ内更新は GitHub Releases から選ぶ。
+オーナーが有効化すると、`main` への push の `Verify` が成功した時点で `Prepare Windows release` が起動する。直近に成功したコミットを `main` の履歴順で選び、同じ SHA の配布を再開するときは、予約済みのタグと有効期限内の検証済み成果物を使う。手動の配布と同じインストール試験と署名を通し、下書きの添付物の SHA-256 を照合して公開する。公開済み manifest の署名を `main` または直前の保護済み配布記録のソースに組み込まれた公開鍵で検証し、EXE の記録と一致したら、`windows-exe-channel` ブランチの `windows-exe.json` を更新する。公式サイトはこの記録から版を選び、アプリ内更新は GitHub Releases から選ぶ。
 
 有効化はオーナーが行う。
 
 1. GitHub の `windows-exe-preflight`、`windows-exe-publish`、`windows-exe-channel` environments を作成し、デプロイ元を `main` に限定する。自動経路には実行ごとの承認者を設定しない。
 2. `windows-exe-preflight` に変数 `PROPOSAL_PREFLIGHT_URL` と秘密 `PROPOSAL_PREFLIGHT_DEVICE_TOKEN`、`windows-exe-publish` に秘密 `UPDATE_SIGNING_KEY` を登録する。[配布前の互換性検査](proposal-deployment.md#required-prompt-version-check-before-distribution)とこの文書の鍵の手順を使う。
-3. `windows-exe-channel` ブランチの作成・更新・削除を制限する ruleset を有効にし、Deploy keys だけを例外にする。このリポジトリで唯一の書き込み可能な deploy key を配布記録専用に登録し、その秘密鍵は `windows-exe-channel` environment の `WINDOWS_EXE_CHANNEL_DEPLOY_KEY` に置く。配布記録の更新ジョブはこの鍵で Git に push する。公式サイトと自動配布を有効にする前に、通常の書き込み権限がこのブランチを更新できないことと、専用鍵が更新できることを確かめる。
+3. 配布記録の更新専用に非公開の GitHub App を作成する。権限は Contents の読み書きと必須の Metadata の読み取りに絞り、`genellect/cytellect` だけにインストールする。`windows-exe-channel` の作成・更新・削除を制限する ruleset では、この App のみを例外にする。同名の environment に変数 `WINDOWS_EXE_CHANNEL_APP_CLIENT_ID` と秘密 `WINDOWS_EXE_CHANNEL_APP_PRIVATE_KEY` を設定する。自動配布を無効にした状態で Actions の `channel_only` を選び、現在の公開版を検証して記録を書き込む。通常の書き込み権限がこのブランチを更新できないことも確かめる。
 4. 初回の配布候補を確認し、リポジトリ変数 `WINDOWS_EXE_AUTO_RELEASE` を `true` にする。次の `Verify` 成功時、定期実行時、または Actions の `automatic` を選んだ手動起動時に配布を進める。
 5. Actions の公開ログと保護された配布記録を確認する。Vercel の Production に `WINDOWS_EXE_CHANNEL_ENABLED=true` を設定し、本番サイトに反映する。公式サイトからの取得・新規導入と、既存版からのアプリ内更新を Windows で確認する。以後、サイトの記録は GitHub とサイトのキャッシュを経て反映される。
 
