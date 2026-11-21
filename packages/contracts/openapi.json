@@ -4332,6 +4332,16 @@
               }
             ],
             "title": "Experiment"
+          },
+          "primary_outcome": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PrimaryOutcome"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -7347,7 +7357,8 @@
                 "enum": [
                   "nucleolar_area_px",
                   "nucleolar_area_um2",
-                  "nucleolar_eccentricity"
+                  "nucleolar_eccentricity",
+                  "largest_nucleolus_fraction"
                 ],
                 "type": "string"
               }
@@ -9119,7 +9130,10 @@
                   "integrated",
                   "mean_corrected",
                   "median_corrected",
-                  "integrated_corrected"
+                  "integrated_corrected",
+                  "solidity",
+                  "axis_ratio",
+                  "eccentricity"
                 ]
               },
               {
@@ -9176,7 +9190,8 @@
                 "enum": [
                   "nucleolar_area_px",
                   "nucleolar_area_um2",
-                  "nucleolar_eccentricity"
+                  "nucleolar_eccentricity",
+                  "largest_nucleolus_fraction"
                 ]
               }
             ],
@@ -9785,6 +9800,17 @@
               }
             ],
             "title": "Analysis Version"
+          },
+          "calculated_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calculated At"
           }
         },
         "type": "object",
@@ -12799,6 +12825,138 @@
         "additionalProperties": false,
         "type": "object",
         "title": "PlotSpec"
+      },
+      "PrimaryOutcome": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Version",
+            "default": "1.0.0"
+          },
+          "metric": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "area_px",
+                  "area_um2",
+                  "mean",
+                  "median",
+                  "integrated",
+                  "mean_corrected",
+                  "median_corrected",
+                  "integrated_corrected",
+                  "solidity",
+                  "axis_ratio",
+                  "eccentricity"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "ncl_nucleus_mean",
+                  "ncl_nucleus_median",
+                  "ncl_nucleus_integrated",
+                  "ncl_nucleus_mean_corrected",
+                  "ncl_nucleus_median_corrected",
+                  "ncl_nucleus_integrated_corrected",
+                  "ncl_nucleoli_mean",
+                  "ncl_nucleoli_median",
+                  "ncl_nucleoli_integrated",
+                  "ncl_nucleoli_mean_corrected",
+                  "ncl_nucleoli_median_corrected",
+                  "ncl_nucleoli_integrated_corrected",
+                  "ncl_nucleoplasm_mean",
+                  "ncl_nucleoplasm_median",
+                  "ncl_nucleoplasm_integrated",
+                  "ncl_nucleoplasm_mean_corrected",
+                  "ncl_nucleoplasm_median_corrected",
+                  "ncl_nucleoplasm_integrated_corrected",
+                  "gfp_mean",
+                  "gfp_median",
+                  "gfp_integrated",
+                  "gfp_mean_corrected",
+                  "gfp_median_corrected",
+                  "gfp_integrated_corrected",
+                  "nucleus_area_px",
+                  "nucleus_area_um2",
+                  "nucleolar_area_px",
+                  "nucleolar_area_um2",
+                  "nucleoplasm_area_px",
+                  "nucleoplasm_area_um2",
+                  "nucleolar_count",
+                  "nucleolar_area_fraction",
+                  "ncl_nucleoplasm_over_nucleoli",
+                  "ncl_log2_nucleoplasm_over_nucleoli",
+                  "ncl_legacy_release"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "nucleus_count",
+                  "nucleus_density_per_mm2",
+                  "positive_count",
+                  "positive_fraction"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "nucleolar_area_px",
+                  "nucleolar_area_um2",
+                  "nucleolar_eccentricity",
+                  "largest_nucleolus_fraction"
+                ]
+              }
+            ],
+            "title": "Metric"
+          },
+          "region_set_id": {
+            "type": "string",
+            "enum": [
+              "nuclei",
+              "nucleoli",
+              "nucleoplasm",
+              "cell"
+            ],
+            "title": "Region Set Id"
+          },
+          "channel_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel Id"
+          },
+          "declared_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Declared At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "metric",
+          "region_set_id"
+        ],
+        "title": "PrimaryOutcome",
+        "description": "The measure declared primary before results are read (genellect/cytellect#257 RP-04); any other measure is\nexploratory. The server sets `declared_at` when the declared measure changes, so it cannot be backdated."
       },
       "ProposalChannelLink": {
         "properties": {
@@ -16977,7 +17135,10 @@
               "integrated",
               "mean_corrected",
               "median_corrected",
-              "integrated_corrected"
+              "integrated_corrected",
+              "solidity",
+              "axis_ratio",
+              "eccentricity"
             ],
             "title": "Metric",
             "type": "string"
@@ -17579,7 +17740,10 @@
                   "integrated",
                   "mean_corrected",
                   "median_corrected",
-                  "integrated_corrected"
+                  "integrated_corrected",
+                  "solidity",
+                  "axis_ratio",
+                  "eccentricity"
                 ]
               },
               {
@@ -18143,7 +18307,10 @@
                   "integrated",
                   "mean_corrected",
                   "median_corrected",
-                  "integrated_corrected"
+                  "integrated_corrected",
+                  "solidity",
+                  "axis_ratio",
+                  "eccentricity"
                 ]
               },
               {
@@ -18200,7 +18367,8 @@
                 "enum": [
                   "nucleolar_area_px",
                   "nucleolar_area_um2",
-                  "nucleolar_eccentricity"
+                  "nucleolar_eccentricity",
+                  "largest_nucleolus_fraction"
                 ]
               }
             ],
@@ -18233,7 +18401,10 @@
                   "integrated",
                   "mean_corrected",
                   "median_corrected",
-                  "integrated_corrected"
+                  "integrated_corrected",
+                  "solidity",
+                  "axis_ratio",
+                  "eccentricity"
                 ]
               },
               {

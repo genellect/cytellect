@@ -264,15 +264,11 @@ def region_report_measurement_policy(report):
     raise ValueError("region_measurement_protocol_mismatch")
 
 
-# Kept beside a nucleus's pixel CV (nuclear-features/1.0.0) in the observation ledger.
-CV_DETAILS = ("mean_corrected", "sd_corrected", "cv_raw")
-
-
 def prepare_region_observations(report, field_snapshot, selector, features=None):
     """Validate every source observation before selection or statistical aggregation.
 
     ``features`` maps (metric, channel ID) to field -> nuclear-features/1.0.0 record; it is required only for a
-    nuclear shape or signal metric, whose values are bound to the measured nuclei by identity and pixel area.
+    nuclear shape metric, whose values are bound to the measured nuclei by identity and pixel area.
     """
     selector = RegionSelection.model_validate(selector)
     measurement = region_report_measurement_policy(report)
@@ -379,12 +375,9 @@ def prepare_region_observations(report, field_snapshot, selector, features=None)
     observations = []
     for (fid, rid), row in sorted(objects.items()):
         reason = exclusions.get((fid, None)) or exclusions.get((fid, rid))
-        details = {}
         if feature_values:
             feature = feature_values[fid][rid]
             value, value_reason = feature["value"], feature["missing_reason"]
-            if selector.metric == "cv_corrected":
-                details = {key: feature[key] for key in CV_DETAILS}
         else:
             value = getattr(row, selector.metric)
             value_reason = row.area_missing_reason if selector.metric == "area_um2" else None
@@ -394,23 +387,21 @@ def prepare_region_observations(report, field_snapshot, selector, features=None)
                              "channel_id": selector.channel_id, **_metadata(field_snapshot[fid]),
                              "value": value, "excluded": bool(reason),
                              "exclusion_reason": reason, "gate_selected": True,
-                             "missing_reason": value_reason if value is None else None, **details})
+                             "missing_reason": value_reason if value is None else None})
     return observations, fields, _metric_unit(selector.metric), excluded
 
 
 def describe_regions(report, field_snapshot, request, nuclear=None, features=None):
     """``nuclear`` binds a GFP nucleus filter on a nucleoplasm revision to its adopted nuclei; ``features`` carries
-    the nuclear shape or signal values (see :func:`prepare_region_observations`)."""
+    the nuclear shape values (see :func:`prepare_region_observations`)."""
     request = _request(request, "region")
     observations, fields, unit, excluded = prepare_region_observations(report, field_snapshot, request.selection,
                                                                        features)
-    details = CV_DETAILS if request.selection.metric == "cv_corrected" else ()
     if gate_of(request.selection) is None:
-        return _finish(observations, fields, request, "region-2d", "regions", unit, excluded, details)
+        return _finish(observations, fields, request, "region-2d", "regions", unit, excluded)
     observations, record = gate_source_observations(report, report.get("recipe"), field_snapshot, request.selection,
                                                     observations, excluded, nuclear=nuclear)
-    result = _finish(observations, fields, request, "region-2d", "regions", unit, excluded,
-                     (*gate_record_keys(record), *details))
+    result = _finish(observations, fields, request, "region-2d", "regions", unit, excluded, gate_record_keys(record))
     return finish_gated_description(result, record)
 
 

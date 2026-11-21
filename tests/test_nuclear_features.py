@@ -161,23 +161,26 @@ def test_public_signal_values_match_first_principles():
 
 def test_public_statistics_use_the_bound_values_and_record_how():
     report, snapshot, images, labels = public_report()
-    keys = {("cv_corrected", "dna")}
+    keys = {("solidity", None)}
     features = features_for(report, snapshot, images, labels, keys)
-    request = {"mode": "descriptive", "selection": {"source": "region", "region_set_id": "nuclei", "channel_id": "dna",
-                                                    "metric": "cv_corrected"}}
+    request = {"mode": "descriptive", "selection": {"source": "region", "region_set_id": "nuclei", "metric": "solidity"}}
     result = describe_regions(report, snapshot, request, features=features)
-    expected = sorted(value["value"] for record in features["cv_corrected", "dna"].values()
+    expected = sorted(value["value"] for record in features["solidity", None].values()
                       for value in record["values"].values() if value["value"] is not None)
     assert sorted(row["value"] for row in result["plot_data"]) == pytest.approx(expected)
     assert result["unit"] == "dimensionless"
     source = result["source_fields"][0]["nuclear_features"]
     assert source["protocol"] == "nuclear-features/1.0.0" and "values" not in source
-    assert source["minimum_signal_to_background"] == FLOOR
-    assert sum(source["nuclei_by_status"].values()) == len(features["cv_corrected", "dna"]["f0"]["values"])
+    assert source["minimum_area_px"] == nuclear_features.MINIMUM_AREA_PX
+    assert sum(source["nuclei_by_status"].values()) == len(features["solidity", None]["f0"]["values"])
     missing = {row["reason"] for row in result["missingness"]}
     assert "touches_border" in missing and "metric_unavailable" not in missing
     with pytest.raises(ValueError, match="nuclear_features_unavailable"):
         describe_regions(report, snapshot, request)
+    # The pixel CV and positive-area fraction did not pass the public check: they are not statistics metrics.
+    for metric in ("cv_corrected", "positive_area_fraction"):
+        with pytest.raises(ValueError):
+            RegionSelection(source="region", region_set_id="nuclei", channel_id="dna", metric=metric)
 
 
 def test_public_comparison_keeps_runs_and_sampling():
@@ -206,8 +209,6 @@ def test_public_comparison_keeps_runs_and_sampling():
 def test_features_are_for_nuclei_only():
     with pytest.raises(ValueError, match="nuclear_features_nuclei_only"):
         RegionSelection(source="region", region_set_id="nucleoli", metric="solidity")
-    with pytest.raises(ValueError, match="nuclear_features_nuclei_only"):
-        RegionSelection(source="region", region_set_id="nucleoli", channel_id="c", metric="cv_corrected")
     with pytest.raises(ValueError, match="descriptive_area_channel_must_be_unset"):
         RegionSelection(source="region", region_set_id="nuclei", channel_id="c", metric="eccentricity")
     report, snapshot, images, labels = public_report()
@@ -216,10 +217,11 @@ def test_features_are_for_nuclei_only():
         table["region_set"]["source"] = "imported"
     with pytest.raises(ValueError, match="nuclear_features_nuclei_only"):
         features_for(other, snapshot, images, labels, {("solidity", None)})
-    # The signal metrics exist only with the automatic background; shape reads labels only.
+    # Shape reads labels only; the signal metrics are refused under every measurement.
     require_region_metric(None, "solidity")
     require_region_metric({"version": "1.0.0", "mode": "area_only"}, "axis_ratio")
-    for measurement in (None, {"version": "1.0.0", "mode": "area_only"}, {"version": "1.1.0", "mode": "raw_intensity"}):
+    for measurement in (None, {"version": "1.0.0", "mode": "area_only"}, {"version": "1.1.0", "mode": "raw_intensity"},
+                        POLICY):
         for metric in ("cv_corrected", "positive_area_fraction"):
             with pytest.raises(ValueError, match="region_metric_not_measured"):
                 require_region_metric(measurement, metric)

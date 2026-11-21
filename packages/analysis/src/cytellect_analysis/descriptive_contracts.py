@@ -37,11 +37,12 @@ LegacyMetric = Literal[
 RegionMetric = Literal[
     "area_px", "area_um2", "mean", "median", "integrated",
     "mean_corrected", "median_corrected", "integrated_corrected",
-    # nuclear-features/1.0.0 (nuclear_features.py), nuclei only: shape reads no stain, the signal metrics read one.
-    "solidity", "axis_ratio", "eccentricity", "cv_corrected", "positive_area_fraction",
+    # nuclear-features/1.0.0 (nuclear_features.py), nuclei only. Shape reads no stain. The pixel CV and positive-area
+    # fraction failed the public check (docs/public-nuclear-signal-validation.md) and are not offered.
+    "solidity", "axis_ratio", "eccentricity",
 ]
 NUCLEAR_SHAPE_METRICS = ("solidity", "axis_ratio", "eccentricity")
-NUCLEAR_FEATURE_METRICS = (*NUCLEAR_SHAPE_METRICS, "cv_corrected", "positive_area_fraction")
+NUCLEAR_FEATURE_METRICS = NUCLEAR_SHAPE_METRICS
 
 
 class GfpGateFilter(StrictModel):

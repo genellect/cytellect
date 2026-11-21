@@ -56,6 +56,16 @@ export const METRIC_QUESTIONS: MetricQuestion[] = [
       definition: "採用した核小体がある核ごとの、核小体の数。候補がない核は 0 ではなく欠測として扱います。"},
     {id: "nucleolar_area_fraction", label: "核小体面積割合", target: "nucleoplasm", structure: "nucleoli", channel: false,
       definition: "採用した核小体がある核ごとの、核小体の総面積 ÷ 核の面積。比較では差をパーセントポイントで示します。"},
+    {id: "largest_nucleolus_fraction", label: "最大の核小体の割合", target: "nucleoplasm", structure: "nucleoli", channel: false,
+      definition: "採用した核小体がある核ごとの、最も大きい核小体の面積 ÷ 核小体の総面積。1 に近いほど 1 個に集まっています。比較では差をパーセントポイントで示します。"},
+  ]},
+  {question: "核の形", metrics: [
+    {id: "solidity", label: "核のソリディティ", target: "nuclei", channel: false,
+      definition: "核ごとの、面積 ÷ 凸包の面積（1 = 凹みなし）。96 px 未満の核と画像の端にかかる核は測りません。"},
+    {id: "axis_ratio", label: "核の長短軸比", target: "nuclei", channel: false,
+      definition: "核ごとの、同じ二次モーメントの楕円の長軸 ÷ 短軸（1 = 円）。96 px 未満の核と画像の端にかかる核は測りません。"},
+    {id: "eccentricity", label: "核の離心率", target: "nuclei", channel: false,
+      definition: "核ごとの離心率（0 = 円、1 に近いほど細長い）。96 px 未満の核と画像の端にかかる核は測りません。比較では差で示します。"},
   ]},
   {question: "核小体と核質への分配", metrics: [
     {id: "log2_nucleoplasm_over_nucleolus", label: "核質／核小体 log₂ 比", target: "nucleoplasm", channel: true,
@@ -94,14 +104,14 @@ const intensities: SubjectMetric[] = [
 ];
 export const SUBJECT_METRICS: Record<MetricSubject, SubjectGroup[]> = {
   nuclei: [
-    {unit: "nucleus", metrics: [area, ...intensities]},
+    {unit: "nucleus", metrics: [area, ...intensities, one("ソリディティ", "solidity"), one("長短軸比", "axis_ratio"), one("離心率", "eccentricity")]},
     {unit: "field", metrics: [one("数", "nucleus_count"), one("密度（mm² あたり）", "nucleus_density_per_mm2"), one("陽性核数", "positive_count"), one("陽性率", "positive_fraction")]},
   ],
   nucleoli: [
     {unit: "nucleolus", metrics: [area, ...intensities]},
     {unit: "nucleus", metrics: [one("数", "nucleolar_count"),
       {label: "総面積", variants: [{id: "nucleolar_area_px", label: "px²"}, {id: "nucleolar_area_um2", label: "µm²"}]},
-      one("面積割合", "nucleolar_area_fraction"), one("離心率", "nucleolar_eccentricity")]},
+      one("面積割合", "nucleolar_area_fraction"), one("離心率", "nucleolar_eccentricity"), one("最大の核小体の割合", "largest_nucleolus_fraction")]},
   ],
   nucleoplasm: [
     {unit: "nucleus", metrics: [area, ...intensities, one("核質／核小体 log₂ 比", "log2_nucleoplasm_over_nucleolus")]},

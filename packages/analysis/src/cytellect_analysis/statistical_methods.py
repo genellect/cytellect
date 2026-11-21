@@ -107,7 +107,7 @@ def _automatic_background(result, metric, fields, channel_id):
     if display:
         lines.append("These intensities are display codes, not acquired raw fluorescence; acquisition LUTs, clipping "
                      "and gamma cannot be reversed.")
-    if not metric.endswith("_corrected") and metric != "positive_area_fraction":
+    if not metric.endswith("_corrected"):
         lines.append("The selected outcome does not use these automatic background corrections.")
         return lines
     c = CONSTANTS

@@ -225,11 +225,7 @@ def _ylabel(result, ja):
               "positive_count": ("Positive nuclei per field", "視野あたりの陽性核数"),
               "positive_fraction": ("Positive fraction of evaluable nuclei", "判定可能な核の陽性率")}
     if metric in NUCLEAR_FEATURE_LABELS:
-        channel = _selected_channel(result)
-        label = (f"{channel['label']}: " if channel else "") + NUCLEAR_FEATURE_LABELS[metric][ja]
-        correction = ("背景補正" if ja else "background corrected") if metric in ("cv_corrected", "positive_area_fraction") else ""
-        suffix = ", ".join(item for item in (correction, unit) if item)
-        return label + (f"\n({suffix})" if suffix else "")
+        return NUCLEAR_FEATURE_LABELS[metric][ja] + (f"\n({unit})" if unit else "")
     if metric in COMPARTMENT_LABELS:
         channel = _selected_channel(result)
         label = (f"{channel['label']}: " if channel else "") + COMPARTMENT_LABELS[metric][ja]

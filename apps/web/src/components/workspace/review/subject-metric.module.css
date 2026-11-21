@@ -10,3 +10,4 @@
 .variants button+button[type=button]{border-left:1px solid #cdd3dc}.variants button[type=button]:first-child{border-radius:4px 0 0 4px}.variants button[type=button]:last-child{border-radius:0 4px 4px 0}
 .variants button[type=button][aria-checked=true]{background:var(--accent);color:#fff}
 .subjects button[type=button]:hover:not([aria-checked=true]),.variants button[type=button]:hover:not(:disabled,[aria-checked=true]){background:#edf2fa}
+.primary[type=button]{margin-left:auto;display:inline-flex;align-items:center;justify-content:center;min-width:24px;min-height:24px;padding:2px;border:0;border-radius:4px;background:transparent}.primary[type=button]:hover:not(:disabled){background:#edf2fa}

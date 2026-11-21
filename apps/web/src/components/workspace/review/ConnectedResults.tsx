@@ -12,6 +12,7 @@ import {createComparisonAdapter,descriptiveSupported,MISSING_POLICY,type CohortS
 import type {ApiAdapter,SavedResult,WorkspaceSelection} from "@/lib/workspace/api-adapter";
 import type {ReviewTarget} from "@/lib/workspace/review-preview";
 import {measureLabel,metricStructure,metricUsesChannel,nucleusPositivity} from "@/lib/workspace/metric-catalog";
+import {OUTCOME_ROLE_LABELS,outcomeRole,type OutcomeRole,type PrimaryOutcome} from "@/lib/workspace/primary-outcome";
 import {associationAxes,associationSupported,checkedPlot,comparisonKind,exploratoryPositivity,saturatedGroups,emptyMetadata,restoredMetric,resultRequest,resultSeries,runTable,seriesOrder,withMaskCorrections,type MaskCorrectionRow,type ResultDesign,type ResultOperation,type RenderPlot} from "./connected-results-model";
 import styles from "./connected-results.module.css";
 import {ErrorText,useShowcaseUi} from "./showcase-ui";
@@ -64,6 +65,8 @@ export interface ConnectedResultsProps {
   stainName?:(channelId:string)=>string;
   /** In the demo, the statistics its tour recorded for the scene; null elsewhere (every choice can be calculated). */
   recorded?:RecordedStatistic[]|null;
+  /** The primary measure declared before results (#257 RP-04); results show 主要 or 探索 only when one exists. */
+  primary?:PrimaryOutcome|null;
 }
 interface SavedSource {field_id:string;region_set?:{region_set_id:string};metadata?:{condition?:string}}
 interface SavedChannel {channel_id:string;label?:string;stain?:string|null}
@@ -81,11 +84,13 @@ interface Presentation {version:"1.0.0";observations?:Observations|null;color_by
 const formNames:Record<string,string>={points:"全データ点",density:"分布（バイオリン）",box:"箱ひげ",bar:"平均の棒",
   "run-box":"実験回の箱ひげ","run-violin":"実験回のバイオリン","run-histogram":"実験回のヒストグラム","run-paired":"実験回の対応",scatter:"散布図"};
 const sizeNames:Record<FigureSize,string>={panel:"パネル","single-column":"1段幅 · 89 mm","double-column":"2段幅 · 183 mm",custom:"カスタム"};
-interface Saved {job:string;revision:string;result:ResultPayload;identity:string;requestIdentity:string;plot:RenderPlot;figureJob:string;figure:ResultPayload["figure"];operation:ResultOperation;sources?:Array<{field:string;label:string}>;historical?:boolean;target?:ReviewTarget;created?:number}
+interface Saved {job:string;revision:string;result:ResultPayload;identity:string;requestIdentity:string;plot:RenderPlot;figureJob:string;figure:ResultPayload["figure"];operation:ResultOperation;sources?:Array<{field:string;label:string}>;historical?:boolean;target?:ReviewTarget;created?:number;
+  /** Server time of the statistics (never of a re-drawn figure); null when not recorded. */
+  calculated?:number|null}
 /** Saved units are the analysis package's (English, for figures); the result text names them in Japanese. */
 const unitLabels:Record<string,string>={"nuclei per field":"個／視野","nuclei per mm²":"個／mm²","positive nuclei per field":"個／視野","fraction of evaluable nuclei":"",dimensionless:"",count:""};
 const unitLabel=(unit?:string|null)=>unit?unitLabels[unit]??unit:"";
-const metricLabels:Record<string,string>={area_px:"面積 / px²",area_um2:"面積 / µm²",mean:"平均輝度",median:"中央値",integrated:"積算輝度",mean_corrected:"平均輝度（背景補正）",integrated_corrected:"積算輝度（背景補正）",nucleolar_count:"核小体数",nucleolar_area_fraction:"核小体面積割合",log2_nucleoplasm_over_nucleolus:"核質／核小体 log₂ 比",positive_count:"視野あたりの陽性核数",positive_fraction:"陽性率",nucleus_count:"視野あたりの核数",nucleus_density_per_mm2:"核の密度（mm² あたり）",nucleolar_area_px:"核小体の総面積 / px²",nucleolar_area_um2:"核小体の総面積 / µm²",nucleolar_eccentricity:"核小体の離心率"};
+const metricLabels:Record<string,string>={area_px:"面積 / px²",area_um2:"面積 / µm²",mean:"平均輝度",median:"中央値",integrated:"積算輝度",mean_corrected:"平均輝度（背景補正）",integrated_corrected:"積算輝度（背景補正）",nucleolar_count:"核小体数",nucleolar_area_fraction:"核小体面積割合",log2_nucleoplasm_over_nucleolus:"核質／核小体 log₂ 比",positive_count:"視野あたりの陽性核数",positive_fraction:"陽性率",nucleus_count:"視野あたりの核数",nucleus_density_per_mm2:"核の密度（mm² あたり）",nucleolar_area_px:"核小体の総面積 / px²",nucleolar_area_um2:"核小体の総面積 / µm²",nucleolar_eccentricity:"核小体の離心率",largest_nucleolus_fraction:"最大の核小体の割合",solidity:"核のソリディティ",axis_ratio:"核の長短軸比",eccentricity:"核の離心率"};
 const regionNames:Record<string,string>={nuclei:"核",nucleoli:"核小体",nucleoplasm:"核質",cell:"細胞ROI"};
 /** The region a metric is checked on: a per-nucleus value of the nucleoli comes from the nucleoplasm set
  * but reads 「核小体（核ごとの値）」, as the image shows it (V-04, X-01). */
@@ -115,7 +120,7 @@ function savedFigureName(entry:Saved){
   const spec=entry.result.spec;
   const axes:Array<[SavedSelection|undefined,{metric?:string;channel?:SavedChannel|null}|undefined]>=[[spec?.x_selection,entry.result.x_source],[spec?.y_selection,entry.result.y_source]];
   const measure=entry.operation==="association"?axes.map(([selection,source])=>measureName(selection,source?.channel,selection?.metric??source?.metric??"")).join(" × ")
-    :metric.startsWith("positive_")?resultMetricLabel(entry.result,metric):measureName(spec?.selection,entry.result.channel,metric);
+    :nucleusPositivity(metric)?resultMetricLabel(entry.result,metric):measureName(spec?.selection,entry.result.channel,metric);
   const observations=entry.plot.presentation?.observations??entry.figure.presentation?.observations??"points";
   const form=(entry.figure.forms||[]).find(value=>value.kind===entry.plot.kind&&(value.kind!=="superplot"||(value.observations??"points")===observations));
   const when=entry.created?new Date(entry.created*1000).toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}):"";
@@ -129,7 +134,7 @@ export function ConnectedResults(props:ConnectedResultsProps) {
   return <WorkspaceResults key={props.workspace} {...props}/>;
 }
 
-function WorkspaceResults({adapter,workspace,selection,items:allItems,target,metric,channel,mode,shown=true,measured=0,compareRequest=0,onOpening,onOpeningTarget,onSource,beforePrepare,disabled=false,gfp=null,channelGate=null,initialSpec,onSaveDraft,onMetricChange,onAnalysisTargetChange,onPrepareMissing,experiment=null,experimentSha256=null,onEditExperiment,onStatistics,reclassifyRequest=0,stainName=(id:string)=>id,recorded:recordedStatistics=null}:ConnectedResultsProps) {
+function WorkspaceResults({adapter,workspace,selection,items:allItems,target,metric,channel,mode,shown=true,measured=0,compareRequest=0,onOpening,onOpeningTarget,onSource,beforePrepare,disabled=false,gfp=null,channelGate=null,initialSpec,onSaveDraft,onMetricChange,onAnalysisTargetChange,onPrepareMissing,experiment=null,experimentSha256=null,onEditExperiment,onStatistics,reclassifyRequest=0,stainName=(id:string)=>id,recorded:recordedStatistics=null,primary=null}:ConnectedResultsProps) {
   const showcaseUi=useShowcaseUi(),demo=showcaseUi.enabled,showcaseDataset=showcaseUi.dataset,openedSaved=useRef(false);
   const derived=useMemo(()=>experiment?fieldMetadata(experiment):{},[experiment]);
   // A stratified design (1.1.0) is read one declared stratum at a time: only that stratum's fields enter,
@@ -197,7 +202,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   useEffect(()=>{if(!workspace)return;let live=true;void request<Job[]>(`/v1/workspaces/${workspace}/jobs`).then(async jobs=>{
     // Newest first, one entry per result: a result redrawn many times does not push the others out.
     const completed=jobs.filter(job=>job.state==="succeeded"&&(job.kind==="statistics"||job.kind==="figure-render")).sort((a,b)=>b.created-a.created).slice(0,200);
-    const load=async(job:Job):Promise<Saved|null>=>{try{const result=await request<ResultPayload>(`/v1/jobs/${job.id}/result`);if(result.source_kind!=="region-2d"||!result.figure)return null;const entry:Saved={job:result.source_job_id||job.id,revision:result.revision_id,result,identity:"history",requestIdentity:"history",plot:{...checkedPlot(183,100,7,"","","",""),...result.spec?.plot} as RenderPlot,figureJob:job.id,figure:result.figure,operation:result.analysis_kind==="region-comparison"?"comparison":result.analysis_kind==="region-association"?"association":"distribution",sources:resultSources(result).map(field=>({field:field.field_id,label:field.field_id})),historical:true,target:savedRegion(result),created:job.created};return entry;}catch{return null;}};
+    const load=async(job:Job):Promise<Saved|null>=>{try{const result=await request<ResultPayload>(`/v1/jobs/${job.id}/result`);if(result.source_kind!=="region-2d"||!result.figure)return null;const entry:Saved={job:result.source_job_id||job.id,revision:result.revision_id,result,identity:"history",requestIdentity:"history",plot:{...checkedPlot(183,100,7,"","","",""),...result.spec?.plot} as RenderPlot,figureJob:job.id,figure:result.figure,operation:result.analysis_kind==="region-comparison"?"comparison":result.analysis_kind==="region-association"?"association":"distribution",sources:resultSources(result).map(field=>({field:field.field_id,label:field.field_id})),historical:true,target:savedRegion(result),created:job.created,calculated:job.calculated_at??null};return entry;}catch{return null;}};
     const records:Saved[]=[];
     for(let start=0;start<completed.length&&records.length<40&&live;start+=20){
       for(const entry of await Promise.all(completed.slice(start,start+20).map(load)))if(entry&&records.length<40&&!records.some(value=>value.job===entry.job))records.push(entry);
@@ -406,7 +411,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
       if(operation!=="distribution"&&sources.length<2)throw new Error("統計解析には複数視野の測定結果と実験情報が必要です。");
       await comparison.review(revision,reviewedNow,keepMissing?unresolvedFields:null);
       const accepted=await post<{job_id:string}>(`/v1/revisions/${revision}/${operation==="distribution"?"descriptive":"common-statistics"}`,spec);
-      await waitJob(accepted.job_id);
+      const calculatedJob=await waitJob(accepted.job_id);
       const result=await request<ResultPayload>(`/v1/jobs/${accepted.job_id}/${operation==="distribution"?"result":"common-statistics"}`);
       if(result.revision_id!==revision)throw new Error("結果の解析版が一致しません。");
       const current=choiceNow.current===startedFor;
@@ -414,7 +419,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
         if(observations&&!(result.figure.forms||[]).some(form=>form.observations===observations))setObservations(null);}
       // A design, stratum or source changed while this ran: its result is not shown as current.
       if(requestedStratum&&scopedIdentity("",requestedStratum)!==scopedIdentity("",stratumRequestRef.current))throw new Error("層または実験デザインが計算中に変わりました。もう一度計算してください。");
-      const created:Saved={job:accepted.job_id,revision,result,identity:resultIdentity(sources,fields,requestedStratum),requestIdentity,plot:{...display,kind:chosenKind},figureJob:accepted.job_id,figure:result.figure,operation,sources:sources.map(source=>({field:source.field,label:source.label})),target:["nuclei","nucleoli","nucleoplasm","cell"].includes(regionSet)?regionSet as ReviewTarget:target,created:Date.now()/1000};
+      const created:Saved={job:accepted.job_id,revision,result,identity:resultIdentity(sources,fields,requestedStratum),requestIdentity,plot:{...display,kind:chosenKind},figureJob:accepted.job_id,figure:result.figure,operation,sources:sources.map(source=>({field:source.field,label:source.label})),target:["nuclei","nucleoli","nucleoplasm","cell"].includes(regionSet)?regionSet as ReviewTarget:target,created:Date.now()/1000,calculated:calculatedJob.calculated_at??null};
       if(current)setSaved(created);setHistory(previous=>[created,...previous.filter(value=>value.job!==created.job)]);
     // In the demo, a choice the recording cannot answer (after an AI example changed the detection, say) is told as
     // the demo's limit on the condition's card, not as an error.
@@ -544,7 +549,12 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   const tableRows=saved?.operation==="comparison"?saved.result.comparisons:saved?.operation==="association"?saved.result.associations:saved?.result.field_summary&&withMaskCorrections(saved.result.field_summary,saved.result.mask_corrections);
   const fieldLabels=Object.fromEntries([...(saved?.sources||[]).map((source,index)=>[source.field,source.label!==source.field?source.label:`視野 ${index+1}`]),...items.map(item=>[item.fieldId,item.label])]);
 
-  const savedChips=<div className={styles.recorded} role="group" aria-label="保存した比較">{recorded.map(entry=><button key={entry.job} aria-pressed={!pending&&saved?.job===entry.job} onClick={()=>showRecorded(entry)}>{resultMetricLabel(entry.result,entry.result.estimates?.metric??"",stainName)}</button>)}</div>;
+  // 主要 or 探索 only when a primary measure is declared (#257 RP-04): a saved result by the server time of its
+  // statistics, never of a re-drawn figure; the chosen condition before it is calculated by its measure alone.
+  const roleOf=(entry:Saved):OutcomeRole=>outcomeRole(primary,savedCondition(entry.operation,entry.result as SavedResultLike),entry.calculated??null);
+  const shownRole:OutcomeRole=saved&&!pending?roleOf(saved):outcomeRole(primary,{metric,regionSet,channel:condition.channel});
+  const roleMark=(role:OutcomeRole)=>role&&<span className={styles.outcomeRole} data-outcome-role={role}>{OUTCOME_ROLE_LABELS[role]}</span>;
+  const savedChips=<div className={styles.recorded} role="group" aria-label="保存した比較">{recorded.map(entry=><button key={entry.job} aria-pressed={!pending&&saved?.job===entry.job} onClick={()=>showRecorded(entry)}>{resultMetricLabel(entry.result,entry.result.estimates?.metric??"",stainName)}{roleMark(roleOf(entry))}</button>)}</div>;
   if(csv)return <ConnectedCsvResults workspace={workspace} mode={mode} onImages={()=>setCsv(false)}/>;
   return <section className={styles.root} aria-label={mode==="figure"?"図の作成・保存":"測定結果の統計解析"}>
     <div className={styles.settings} onBlur={event=>{if(event.currentTarget.contains(event.relatedTarget)||(event.relatedTarget as HTMLElement|null)?.dataset?.calculate)return;if(!busy&&!saved?.historical)void persist().catch(cause=>setError(fail(cause)));}}>
@@ -557,7 +567,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
         {!!unstratified&&<p role="alert">層が決まっていない視野：{unstratified} 件。計算には、「実験」での層の割り当てか、理由を付けた除外が必要です。</p>}
       </div>}
       <button type="button" onClick={()=>setCsv(true)}>CSV の数値表を解析</button>
-      <p className={styles.current}>{mode==="figure"&&saved?(saved.historical?resultMetricLabel(saved.result,shownMetric,stainName):measureLabel(shownMetric,shownTarget,stainOf(shownChannel))):choiceLabel}</p>
+      <p className={styles.current}>{mode==="figure"&&saved?(saved.historical?resultMetricLabel(saved.result,shownMetric,stainName):measureLabel(shownMetric,shownTarget,stainOf(shownChannel))):choiceLabel}{roleMark(shownRole)}</p>
       {positivityMissing&&<p role="status">陽性核数・陽性率には核の分類が必要です。「画像」で色分けを「陽性・陰性」にし、染色を選んで分類してください。</p>}
       {channelGate&&<div><p>{currentGate?`${channelGateName(currentGate.result)}の分類記録：確認済み。` :"集計対象・実験情報の変更後は、分類記録の確認が必要です。"}</p>
         <button type="button" disabled={disabled||!!busy||!sources.length||!!missing||!ledgerReady} onClick={()=>void classifyForResults()}>現在の実験情報で再分類</button>

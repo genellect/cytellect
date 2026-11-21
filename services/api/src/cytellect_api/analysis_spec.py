@@ -161,8 +161,8 @@ class PrimaryOutcome(RegionModel):
 
     @model_validator(mode="after")
     def nuclear_features_on_nuclei(self):
-        # Nuclear shape and pixel-signal metrics describe nuclei only (nuclear-features/1.0.0).
-        if self.metric in ("solidity", "axis_ratio", "eccentricity", "cv_corrected", "positive_area_fraction") \
+        # Nuclear shape metrics describe nuclei only (nuclear-features/1.0.0).
+        if self.metric in ("solidity", "axis_ratio", "eccentricity") \
                 and self.region_set_id != "nuclei":
             raise ValueError("nuclear_features_nuclei_only")
         return self

@@ -17,9 +17,9 @@ type Selection = CommonComparisonRequest["selection"];
 export type RegionComparisonMetric = Extract<Selection, {source: "region"}>["metric"];
 /** Per-nucleus values from a nucleoplasm revision's compartment-summary.json (selection 1.0.0). */
 export type CompartmentComparisonMetric = Extract<Selection, {source: "compartment-summary"}>["metric"];
-export const COMPARTMENT_METRICS: readonly CompartmentComparisonMetric[] = ["log2_nucleoplasm_over_nucleolus", "nucleolar_area_fraction", "nucleolar_count", "nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity"];
+export const COMPARTMENT_METRICS: readonly CompartmentComparisonMetric[] = ["log2_nucleoplasm_over_nucleolus", "nucleolar_area_fraction", "nucleolar_count", "nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity", "largest_nucleolus_fraction"];
 /** Nucleolar total area and shape need compartment-summary selection 1.1.0; the others keep 1.0.0. */
-const NUCLEOLAR_V11: readonly string[] = ["nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity"];
+const NUCLEOLAR_V11: readonly string[] = ["nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity", "largest_nucleolus_fraction"];
 /** The descriptive contract accepts the metrics exposed by this workspace. */
 export function descriptiveSupported(metric:string){void metric;return true;}
 const isCompartmentMetric = (metric: string): metric is CompartmentComparisonMetric => (COMPARTMENT_METRICS as readonly string[]).includes(metric);

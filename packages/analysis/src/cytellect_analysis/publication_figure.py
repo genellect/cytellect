@@ -106,9 +106,6 @@ def axis_title(source) -> tuple[str, str]:
         "solidity": ("Nuclear solidity", ""),
         "axis_ratio": ("Nuclear axis ratio", ""),
         "eccentricity": ("Nuclear eccentricity", ""),
-        "cv": (" ".join(p for p in ("Nuclear", stain, "pixel CV") if p), "background-subtracted"),
-        "positive_area_fraction": (" ".join(p for p in ("Nuclear", stain, "positive-area fraction") if p),
-                                   "background-subtracted"),
     }
     if base in titles:
         return titles[base]

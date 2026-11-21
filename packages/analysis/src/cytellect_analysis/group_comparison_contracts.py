@@ -61,9 +61,8 @@ _SCALES: dict[str, MetricScale] = {
     "positive_fraction": "fraction",
     "nucleolar_count": "ratio", "nucleolar_area_px": "ratio", "nucleolar_area_um2": "ratio",
     "nucleolar_area_fraction": "fraction", "nucleolar_eccentricity": "difference", "largest_nucleolus_fraction": "fraction",
-    # nuclear-features/1.0.0 (#257): shape and pixel CV are differences; the positive-area fraction is in percentage points.
+    # nuclear-features/1.0.0 (#257): nuclear shape is compared as a difference.
     "solidity": "difference", "axis_ratio": "difference", "eccentricity": "difference",
-    "cv_corrected": "difference", "positive_area_fraction": "fraction",
     "log2_nucleoplasm_over_nucleolus": "log2",
 }
 

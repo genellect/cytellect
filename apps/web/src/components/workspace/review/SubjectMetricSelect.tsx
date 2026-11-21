@@ -49,12 +49,23 @@ function RadioGroup<T extends string>({radios, value, onChoose, className, label
 /** The statistics side panel's choice of what to measure: the subject first (a pictogram of the nucleus), then that
  * subject's metrics grouped by what one observation is, then a switch between a metric's variants (requirements M-01).
  * Metrics in physical units need a confirmed pixel size and cannot be chosen without one (M-02). */
-export function SubjectMetricSelect({metric, target, calibrated, offered, onSubject, onMetric}: {
+/** The primary-measure mark beside the metric (#257 RP-04): an outline star, filled once this condition is declared. */
+function PrimaryStar({declared, disabled, onToggle}: {declared: boolean; disabled?: boolean; onToggle: () => void}) {
+  return <button type="button" className={styles.primary} aria-pressed={declared} disabled={disabled} onClick={onToggle}
+    aria-label="主要指標" title={declared ? "主要指標：宣言済み" : "主要指標として宣言"}>
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5l1.9 4.1 4.5.5-3.3 3.1.9 4.4L8 11.4l-4 2.2.9-4.4L1.6 6.1l4.5-.5z"
+      fill={declared ? "#1757b6" : "none"} stroke="#1757b6" strokeWidth="1.2" strokeLinejoin="round"/></svg>
+  </button>;
+}
+
+export function SubjectMetricSelect({metric, target, calibrated, offered, onSubject, onMetric, declaration}: {
   metric: string; target: ReviewTarget; calibrated: boolean;
   /** Whether a metric can be chosen when its subject is the chosen region (the demo offers what it holds). */
   offered: (metric: string, subject: MetricSubject) => boolean;
   onSubject: (subject: MetricSubject) => void;
   onMetric: (metric: string, subject: MetricSubject) => void;
+  /** The primary-measure declaration of the chosen condition; absent where none can be made (the demo). */
+  declaration?: {declared: boolean; disabled?: boolean; onToggle: () => void};
 }) {
   const id = useId();
   const subject = metricSubject(metric, target), entry = subjectEntry(subject, metric);
@@ -72,7 +83,7 @@ export function SubjectMetricSelect({metric, target, calibrated, offered, onSubj
     <RadioGroup className={`${styles.subjects} ${subjects.length > 3 ? styles.twoColumns : ""}`} label={{"aria-labelledby": `${id}-subject`}} value={subject} onChoose={onSubject}
       radios={subjects.map(value => ({value, label: <><Pictogram subject={value}/>{SUBJECT_LABELS[value]}</>}))}/>
     <div className={styles.metric}>
-      <div className={styles.caption}><span id={`${id}-metric`}>指標</span>{entry && <span className={styles.unit} id={`${id}-unit`}>{UNIT_LABELS[entry.unit]}</span>}</div>
+      <div className={styles.caption}><span id={`${id}-metric`}>指標</span>{entry && <span className={styles.unit} id={`${id}-unit`}>{UNIT_LABELS[entry.unit]}</span>}{declaration && <PrimaryStar {...declaration}/>}</div>
       <select aria-labelledby={`${id}-metric`} aria-describedby={entry ? `${id}-unit` : undefined} value={shown ?? metric} onChange={event => onMetric(event.target.value, subject)}>
         {/* A metric set elsewhere (a saved result) that the list does not offer is shown as it is, not as the first entry. */}
         {!shown && <option value={metric} disabled>{metricLabel(metric)}</option>}
