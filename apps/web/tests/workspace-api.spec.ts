@@ -101,7 +101,8 @@ test("failed saved entries remain visible until explicitly excluded from compari
   await remaining.click();
   await expect(navigation.getByRole("button",{name:"画像",exact:true})).toHaveAttribute("aria-current","page");
   for(const number of [3,4]){
-    await page.getByRole("complementary",{name:"視野一覧"}).getByRole("button").filter({hasText:`${number} 視野 ${number}`}).click();
+    const listed=page.getByRole("complementary",{name:"視野一覧"}).getByRole("button").filter({hasText:`${number} 視野 ${number}`});
+    await listed.click();await expect(listed).toHaveAttribute("aria-pressed","true");
     await page.getByRole("button",{name:"この視野を除外",exact:true}).click();
     await expect.poll(()=>fixture.selection().entries[number-1].exclusion_reason).toBe("利用者が解析対象から除外");
   }
@@ -126,10 +127,12 @@ test("without a declared design, the typed groups and units are confirmed in 統
   await panel.getByRole("combobox",{name:"解析",exact:true}).selectOption("comparison");
   await page.getByRole("complementary",{name:"解析対象"}).getByRole("combobox",{name:"指標",exact:true}).selectOption("area_px");
   await expect(panel.getByText("2 視野の測定が未完了です。",{exact:true})).toBeVisible();
-  await expect(panel.getByRole("button",{name:"計算",exact:true})).toBeDisabled();
+  await expect(panel.getByRole("button",{name:"画像：未測定 2 視野",exact:true})).toBeVisible();
+  await expect(panel.getByRole("button",{name:"計算",exact:true})).toHaveCount(0);
   await navigation.getByRole("button",{name:"画像",exact:true}).click();
   for(const number of [3,4]){
-    await page.getByRole("complementary",{name:"視野一覧"}).getByRole("button").filter({hasText:`${number} 視野 ${number}`}).click();
+    const listed=page.getByRole("complementary",{name:"視野一覧"}).getByRole("button").filter({hasText:`${number} 視野 ${number}`});
+    await listed.click();await expect(listed).toHaveAttribute("aria-pressed","true");
     await page.getByRole("button",{name:"この視野を除外",exact:true}).click();
     await expect.poll(()=>fixture.selection().entries[number-1].exclusion_reason).toBe("利用者が解析対象から除外");
   }
