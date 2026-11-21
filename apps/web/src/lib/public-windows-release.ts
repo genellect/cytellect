@@ -29,7 +29,7 @@ export async function publicWindowsRelease() {
     release: PUBLISHED_RELEASE?.url === WINDOWS_RELEASE_URL ? PUBLISHED_RELEASE : null,
   };
   if (!WINDOWS_RELEASE_URL || process.env.NEXT_PUBLIC_WINDOWS_RELEASE_URL !== undefined ||
-      process.env.VERCEL_ENV !== "production") return fallback;
+      process.env.VERCEL_ENV !== "production" || process.env.WINDOWS_EXE_CHANNEL_ENABLED !== "true") return fallback;
   try {
     const release = await readChannel();
     return { url: release.url, release };

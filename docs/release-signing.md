@@ -60,7 +60,7 @@ UPDATE_PUBLIC_KEY = "ssh-ed25519 AAAA... cytellect-update"
 2. `windows-exe-preflight` に変数 `PROPOSAL_PREFLIGHT_URL` と秘密 `PROPOSAL_PREFLIGHT_DEVICE_TOKEN`、`windows-exe-publish` に秘密 `UPDATE_SIGNING_KEY` を登録する。[配布前の互換性検査](proposal-deployment.md#required-prompt-version-check-before-distribution)とこの文書の鍵の手順を使う。
 3. `windows-exe-channel` ブランチの作成・更新・削除を制限する ruleset を有効にし、Deploy keys だけを例外にする。このリポジトリで唯一の書き込み可能な deploy key を配布記録専用に登録し、その秘密鍵は `windows-exe-channel` environment の `WINDOWS_EXE_CHANNEL_DEPLOY_KEY` に置く。配布記録の更新ジョブはこの鍵で Git に push する。公式サイトと自動配布を有効にする前に、通常の書き込み権限がこのブランチを更新できないことと、専用鍵が更新できることを確かめる。
 4. 初回の配布候補を確認し、リポジトリ変数 `WINDOWS_EXE_AUTO_RELEASE` を `true` にする。次の `Verify` 成功時、定期実行時、または Actions の `automatic` を選んだ手動起動時に配布を進める。
-5. 初回は Actions の公開ログと配布記録、公式サイトからの取得・新規導入、既存版からのアプリ内更新を確認する。サイトの記録は GitHub とサイトのキャッシュを経て反映される。
+5. Actions の公開ログと保護された配布記録を確認する。Vercel の Production に `WINDOWS_EXE_CHANNEL_ENABLED=true` を設定し、本番サイトに反映する。公式サイトからの取得・新規導入と、既存版からのアプリ内更新を Windows で確認する。以後、サイトの記録は GitHub とサイトのキャッシュを経て反映される。
 
 停止時は `WINDOWS_EXE_AUTO_RELEASE` を無効にし、進行中の自動配布を Actions で取り消す。修正後は `automatic` で起動する。公開後にサイト反映だけ失敗した場合も同じ操作で再開でき、すでに公開した EXE の版・ファイルを再利用する。6時間ごとの実行も公開記録を再確認する。定期実行は、版を予約済みで検証済み成果物のない候補を作り直さない。失敗した候補は、新しいコミットの `Verify` 成功か `automatic` の起動で再試行する。新しいコミットに置き換わった候補のタグと下書き（本文に `cytellect-windows-exe-auto` の印がある未公開のもの）は残り、その版番号は使われない。不要なものはオーナーが削除する。手動配布を行うときは、先に `WINDOWS_EXE_AUTO_RELEASE` を無効にする。有効なままでは、後から起動した自動配布が、待機中の手動配布を取り消す。公開済み版の差し替えが必要な場合は、修正した `main` を新しい版として配布する。緊急の手動配布は下記の手順に従う。署名鍵を交換するときは自動配布を停止し、手順 5 の配布を済ませてから再開する。
 
