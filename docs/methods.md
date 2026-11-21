@@ -750,6 +750,52 @@ Adds to the 1.0.0 metrics, for nuclei with at least one adopted nucleolus
 - `nucleolar_area_um2` needs a confirmed calibration (`compartment_summary_calibration_required`);
   area and eccentricity follow the pixel-area acquisition review (equal sampling,
   one calibration), µm² the calibrated-area review.
+- `largest_nucleolus_fraction` (added 2026-11-21, genellect/cytellect#257 A-3; earlier 1.1.0 requests are unchanged):
+  pixel area of the nucleus's largest adopted nucleolus / summed pixel area of its adopted nucleoli, the
+  `largest_nucleolus_fraction` of nucleus table 1.0.0. It is read from the same bound masks as eccentricity (every
+  object counts, one-pixel objects included), is in [1/n, 1] for n nucleoli, and is compared as a difference in
+  percentage points. It follows the pixel-area acquisition review.
+
+### Per-nucleus features 1.0.0 (2026-11-21)
+
+`nuclear-features/1.0.0` (`nuclear_features.py`) gives per-nucleus values of StarDist nuclear region sets only
+(`region_set.source = stardist_nuclear`, selection `region_set_id = nuclei`); a request on nucleoli, nucleoplasm, cells
+or another source is refused (`nuclear_features_nuclei_only`). Nucleolar shape per nucleolus failed decision 4
+([public check](public-nucleolar-shape-validation.md)) and is read through the per-nucleus summaries above. Values are
+recomputed when statistics run from each field's adopted, hash-checked labels and bound to the measured nuclei by
+region identity and pixel area; nothing is stored in the measurement table.
+
+- Shape (region selection metrics `solidity`, `axis_ratio`, `eccentricity`; any measurement mode; no channel):
+  solidity = pixel area / convex-hull pixel area; axis ratio = major / minor axis of the ellipse with the nucleus's
+  second moments; eccentricity = `sqrt(1 − λmin/λmax)` of its pixel-centre covariance (scikit-image `regionprops`).
+  A nucleus touching the image border (`touches_border`), below 96 px (`below_minimum_area`; set from the
+  digitisation error of public nucleus masks in genellect/cytellect#258) or with a zero minor axis (`degenerate`) has
+  no value and keeps its reason; it still counts in nucleus numbers and areas. Shape is compared as a difference,
+  needs the spatial-sampling review and one calibration, and is 2D, not a volume or sphericity.
+- Signal (computed by the shared implementation; **not offered as statistics metrics**): on the corrected pixels
+  `I − b` of one channel (`b` = the field's automatic background candidate median, measurement protocol 4.0.0), the
+  pixel CV (population SD / mean, no smoothing, epsilon or clipping; the raw CV, corrected mean and SD kept beside
+  it) and the positive-area fraction (corrected pixels strictly above Otsu's threshold, 256 bins, of the corrected
+  pixels of every measurable, not excluded nucleus of the same acquisition date / nucleus pixels). A nucleus has no
+  signal value when the background was not established, it touches the border, any pixel is at the acquisition
+  limit (else the storage maximum), its corrected mean is not positive, or its corrected mean is below
+  `MINIMUM_SIGNAL_TO_BACKGROUND` = 1 times the background spread (1.4826 × MAD of the recomputed background pixels,
+  whose mask and median must equal the saved provenance; the Signal QC 1.0.0 ratio). Both failed the public check
+  for every stain ([record](public-nuclear-signal-validation.md)): the measurable fraction differed between
+  treatment conditions, mainly through saturated NPM1 and border-touching nuclei. Region selections and
+  `require_region_metric` refuse `cv_corrected` and `positive_area_fraction`.
+
+### Primary outcome declaration 1.0.0 (2026-11-21)
+
+The analysis spec may hold `primary_outcome` (metric, region set, channel) declared before results are read
+(genellect/cytellect#257 RP-04). The server sets `declared_at` from its own clock; it is kept while the declared
+measure is unchanged and renewed when it changes, so a client cannot backdate it. Every job in the job list carries
+`calculated_at`: a statistics job's creation time, and for a figure re-render the creation time of the statistics job
+it re-draws (followed through re-renders of re-renders), never the re-render's own time. A result is marked primary
+only when it is the declared measure and `calculated_at > declared_at`; a result without a recorded time, or any other
+measure, is exploratory. When any result of the declared measure was calculated at or before `declared_at` (or has no
+recorded time), the declaration came after that result was seen, and every result of that measure is exploratory,
+also one calculated again after the declaration. Nothing is marked without a declaration. The declaration changes no value or test.
 
 ### Nucleus table 1.0.0 (2026-11-09)
 

@@ -24,6 +24,7 @@ from .descriptive_contracts import CompartmentMissingSummary, RegionSelection
 from .field_summary_source import exploratory_positivity, prepare_field_summary_observations
 from .gfp_selection import SAFE_ERROR_CODES as GFP_GATE_ERRORS
 from .gfp_selection import gate_of, gate_record_key, gate_source_observations, gate_warnings
+from .nuclear_features import reads_no_stain
 from .region_comparison import SAFE_ERROR_CODES as COMPARISON_ERRORS
 from .region_comparison import _acquisition, _design_ledger, _source, source_fingerprint
 from .statistics import finite_records
@@ -50,7 +51,7 @@ SAFE_ERROR_CODES = COMPARISON_ERRORS | COMPARTMENT_ERRORS | GFP_GATE_ERRORS | CH
 })
 
 
-def _prepared(report, config, request, summaries=None, nuclear=None, shapes=None):
+def _prepared(report, config, request, summaries=None, nuclear=None, shapes=None, features=None):
     compartment = request.selection.source == "compartment-summary"
     per_field = request.selection.source == "field-summary"
     gate_record = None
@@ -64,7 +65,7 @@ def _prepared(report, config, request, summaries=None, nuclear=None, shapes=None
         observations, sources, unit, failed, gate_record = prepare_field_summary_observations(
             report, snapshot, request.selection, nuclear, with_gate_record=True)
     else:
-        snapshot, observations, sources, unit, failed = _source(report, config, request)
+        snapshot, observations, sources, unit, failed = _source(report, config, request, features)
     if not per_field and gate_of(request.selection) is not None:
         observations, gate_record = gate_source_observations(
             report, config.get("recipe"), snapshot, request.selection, observations, failed, summaries, nuclear)
@@ -78,7 +79,7 @@ def _prepared(report, config, request, summaries=None, nuclear=None, shapes=None
         reviewed, found = _acquisition(sources, snapshot, selected, ledger, review)
         acquisition = acquisition or reviewed
         warnings.extend(code for code in found if code not in warnings)
-    if not request.selection.metric.startswith("area_") and not per_field:
+    if not reads_no_stain(request.selection.metric) and not per_field:
         selected_ids = {(row["field_id"], row["region_id"]) for row in selected}
         for fid, table in report["field_tables"].items():
             for row in table["rows"]:
@@ -128,7 +129,7 @@ def _counts(prepared, conditions, paired=False):
     return counts
 
 
-def analyze_region_comparison(report, config, request, summaries=None, nuclear=None, shapes=None):
+def analyze_region_comparison(report, config, request, summaries=None, nuclear=None, shapes=None, features=None):
     """``summaries`` (field -> compartment-summary.json) is required only for a
     compartment-summary selection; region selections ignore it. ``shapes`` (field ->
     nucleus -> nucleolar shape) is required only for nucleolar eccentricity. ``nuclear`` is the
@@ -139,7 +140,7 @@ def analyze_region_comparison(report, config, request, summaries=None, nuclear=N
         # A threshold not fixed by a negative control can be moved after seeing the values:
         # the positive count and fraction are described (test "none"), never tested.
         raise ValueError("field_positivity_exploratory_threshold_descriptive_only")
-    data = _prepared(report, config, request, summaries, nuclear, shapes)
+    data = _prepared(report, config, request, summaries, nuclear, shapes, features)
     units = pd.DataFrame(data["unit_summary"])
     paired = request.design.kind == "paired"
     comparisons = []
@@ -190,7 +191,7 @@ def analyze_region_comparison(report, config, request, summaries=None, nuclear=N
                          "aggregation": request.aggregation}, **data).model_dump(mode="json")
 
 
-def analyze_region_association(report, config, request, *, nuclear=None):
+def analyze_region_association(report, config, request, *, nuclear=None, features=None):
     request = RegionAssociationRequest.model_validate(request)
     if confirmed_policy(config) is not None:
         # Its result has no place for the missing-nucleoli ledger; the policy is for comparisons and descriptions.
@@ -201,8 +202,10 @@ def analyze_region_association(report, config, request, *, nuclear=None):
                  if request.scope == "pooled" else [])
     common = dict(design=request.design, conditions=request.conditions, acquisition_review=request.acquisition_review,
                   comparison_family=SimpleNamespace(contrasts=contrasts))
-    x = _prepared(report, config, SimpleNamespace(selection=request.x_selection, **common), nuclear=nuclear)
-    y = _prepared(report, config, SimpleNamespace(selection=request.y_selection, **common), nuclear=nuclear)
+    x = _prepared(report, config, SimpleNamespace(selection=request.x_selection, **common), nuclear=nuclear,
+                  features=features)
+    y = _prepared(report, config, SimpleNamespace(selection=request.y_selection, **common), nuclear=nuclear,
+                  features=features)
     if request.version == "1.1.0":
         def identity(source):
             return {(r["field_id"], r["region_id"]) for r in source["plot_data"]}

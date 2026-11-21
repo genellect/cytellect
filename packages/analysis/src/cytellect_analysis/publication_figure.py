@@ -96,11 +96,16 @@ def axis_title(source) -> tuple[str, str]:
         "nucleolar_area_um2": ("Nucleolar area per nucleus", "µm²"),
         "nucleolar_area_fraction": ("Nucleolar area fraction of nucleus", ""),
         "nucleolar_eccentricity": ("Nucleolar eccentricity", ""),
+        "largest_nucleolus_fraction": ("Largest nucleolus fraction", ""),
         "log2_nucleoplasm_over_nucleolus": (" ".join(p for p in (stain, "nucleoplasm/nucleolus ratio") if p), "log2"),
         "nucleus_count": ("Nuclei per field", ""),
         "nucleus_density_per_mm2": ("Nuclear density", "nuclei per mm²"),
         "positive_count": (f"{stain}-positive nuclei per field" if stain else "Positive nuclei per field", ""),
         "positive_fraction": (f"{stain}-positive nuclei" if stain else "Positive nuclei", ""),
+        # nuclear-features/1.0.0: nuclei only.
+        "solidity": ("Nuclear solidity", ""),
+        "axis_ratio": ("Nuclear axis ratio", ""),
+        "eccentricity": ("Nuclear eccentricity", ""),
     }
     if base in titles:
         return titles[base]
