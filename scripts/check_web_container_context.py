@@ -39,7 +39,10 @@ def missing_imports(root: Path, dockerfile: str, files: list[str]) -> list[tuple
     for name in files:
         if not name.startswith(SOURCE_ROOTS) or name.startswith(SKIPPED) or not name.endswith(SOURCE_SUFFIXES):
             continue
-        text = (root / name).read_text(encoding="utf-8")
+        path = root / name
+        if not path.is_file():  # tracked but deleted in the working tree
+            continue
+        text = path.read_text(encoding="utf-8")
         for specifier in IMPORT.findall(text):
             target = posixpath.normpath(posixpath.join(posixpath.dirname(name), specifier))
             if not any(target == source or target.startswith(source + "/") for source in copied):
