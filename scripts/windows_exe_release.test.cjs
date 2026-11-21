@@ -101,7 +101,7 @@ test('repairs the website record from the same published installer after a faile
   const manifest = JSON.stringify({ version, source_commit: commit, installer });
   const manifestName = `Cytellect-update-${version}.json`;
   const upload = name => ({ name, state: 'uploaded' });
-  const release = { tag_name: `v${version}`, draft: false, body: '<!-- cytellect-windows-exe-auto -->', assets: [
+  const release = { tag_name: `v${version}`, draft: false, body: 'Manually published', assets: [
     { ...upload(installer.name), size: installer.bytes, digest: `sha256:${installer.sha256}`, browser_download_url: `${base}/${installer.name}` },
     { ...upload(manifestName), digest: `sha256:${createHash('sha256').update(manifest).digest('hex')}` },
     upload(`${manifestName}.sig`),
@@ -134,9 +134,11 @@ test('repairs the website record from the same published installer after a faile
     assert.equal(head, commit);
     content = Buffer.from(JSON.stringify(record)).toString('base64');
   };
-  await assert.rejects(syncChannel(github, context, core, write), /write failed/);
-  await syncChannel(github, context, core, write);
-  await syncChannel(github, context, core, write);
+  await syncChannel(github, context, core, { writeRecord: write });
+  assert.equal(writes, 0);
+  await assert.rejects(syncChannel(github, context, core, { writeRecord: write, seedFromPublished: true }), /write failed/);
+  await syncChannel(github, context, core, { writeRecord: write, seedFromPublished: true });
+  await syncChannel(github, context, core, { writeRecord: write, seedFromPublished: true });
   assert.equal(writes, 2);
   assert.deepEqual(JSON.parse(Buffer.from(content, 'base64')), {
     version, asset: 'installer', url: `${base}/${installer.name}`, sha256: installer.sha256,

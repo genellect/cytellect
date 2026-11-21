@@ -202,11 +202,11 @@ function pushChannel(record, expectedHead) {
   git('push', 'origin', `HEAD:${ref}`);
 }
 
-async function syncChannel(github, context, core, writeRecord = pushChannel) {
+async function syncChannel(github, context, core, { writeRecord = pushChannel, seedFromPublished = false } = {}) {
   const repo = context.repo;
   const releases = await github.paginate(github.rest.repos.listReleases, { ...repo, per_page: 100 });
   const release = latestPublicRelease(releases);
-  if (!release?.body?.includes(marker)) return;
+  if (!release || (!seedFromPublished && !release.body?.includes(marker))) return;
   let head;
   try {
     const { data: ref } = await github.rest.git.getRef({ ...repo, ref: `heads/${channel}` });
