@@ -25,8 +25,8 @@ from .figures import (
     series_color,
 )
 from .gfp_selection import recorded_gate_lines
-from .nuclear_features import LABELS as NUCLEAR_FEATURE_LABELS
 from .mask_corrections import mask_correction_caption_lines
+from .nuclear_features import LABELS as NUCLEAR_FEATURE_LABELS
 from .statistical_methods import (
     methods_metadata,
     readable_descriptive_methods,

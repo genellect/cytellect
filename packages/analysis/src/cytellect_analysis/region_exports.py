@@ -16,6 +16,7 @@ from .exports import environment
 from .exports_csv import write_csv
 from .images import read_tiff, sha256
 from .masks import polygon_mask, validate_label_array
+from .nuclear_features import compute_features, selections_of
 from .nuclear_scale import TARGET_DIAMETER_PX
 from .plan_adoption import planning_methods, validate_revision_plan
 from .region_contracts import (
@@ -32,7 +33,6 @@ from .region_contracts import (
     scientific_specification,
     validate_region_report_policy,
 )
-from .nuclear_features import compute_features, selections_of
 from .region_measurement_v2 import measure_regions_versioned
 from .regions import _array_hash
 from .roi import export_roi_zip
