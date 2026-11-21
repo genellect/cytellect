@@ -13,7 +13,12 @@ async function workspace(context:BrowserContext,page:Page,{declaredAt,calculated
   const channels=[{channel_id:"c1",label:"Hoechst",stain:"Hoechst"},{channel_id:"c2",label:"NPM1",stain:"NPM1"}];
   const fields=[{id:"f1",workspace_id:"w",metadata:{display_name:"視野 1"},image_info:{shape:[32,32],channels}}];
   const primary={version:"1.0.0",metric:"area_px",region_set_id:"nuclei",channel_id:null,declared_at:declaredAt};
-  let spec:{version:number;spec:Record<string,unknown>|null}={version:1,spec:{channel_assignment_version:1,target:"nuclei",...(declaredAt===null?{}:{primary_outcome:primary})}};
+  // The server's default spec (AnalysisSpec(channel_assignment_version=1)), with the declaration when there is one.
+  const defaults={schema_version:"1.0.0",channel_assignment_version:1,target:"nuclei",settings:{nuclearMaxSide:null,nuclearProbability:0.5,nuclearNms:0.3,
+    nucleolarDefinition:{source:"dapi_poor",marker:"",pixelUm:null,relative:0.7,algorithm:null},cellDefinition:{source:"manual",channel:""},nucleolarSigma:null,
+    nucleolarRim:null,nucleolarMinimumArea:null,nucleolarMaximumArea:null,background:"raw"},processing:null,measurement:null,backgrounds:{},confirmed_channel_ids:[],
+    metrics:[],selection:{field_ids:[],gfp:null},statistics:null,additional_analyses:[],figure_proposals:[],figure:null,figure_presentation:null,experiment:null};
+  let spec:{version:number;spec:Record<string,unknown>|null}={version:1,spec:{...defaults,...(declaredAt===null?{}:{primary_outcome:primary})}};
   const recipe={id:"region-2d",version:"1.7.0",source:"stardist_nuclear",region_set_id:"nuclei",label:"核",defining_channel_id:"c1",nuclear_role_source:"recorded_stain"};
   const revision={id:"r1",state:"succeeded",created:1,config:{recipe,field_ids:["f1"],measurement:{version:"1.1.0",mode:"raw_intensity"},backgrounds:{}}};
   // A statistics job calculated at `calculatedAt`, re-drawn (a figure-render job) at 3000, after any declaration.
@@ -88,5 +93,12 @@ test("nothing is marked without a declaration, and the star declares the chosen 
   await expect(star).toHaveAttribute("aria-pressed","true");
   // Declared at 4000, after the saved result's statistics (1000): the shown result is exploratory.
   await expect(heading(page).locator("[data-outcome-role]")).toHaveText("探索");
+  // NS-01: the registered stains give the nucleolar measures (NPM1) but not the 5-EU one.
+  const theme=page.getByRole("complementary",{name:"解析対象"}).locator("details").filter({hasText:"核小体ストレス"});
+  await theme.locator("summary").click();
+  const list=theme.getByRole("list",{name:"核小体ストレスの指標"});
+  await expect(list.getByRole("listitem").filter({hasText:"最大の核小体の割合"})).toContainText("染色：NPM1");
+  await expect(list.getByRole("listitem").filter({hasText:"核小体の平均輝度（5-EU）"})).toContainText("染色：5-EU（未登録）");
+  await page.screenshot({path:test.info().outputPath("primary-outcome.png")});
   expect(fixture.unexpected).toEqual([]);
 });
