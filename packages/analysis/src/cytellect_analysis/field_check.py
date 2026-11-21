@@ -52,7 +52,8 @@ def columns(canonical: dict[str, Any], order: list[str]) -> list[dict[str, Any]]
 def render_field_check(canonical: dict[str, Any], order: list[str], output: Path, *, font_size: float = 7.0,
                        series_colors: dict[str, str] | None = None) -> dict[str, Any] | None:
     """Write ``fields.svg``/``.pdf``/``.png``; None when the comparison has no field to show."""
-    from .publication_figure import _full_title, _scale, axis_title, natural_order
+    from .common_statistics_figures import _write_svg_font_stack
+    from .publication_figure import _full_title, _scale, axis_title, bind_fonts, natural_order
 
     placed = columns(canonical, order)
     if not placed:
@@ -88,22 +89,6 @@ def render_field_check(canonical: dict[str, Any], order: list[str], output: Path
             # The title runs along the value axis, wrapped to its length as on the comparison figure.
             ax.set_ylabel(fit_axis_title(_full_title(title, unit_note, ""), max(24.0, HEIGHT_MM - 16), font_size))
             fig.canvas.draw()
-            inverse = ax.transData.inverted()
-            point_d = np.sqrt(3.2) * 1.05 * fig.dpi / 72
-            dx = abs(inverse.transform((point_d, 0))[0] - inverse.transform((0, 0))[0])
-            dy = abs(inverse.transform((0, point_d))[1] - inverse.transform((0, 0))[1])
-            drawn = []
-            for position, column in zip(positions, placed, strict=True):
-                field_values = np.array([row["value"] for row in column["rows"]], dtype=float)
-                offsets = beeswarm(field_values, dx=dx, dy=dy, half_width=.36)
-                colour = colours.get(column["run"], MUTED) if paired else MUTED
-                collection = ax.scatter(position + offsets, field_values, s=3.2, color=colour, alpha=.6, linewidths=0,
-                                        zorder=2)
-                bind_points(collection, column["rows"], keys=("field_id", "region_id", "nucleus_id"), focusable=False)
-                median = float(np.median(field_values))
-                ax.hlines(median, position - .32, position + .32, color=INK, linewidth=.9, zorder=3)
-                drawn.append({"field_id": column["field_id"], "number": column["number"], "condition": column["group"],
-                              "run": column["run"], "observations": len(field_values), "median": median})
             # Field numbers on the axis, runs (in their colours) and groups below them, as far as they fit.
             axis_mm = ax.get_window_extent().width / fig.dpi * 25.4
             per_unit = axis_mm / (positions[-1] + 1.2)
@@ -140,6 +125,42 @@ def render_field_check(canonical: dict[str, Any], order: list[str], output: Path
                             ha="right", va="top", color=MUTED, fontsize=max(5.0, font_size - .5))
             ax.legend(handles=[plt.Line2D([], [], color=INK, linewidth=.9)], labels=["Field median"], loc="upper left",
                       frameon=False)
+            # Names the bundled face cannot write (Japanese group or run names) take the fallback face, as on the
+            # comparison figure. Tick labels take their text when drawn, so the figure is drawn first.
+            fig.canvas.draw()
+            bind_fonts(fig)
+            fig.canvas.draw()
+
+            def collide(axis) -> bool:
+                boxes = [label.get_window_extent() for label in axis.get_xticklabels() if label.get_text()]
+                return any(left.overlaps(right) for index, left in enumerate(boxes) for right in boxes[index + 1:])
+
+            if run_keys and collide(run_axis):
+                # Run names that run into each other are left off; the fields stay grouped by run.
+                run_keys = []
+                run_axis.set_xticks([], [])
+                group_axis.spines["bottom"].set_position(("outward", font_size * 1.6 * bool(numbered)))
+                fig.canvas.draw()
+            if collide(group_axis):
+                raise ValueError("figure_labels_overlap")
+            # The marks are placed on the final layout: the labels below shorten the value axis, and one marker
+            # diameter in data units is read from the axis as it is written.
+            inverse = ax.transData.inverted()
+            point_d = np.sqrt(3.2) * 1.05 * fig.dpi / 72
+            dx = abs(inverse.transform((point_d, 0))[0] - inverse.transform((0, 0))[0])
+            dy = abs(inverse.transform((0, point_d))[1] - inverse.transform((0, 0))[1])
+            drawn = []
+            for position, column in zip(positions, placed, strict=True):
+                field_values = np.array([row["value"] for row in column["rows"]], dtype=float)
+                offsets = beeswarm(field_values, dx=dx, dy=dy, half_width=.36)
+                colour = colours.get(column["run"], MUTED) if paired else MUTED
+                collection = ax.scatter(position + offsets, field_values, s=3.2, color=colour, alpha=.6, linewidths=0,
+                                        zorder=2)
+                bind_points(collection, column["rows"], keys=("field_id", "region_id", "nucleus_id"), focusable=False)
+                median = float(np.median(field_values))
+                ax.hlines(median, position - .32, position + .32, color=INK, linewidth=.9, zorder=3)
+                drawn.append({"field_id": column["field_id"], "number": column["number"], "condition": column["group"],
+                              "run": column["run"], "observations": len(field_values), "median": median})
             _validate_text_layout(fig, ax)
             for suffix in ("svg", "pdf", "png"):
                 metadata: dict[str, str | None] = {"Creator": "Cytellect field check 1.0.0"}
@@ -150,6 +171,7 @@ def render_field_check(canonical: dict[str, Any], order: list[str], output: Path
                 fig.savefig(output / f"fields.{suffix}", dpi=PNG_DPI, metadata=metadata)
                 if suffix == "svg":
                     attach_svg_sources(output / "fields.svg", fig)
+                    _write_svg_font_stack(output / "fields.svg")
         finally:
             plt.close(fig)
     return {"version": "1.0.0", "width_mm": width_mm, "height_mm": HEIGHT_MM, "order": "group, run, field",

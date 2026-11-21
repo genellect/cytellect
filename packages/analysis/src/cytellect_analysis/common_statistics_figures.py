@@ -633,7 +633,7 @@ def _render_publication(canonical, output: Path, template, order, images=None):
             fields = render_field_check(canonical, order, output, font_size=size.font_size,
                                         series_colors=(plot.get("style") or {}).get("series_colors"))
         except ValueError as error:
-            if str(error) not in ("figure_labels_overlap", "figure_text_outside_canvas"):
+            if str(error) not in ("figure_labels_overlap", "figure_text_outside_canvas", "figure_font_glyphs_unavailable"):
                 raise
             for name in ("fields.svg", "fields.pdf", "fields.png"):
                 (output / name).unlink(missing_ok=True)

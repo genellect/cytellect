@@ -462,3 +462,87 @@ def test_many_fields_leave_the_numbers_off_and_never_fail_the_comparison(tmp_pat
     assert check["runs_labelled"] is False and check["numbered"] is False
     assert len(check["fields"]) == 80 and {field["run"] for field in check["fields"]} == {None}
     assert set(check["files"]) <= set(manifest["source_files"])
+
+
+def _field_check_source():
+    result = demo_comparison()
+    result["spec"]["plot"] = {**result["spec"]["plot"], "kind": "superplot", "presentation": OPENING}
+    return result, result["spec"]["plot"]["group_order"] or result["spec"]["conditions"]
+
+
+def test_the_field_check_never_writes_a_name_its_typeface_cannot_draw(tmp_path, monkeypatch):
+    from cytellect_analysis import field_check
+    from matplotlib import font_manager
+    from matplotlib.text import Text
+
+    result, order = _field_check_source()
+    named = json.loads(json.dumps(result, ensure_ascii=False).replace(json.dumps(order[0]), '"未処理"'))
+    order = ["未処理", *order[1:]]
+    validate = field_check._validate_text_layout
+    checked: list[str] = []
+
+    def every_glyph_is_drawn(fig, ax):
+        validate(fig, ax)
+        for item in fig.findobj(match=Text):
+            text = item.get_text()
+            if item.get_visible() and text:
+                face = font_manager.get_font(font_manager.findfont(item.get_fontproperties()))
+                assert {ord(c) for c in text if not c.isspace()} <= set(face.get_charmap()), text
+                checked.append(text)
+
+    monkeypatch.setattr(field_check, "_validate_text_layout", every_glyph_is_drawn)
+    # A Japanese group name takes the fallback face, as on the comparison figure; without one the check is
+    # refused (and left out by the renderer) instead of being written with missing glyphs.
+    try:
+        check = field_check.render_field_check(named, order, tmp_path)
+    except ValueError as error:
+        assert str(error) == "figure_font_glyphs_unavailable"
+        assert not (tmp_path / "fields.svg").exists()
+        return
+    assert check is not None and "未処理" in checked
+
+
+def test_the_field_check_leaves_off_run_names_that_would_overlap(tmp_path):
+    from cytellect_analysis.field_check import render_field_check
+
+    result, order = _field_check_source()
+    long = json.loads(json.dumps(result).replace('"Rep1"', '"Experiment 2026-01-14"')
+                      .replace('"Rep2"', '"Experiment 2026-02-03"').replace('"Rep3"', '"Experiment 2026-03-22"'))
+    # Two fields per run: the long run names no longer fit under their fields.
+    fields: dict[tuple, list] = {}
+    for row in long["plot_data"]:
+        seen = fields.setdefault((row["condition"], row.get("pair")), [])
+        if row["field_id"] not in seen:
+            seen.append(row["field_id"])
+    dropped = {seen[-1] for seen in fields.values() if len(seen) > 2}
+    long["plot_data"] = [row for row in long["plot_data"] if row["field_id"] not in dropped]
+    check = render_field_check(long, order, tmp_path)
+    assert check is not None and check["runs_labelled"] is False
+    assert "Experiment 2026-01-14" not in (tmp_path / "fields.svg").read_text(encoding="utf-8")
+    # Short run names on the same fields stay.
+    assert render_field_check(result, order, tmp_path)["runs_labelled"] is True
+
+
+def test_the_field_check_places_its_points_on_the_written_layout(tmp_path, monkeypatch):
+    from cytellect_analysis import field_check
+
+    result, order = _field_check_source()
+    used: list[float] = []
+    written: list[float] = []
+    place, validate = field_check.beeswarm, field_check._validate_text_layout
+
+    def recording(values, *, dx, dy, half_width):
+        used.append(dy)
+        return place(values, dx=dx, dy=dy, half_width=half_width)
+
+    def measuring(fig, ax):
+        validate(fig, ax)
+        inverse = ax.transData.inverted()
+        diameter = np.sqrt(3.2) * 1.05 * fig.dpi / 72
+        written.append(abs(inverse.transform((0, diameter))[1] - inverse.transform((0, 0))[1]))
+
+    monkeypatch.setattr(field_check, "beeswarm", recording)
+    monkeypatch.setattr(field_check, "_validate_text_layout", measuring)
+    field_check.render_field_check(result, order, tmp_path)
+    # One marker diameter along the value axis is the same when the points are placed and when the file is written.
+    assert used and np.allclose(used, written[0], rtol=1e-6)
