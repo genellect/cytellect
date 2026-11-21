@@ -1,10 +1,12 @@
 "use client";
 import {useEffect,useRef,useState} from "react";
 import {LABEL_LIMIT,savePlan,addRun,assignFields,assignStratum,emptyDesign,expandToPair,fieldsIn,isStratified,issueText,labelProblem,readiness,removeRun,renameGroup,unassignField,updateRun,type ExperimentDesign} from "@/lib/workspace/experiment-design";
+import {experimentHeading,statusChips,summaryCounts,type SummaryField} from "@/lib/workspace/experiment-summary";
+import type {ShowcaseDataset} from "@/lib/showcase";
 import {StrataEditor} from "./StrataEditor";
 import styles from "./experiment-setup.module.css";
 
-export interface SetupField {id:string;label:string;preview?:string}
+export interface SetupField extends SummaryField {label:string;preview?:string}
 export interface AddTarget {groupId:string;runId:string;sample:string|null}
 interface Props {
   design:ExperimentDesign|null;
@@ -18,6 +20,12 @@ interface Props {
   pending?:{count:number;onPlace:(target:AddTarget,design:ExperimentDesign)=>Promise<void>;onWithoutForm:()=>void;onDiscard:()=>void};
   onOpenField:(fieldId:string)=>void;
   onCsv?:()=>void;
+  /** The one next step: the statistics view. */
+  onNext:()=>void;
+  /** The demo's public dataset: its source and why independence is unconfirmed, behind the 「公開データ」 mark. */
+  source?:ShowcaseDataset|null;
+  /** The fields are still loading: the state and the counts would describe only the fields loaded so far. */
+  loading?:boolean;
 }
 
 const today=()=>new Date().toISOString().slice(0,10);
@@ -26,7 +34,7 @@ function uniqueRunLabel(date:string,taken:string[]){const used=new Set(taken.map
 
 /** Chooses one screen (describe one group) or two screens (compare two groups), then
  * groups, independent runs and samples before images are added (requirements E-01–E-08). */
-export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pending,onOpenField,onCsv}:Props){
+export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pending,onOpenField,onCsv,onNext,source,loading=false}:Props){
   const [draft,setDraft]=useState<ExperimentDesign|null>(design);
   const [labels,setLabels]=useState<Record<string,string>>({});
   const [runDate,setRunDate]=useState(today());
@@ -74,8 +82,9 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pendin
     {onCsv&&<button className={styles.link} onClick={onCsv}>測定済みの CSV を使用</button>}
   </section>;
 
-  // One group is described, never tested: independence matters only once the design compares groups (E-01, T-05).
-  const issues=readiness(draft,fields.map(value=>value.id)).filter(issue=>draft.layout==="pair"||issue.code!=="experiment_design_independence_unconfirmed");
+  // Independence is a status chip (one group is described, never tested: E-01, T-05); the demo's record needs no list.
+  const issues=readOnly?[]:readiness(draft,fields.map(value=>value.id)).filter(issue=>issue.code!=="experiment_design_independence_unconfirmed");
+  const chips=statusChips(draft,fields),counts=summaryCounts(draft,fields);
   const assigned=new Set(Object.keys(draft.fields??{}));
   const unassigned=fields.filter(value=>!assigned.has(value.id));
   const runs=draft.runs??[];
@@ -89,12 +98,22 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pendin
 
   return <section className={styles.setup} aria-label="実験デザイン">
     <header className={styles.setupHeader}>
-      <h1>{draft.layout==="pair"?"2 画面：2 群の比較":"1 画面：1 群の記述"}</h1>
-      {draft.layout==="single"&&!readOnly&&<button disabled={locked} onClick={()=>void save(expandToPair(draft))}>2 画面に拡張</button>}
+      <h1>{experimentHeading(draft)}</h1>
+      {readOnly&&source&&<details className={styles.source}><summary>公開データ</summary>
+        <dl><div><dt>出典</dt><dd>{source.sourceUrl?<a href={source.sourceUrl} target="_blank" rel="noreferrer">{source.title}</a>:source.title}{source.licence&&<> · {source.licence}</>}</dd></div>
+          {source.reported?.independence&&<div><dt>独立性</dt><dd>{source.reported.independence}</dd></div>}</dl></details>}
+      <span className={styles.headerActions}>
+        {draft.layout==="single"&&!readOnly&&<button disabled={locked} onClick={()=>void save(expandToPair(draft))}>2 画面に拡張</button>}
+        <button className={styles.next} onClick={onNext}>{draft.layout==="pair"?"統計で比べる →":"統計で見る →"}</button>
+      </span>
     </header>
-    <p className={styles.lead}>{draft.layout==="pair"
-      ?"同じ実験回の対照と処理を対にして比較します。n は細胞や視野の数ではなく、実験回の数です。"
-      :"1 群の値の分布を実験回ごとに示します。"}</p>
+    {!loading&&<><ul className={styles.status} aria-label="実験デザインの状態">{chips.map(chip=><li key={chip.key} data-ok={chip.ok}>
+      {chip.ok?<CheckMark/>:<WarnMark/>}{chip.label}：<strong>{chip.value}</strong></li>)}</ul>
+    <p className={styles.summary}>
+      {counts.nuclei!==null&&<><span><NucleiIcon/><strong>{counts.nuclei.toLocaleString("en-US")}</strong> 核</span><Arrow/></>}
+      <span><FieldIcon/><strong>{counts.fields}</strong> 視野</span><Arrow/>
+      <span><RunIcon/><strong>{counts.runs}</strong> 実験回<small>（n = {counts.runs}）</small></span>
+    </p></>}
     {pending&&!readOnly&&<section className={styles.pendingPlace} aria-label="受け取った画像の追加先">
       <p>受け取った画像 {pending.count} 件の追加先を選んでください。群ごとに分かれた画像は「取り消す」の後、各群の「画像を追加」から追加します。</p>
       <select aria-label="追加先" disabled={locked} value={pendingTarget} onChange={event=>setPendingTarget(event.target.value)}>
@@ -106,23 +125,29 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pendin
     </section>}
     <div className={styles.grid} style={{gridTemplateColumns:`minmax(200px,270px) repeat(${draft.groups.length},minmax(0,1fr))`}} role="table" aria-label="群と実験回">
       <div role="row" className={styles.row}>
-        <div role="columnheader" className={styles.corner}>実験回</div>
+        {/* The same n as the status and the figure, hidden with them while the fields are still loading. */}
+        <div role="columnheader" className={styles.corner}>{loading?"実験回":`実験回（n = ${counts.runs}）`}</div>
         {draft.groups.map(group=><div role="columnheader" key={group.id} className={styles.groupHead}>
+          {readOnly?<p className={styles.groupName}><strong>{group.label}</strong>{draft.layout==="pair"&&draft.control_group_id===group.id&&<span className={styles.tag}>対照</span>}</p>:<>
           <label>群の名前<input value={labelOf(`group:${group.id}`,group.label)} maxLength={LABEL_LIMIT} disabled={locked}
             onChange={event=>setLabels(previous=>({...previous,[`group:${group.id}`]:event.target.value}))}
             onBlur={()=>commitLabel(`group:${group.id}`,group.label,label=>renameGroup(draft,group.id,label))}/></label>
-          {draft.layout==="pair"&&<label className={styles.check}><input type="radio" name="control" checked={draft.control_group_id===group.id} disabled={locked} onChange={()=>void save({...draft,control_group_id:group.id})}/>対照</label>}
+          {draft.layout==="pair"&&<label className={styles.check}><input type="radio" name="control" checked={draft.control_group_id===group.id} disabled={locked} onChange={()=>void save({...draft,control_group_id:group.id})}/>対照</label>}</>}
         </div>)}
       </div>
       {runs.map(run=><div role="row" key={run.id} className={styles.row}>
-        <div role="rowheader" className={styles.runHead}>
+        {readOnly?<div role="rowheader" className={styles.runText}>
+          <strong>{run.label}</strong>
+          {run.performed_on&&<small>実施日 {run.performed_on}</small>}
+          {run.acquired_on&&<small>撮影日 {run.acquired_on}</small>}
+        </div>:<div role="rowheader" className={styles.runHead}>
           <label>名前<input value={labelOf(`run:${run.id}`,run.label)} maxLength={LABEL_LIMIT} disabled={locked}
             onChange={event=>setLabels(previous=>({...previous,[`run:${run.id}`]:event.target.value}))}
             onBlur={()=>commitLabel(`run:${run.id}`,run.label,label=>updateRun(draft,run.id,{label}))}/></label>
           <label>実施日<input type="date" value={run.performed_on??""} disabled={locked} onChange={event=>void save(updateRun(draft,run.id,{performed_on:event.target.value||null}))}/></label>
           <label>撮影日<input type="date" value={run.acquired_on??""} disabled={locked} onChange={event=>void save(updateRun(draft,run.id,{acquired_on:event.target.value||null}))}/></label>
-          {!readOnly&&!Object.values(draft.fields??{}).some(value=>value.run_id===run.id)&&<button className={styles.link} disabled={locked} onClick={()=>void save(removeRun(draft,run.id))}>この回を削除</button>}
-        </div>
+          {!Object.values(draft.fields??{}).some(value=>value.run_id===run.id)&&<button className={styles.link} disabled={locked} onClick={()=>void save(removeRun(draft,run.id))}>この実験回を削除</button>}
+        </div>}
         {draft.groups.map(group=>{
           const cell=fieldsIn(draft,group.id,run.id),key=`${run.id}:${group.id}`;
           return <div role="cell" key={group.id} className={styles.cell} data-empty={!cell.length}>
@@ -149,10 +174,11 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pendin
     {!readOnly&&<div className={styles.addRun}>
       <label>実験回を追加（実施日）<input type="date" value={runDate} onChange={event=>setRunDate(event.target.value)}/></label>
       <button disabled={locked||!runDate} onClick={()=>void save(addRun(draft,{label:uniqueRunLabel(runDate,runs.map(run=>run.label)),performed_on:runDate}))}>追加</button>
-      {runs.some(run=>run.performed_on===runDate)&&<small>同じ日の別の独立な実験は「{uniqueRunLabel(runDate,runs.map(run=>run.label))}」として追加します。</small>}
+      {runs.some(run=>run.performed_on===runDate)&&<small>同じ日の別の実験回は「{uniqueRunLabel(runDate,runs.map(run=>run.label))}」として追加します。</small>}
     </div>}
-    <label className={styles.independence}><input type="checkbox" checked={draft.independence_confirmed??false} disabled={locked} onChange={event=>void save({...draft,independence_confirmed:event.target.checked})}/>
-      <span><strong>各実験回は独立に行った</strong>（別々に播種・処理・染色）。日付やプレートの違いだけでは独立とは限りません。未確認の場合、群間比較は記述統計のみです。</span></label>
+    {/* Settable for one group too: a correlation of one group also needs independent runs. */}
+    {/* The definition stays one hover away (E-05): independence is never inferred from dates or plates. */}
+    {!readOnly&&<label className={styles.independence} title="別々に播種・処理・染色した実験回。日付やプレートの違いだけでは独立とは限りません。"><input type="checkbox" checked={draft.independence_confirmed??false} disabled={locked} onChange={event=>void save({...draft,independence_confirmed:event.target.checked})}/>各実験回は独立に行った</label>}
     <StrataEditor design={draft} locked={locked} readOnly={readOnly} onSave={save}/>
     {unassigned.length>0&&<section className={styles.unassigned} aria-label="群・実験回が未割り当ての視野">
       <h2>群・実験回が未割り当ての視野</h2>
@@ -170,3 +196,12 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pendin
     <input ref={folderInput} hidden type="file" multiple onChange={event=>{void received(event.target.files);event.target.value="";}}/>
   </section>;
 }
+
+/** Small marks of the summary figure: nuclei, a field, the runs. */
+function NucleiIcon(){return <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="5" cy="6" r="2.6"/><circle cx="11" cy="5" r="2.2"/><circle cx="8.5" cy="11.2" r="2.6"/></svg>;}
+function FieldIcon(){return <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.6"/></svg>;}
+/** The state of a chip as a shape as well as a colour, named for screen readers. */
+function CheckMark(){return <svg className={styles.mark} viewBox="0 0 12 12" role="img" aria-label="完了"><path d="M2.5 6.4l2.3 2.3 4.7-5.2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>;}
+function WarnMark(){return <svg className={styles.mark} viewBox="0 0 12 12" role="img" aria-label="要確認"><path d="M6 1.6l4.8 8.6H1.2z" fill="currentColor"/></svg>;}
+function Arrow(){return <svg className={styles.arrow} viewBox="0 0 16 10" aria-hidden="true"><path d="M1 5h12.5M10 1.5L13.5 5 10 8.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>;}
+function RunIcon(){return <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>;}

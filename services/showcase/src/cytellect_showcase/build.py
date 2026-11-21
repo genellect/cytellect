@@ -1462,7 +1462,7 @@ def snapshot(seed_data: Path, work: Path, origin_port: int, api_port: int, fiji:
 
 
 # Files of the snapshot directory that no index or journal entry names.
-SNAPSHOT_KEEP = {"index.json", "recorded-options.json", "proposal-examples.json", "dataset.json", "scenes.json"}
+SNAPSHOT_KEEP = {"index.json", "recorded-options.json", "proposal-examples.json", "dataset.json", "scenes.json", "recorded-statistics.json"}
 
 
 RANK_TESTS = {"mann-whitney-u", "wilcoxon", "kruskal-wallis"}
@@ -1570,6 +1570,7 @@ def journal(work: Path, origin_port: int, out: Path, scenes: list[dict], keep: s
         report["kept_scenes"] = sorted({entry["scene"] for entry in kept})
         report["reused_from_commit"] = reused_from_commit
     (target / "journal.json").write_text(json.dumps(recorded, indent=1, ensure_ascii=False) + "\n")
+    write_recorded_statistics(target)
     # The previous recording's answers that this one no longer names are not published.
     named = {entry["file"] for entry in json.loads((target / "index.json").read_text())["entries"].values() if entry.get("file")}
     named |= {entry["file"] for entry in json.loads((target / "journal.json").read_text())["entries"] if entry.get("file")}
@@ -1577,6 +1578,44 @@ def journal(work: Path, origin_port: int, out: Path, scenes: list[dict], keep: s
         if path.name not in named and path.name not in SNAPSHOT_KEEP | {"journal.json"}:
             path.unlink()
     return {key: report[key] for key in ("entries", "scenes", "kept_scenes", "reused_from_commit") if key in report}
+
+
+def recorded_statistics(entries: list[dict]) -> dict:
+    """The statistics the tour recorded, scene by scene (``snapshot/recorded-statistics.json``).
+
+    The demo offers only these choices and shows their recorded results as soon as one is chosen
+    (genellect/cytellect#257 D-1, owner decision 2026-11-21): a choice the tour did not record would
+    end without a result. Each item is what the side panel chooses: the analysis, the region set,
+    the metric, the measured stain and the classified stain of a nucleus filter or positivity."""
+    analyses = {"descriptive": "distribution", "region-experimental-unit": "comparison", "region-association": "association"}
+    scenes: dict[str, dict[str, dict]] = {}
+    for entry in entries:
+        path = entry.get("path", "").split("?")[0]
+        if entry.get("method") != "POST" or not 200 <= int(entry.get("status") or 0) < 300 \
+                or not path.endswith(("/descriptive", "/common-statistics")) or not entry.get("body"):
+            continue
+        body = json.loads(entry["body"])
+        analysis = analyses.get(body.get("mode", ""))
+        selection = body.get("y_selection") if analysis == "association" else body.get("selection")
+        if not analysis or not isinstance(selection, dict):
+            continue
+        gate = selection.get("channel_gate") or {}
+        item = {"analysis": analysis, "region": selection.get("region_set_id"), "metric": selection.get("metric"),
+                "channel": selection.get("channel_id"),
+                "positivity": (selection.get("positivity") or {}).get("channel_id"),
+                "gate": f"{gate.get('channel_id')}:{gate.get('keep')}" if gate else None}
+        if analysis == "association":
+            x = body.get("x_selection") or {}
+            item["x"] = {"metric": x.get("metric"), "channel": x.get("channel_id")}
+        scene = (entry.get("scene") or "").split(":")[0]
+        scenes.setdefault(scene, {})[json.dumps(item, sort_keys=True)] = item
+    return {"version": 1, "scenes": {scene: [items[key] for key in sorted(items)] for scene, items in sorted(scenes.items())}}
+
+
+def write_recorded_statistics(target: Path) -> None:
+    entries = json.loads((target / "journal.json").read_text())["entries"]
+    (target / "recorded-statistics.json").write_text(
+        json.dumps(recorded_statistics(entries), ensure_ascii=False, separators=(",", ":")) + "\n")
 
 
 def _owner_session(app, workspace_id: str) -> str:

@@ -128,13 +128,41 @@ export function validScenes(value: unknown): ShowcaseScene[] {
     return dataset && id && label && workspaceId ? [{id, label, workspaceId, dataset, examples: validExamplesOf(record.examples), ...(assistantScope ? {assistantScope} : {}), ...(channel ? {channel} : {})}] : [];
   });
 }
-export async function loadShowcaseExtras(): Promise<{examples: ProposalExample[]; dataset: ShowcaseDataset | null; scenes: ShowcaseScene[]}> {
+/** One statistics calculation the demo tour recorded: what the side panel chooses for it (`snapshot/recorded-statistics.json`). */
+export interface RecordedStatistic {
+  analysis: "distribution" | "comparison" | "association"; region: string; metric: string;
+  /** The measured stain's channel. */
+  channel: string | null;
+  /** The classified channel of a positive count or fraction. */
+  positivity: string | null;
+  /** A nucleus filter, `<channel>:<keep>`. */
+  gate: string | null;
+  x?: {metric: string; channel: string | null};
+}
+/** The recorded statistics by scene; null when the demo publishes no index (every choice is then offered). */
+export function validRecordedStatistics(value: unknown): Record<string, RecordedStatistic[]> | null {
+  if (!value || typeof value !== "object" || (value as {version?: unknown}).version !== 1) return null;
+  const scenes = (value as {scenes?: unknown}).scenes;
+  if (!scenes || typeof scenes !== "object") return null;
+  const text = (item: unknown) => typeof item === "string" ? item : null;
+  return Object.fromEntries(Object.entries(scenes as Record<string, unknown>).map(([scene, items]) => [scene, Array.isArray(items) ? items.flatMap(item => {
+    const record = (item ?? {}) as Record<string, unknown>;
+    const analysis = record.analysis, region = text(record.region), metric = text(record.metric);
+    if ((analysis !== "distribution" && analysis !== "comparison" && analysis !== "association") || !region || !metric) return [];
+    const x = (record.x ?? null) as Record<string, unknown> | null;
+    return [{analysis, region, metric, channel: text(record.channel), positivity: text(record.positivity), gate: text(record.gate),
+      ...(x && text(x.metric) ? {x: {metric: text(x.metric)!, channel: text(x.channel)}} : {})}];
+  }) : []]));
+}
+export async function loadShowcaseExtras(): Promise<{examples: ProposalExample[]; dataset: ShowcaseDataset | null; scenes: ShowcaseScene[]; statistics: Record<string, RecordedStatistic[]> | null}> {
   const read = async (name: string) => {
     try {const response = await fetch(`${snapshotBase}${name}`, {credentials: "same-origin"}); if (!response.ok) {await response.text(); return null;} return await response.json() as unknown;}
     catch {return null;}
   };
-  const [examples, dataset, scenes] = await Promise.all([read("proposal-examples.json"), read("dataset.json"), read("scenes.json")]);
-  return {examples: validExamplesOf(examples), dataset: validDataset(dataset), scenes: validScenes(scenes)};
+  // The build-time recorder records every choice, including those the previous tour did not hold.
+  const recording = !!recorder();
+  const [examples, dataset, scenes, statistics] = await Promise.all([read("proposal-examples.json"), read("dataset.json"), read("scenes.json"), recording ? null : read("recorded-statistics.json")]);
+  return {examples: validExamplesOf(examples), dataset: validDataset(dataset), scenes: validScenes(scenes), statistics: validRecordedStatistics(statistics)};
 }
 
 
