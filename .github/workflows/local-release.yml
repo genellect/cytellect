@@ -25,8 +25,14 @@ permissions:
   contents: read
 env:
   AUTOMATIC: ${{ github.event_name != 'workflow_dispatch' || inputs.automatic }}
+# A trigger that will release nothing (automatic release disabled, or Verify did not succeed) stays out
+# of the release group: a queued run there replaces the run already waiting, such as a manual release.
 concurrency:
-  group: windows-release
+  group: >-
+    ${{ github.event_name != 'workflow_dispatch' &&
+    (vars.WINDOWS_EXE_AUTO_RELEASE != 'true' ||
+    (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion != 'success')) &&
+    format('windows-release-idle-{0}', github.run_id) || 'windows-release' }}
   cancel-in-progress: false
 jobs:
   # The released source is resolved once, here, and every later job builds, tests, signs and tags
@@ -155,7 +161,10 @@ jobs:
         run: uv run python scripts/dev.py doctor --proposal-version --packaged-client
   package:
     needs: [source, proposal-compatibility]
-    if: github.ref == 'refs/heads/main' && needs.source.outputs.artifact-run == ''
+    # reserve is skipped on the manual route; without a status function that skip would skip this job too.
+    if: >-
+      !cancelled() && needs.proposal-compatibility.result == 'success' &&
+      github.ref == 'refs/heads/main' && needs.source.outputs.artifact-run == ''
     runs-on: windows-latest
     # The two-group comparison of 120 public JUMP images through installed Fiji adds up to an hour.
     timeout-minutes: 150
@@ -490,7 +499,11 @@ jobs:
           if [ "$expected" = missing ] || [ "$(attached)" != "$expected" ]; then
             # The draft must never be published without the source of the GPL software it carries.
             if [ "$AUTOMATIC" != true ]; then gh release delete "v$RELEASE_VERSION" --yes; fi
-            echo "Corresponding-source asset not attached; the draft release was deleted" >&2
+            if [ "$AUTOMATIC" = true ]; then
+              echo "Corresponding-source asset not attached; the draft release is kept unpublished for a retry" >&2
+            else
+              echo "Corresponding-source asset not attached; the draft release was deleted" >&2
+            fi
             exit 1
           fi
       - uses: actions/checkout@v5

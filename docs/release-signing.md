@@ -58,10 +58,11 @@ UPDATE_PUBLIC_KEY = "ssh-ed25519 AAAA... cytellect-update"
 
 1. GitHub の `windows-exe-preflight` と `windows-exe-publish` environments を作成し、デプロイ元を `main` に限定する。自動経路には実行ごとの承認者を設定しない。
 2. `windows-exe-preflight` に変数 `PROPOSAL_PREFLIGHT_URL` と秘密 `PROPOSAL_PREFLIGHT_DEVICE_TOKEN`、`windows-exe-publish` に秘密 `UPDATE_SIGNING_KEY` を登録する。[配布前の互換性検査](proposal-deployment.md#required-prompt-version-check-before-distribution)とこの文書の鍵の手順を使う。
-3. 初回の配布候補を確認し、リポジトリ変数 `WINDOWS_EXE_AUTO_RELEASE` を `true` にする。次の `Verify` 成功時、定期実行時、または Actions の `automatic` を選んだ手動起動時に配布を進める。
-4. 初回は Actions の公開ログと配布記録、公式サイトからの取得・新規導入、既存版からのアプリ内更新を確認する。サイトの記録は GitHub とサイトのキャッシュを経て反映される。
+3. `windows-exe-channel` ブランチに、配布ワークフロー以外の更新と削除を止める保護（ruleset）を設定する。公式サイトはこのブランチの記録からダウンロード先を選ぶため、保護がない間は、リポジトリの書き込み権限だけでサイトのダウンロード先を変えられる。有効化の後、初回の配布で、ワークフローが記録を更新できることを確かめる。
+4. 初回の配布候補を確認し、リポジトリ変数 `WINDOWS_EXE_AUTO_RELEASE` を `true` にする。次の `Verify` 成功時、定期実行時、または Actions の `automatic` を選んだ手動起動時に配布を進める。
+5. 初回は Actions の公開ログと配布記録、公式サイトからの取得・新規導入、既存版からのアプリ内更新を確認する。サイトの記録は GitHub とサイトのキャッシュを経て反映される。
 
-停止時は `WINDOWS_EXE_AUTO_RELEASE` を無効にし、進行中の自動配布を Actions で取り消す。修正後は `automatic` で起動する。公開後にサイト反映だけ失敗した場合も同じ操作で再開でき、すでに公開した EXE の版・ファイルを再利用する。6時間ごとの実行も公開記録を再確認する。公開済み版の差し替えが必要な場合は、修正した `main` を新しい版として配布する。緊急の手動配布は下記の手順に従う。署名鍵を交換するときは自動配布を停止し、手順 5 の配布を済ませてから再開する。
+停止時は `WINDOWS_EXE_AUTO_RELEASE` を無効にし、進行中の自動配布を Actions で取り消す。修正後は `automatic` で起動する。公開後にサイト反映だけ失敗した場合も同じ操作で再開でき、すでに公開した EXE の版・ファイルを再利用する。6時間ごとの実行も公開記録を再確認する。定期実行は、版を予約済みで検証済み成果物のない候補を作り直さない。失敗した候補は、新しいコミットの `Verify` 成功か `automatic` の起動で再試行する。新しいコミットに置き換わった候補のタグと下書き（本文に `cytellect-windows-exe-auto` の印がある未公開のもの）は残り、その版番号は使われない。不要なものはオーナーが削除する。手動配布を行うときは、先に `WINDOWS_EXE_AUTO_RELEASE` を無効にする。有効なままでは、後から起動した自動配布が、待機中の手動配布を取り消す。公開済み版の差し替えが必要な場合は、修正した `main` を新しい版として配布する。緊急の手動配布は下記の手順に従う。署名鍵を交換するときは自動配布を停止し、手順 5 の配布を済ませてから再開する。
 
 ### 手動配布
 
@@ -83,7 +84,7 @@ ssh-keygen -Y verify -f allowed_signers -I cytellect-update -n cytellect-update 
 - 指定できるのは、`main` の先頭か、その祖先のコミットで、[配布の条件](ci.md#配布の条件)の 9 つのジョブがすべて成功したものだけ。候補は **Actions → Verify** で、ブランチ `main`、イベント `push` の成功した実行から探せる（`gh run list --workflow ci.yml --branch main --event push --status success`）。
 - 小文字の 16 進 40 文字以外（短い SHA、大文字、ブランチ名・タグ名）と、`main` にないコミットは、最初の `source` ジョブが何も作らずに止める。8 つのジョブの成功も、ここでそのコミットについて確かめる。
 - 以後の `package` と `draft` は、そのコミットだけを checkout する。ZIP、インストーラー、対応するソース、受入のレシート、署名した manifest の `source_commit`、タグ、リリースは、すべてそのコミットを指す。`draft` は、checkout がそのコミットで `main` の祖先であることと、インストーラーのレシートの `source_commit` が一致することを、署名の前にもう一度確かめる。
-- workflow 自体は常に `main` の先頭のものが動き、`release` environment の承認・`main` だけの許可・secret の確認・既存のタグとリリースの拒否は変わらない。署名の検証は、そのコミットに組み込まれた公開鍵か、最後に公開したリリースの鍵で行う。
+- workflow 自体は常に `main` の先頭のものが動き、手動配布では、`release` environment の承認・`main` だけの許可・secret の確認・既存のタグとリリースの拒否は変わらない。署名の検証は、そのコミットに組み込まれた公開鍵か、最後に公開したリリースの鍵で行う。
 - インストーラーや署名の仕組みが入る前の古いコミットは、途中のジョブで止まり、タグもリリースも作らない。
 
 ## 5. 鍵を交換する（計画的な交換）
@@ -93,13 +94,13 @@ ssh-keygen -Y verify -f allowed_signers -I cytellect-update -n cytellect-update 
 1. 手順 1 で新しい鍵を作る（ファイル名は `cytellect-update-2` など）。
 2. 新しい公開鍵を `UPDATE_PUBLIC_KEY` に入れる PR を作り、マージする。
 3. secret は**古い鍵のまま**で、この版を手順 4 で配布する。`draft` ジョブの検証は、この版に組み込んだ新しい鍵では合わないが、最後に公開したリリースに組み込まれていた古い鍵で合うため、通る。
-4. 交換の版を公開した後で、secret `UPDATE_SIGNING_KEY` を新しい秘密鍵に置き換える（同じ名前で上書きする）。以後の版は新しい鍵で署名される。古い秘密鍵は、交換の版が行き渡るまで保管してから削除する。
+4. 交換の版を公開した後で、`release` と `windows-exe-publish` の両方の environment の secret `UPDATE_SIGNING_KEY` を新しい秘密鍵に置き換える（同じ名前で上書きする）。以後の版は新しい鍵で署名される。古い秘密鍵は、交換の版が行き渡るまで保管してから削除する。
 5. 交換の版を飛ばして古い版から直接更新しようとしたアプリは、新しい鍵の署名を受け入れず `update_signature_wrong_key` で止まる。その研究者には、新しい版のインストーラーで導入してもらう。
 
 ## 6. 鍵が漏れた、または失ったとき（失効）
 
 組み込んだ公開鍵をネットワーク越しに無効にする仕組みはない。漏れた鍵で署名されたリリースを悪用するには、`genellect/cytellect` にリリースを公開する権限も必要になる。
 
-1. すぐに `release` environment の secret `UPDATE_SIGNING_KEY` を削除する。漏れた場合は、リポジトリの書き込み権限と、公開済みのリリースに不審なものがないかも確かめる。
+1. すぐに `WINDOWS_EXE_AUTO_RELEASE` を無効にし、`release` と `windows-exe-publish` の両方の environment の secret `UPDATE_SIGNING_KEY` を削除する。漏れた場合は、リポジトリの書き込み権限と、公開済みのリリースに不審なものがないかも確かめる。
 2. 新しい鍵を作り（手順 1〜3）、新しい公開鍵を組み込んだ版を、新しい鍵で署名して配布する。
 3. 古い鍵を信頼している既存のインストールは、新しい鍵の署名を受け入れない（`update_signature_wrong_key`）。漏れた鍵での交換（手順 5）は行わず、研究者には新しい版のインストーラーで導入するよう案内する。

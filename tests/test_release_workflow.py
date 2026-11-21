@@ -182,7 +182,9 @@ def test_manual_and_automatic_routes_enforce_their_release_protections():
     assert "github.event.workflow_run.conclusion == 'success'" in source
     assert "github.event.workflow_run.event == 'push'" in source
     assert "github.event.workflow_run.head_repository.id == github.event.repository.id" in source
-    assert "if: github.ref == 'refs/heads/main'" in job(RELEASE, "package")
+    package = job(RELEASE, "package")
+    assert "!cancelled() && needs.proposal-compatibility.result == 'success' &&" in package
+    assert "github.ref == 'refs/heads/main' && needs.source.outputs.artifact-run == ''" in package
     assert "needs: [source, proposal-compatibility]" in job(RELEASE, "package")
     draft = job(RELEASE, "draft")
     assert "needs: [source, proposal-compatibility, package]" in draft
@@ -191,7 +193,7 @@ def test_manual_and_automatic_routes_enforce_their_release_protections():
     assert "if: env.AUTOMATIC == 'true'" in draft
     assert 'if [ -z "$UPDATE_SIGNING_KEY" ]' in draft
     assert "update_manifest.py verify --release-dir release" in draft and '--previous-source "$previous"' in draft
-    assert "group: windows-release\n  cancel-in-progress: false" in RELEASE
+    assert "format('windows-release-idle-{0}', github.run_id) || 'windows-release' }}\n  cancel-in-progress: false" in RELEASE
 
 
 def test_ai_compatibility_gates_the_exact_source_without_exposing_tokens_to_packaging():

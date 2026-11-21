@@ -4,7 +4,7 @@ const { mkdtempSync, rmdirSync, unlinkSync, writeFileSync } = require('node:fs')
 const { tmpdir } = require('node:os');
 const { join } = require('node:path');
 const { test } = require('node:test');
-const { chooseCandidate, reserve, publish, syncChannel } = require('./windows_exe_release.cjs');
+const { chooseCandidate, mayAttempt, reserve, publish, syncChannel } = require('./windows_exe_release.cjs');
 
 test('selects by main history and never regresses to a release that completed late', () => {
   const history = ['newest', 'middle', 'published', 'oldest'];
@@ -13,6 +13,14 @@ test('selects by main history and never regresses to a release that completed la
   assert.equal(chooseCandidate(history, new Set(['oldest']), 'published'), '');
   assert.equal(chooseCandidate(history, new Set(['published']), 'published'), '');
   assert.throws(() => chooseCandidate(history, new Set(['middle']), 'off-main'));
+});
+
+test('a scheduled run does not rebuild a reserved candidate that has no tested package', () => {
+  assert.equal(mayAttempt('schedule', true, false), false);
+  assert.equal(mayAttempt('schedule', true, true), true);
+  assert.equal(mayAttempt('schedule', false, false), true);
+  assert.equal(mayAttempt('workflow_run', true, false), true);
+  assert.equal(mayAttempt('workflow_dispatch', true, false), true);
 });
 
 const commit = 'a'.repeat(40);

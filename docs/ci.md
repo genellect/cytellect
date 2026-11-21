@@ -68,7 +68,7 @@ Windows 版は、配布する `main` のコミットで次の 9 つのジョブ�
 
 `draft` は、手動配布ではオーナーの承認を待つ `release`、自動配布では `windows-exe-publish` で動く。アプリ内更新の manifest に secret `UPDATE_SIGNING_KEY` で署名し、アプリに組み込んだ公開鍵で検証してから下書きを作る。自動配布では、添付物の照合を通過した下書きを公開する（[リリースの署名](release-signing.md)）。
 
-リリースの本文は研究者向けの文で、`scripts/release_notes.py` が [`packaging/windows/release-notes.ja.md`](../packaging/windows/release-notes.ja.md) から作る。その版で何ができるようになったかは、`packaging/windows/release-highlights/<版>.ja.md` に利用者の言葉で書き、配布の前に `main` に入れる。このファイルがない場合、本文には前の版からのコミットの一覧へのリンクが入るので、公開する前に下書きで書き直す。試験の記録は本文に入れず、実行の Summary に出す。
+リリースの本文は研究者向けの文で、`scripts/release_notes.py` が [`packaging/windows/release-notes.ja.md`](../packaging/windows/release-notes.ja.md) から作る。その版で何ができるようになったかは、`packaging/windows/release-highlights/<版>.ja.md` に利用者の言葉で書き、配布の前に `main` に入れる。このファイルがない場合、本文には前の版からのコミットの一覧へのリンクが入るので、公開する前に下書きで書き直す。自動配布では版番号が実行時に決まり、下書きを同じ実行で公開するため、本文はこのリンクのまま公開される。変更点を研究者の言葉で伝える場合は、公開後にオーナーがリリースの本文を書き直す。試験の記録は本文に入れず、実行の Summary に出す。
 
 ## Smart App Control の監査
 

@@ -24,6 +24,12 @@ function chooseCandidate(history, successful, publishedCommit) {
   return history.indexOf(latest) < publishedIndex ? latest : '';
 }
 
+// A scheduled run resumes a reserved candidate only from its tested package. Building it again
+// waits for a new commit or for the owner's `automatic` dispatch, so a failing build is not repeated.
+function mayAttempt(eventName, reserved, packaged) {
+  return eventName !== 'schedule' || !reserved || packaged;
+}
+
 function latestPublicRelease(releases) {
   return releases.filter(release => !release.draft && versionNumber(release.tag_name)
     && release.assets.some(asset => asset.name === `Cytellect-Setup-${release.tag_name.slice(1)}.exe`))
@@ -69,9 +75,7 @@ async function select(github, context, core) {
     ...releaseTags.map(tag => versionNumber(tag.name))) + 1;
   if (!Number.isSafeInteger(next)) throw new Error('The EXE version number is out of range');
   const version = candidates[0]?.name.slice(1) ?? `0.1.0-local.${next}`;
-  core.setOutput('commit', commit);
-  core.setOutput('version', version);
-  core.info(`Selected ${commit} in Verify run ${run.id} for ${version}`);
+  let artifactRun = '';
   const name = `auto-exe-${version}-${commit}`;
   const artifacts = await github.paginate(github.rest.actions.listArtifactsForRepo, { ...repo, name, per_page: 100 });
   for (const artifact of artifacts) {
@@ -85,10 +89,18 @@ async function select(github, context, core) {
       ...repo, run_id, filter: 'latest', per_page: 100,
     });
     if (priorJobs.jobs.some(job => job.name === 'package' && job.conclusion === 'success')) {
-      core.setOutput('artifact-run', String(run_id));
+      artifactRun = String(run_id);
       break;
     }
   }
+  if (!mayAttempt(context.eventName, candidates.length === 1, artifactRun !== '')) {
+    core.info(`${version} is reserved for ${commit} without a tested package; a scheduled run does not rebuild it`);
+    return;
+  }
+  core.setOutput('commit', commit);
+  core.setOutput('version', version);
+  core.setOutput('artifact-run', artifactRun);
+  core.info(`Selected ${commit} in Verify run ${run.id} for ${version}`);
 }
 
 async function reserve(github, context) {
@@ -216,4 +228,4 @@ async function syncChannel(github, context, core) {
   core.info(`The website channel now points to ${record.version}`);
 }
 
-module.exports = { chooseCandidate, select, reserve, publish, syncChannel };
+module.exports = { chooseCandidate, mayAttempt, select, reserve, publish, syncChannel };
