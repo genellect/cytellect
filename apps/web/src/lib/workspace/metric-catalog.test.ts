@@ -39,6 +39,8 @@ describe("metrics by subject (M-01)", () => {
       positive_count: ["nuclei/field/陽性核数"], positive_fraction: ["nuclei/field/陽性率"],
       nucleolar_count: ["nucleoli/nucleus/数"], nucleolar_area_px: ["nucleoli/nucleus/総面積"], nucleolar_area_um2: ["nucleoli/nucleus/総面積"],
       nucleolar_area_fraction: ["nucleoli/nucleus/面積割合"], nucleolar_eccentricity: ["nucleoli/nucleus/離心率"],
+      largest_nucleolus_fraction: ["nucleoli/nucleus/最大の核小体の割合"],
+      solidity: ["nuclei/nucleus/ソリディティ"], axis_ratio: ["nuclei/nucleus/長短軸比"], eccentricity: ["nuclei/nucleus/離心率"],
       log2_nucleoplasm_over_nucleolus: ["nucleoplasm/nucleus/核質／核小体 log₂ 比"],
     };
     for (const [id, where] of Object.entries(expected)) expect(placements(id), id).toEqual(where);
@@ -47,9 +49,9 @@ describe("metrics by subject (M-01)", () => {
   it("lists the nucleoli as agreed: per nucleolus, then per nucleus", () => {
     expect(SUBJECT_METRICS.nucleoli.map(group => [group.unit, group.metrics.map(metric => metric.label)])).toEqual([
       ["nucleolus", ["面積", "平均輝度", "中央値", "積算輝度"]],
-      ["nucleus", ["数", "総面積", "面積割合", "離心率"]],
+      ["nucleus", ["数", "総面積", "面積割合", "離心率", "最大の核小体の割合"]],
     ]);
-    expect(SUBJECT_METRICS.nuclei.flatMap(group => group.metrics)).toHaveLength(8);
+    expect(SUBJECT_METRICS.nuclei.flatMap(group => group.metrics)).toHaveLength(11);
     expect(SUBJECT_METRICS.nucleoplasm.flatMap(group => group.metrics)).toHaveLength(5);
   });
   it("switches only between the variants of one quantity: px² / µm² and 原値 / 背景補正", () => {
@@ -89,5 +91,16 @@ describe("metrics by subject (M-01)", () => {
     expect(metricForSubject("nucleus_count", "nucleoli", all)).toBe("mean");
     expect(metricForSubject("nucleus_count", "nucleoli", id => id.startsWith("nucleolar_"))).toBe("nucleolar_count");
     expect(metricForSubject("mean", "nucleoplasm", id => id !== "mean")).toBe("area_px");
+  });
+  it("offers nuclear shape on the nuclei only, without a stain, and no pixel CV or positive-area fraction", () => {
+    for (const id of ["solidity", "axis_ratio", "eccentricity"]) {
+      expect(metricTarget(id, "nucleoli"), id).toBe("nuclei");
+      expect(metricUsesChannel(id), id).toBe(false);
+      expect(metricSubject(id, "nucleoli"), id).toBe("nuclei");
+    }
+    expect(metricTarget("largest_nucleolus_fraction", "nuclei")).toBe("nucleoplasm");
+    expect(metricSubject("largest_nucleolus_fraction", "nuclei")).toBe("nucleoli");
+    expect(metricChoice("cv_corrected")).toBeUndefined();
+    expect(metricChoice("positive_area_fraction")).toBeUndefined();
   });
 });

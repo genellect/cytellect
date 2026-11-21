@@ -2,6 +2,7 @@
 import {useEffect, useState, useSyncExternalStore} from "react";
 import {ApiError, errorCodeMessage, errorMessage, request} from "../api";
 import type {Point} from "../types";
+import type {PrimaryOutcome} from "./primary-outcome";
 import {automaticBackground, createApiAdapter, nuclearRecipe, rawMeasurement, type ChannelAssignment, type ChannelAssignments, type ImportedField, type MaskOperation, type Recipe, type SavedResult, type ValidatedProposal, type WorkspaceRun} from "./api-adapter";
 import {rememberGoal} from "./ai-settings";
 import {effectiveChannelAssignments} from "./channel-assignments";
@@ -503,6 +504,8 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     experimentSha256(){return specification.experiment_sha256??null;},
     /** Saves the experiment design; it never runs, adopts or changes measurements. */
     saveExperiment(experiment:ExperimentDesign){return exclusive("実験デザインを保存中",async()=>{await checkCurrent();const spec={...currentSpecification(specification.spec?.target??state.activeTarget),experiment};specification=await writeSpecification(workspace(),{version:specification.version,spec});specificationDirty=false;publish({});});},
+    /** Declares the primary measure (#257 RP-04), or removes the declaration with null; the server records the time. */
+    savePrimaryOutcome(primary:PrimaryOutcome|null){return exclusive("主要指標を保存中",async()=>{await checkCurrent();const spec:Record<string,unknown>={...currentSpecification(specification.spec?.target??state.activeTarget)};if(primary)spec.primary_outcome=primary;else delete spec.primary_outcome;specification=await writeSpecification(workspace(),{version:specification.version,spec:spec as typeof specification.spec});specificationDirty=false;publish({});});},
     saveAssignments(assignments:ChannelAssignment[],fieldId?:string){return exclusive("染色設定を保存中",async()=>{
       const selected=fieldId?registered.get(fieldId):null;
       if(fieldId&&!selected)throw new Error("登録した画像が見つかりません。");

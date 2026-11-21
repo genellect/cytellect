@@ -68,3 +68,4 @@
 .designLine{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;margin:0;color:#26303c;font-size:14px}
 .designLine span+span::before{content:"・";margin-right:12px;color:#8a94a3}
 .designLine button{margin-left:auto;border:0;background:none;padding:0;color:#2468cc;cursor:pointer;font-size:14px}
+.outcomeRole{display:inline-block;margin-left:6px;padding:0 6px;border-radius:8px;font-size:12px;line-height:18px;vertical-align:1px;border:1px solid #9aa6b5;color:#3b4654}.outcomeRole[data-outcome-role=primary]{border-color:#1757b6;background:#1757b6;color:#fff}
