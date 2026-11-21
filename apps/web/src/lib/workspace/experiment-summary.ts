@@ -53,10 +53,12 @@ export function analysedRuns(design:ExperimentDesign, fields:SummaryField[]):Ana
   return {counted,declared:(design.runs??[]).length,lacking};
 }
 
-/** The state of the design as 項目：値, each complete (a check mark) or missing or limiting (a warning mark). 実験回 is n, out of the declared
- * runs when some do not count, followed by one chip for each run that does not count. Independence is shown only for
- * two groups: one group is described, never tested. */
-export function statusChips(design:ExperimentDesign, fields:SummaryField[]):StatusChip[] {
+/** The state of the design as 項目：値, each complete (a check mark) or missing or limiting (a warning triangle). 実験回
+ * is n, out of the declared runs when some do not count, followed by one chip for each run that does not count. The
+ * acquisition statement and independence are shown only for two groups: one group is described, never compared. A
+ * recorded design (the public demo, `recorded`) shows the acquisition statement only when it states it: nothing is
+ * declared for public data. */
+export function statusChips(design:ExperimentDesign, fields:SummaryField[], recorded=false):StatusChip[] {
   const ids=fields.map(field=>field.id),codes=new Set(readiness(design,ids).map(issue=>issue.code));
   const assigned=ids.filter(id=>id in (design.fields??{})).length;
   const runs=analysedRuns(design,fields),n=runs.counted.length;
@@ -68,6 +70,10 @@ export function statusChips(design:ExperimentDesign, fields:SummaryField[]):Stat
     {key:"fields",label:"視野",value:`${assigned} / ${ids.length}`,ok:ids.length>0&&assigned===ids.length
       &&!codes.has("experiment_design_unstratified_fields")&&!codes.has("experiment_design_unknown_fields")},
   ];
+  // Acquisition and pixel settings (S10, genellect/cytellect#257 decisions 11 and 13).
+  if(design.layout==="pair"&&(!recorded||design.acquisition_confirmed))chips.push(design.acquisition_confirmed
+    ?{key:"acquisition",label:"撮影条件",value:"確認済み",ok:true}
+    :{key:"acquisition",label:"撮影条件",value:"未確認",ok:false});
   if(design.layout==="pair")chips.push(design.independence_confirmed
     ?{key:"independence",label:"独立性",value:"確認済み",ok:true}
     :{key:"independence",label:"独立性",value:"未確認 → 検定なし",ok:false});

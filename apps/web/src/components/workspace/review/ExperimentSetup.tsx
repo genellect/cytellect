@@ -1,6 +1,6 @@
 "use client";
 import {useEffect,useRef,useState} from "react";
-import {LABEL_LIMIT,savePlan,addRun,assignFields,assignStratum,emptyDesign,expandToPair,fieldsIn,isStratified,issueText,labelProblem,readiness,removeRun,renameGroup,unassignField,updateRun,type ExperimentDesign} from "@/lib/workspace/experiment-design";
+import {LABEL_LIMIT,savePlan,addRun,withAcquisition,assignFields,assignStratum,emptyDesign,expandToPair,fieldsIn,isStratified,issueText,labelProblem,readiness,removeRun,renameGroup,unassignField,updateRun,type ExperimentDesign} from "@/lib/workspace/experiment-design";
 import {experimentHeading,statusChips,summaryCounts,type SummaryField} from "@/lib/workspace/experiment-summary";
 import type {ShowcaseDataset} from "@/lib/showcase";
 import {StrataEditor} from "./StrataEditor";
@@ -82,9 +82,11 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pendin
     {onCsv&&<button className={styles.link} onClick={onCsv}>測定済みの CSV を使用</button>}
   </section>;
 
-  // Independence is a status chip (one group is described, never tested: E-01, T-05); the demo's record needs no list.
-  const issues=readOnly?[]:readiness(draft,fields.map(value=>value.id)).filter(issue=>issue.code!=="experiment_design_independence_unconfirmed");
-  const chips=statusChips(draft,fields),counts=summaryCounts(draft,fields);
+  // Independence and the acquisition statement are status chips (one group is described, never tested: E-01, T-05);
+  // the demo's record needs no list.
+  const chipped=new Set(["experiment_design_independence_unconfirmed","experiment_design_acquisition_unconfirmed"]);
+  const issues=readOnly?[]:readiness(draft,fields.map(value=>value.id)).filter(issue=>!chipped.has(issue.code));
+  const chips=statusChips(draft,fields,readOnly),counts=summaryCounts(draft,fields);
   const assigned=new Set(Object.keys(draft.fields??{}));
   const unassigned=fields.filter(value=>!assigned.has(value.id));
   const runs=draft.runs??[];
@@ -179,6 +181,9 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pendin
     {/* Settable for one group too: a correlation of one group also needs independent runs. */}
     {/* The definition stays one hover away (E-05): independence is never inferred from dates or plates. */}
     {!readOnly&&<label className={styles.independence} title="別々に播種・処理・染色した実験回。日付やプレートの違いだけでは独立とは限りません。"><input type="checkbox" checked={draft.independence_confirmed??false} disabled={locked} onChange={event=>void save({...draft,independence_confirmed:event.target.checked})}/>各実験回は独立に行った</label>}
+    {/* The statement 統計 used to ask for (S10, genellect/cytellect#257 decision 11): it backs the acquisition review and
+        the spatial sampling of a comparison. The key is written only while it is stated (an additive field). */}
+    {!readOnly&&<label className={styles.independence} title="輝度と画素数：全視野で同じ撮影設定（露光・ゲイン・対物レンズ・画素の大きさ）。面積（µm²）：画素の大きさを較正済み。表示をそろえても、撮影の違いは解消されません。"><input type="checkbox" checked={draft.acquisition_confirmed??false} disabled={locked} onChange={event=>void save(withAcquisition(draft,event.target.checked))}/>群の間で撮影・画素条件を比べられる</label>}
     <StrataEditor design={draft} locked={locked} readOnly={readOnly} onSave={save}/>
     {unassigned.length>0&&<section className={styles.unassigned} aria-label="群・実験回が未割り当ての視野">
       <h2>群・実験回が未割り当ての視野</h2>

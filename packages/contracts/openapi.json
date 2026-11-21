@@ -8559,6 +8559,11 @@
             "title": "Independence Confirmed",
             "default": false
           },
+          "acquisition_confirmed": {
+            "type": "boolean",
+            "title": "Acquisition Confirmed",
+            "default": false
+          },
           "fields": {
             "patternProperties": {
               "^[A-Za-z0-9_-]+$": {
@@ -18668,6 +18673,11 @@
           "independence_confirmed": {
             "type": "boolean",
             "title": "Independence Confirmed",
+            "default": false
+          },
+          "acquisition_confirmed": {
+            "type": "boolean",
+            "title": "Acquisition Confirmed",
             "default": false
           },
           "factors": {

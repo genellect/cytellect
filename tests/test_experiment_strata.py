@@ -551,6 +551,22 @@ def test_api_preview_refuses_a_source_spanning_strata_and_worker_rechecks_a_chan
     assert job["state"] == "failed" and job["error"] == "comparison_stratum_design_changed", job
 
 
+def test_stratified_acquisition_statement_keeps_existing_hashes():
+    """genellect/cytellect#257 decision 11: 1.1.0 records the same acquisition statement as 1.0.0. A design saved
+    without it keeps its hash, so a cohort bound to that hash still matches; stating it is a new design."""
+    saved = parse_design(stratified(assignments())).model_dump(mode="json")
+    assert "acquisition_confirmed" not in saved
+    assert design_sha256(saved) == design_sha256(stratified(assignments()))
+    stated = parse_design({**stratified(assignments()), "acquisition_confirmed": True})
+    assert isinstance(stated, StratifiedExperimentDesign) and stated.acquisition_confirmed is True
+    assert stated.model_dump(mode="json")["acquisition_confirmed"] is True
+    assert design_sha256(stated) != design_sha256(saved)
+    assert {"code": "experiment_design_acquisition_unconfirmed"} in readiness(parse_design(saved), list(assignments()))
+    assert {"code": "experiment_design_acquisition_unconfirmed"} not in readiness(stated, list(assignments()))
+    # Plain 1.0.0 accepts the same key; the two models stay one design apart only by their strata.
+    assert ExperimentDesign.model_validate({**V10, "acquisition_confirmed": True}).acquisition_confirmed is True
+
+
 def test_labels_with_a_lone_surrogate_are_refused_before_hashing():
     broken = stratified(assignments())
     broken["strata"][0]["label"] = "LEVEL-A \ud83d"
