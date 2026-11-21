@@ -7,6 +7,7 @@ RUN pnpm install --frozen-lockfile
 COPY apps/web apps/web
 COPY packages/contracts packages/contracts
 COPY fixtures/planning fixtures/planning
+COPY fixtures/result-summary-cases.json fixtures/result-summary-cases.json
 ARG NEXT_PUBLIC_API_ORIGIN=http://localhost:8000
 ARG NEXT_PUBLIC_CYTELLECT_DESKTOP_OWNER=false
 ENV NEXT_PUBLIC_CYTELLECT_DESKTOP_OWNER=$NEXT_PUBLIC_CYTELLECT_DESKTOP_OWNER

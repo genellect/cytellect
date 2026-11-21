@@ -90,6 +90,7 @@ CHECKS: dict[str, tuple[tuple[str, ...], ...]] = {
     ),
     "web": (
         *CONTRACT_CHECKS,
+        ("uv", "run", "python", "scripts/check_web_container_context.py"),
         WEB_CHECK,
         ("pnpm", "test"),
         WORKER_CHECK,
