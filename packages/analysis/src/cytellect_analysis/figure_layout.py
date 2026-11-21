@@ -1,6 +1,8 @@
 """Deterministic point placement for category plots (presentation only)."""
 from __future__ import annotations
 
+from collections import deque
+
 import numpy as np
 
 
@@ -8,10 +10,12 @@ def beeswarm(values, *, dx: float, dy: float, half_width: float) -> np.ndarray:
     """Horizontal offsets that keep every point visible.
 
     ``dx`` and ``dy`` are one marker diameter in data units along x and y. Points are taken
-    in value order and each takes the free offset closest to the centre. When a group is too
-    dense for ``half_width``, all offsets are scaled down together, so the swarm keeps the
-    shape of the distribution (wider where values are dense). The result depends only on
-    the values and their order, never on a random seed.
+    in value order and each takes the free offset closest to the centre. Where a row of values is
+    too dense for ``half_width``, only that row is narrowed: each point takes the factor of the
+    points within one diameter of its value, so sparse values keep their spacing and the swarm keeps
+    the shape of the distribution (genellect/cytellect#257, owner decision 2026-11-21; narrowing every
+    point by the densest row's factor drew sparse values as a thin column). The result depends only
+    on the values and their order, never on a random seed.
     """
     values = np.asarray(values, dtype=float)
     offsets = np.zeros(len(values))
@@ -59,7 +63,31 @@ def beeswarm(values, *, dx: float, dy: float, half_width: float) -> np.ndarray:
         offsets[index] = chosen
         placed_y[count] = y
         placed_x[count] = chosen
-    widest = float(np.max(np.abs(offsets)))
-    if widest > half_width:
-        offsets *= half_width / widest
-    return offsets
+    return _narrow_dense_rows(values, offsets, dy=dy, half_width=half_width)
+
+
+def _narrow_dense_rows(values: np.ndarray, offsets: np.ndarray, *, dy: float, half_width: float) -> np.ndarray:
+    """Scale each point by ``half_width`` over the widest offset among the points within ``dy`` of its value."""
+    spread = np.abs(offsets)
+    if not len(values) or float(spread.max()) <= half_width:
+        return offsets
+    order = np.argsort(values, kind="stable")
+    ordered, width = values[order], spread[order]
+    low = np.searchsorted(ordered, ordered - dy, side="left")
+    high = np.searchsorted(ordered, ordered + dy, side="right")
+    # Both window edges only move upwards, so a decreasing queue gives each window's widest offset.
+    widest = np.empty(len(ordered))
+    queue: deque[int] = deque()
+    end = 0
+    for index in range(len(ordered)):
+        while end < high[index]:
+            while queue and width[queue[-1]] <= width[end]:
+                queue.pop()
+            queue.append(end)
+            end += 1
+        while queue[0] < low[index]:
+            queue.popleft()
+        widest[index] = width[queue[0]]
+    narrowed = offsets.copy()
+    narrowed[order] = offsets[order] * np.minimum(1.0, half_width / np.maximum(widest, np.finfo(float).tiny))
+    return narrowed
