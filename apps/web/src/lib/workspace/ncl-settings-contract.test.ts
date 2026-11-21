@@ -2,7 +2,7 @@ import {describe, expect, it, vi} from "vitest";
 import {createWorkspaceRuntime, defaultRuntimeSettings, runtimeRecipe} from "./use-workspace-runtime";
 import type {createApiAdapter, Recipe, SavedResult, ValidatedProposal} from "./api-adapter";
 import type {ReviewData} from "./review-preview";
-import type {ProposalProcessing} from "./proposal-processing";
+import type {NucleolarProcessingDetector,ProposalProcessing} from "./proposal-processing";
 import type {ChannelDefinition} from "./grouping";
 import {nclObjectDetector,nucleolarDetectorV2} from "./nucleolar-definition";
 import {cellposeDetector,legacyNclCellposeDetector,nclCellposeDetector,selectNclModel} from "./cellpose-settings";
@@ -74,7 +74,8 @@ describe("NCL settings contracts without images",()=>{
 describe("marker smoothing protocol compatibility without images",()=>{
   const definition={source:"marker" as const,marker:"marker",pixelUm:null,relative:.7};
   // A saved 2.0.0 record has none of the 2.2.0 fields.
-  const {minimum_area_um2:_area,minimum_contrast_snr:_contrast,...current}=nucleolarDetectorV2(definition) as ReturnType<typeof nucleolarDetectorV2>&{minimum_area_um2?:number|null;minimum_contrast_snr?:number};
+  const current:NucleolarProcessingDetector={...nucleolarDetectorV2(definition)};
+  delete current.minimum_area_um2;delete current.minimum_contrast_snr;
   const old={...current,protocol_version:"2.0.0" as const,smoothing_sigma_px:2};
   it("creates new marker settings at 2.2 / 0.7 without changing DAPI defaults",()=>{
     expect(nucleolarDetectorV2(definition)).toMatchObject({protocol_version:"2.2.0",source:"marker",smoothing_sigma_px:.7});
