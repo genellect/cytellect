@@ -19,7 +19,7 @@ defines nucleoli from a source the researcher selects:
 Protocol 2.1.0 keeps the marker operations but uses the recorded Gaussian sigma,
 with 0.7 px as its default. Protocol 2.0.0 marker replay remains fixed at 0.7 px.
 
-Protocol 2.2.0 (2026-11-21, owner decision 20 of genellect/cytellect#257) keeps the
+Protocol 2.2.0 (2026-11-21, owner decisions 20, 22 of genellect/cytellect#257) keeps the
 2.1.0 operations and adds two rules. (1) A parent whose marker contrast is below
 ``minimum_contrast_snr`` times the field's noise is ``indeterminate``
 (``insufficient_marker_contrast``); its candidates are not adopted. The contrast and
