@@ -120,6 +120,18 @@ def test_beeswarm_is_deterministic_and_bounded():
     assert np.isclose(np.max(np.abs(crowded)), .3)
 
 
+def test_beeswarm_narrows_only_the_rows_that_do_not_fit():
+    # A dense row at 0 and a few sparse values far above it (genellect/cytellect#257, owner decision 2026-11-21).
+    values = np.concatenate([np.zeros(200), [5.0, 5.0, 5.0, 9.0]])
+    natural = beeswarm(values, dx=.05, dy=.1, half_width=np.inf)
+    placed = beeswarm(values, dx=.05, dy=.1, half_width=.3)
+    assert np.max(np.abs(placed)) <= .3 + 1e-12
+    # The dense row is narrowed into the group's width; the sparse values keep their natural spacing.
+    assert np.isclose(np.max(np.abs(placed[:200])), .3)
+    assert np.array_equal(placed[200:], natural[200:])
+    assert len(set(np.round(placed[200:203], 9))) == 3
+
+
 def test_forms_follow_the_experiment():
     report, config = comparison_fixture((("A", [1, 3, 6]), ("B", [2, 5, 10])))
     result = analyze_region_comparison(report, config, request_v2(test="welch-t"))
@@ -406,3 +418,47 @@ def test_a_box_records_its_quartiles_and_a_run_line_stays_over_it(tmp_path, monk
     assert run_lines and min(line.get_zorder() for line in run_lines) > box_face
     # Runs read in order: p2 before p10.
     assert natural_order(["p10", "p2", "p1"]) == ["p1", "p2", "p10"]
+
+
+def test_the_fields_behind_a_comparison_read_group_then_run_then_field(tmp_path):
+    from statistics import median
+
+    result = demo_comparison()
+    result["spec"]["plot"] = {**result["spec"]["plot"], "kind": "superplot", "presentation": OPENING}
+    manifest = render_common_statistics(copy.deepcopy(result), tmp_path)
+    assert {"fields.svg", "fields.pdf", "fields.png"} <= set(manifest["source_files"])
+    assert all((tmp_path / name).stat().st_size for name in ("fields.svg", "fields.pdf", "fields.png"))
+    fields = manifest["field_check"]["fields"]
+    order = result["spec"]["plot"]["group_order"] or result["spec"]["conditions"]
+    groups = [field["condition"] for field in fields]
+    # Group by group, run by run within it: the order the comparison summarises its values.
+    assert groups == sorted(groups, key=order.index)
+    for group in order:
+        runs = [field["run"] for field in fields if field["condition"] == group]
+        assert runs == sorted(runs, key=lambda run: [field["run"] for field in fields if field["condition"] == group].index(run))
+        assert len(runs) == len({(r, i) for i, r in enumerate(runs)})
+    # Every saved observation is drawn once, and each line is the median of its field's observations.
+    rows = [row for row in result["plot_data"] if row.get("selection_status", "selected") == "selected" and row.get("value") is not None]
+    assert sum(field["observations"] for field in fields) == len(rows)
+    for field in fields:
+        values = [row["value"] for row in rows if row["field_id"] == field["field_id"]]
+        assert field["median"] == pytest.approx(median(values))
+    # The runs take the colours of the comparison figure.
+    svg = (tmp_path / "fields.svg").read_text(encoding="utf-8")
+    assert "#0072b2" in svg.lower() and "Field median" in svg
+
+
+def test_many_fields_leave_the_numbers_off_and_never_fail_the_comparison(tmp_path):
+    # Forty independent units per group: field numbers cannot fit, and the field check must not cost the figure.
+    report, config = comparison_fixture((("A", list(range(1, 41))), ("B", list(range(2, 42)))))
+    result = analyze_region_comparison(report, config, request_v2(test="welch-t"))
+    result = json.loads(json.dumps(result).replace('"A"', '"Untreated control cells"').replace('"B"', '"Treated with compound X"'))
+    result["spec"]["plot"].update(kind="superplot", presentation=OPENING)
+    manifest = render_common_statistics(result, tmp_path)
+    assert (tmp_path / "figure.svg").is_file()
+    check = manifest["field_check"]
+    assert check.get("skipped") is None, check
+    # An independent design has no runs to group by; every field still appears, without its number.
+    assert check["runs_labelled"] is False and check["numbered"] is False
+    assert len(check["fields"]) == 80 and {field["run"] for field in check["fields"]} == {None}
+    assert set(check["files"]) <= set(manifest["source_files"])
