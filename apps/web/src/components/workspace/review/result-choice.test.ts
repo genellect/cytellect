@@ -115,6 +115,12 @@ describe("a saved result answers only the method now chosen (#257 review)",()=>{
     expect(sameMethod("comparison",{test:"paired-t",design:{kind:"paired"}},{...chosen,inference:false})).toBe(false);
     expect(sameMethod("comparison",{test:"none",design:{kind:"paired"}},{...chosen,inference:false})).toBe(true);
   });
+  it("takes a description as the answer to a choice that could be tested, which 計算 then tests (decision 11)",()=>{
+    expect(sameMethod("comparison",{test:"none",design:{kind:"paired"}},chosen)).toBe(true);
+    expect(sameMethod("comparison",{test:"none",design:{kind:"paired"}},{...chosen,rank:true})).toBe(true);
+    // The pairing still has to match.
+    expect(sameMethod("comparison",{test:"none",design:{kind:"independent"}},chosen)).toBe(false);
+  });
   it("tells Pearson from Spearman, and takes a result without a recorded method as it was",()=>{
     expect(sameMethod("association",{method:"spearman"},chosen)).toBe(false);
     expect(sameMethod("association",{method:"pearson"},chosen)).toBe(true);

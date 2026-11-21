@@ -3037,6 +3037,11 @@ export interface components {
              * @default false
              */
             independence_confirmed: boolean;
+            /**
+             * Acquisition Confirmed
+             * @default false
+             */
+            acquisition_confirmed: boolean;
             /** Fields */
             fields?: {
                 [key: string]: components["schemas"]["FieldAssignment"];
@@ -6623,6 +6628,11 @@ export interface components {
              * @default false
              */
             independence_confirmed: boolean;
+            /**
+             * Acquisition Confirmed
+             * @default false
+             */
+            acquisition_confirmed: boolean;
             /** Factors */
             factors: components["schemas"]["StratumFactor"][];
             /** Strata */

@@ -165,6 +165,11 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   const chip = (label: string) => status.getByRole("listitem").filter({hasText: new RegExp(`^${label}：`)});
   await expect(chip("独立性")).toHaveText("独立性：未確認 → 検定なし");
   await expect(chip("独立性").getByRole("img", {name: "要確認"})).toBeVisible();
+  // S10 (genellect/cytellect#257 decisions 11 and 13): the acquisition and pixel settings are the researcher's statement
+  // in 実験 too; nothing states them before it is ticked.
+  await expect(setup.getByRole("checkbox", {name: "群の間で撮影・画素条件を比べられる"})).not.toBeChecked();
+  await expect(chip("撮影条件")).toHaveText("撮影条件：未確認");
+  await expect(chip("撮影条件").getByRole("img", {name: "要確認"})).toBeVisible();
   const fieldCount = RUNS.length * GROUPS.length * SITES.length;
   for (const [label, value] of [["群", GROUPS.length], ["視野", `${fieldCount} / ${fieldCount}`]] as const) {
     await expect(chip(label)).toHaveText(`${label}：${value}`);
@@ -279,16 +284,28 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   }
   expect(entered).toEqual(Object.fromEntries(combinations.map(([run, groupIndex]) => [`${run} · ${GROUPS[groupIndex].label}|${GROUPS[groupIndex].label}|${run}`, SITES.length])));
 
-  await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み", {exact: true}).check();
-  await panel.getByLabel("測定領域と採用する視野を確認済み", {exact: true}).check();
+  // 統計 asks for no confirmation (decision 11). Without the acquisition statement nothing is compared: the result's
+  // place names that one item and no statistics request is sent.
+  const statisticsPosts: string[] = [];
+  page.on("request", request => {if (request.method() === "POST" && new URL(request.url()).pathname.endsWith("/common-statistics")) statisticsPosts.push(request.url());});
+  await expect(panel.getByRole("checkbox", {name: /確認済み/})).toHaveCount(0);
+  const remaining = panel.getByRole("button", {name: "実験：撮影条件 未確認", exact: true});
+  await expect(remaining).toBeVisible();
+  await expect(panel.getByRole("button", {name: "計算", exact: true})).toHaveCount(0);
   // E-05: without the independence statement the comparison is descriptive: run values and differences, no test or interval.
   const method = panel.getByRole("combobox", {name: "方法", exact: true});
   await expect(method).toHaveValue("none");
   await expect(method).toBeDisabled();
   await expect(panel.getByRole("combobox", {name: "解析", exact: true}).locator("option[value=association]")).toHaveAttribute("disabled", "");
-  await expect(panel.getByRole("button", {name: "計算", exact: true})).toBeEnabled();
+  expect(statisticsPosts).toEqual([]);
+  // The line opens 実験. The tester's statement for this workflow check, not a fact the JUMP source records.
+  await remaining.click();
+  await setup.getByRole("checkbox", {name: "群の間で撮影・画素条件を比べられる"}).check();
+  await expect(chip("撮影条件")).toHaveText("撮影条件：確認済み");
+  await expect(chip("撮影条件").getByRole("img", {name: "完了"})).toBeVisible();
+  // Back in 統計 the chosen comparison is described at once (D-5): no confirmation, no 計算.
   const described = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname.endsWith("/common-statistics"), {timeout: 300_000});
-  await panel.getByRole("button", {name: "計算", exact: true}).click();
+  await setup.getByRole("button", {name: "統計で比べる →", exact: true}).click();
   const describedResponse = await described;
   expect((describedResponse.request().postDataJSON() as {test: string}).test).toBe("none");
   const describedJob = ((await describedResponse.json()) as {job_id: string}).job_id;
@@ -338,8 +355,9 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   await expect(method).toHaveValue("parametric");
   await expect(method).toBeEnabled();
   await expect(panel.getByRole("combobox", {name: "解析", exact: true})).toHaveValue("comparison");
-  if (!await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み", {exact: true}).isChecked()) await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み", {exact: true}).check();
-  if (!await panel.getByLabel("測定領域と採用する視野を確認済み", {exact: true}).isChecked()) await panel.getByLabel("測定領域と採用する視野を確認済み", {exact: true}).check();
+  // The description stays the answer to the choice; the test waits for 計算 (D-5), and the basis says so.
+  await descriptive.locator("summary").filter({hasText: /^記述統計 · n = 3 回/}).click();
+  await expect(descriptive.getByText("検定は「計算」で行います。", {exact: true})).toBeVisible();
   await expect(panel.getByRole("button", {name: "計算", exact: true})).toBeEnabled();
   const accepted = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname.endsWith("/common-statistics"), {timeout: 300_000});
   await panel.getByRole("button", {name: "計算", exact: true}).click();

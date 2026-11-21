@@ -15,6 +15,9 @@ export interface SummaryOptions {
   exploratory?: boolean;
   /** "核小体を確定できない核 3 / 158 は欠測" (RS-07). */
   missing?: string | null;
+  /** The design can now be tested (independence declared, no exploratory threshold): a description is waiting for
+   * 計算, not limited by the design (genellect/cytellect#257 decision 11, D-5). */
+  testable?: boolean;
 }
 
 const methodNames: Record<string, string> = {
@@ -30,6 +33,7 @@ const reasons: Record<string, string> = {
 /** Why a comparison is descriptive (NT-01): the one sentence behind 「記述統計」. */
 const DESCRIPTIVE_REASON = "実験回の独立性が未確認のため、検定と信頼区間は算出していません。";
 const EXPLORATORY_REASON = "陽性判定のしきい値が陰性対照に基づかないため（手動・Otsu）、検定と信頼区間は算出していません。";
+const UNTESTED_REASON = "検定は「計算」で行います。";
 
 /** Three significant digits without trailing zeros or exponent notation for ordinary values. */
 export function formatNumber(value: number): string {
@@ -165,8 +169,8 @@ export function summarize(estimates: ComparisonEstimates, comparison: SavedCompa
   const n = paired ? `n = ${estimates.n_pairs ?? 0} 回` : `n = ${estimates.n_control}・${estimates.n_treatment}（実験単位）`;
   const method = descriptive ? (options.exploratory ? "記述統計（探索的なしきい値）" : "記述統計") : methodNames[comparison.method ?? ""] ?? comparison.method ?? "検定";
   const parts = [method, n, descriptive ? "" : formatP(comparison.p_value), options.missing ?? ""].filter(Boolean);
-  const basis: ResultBasis = {label: parts.join(" · "), reason: descriptive ? (options.exploratory ? EXPLORATORY_REASON : DESCRIPTIVE_REASON) : null,
-    action: descriptive && !options.exploratory ? "experiment" : null};
+  const basis: ResultBasis = {label: parts.join(" · "), reason: descriptive ? (options.exploratory ? EXPLORATORY_REASON : options.testable ? UNTESTED_REASON : DESCRIPTIVE_REASON) : null,
+    action: descriptive && !options.exploratory && !options.testable ? "experiment" : null};
 
   // Cautions that change how this result is read; the rest is folded (NT-05).
   const cautions: string[] = [], notes: string[] = [];

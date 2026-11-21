@@ -19,6 +19,7 @@ import {METRIC_HINTS} from "../../../lib/showcase/terms";
 import {DiscussionPanel} from "./DiscussionPanel";
 import {showcaseNotices,type RecordedStatistic,type ShowcaseDataset} from "@/lib/showcase";
 import {automaticOperation,sameMethod,savedMethod,choiceFilter,conditionChannel,conditionKey,savedCondition,savedFor,savedMeasureLabel,type ResultCondition,type SavedResultLike} from "./result-choice";
+import {declarations as statisticsDeclarations,remainingWork,type RemainingWork} from "./statistics-readiness";
 import {AxisControls,axisPlotOptions,emptyAxis,type AxisState} from "./AxisControls";
 import {ConnectedCsvResults} from "./ConnectedCsvResults";
 import {EditableFigure,type FigurePart,type FigureSource} from "./EditableFigure";
@@ -58,6 +59,8 @@ export interface ConnectedResultsProps {
   /** Hash of the saved stratified design, from the API; a stratum's cohort is bound to it. */
   experimentSha256?:string|null;
   onEditExperiment?:()=>void;
+  /** Opens 画像, where the fields a result waits for are measured and adopted (genellect/cytellect#257 decision 11). */
+  onImages?:()=>void;
   /** Opens 統計, where a condition without a result is calculated (from グラフ). */
   onStatistics?:()=>void;
   /** The recorded stain name of a channel (「5-EU」), for the name of a measure. */
@@ -129,7 +132,7 @@ export function ConnectedResults(props:ConnectedResultsProps) {
   return <WorkspaceResults key={props.workspace} {...props}/>;
 }
 
-function WorkspaceResults({adapter,workspace,selection,items:allItems,target,metric,channel,mode,shown=true,measured=0,compareRequest=0,onOpening,onOpeningTarget,onSource,beforePrepare,disabled=false,gfp=null,channelGate=null,initialSpec,onSaveDraft,onMetricChange,onAnalysisTargetChange,onPrepareMissing,experiment=null,experimentSha256=null,onEditExperiment,onStatistics,reclassifyRequest=0,stainName=(id:string)=>id,recorded:recordedStatistics=null}:ConnectedResultsProps) {
+function WorkspaceResults({adapter,workspace,selection,items:allItems,target,metric,channel,mode,shown=true,measured=0,compareRequest=0,onOpening,onOpeningTarget,onSource,beforePrepare,disabled=false,gfp=null,channelGate=null,initialSpec,onSaveDraft,onMetricChange,onAnalysisTargetChange,onPrepareMissing,experiment=null,experimentSha256=null,onEditExperiment,onImages,onStatistics,reclassifyRequest=0,stainName=(id:string)=>id,recorded:recordedStatistics=null}:ConnectedResultsProps) {
   const showcaseUi=useShowcaseUi(),demo=showcaseUi.enabled,showcaseDataset=showcaseUi.dataset,openedSaved=useRef(false);
   const derived=useMemo(()=>experiment?fieldMetadata(experiment):{},[experiment]);
   // A stratified design (1.1.0) is read one declared stratum at a time: only that stratum's fields enter,
@@ -154,17 +157,16 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   const selectedProposal=proposals[proposedIndex];
   const unsupportedAxes=operation==="association"&&invalidMethod(selectedProposal);
   const displayMetric=(value:string)=>({area:"area_px",mean_raw:"mean",integral_raw:"integrated",integral_corrected:"integrated_corrected",ncl_log2_nucleoplasm_over_nucleoli:"log2_nucleoplasm_over_nucleolus"}[value]??value);
-  function selectProposal(index:number){const method=proposals[index];if(!method)return;setProposedIndex(index);compareWanted.current=false;setOperation(method.kind==="descriptive"?"distribution":method.kind);setRank(["mann-whitney-u","wilcoxon"].includes(method.test||"")||method.association==="spearman");setPaired(["paired-t","wilcoxon"].includes(method.test||""));setConfirmed(false);
+  function selectProposal(index:number){const method=proposals[index];if(!method)return;setProposedIndex(index);compareWanted.current=false;setOperation(method.kind==="descriptive"?"distribution":method.kind);setRank(["mann-whitney-u","wilcoxon"].includes(method.test||"")||method.association==="spearman");setPaired(["paired-t","wilcoxon"].includes(method.test||""));setTypedConfirmed(false);
     const figure=initialSpec?.figure_proposals?.find(value=>value.analysis_index===index),axis=method.y??figure;
     if(axis){onMetricChange?.(displayMetric(axis.metric),axis.channel??null);const region=axis.region;onAnalysisTargetChange?.(region==="nucleus"?"nuclei":region==="supplied"?"cell":region==="nucleoli"||region==="nucleoplasm"?region:target);}
     if(method.x){setXMetric(displayMetric(method.x.metric));setXChannel(method.x.channel??null);}
   }
   const [metadata,setMetadata]=useState<Record<string,Metadata>>({});
   const [paired,setPaired]=useState(false),[rank,setRank]=useState(false),[unit,setUnit]=useState(""),[pairing,setPairing]=useState("");
-  const [confirmed,setConfirmed]=useState(false),[reviewedKeys,setReviewedKeys]=useState<string[]>([]);
-  // The demo asks for no confirmation: its public data were confirmed when the tour was recorded (owner decision
-  // 2026-11-21), and it calculates with the confirmations the recording made.
-  const confirmedNow=confirmed||demo;
+  // A workspace without a declared design keeps the confirmation of its typed groups, units and acquisition in 統計
+  // (owner decision on #273, 2026-11-21); a declared design is confirmed in 実験 (decision 11).
+  const [typedConfirmed,setTypedConfirmed]=useState(false);
   const [contrasts,setContrasts]=useState<string[][]>([]);
   const [xMetric,setXMetric]=useState("area_px"),[xChannel,setXChannel]=useState<string|null>(channel);
   // A size left unchosen follows the page: a distribution keeps 183 × 100 mm, a publication figure's custom size starts at 89 × 60 mm.
@@ -214,12 +216,11 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   useLayoutEffect(()=>{gateCurrent.current=gateIdentity;return()=>{gateCurrent.current="";};},[gateIdentity]);
   const currentGate=recordedGate?.identity===gateIdentity?recordedGate:null;
   const positivityMissing=metric.startsWith("positive_")&&!channelGate;
-  // Nuclei whose nucleolus could not be established (Q-05): listed by group, run and reason before the
-  // calculation; once confirmed they stay as missing instead of stopping the statistics.
+  // Nuclei whose nucleolus could not be established (Q-05) stay as missing instead of stopping the statistics: the
+  // ledger read here is sent as it is with the calculation, and the result counts them in its n (decision 11).
   const compartment=regionSet==="nucleoli"||regionSet==="nucleoplasm";
   const ledgerKey=compartment?JSON.stringify(sources.map(source=>[source.field,source.revision])):"";
   const [ledger,setLedger]=useState<{key:string;fields:Record<string,CompartmentLedgerEntry>;error:string}|null>(null);
-  const [missingConfirmed,setMissingConfirmed]=useState({key:"",value:false});
   useEffect(()=>{if(!ledgerKey)return;let live=true;
     void Promise.all(sources.map(source=>comparison.compartmentLedger(source.revision,source.field)))
       .then(values=>{if(live)setLedger({key:ledgerKey,fields:Object.assign({},...values),error:""});})
@@ -228,8 +229,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   const currentLedger=ledger?.key===ledgerKey?ledger:null;
   const unresolvedFields=Object.fromEntries(Object.entries(currentLedger?.fields??{}).filter(([,entry])=>Object.keys(entry.missing).length>0).map(([fid,entry])=>[fid,entry.missing]));
   const unresolved=Object.keys(unresolvedFields).length>0;
-  const unresolvedConfirmed=demo||missingConfirmed.key===ledgerKey&&missingConfirmed.value;
-  const ledgerReady=!compartment||(!!currentLedger&&!currentLedger.error&&(!unresolved||unresolvedConfirmed));
+  const ledgerReady=!compartment||(!!currentLedger&&!currentLedger.error);
   // A result answers the measurements and metadata it was calculated from; the adoption record's own version is not
   // part of it (calculating another region writes that record again).
   const resultIdentity=(chosen:typeof sources,metadata:typeof fields,scope:typeof stratumRequest)=>scopedIdentity(JSON.stringify([chosen.map(source=>[source.field,source.revision]),metadata]),scope);
@@ -268,7 +268,17 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   useEffect(()=>{if(saturatedKey&&contrasts.some(pair=>!unsaturatedPair(pair)))setContrasts(previous=>previous.filter(unsaturatedPair));},[saturatedKey,contrasts]);// eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>{if(xAxes.length&&!xAxes.includes(xMetric))setXMetric(xAxes[0]);},[xAxes.join(),xMetric]);// eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>{if(xStain!==xChannel)setXChannel(xStain);},[xStain,xChannel]);
-  const design:ResultDesign={operation,metric,channel,regionSet,paired,rank,unit,pairing,confirmed:confirmedNow,contrasts,xMetric,xChannel,gfp,channelGate:currentGate?.filter??channelGate,estimates:!!experiment&&experiment.layout==="pair",inference:!unconfirmed&&!exploratory};
+  // Fields included in the comparison without an adopted measurement of this region (画像's work, not done yet).
+  const missing=items.filter(item=>!item.excluded&&!item.result).length;
+  // 統計 asks for no confirmation (genellect/cytellect#257 decision 11): what a request states comes from 画像 and 実験.
+  const stated=statisticsDeclarations({demo,experiment,unmeasured:missing,typedConfirmed});
+  // A comparison or an association states its design: declared in 実験, or confirmed here for typed groups.
+  const designStated=demo||operation==="distribution"||!!experiment||typedConfirmed;
+  const remaining=remainingWork({demo,experiment,unmeasured:missing,operation});
+  const openRemaining=(work:RemainingWork)=>{(work.screen==="image"?onImages:onEditExperiment)?.();};
+  // A described comparison of a design that can be tested waits for 計算 (D-5); its basis says so, not "unconfirmed".
+  const testable=!demo&&operation==="comparison"&&(experiment?!!experiment.independence_confirmed:typedConfirmed)&&!exploratory;
+  const design:ResultDesign={operation,metric,channel,regionSet,paired,rank,unit,pairing,independence:stated.independence,acquisition:stated.acquisition,sampling:stated.sampling,missingness:stated.missingness,contrasts,xMetric,xChannel,gfp,channelGate:currentGate?.filter??channelGate,estimates:!!experiment&&experiment.layout==="pair",inference:!unconfirmed&&!exploratory};
   // A declared two-group design compares the same runs as pairs, treatment − control (T-01).
   const designDefaults=declared;
   const independenceMissing=unconfirmed&&operation==="association";
@@ -278,11 +288,6 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   const declaredContrast=useRef(designDefaults?.contrasts.join("\n"));
   useEffect(()=>{if(operation!=="comparison"||!designDefaults)return;const changed=declaredContrast.current!==designDefaults.contrasts.join("\n");declaredContrast.current=designDefaults.contrasts.join("\n");if(contrasts.length&&!changed)return;setPaired(true);setContrasts(designDefaults.contrasts);
     if(!unit.trim())setUnit("独立に行った実験回（別々に播種・処理・染色した実験日）");if(!pairing.trim())setPairing("同じ実験回の対照と処理");},[operation,designDefaults?.contrasts.join("\n")]);// eslint-disable-line react-hooks/exhaustive-deps
-  // The regions and fields are confirmed once per set of measurements; changing the region or the metric and coming
-  // back keeps it, and the design's confirmation is not taken back by either (SR-03, D-3).
-  const sourceIdentity=JSON.stringify([target,sources.map(source=>[source.field,source.revision])]);
-  const reviewed=reviewedKeys.includes(sourceIdentity),reviewedNow=reviewed||demo;
-  const setReviewed=(value:boolean)=>setReviewedKeys(previous=>[...previous.filter(key=>key!==sourceIdentity),...(value?[sourceIdentity]:[])]);
   useEffect(()=>{
     if(!initialSpec)return;const key=JSON.stringify(initialSpec);if(receivedSpec.current===key)return;receivedSpec.current=key;
     if(skipOwnSpec.current){skipOwnSpec.current=false;return;}
@@ -293,7 +298,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
     // The specification the workspace opens with sets the opening metric, under the same first-look rule as the opening
     // result (DM-04): it is not applied after a measurement, and a later measurement of another region replaces it.
     const chooseMetric=(value:string,stain:string|null)=>{if(!firstLook)onMetricChange?.(value,stain);else if(!measured)onOpening?.(value,stain);};
-    if(stat?.method&&statChanged){const compare=compareWanted.current;compareWanted.current=false;appliedStatistics.current=true;setOperation(compare?"comparison":stat.method.kind==="descriptive"?"distribution":stat.method.kind);setPaired(stat.design==="paired");setRank(["mann-whitney-u","wilcoxon"].includes(stat.method.test||"")||stat.method.association==="spearman");setUnit(stat.unit_definition);setPairing(stat.pairing_basis);setContrasts(stat.comparisons||[]);setMetadata(stat.field_metadata||{});setConfirmed(false);
+    if(stat?.method&&statChanged){const compare=compareWanted.current;compareWanted.current=false;appliedStatistics.current=true;setOperation(compare?"comparison":stat.method.kind==="descriptive"?"distribution":stat.method.kind);setPaired(stat.design==="paired");setRank(["mann-whitney-u","wilcoxon"].includes(stat.method.test||"")||stat.method.association==="spearman");setUnit(stat.unit_definition);setPairing(stat.pairing_basis);setContrasts(stat.comparisons||[]);setMetadata(stat.field_metadata||{});setTypedConfirmed(false);
       const restored=restoredMetric(stat);if(restored)chooseMetric(restored,stat.channel_id??null);
       const sx=stat as typeof stat & {x_metric?:string|null;x_channel_id?:string|null};if(stat.method.y)chooseMetric(displayMetric(stat.method.y.metric),stat.method.y.channel??null);if(stat.method.x){setXMetric(displayMetric(stat.method.x.metric));setXChannel(stat.method.x.channel??null);}else if(sx.x_metric){setXMetric(sx.x_metric);setXChannel(sx.x_channel_id??null);}
     }
@@ -301,13 +306,16 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
     if(proposed&&!(figure?.plot as {presentation?:Presentation}|undefined)?.presentation?.composition)setComposition(proposed.composition);
     if(figure?.plot){const p=figure.plot as typeof figure.plot & {style?:RenderPlot["style"];axes?:RenderPlot["axes"]};setFigureKind(p.kind);setWidth(p.width_inches*25.4);setHeight(p.height_inches*25.4);setFont(p.font_size);setXLabel(p.x_label);setYLabel(p.y_label);setYMin(p.y_min==null?"":String(p.y_min));setYMax(p.y_max==null?"":String(p.y_max));setColors(p.style?.series_colors||{});setLegend(p.style?.show_legend??true);setPointSize(p.point_size??null);restorePresentation((p as {presentation?:unknown}).presentation);setOrder(p.group_order||[]);setXAxis({min:p.axes?.x_min==null?"":String(p.axes.x_min),max:p.axes?.x_max==null?"":String(p.axes.x_max),step:p.axes?.x_tick_step==null?"":String(p.axes.x_tick_step),scale:p.axes?.x_scale||"linear"});setYAxis({min:"",max:"",step:p.y_tick_step==null?"":String(p.y_tick_step),scale:p.axes?.y_scale||"linear"});}
   },[initialSpec,onMetricChange]);// eslint-disable-line react-hooks/exhaustive-deps -- measured and onOpening are read for the first look only
-  // The request parts that change a result: the horizontal axis only for an association, and not the confirmations
-  // (a result calculated once they were given stays an answer when one is unticked).
-  const requestIdentity=JSON.stringify({...design,confirmed:undefined,...(operation==="association"?{}:{xMetric:undefined,xChannel:undefined})});
-  const stale=!!saved&&!saved.historical&&(saved.identity!==identity||saved.requestIdentity!==requestIdentity);
-  const missing=items.filter(item=>!item.excluded&&!item.result).length;
+  // The request parts that change a result: the horizontal axis only for an association, and not the declarations (a
+  // result calculated once they were given stays an answer when one is withdrawn). A description and a test of the same
+  // choice answer it alike (the test is 計算 on the described result, D-5), but a tested result no longer answers a
+  // design that cannot be tested (independence withdrawn, an exploratory threshold).
+  const requestIdentity=JSON.stringify({...design,independence:undefined,acquisition:undefined,sampling:undefined,missingness:undefined,inference:undefined,...(operation==="association"?{}:{xMetric:undefined,xChannel:undefined})});
+  // An association is always a test; a comparison is one unless it was described (test "none").
+  const tested=(entry:Saved)=>entry.operation==="association"||entry.operation==="comparison"&&!!entry.result.spec?.test&&entry.result.spec.test!=="none";
+  const stale=!!saved&&!saved.historical&&(saved.identity!==identity||saved.requestIdentity!==requestIdentity||(design.inference===false&&tested(saved)));
   const excludedCount=items.filter(item=>item.excluded).length;
-  const ready=(!stratifiedDesign||!!stratumRequest&&!unstratified)&&!!sources.length&&!missing&&!disabled&&!busy&&reviewedNow&&ledgerReady&&!unsupportedAxes&&!independenceMissing&&!datesMissing&&!positivityMissing&&(!channelGate||!!currentGate);
+  const ready=(!stratifiedDesign||!!stratumRequest&&!unstratified)&&!!sources.length&&!missing&&!disabled&&!busy&&stated.regions&&!remaining&&designStated&&ledgerReady&&!unsupportedAxes&&!independenceMissing&&!datesMissing&&!positivityMissing&&(!channelGate||!!currentGate);
   // The fields behind a comparison (fields.svg) are a check inside the result, not a figure of its own (owner decisions 15, 19).
   const svgFiles=saved?.figure.source_files.filter(name=>name.endsWith(".svg")&&name!=="fields.svg")||[];
   const fieldCheck=!!saved?.figure.source_files.includes("fields.svg");
@@ -368,7 +376,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   // specification's statistics have been applied, a later one (an adopted AI proposal) sets its own analysis.
   const compareWanted=useRef(false),appliedStatistics=useRef(false);
   const receivedStatistics=useRef<string|null>(null);
-  useEffect(()=>{if(!compareRequest)return;compareWanted.current=!appliedStatistics.current;setOperation("comparison");setConfirmed(false);},[compareRequest]);
+  useEffect(()=>{if(!compareRequest)return;compareWanted.current=!appliedStatistics.current;setOperation("comparison");setTypedConfirmed(false);},[compareRequest]);
   const runPendingReclassify=useEffectEvent(()=>{pendingReclassify.current=0;void classifyForResults();});
   // The request answers that one click: it lapses when the decision is already current or the researcher moves on,
   // so a later change of the experiment or exclusions never judges again unasked.
@@ -389,7 +397,9 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
       const {presentation:shownPresentation,...shownPlot}=plot();
       const pagePlot={...shownPlot,...(chosenWidth===null?{width_inches:pageSize(operation).width/25.4}:{}),...(chosenHeight===null?{height_inches:pageSize(operation).height/25.4}:{})};
       const drawn=operation==="distribution"?pagePlot:{...pagePlot,...(shownPresentation?{presentation:shownPresentation}:{})};
-      const display=demo?(operation==="distribution"?{...pagePlot,width_inches:183/25.4}:{...pagePlot,presentation:{version:"1.0.0" as const,annotation:"value" as const,size:"panel" as const,composition:"quantification" as const,outlines:true}}):drawn;const base=resultRequest(design,fields,display);
+      const display=demo?(operation==="distribution"?{...pagePlot,width_inches:183/25.4}:{...pagePlot,presentation:{version:"1.0.0" as const,annotation:"value" as const,size:"panel" as const,composition:"quantification" as const,outlines:true}}):drawn;
+      // Chosen without 計算, a comparison is described, never tested (D-5); the recorded demo replays its own requests.
+      const base=resultRequest(automatic&&!demo&&operation==="comparison"?{...design,inference:false}:design,fields,display);
       // A new comparison opens on its publication figure; the bar stays when the researcher chose it.
       const chosenKind=operation==="association"?"scatter":operation==="distribution"?"distribution":!demo&&figureKind==="unit-mean-bar"?"unit-mean-bar":comparisonKind();
       const spec={...base,plot:{...base.plot,kind:chosenKind}};
@@ -404,7 +414,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
       const revision=currentGate?.revision??(sources.length===1&&!requestedStratum?sources[0].revision:await comparison.cohort(workspace,sources,fields,adopted,keepMissing?MISSING_POLICY:null,sources.length===1,requestedStratum));
       // For inferential requests the cohort persists the entered experimental metadata.
       if(operation!=="distribution"&&sources.length<2)throw new Error("統計解析には複数視野の測定結果と実験情報が必要です。");
-      await comparison.review(revision,reviewedNow,keepMissing?unresolvedFields:null);
+      await comparison.review(revision,stated.regions,keepMissing?unresolvedFields:null);
       const accepted=await post<{job_id:string}>(`/v1/revisions/${revision}/${operation==="distribution"?"descriptive":"common-statistics"}`,spec);
       await waitJob(accepted.job_id);
       const result=await request<ResultPayload>(`/v1/jobs/${accepted.job_id}/${operation==="distribution"?"result":"common-statistics"}`);
@@ -438,7 +448,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   }
   /** The drawn figure as an image on the clipboard, for a slide (FU-08). */
   async function copyPng(){if(!saved)return;try{const blob=await fetchBlob(`/v1/jobs/${saved.figureJob}/files/figure.png`);await navigator.clipboard.write([new ClipboardItem({"image/png":blob.type==="image/png"?blob:new Blob([blob],{type:"image/png"})})]);setSavedNote("PNG をコピーしました。");}catch(cause){setError(fail(cause));}}
-  function editMetadata(id:string,key:keyof Metadata,value:string){setMetadata(previous=>({...previous,[id]:{...fields[id],[key]:value||null}}));setConfirmed(false);}
+  function editMetadata(id:string,key:keyof Metadata,value:string){setMetadata(previous=>({...previous,[id]:{...fields[id],[key]:value||null}}));setTypedConfirmed(false);}
   function restoreFigure(selected:Saved){setSaved(selected);setOperation(selected.operation);setFigureKind(selected.plot.kind);setWidth(selected.plot.width_inches*25.4);setHeight(selected.plot.height_inches*25.4);setFont(selected.plot.font_size);setXLabel(selected.plot.x_label);setYLabel(selected.plot.y_label);setYMin(selected.plot.y_min==null?"":String(selected.plot.y_min));setYMax(selected.plot.y_max==null?"":String(selected.plot.y_max));setPointSize(selected.plot.point_size??null);restorePresentation(selected.plot.presentation);setColors(selected.plot.style?.series_colors||{});setLegend(selected.plot.style?.show_legend??true);setOrder(selected.plot.group_order);setXAxis({min:selected.plot.axes?.x_min==null?"":String(selected.plot.axes.x_min),max:selected.plot.axes?.x_max==null?"":String(selected.plot.axes.x_max),step:selected.plot.axes?.x_tick_step==null?"":String(selected.plot.axes.x_tick_step),scale:selected.plot.axes?.x_scale||"linear"});setYAxis({min:"",max:"",step:selected.plot.y_tick_step==null?"":String(selected.plot.y_tick_step),scale:selected.plot.axes?.y_scale||"linear"});}
   // Statistics and figures open on the latest saved result (as the researcher's last session left it), not an empty view.
   // Saved comparisons are one click apart (in the demo, the opening comparison and the source's other recorded
@@ -492,11 +502,11 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   // measurements or settings than the chosen ones (stale) does not answer the choice either.
   // Both 統計 and グラフ follow the side panel's choice (SR-04): neither shows another condition's result.
   const resultMode=mode==="statistics"||mode==="figure";
-  const pending=resultMode&&(!saved||stale||(!!saved.historical&&!sameMethod(saved.operation,saved.result.spec,{paired,rank,inference:design.inference!==false}))||(!!shownCondition&&conditionKey(shownCondition)!==choiceKey));
   // A result calculated here answers the same measurements and request; one saved earlier (reopened) answers when it was
-  // calculated with the test and pairing now chosen.
+  // calculated with the test and pairing now chosen. A description answers a choice that could be tested (計算 tests it).
   const chosenMethod={paired,rank,inference:design.inference!==false};
-  const answers=(entry:Saved)=>entry.historical?sameMethod(entry.operation,entry.result.spec,chosenMethod):(entry.identity===identity&&entry.requestIdentity===requestIdentity);
+  const pending=resultMode&&(!saved||stale||(!!saved.historical&&!sameMethod(saved.operation,saved.result.spec,chosenMethod))||(!!shownCondition&&conditionKey(shownCondition)!==choiceKey));
+  const answers=(entry:Saved)=>entry.historical?sameMethod(entry.operation,entry.result.spec,chosenMethod):(entry.identity===identity&&entry.requestIdentity===requestIdentity&&!(design.inference===false&&tested(entry)));
   const available=savedFor(history.filter(answers),condition,sources.map(source=>({field:source.field,mask:source.result.masks?.metadata?.mask_revision_id??"",protocol:source.result.protocol,mode:source.result.measurement?.mode})));
   const stainOf=(id:string|null)=>id?stainName(id):null;
   const choiceLabel=measureLabel(metric,regionSet,stainOf(condition.channel));
@@ -519,14 +529,12 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
     appliedChoice.current=key;
     if(pending&&available.current)restoreFigure(available.current);
   },[choiceKey,available.current?.job,shown,busy,mode]);// eslint-disable-line react-hooks/exhaustive-deps
-  // A chosen condition without a saved result is described at once (owner decisions D-5 and 2026-11-21): in the demo
-  // from its recording, elsewhere once the confirmations are given. A test always waits for 計算.
-  const describesOnly=operation==="distribution"||(operation==="comparison"&&!design.inference);
+  // A chosen condition without a saved result is described at once (owner decisions D-5, 2026-11-21 and 11): in the demo
+  // from its recording, elsewhere once 画像 and 実験 hold what it needs. A comparison is described (test "none") even
+  // when it could be tested; a test, and an association, wait for 計算.
   const autoDescribed=useRef("");
-  // In the demo every recorded choice is shown; elsewhere a description is calculated by itself once the confirmations
-  // are given, and a test only on 計算 (D-5).
   const autoEligible=resultMode&&shown&&!busy&&historyLoaded&&ready&&pending&&!available.current&&!!choiceKey&&recordedChoice(condition)
-    &&(demo||describesOnly&&(operation==="distribution"||confirmedNow&&!!unit.trim()));
+    &&(demo||operation==="distribution"||operation==="comparison"&&!!unit.trim());
   // Once per choice and per set of measurements and settings: measuring again describes the choice again.
   const autoKey=autoEligible?`${choiceKey}\n${identity}\n${requestIdentity}`:"";
   const autoNow=useRef(""),autoRun=useRef(()=>{});
@@ -570,26 +578,24 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
         {invalidSaved&&<button disabled={!!busy||disabled} onClick={()=>void repairUnsupported().catch(cause=>setError(fail(cause)))}>未対応の相関案を解除</button>}
         {unsupportedAxes&&<p role="alert">保存した相関案の横軸と縦軸の測定領域が一致していません。同じ領域を指定して解析案を作り直してください。</p>}
         {proposals.length>1&&<label>AIの解析案<select value={proposedIndex} disabled={!!busy} onChange={event=>selectProposal(Number(event.target.value))}>{proposals.map((value,index)=><option key={index} value={index}>{index+1} · {value.kind==="association"?"相関":value.kind==="comparison"?"群間比較":"分布"}</option>)}</select></label>}
-        <label>解析<select value={operation} disabled={!!busy} onChange={event=>{compareWanted.current=false;setSwitched(null);setOperation(event.target.value as ResultOperation);setConfirmed(false);}}>{(!comparable||saturated)&&<option value="distribution" disabled={!descriptiveSupported(metric)||!recordedOperation("distribution")}>{descriptiveSupported(metric)?"分布":"分布（この指標は群間比較のみ）"}</option>}<option value="comparison" disabled={saturated||!recordedOperation("comparison")}>{saturated?"群間比較（飽和画素を含む）":"群間比較"}</option><option value="association" disabled={!canAssociate||unconfirmed||!recordedOperation("association")}>{unconfirmed?"相関（独立性：未確認）":canAssociate?"相関":saturatedSet.size?"相関（飽和画素を含む）":"相関（面積・輝度のみ）"}</option></select></label>
+        <label>解析<select value={operation} disabled={!!busy} onChange={event=>{compareWanted.current=false;setSwitched(null);setOperation(event.target.value as ResultOperation);setTypedConfirmed(false);}}>{(!comparable||saturated)&&<option value="distribution" disabled={!descriptiveSupported(metric)||!recordedOperation("distribution")}>{descriptiveSupported(metric)?"分布":"分布（この指標は群間比較のみ）"}</option>}<option value="comparison" disabled={saturated||!recordedOperation("comparison")}>{saturated?"群間比較（飽和画素を含む）":"群間比較"}</option><option value="association" disabled={!canAssociate||unconfirmed||!recordedOperation("association")}>{unconfirmed?"相関（独立性：未確認）":canAssociate?"相関":saturatedSet.size?"相関（飽和画素を含む）":"相関（面積・輝度のみ）"}</option></select></label>
         {switched?.key===measureKey&&<p className={styles.switched} role="status">{switched.reason}</p>}
         {operation!=="distribution"&&<>
-          <div className={styles.row}>{operation==="comparison"&&(unconfirmed||exploratory)?<div className={styles.methodNone}><label>方法<select value="none" disabled><option value="none">記述統計</option></select></label><details><summary>検定の条件</summary><p>{exploratory?"検定には、陰性対照に基づくしきい値が必要です。":"検定には、実験回の独立性の確認が必要です。"}{!exploratory&&onEditExperiment&&<> <button type="button" onClick={onEditExperiment}>実験デザインを編集</button></>}</p></details></div>:<label>方法<select value={rank?"rank":"parametric"} onChange={event=>setRank(event.target.value==="rank")}><option value="parametric">{operation==="association"?"Pearson":"t 検定 / Welch ANOVA"}</option><option value="rank">{operation==="association"?"Spearman":"順位に基づく検定"}</option></select></label>}{operation==="comparison"&&<label>対応<select value={paired?"paired":"independent"} disabled={demo} onChange={event=>{setPaired(event.target.value==="paired");setConfirmed(false);}}><option value="independent">対応なし</option><option value="paired">対応あり</option></select></label>}</div>
+          <div className={styles.row}>{operation==="comparison"&&(unconfirmed||exploratory)?<div className={styles.methodNone}><label>方法<select value="none" disabled><option value="none">記述統計</option></select></label><details><summary>検定の条件</summary><p>{exploratory?"検定には、陰性対照に基づくしきい値が必要です。":"検定には、実験回の独立性の確認が必要です。"}{!exploratory&&onEditExperiment&&<> <button type="button" onClick={onEditExperiment}>実験デザインを編集</button></>}</p></details></div>:<label>方法<select value={rank?"rank":"parametric"} onChange={event=>setRank(event.target.value==="rank")}><option value="parametric">{operation==="association"?"Pearson":"t 検定 / Welch ANOVA"}</option><option value="rank">{operation==="association"?"Spearman":"順位に基づく検定"}</option></select></label>}{operation==="comparison"&&<label>対応<select value={paired?"paired":"independent"} disabled={demo} onChange={event=>{setPaired(event.target.value==="paired");setTypedConfirmed(false);}}><option value="independent">対応なし</option><option value="paired">対応あり</option></select></label>}</div>
           {operation==="association"&&<div className={styles.row}><label>横軸<select value={xMetric} onChange={event=>setXMetric(event.target.value)}>{xAxes.map(value=><option key={value} value={value}>{metricLabels[value]}</option>)}</select></label><label>横軸チャンネル<select value={xChannel||""} onChange={event=>setXChannel(event.target.value||null)}><option value="">選択</option>{channels.map(value=><option key={value}>{value}</option>)}</select></label></div>}
 
           {declared?<p className={styles.designLine}><span>実験回 {experiment?.runs?.length??0}</span><span>{paired?"対応あり":"対応なし"}</span>{onEditExperiment&&<button type="button" onClick={onEditExperiment}>実験 ↗</button>}</p>:<>
-          <label>独立実験単位<input value={unit} maxLength={200} placeholder="例：別の日に独立に調製した培養" onChange={event=>{setUnit(event.target.value);setConfirmed(false);}}/></label>
-          {paired&&operation==="comparison"&&<label>対応の根拠<input value={pairing} maxLength={200} onChange={event=>{setPairing(event.target.value);setConfirmed(false);}}/></label>}</>}
+          <label>独立実験単位<input value={unit} maxLength={200} placeholder="例：別の日に独立に調製した培養" onChange={event=>{setUnit(event.target.value);setTypedConfirmed(false);}}/></label>
+          {paired&&operation==="comparison"&&<label>対応の根拠<input value={pairing} maxLength={200} onChange={event=>{setPairing(event.target.value);setTypedConfirmed(false);}}/></label>}</>}
           {operation==="comparison"&&<fieldset><legend>比較する群</legend>{pairs.length?pairs.map(pair=><label className={styles.check} key={JSON.stringify(pair)}><input type="checkbox" disabled={demo||!unsaturatedPair(pair)} checked={contrasts.some(value=>JSON.stringify(value)===JSON.stringify(pair))} onChange={event=>setContrasts(previous=>event.target.checked?[...previous,pair]:previous.filter(value=>JSON.stringify(value)!==JSON.stringify(pair)))}/>{declared&&JSON.stringify(pair)===JSON.stringify(declared.contrasts[0])?`${pair[0]} − ${pair[1]}（処理 − 対照）`:pair.join(" / ")}{unsaturatedPair(pair)?"":"（飽和画素を含む）"}</label>):<p>実験情報に群名を入力してください。</p>}</fieldset>}
-          {!demo&&<label className={styles.check}><input type="checkbox" checked={confirmed} disabled={disabled} onChange={event=>setConfirmed(event.target.checked)}/>独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み</label>}
+          {!demo&&!experiment&&<label className={styles.check}><input type="checkbox" checked={typedConfirmed} disabled={disabled} onChange={event=>setTypedConfirmed(event.target.checked)}/>独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み</label>}
         </>}
         {compartment&&currentLedger?.error&&<p role="alert">{currentLedger.error}</p>}
-        {!demo&&compartment&&unresolved&&<UnresolvedList fields={unresolvedFields} ledger={currentLedger!.fields} metadata={fields} labels={Object.fromEntries(sources.map(source=>[source.field,source.label]))}
-          confirmed={unresolvedConfirmed} disabled={disabled||!!busy} onConfirm={value=>setMissingConfirmed({key:ledgerKey,value})}/>}
-        {!demo&&<label className={styles.check}><input type="checkbox" checked={reviewed} disabled={disabled} onChange={event=>setReviewed(event.target.checked)}/>測定領域と採用する視野を確認済み</label>}
         {datesMissing&&<p role="status">輝度の比較には撮影日が必要です（推定による補完はしません）。{onEditExperiment&&<button type="button" onClick={onEditExperiment}>撮影日を入力</button>}</p>}
         {independenceMissing&&<p role="status">相関には、実験回の独立性の確認が必要です。{onEditExperiment&&<button type="button" onClick={onEditExperiment}>実験デザインを編集</button>}</p>}
-        {/* Without a result, 計算 is on the condition's card; with one, here (to test or calculate again). */}
-        {!demo&&!pending&&<button className={styles.primary} disabled={!ready} onClick={()=>void calculate()}>{busy||"計算"}</button>}
+        {/* Without a result, 計算 is on the condition's card; with one, here (to test or calculate again). Work left in an
+            earlier screen takes its place (decision 11). */}
+        {!demo&&!pending&&(remaining&&!busy?<RemainingLine work={remaining} onOpen={openRemaining}/>:<button className={styles.primary} disabled={!ready} onClick={()=>void calculate()}>{busy||"計算"}</button>)}
       </>:pending?null:<>
         <nav className={styles.figureParts} aria-label="図の設定対象">{([["figure","図"],["x","横軸"],["y","縦軸"],["series","系列"]] as const).map(([key,label])=><button key={key} aria-pressed={part===key} onClick={()=>setPart(key)}>{label}</button>)}</nav>
         {part==="figure"&&<>
@@ -627,7 +633,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
         {/* A condition without a result keeps the result's card and figure frame in place: its name and 計算 (plan 4.1). */}
         <div className={styles.resultGrid} data-columns={2}>
           <section className={`${styles.summary} ${styles.pendingCard}`} aria-label="選択中の条件" aria-busy={!!busy}><h3>{choiceLabel}</h3>
-            {busy?<p role="status">{busy}</p>:demo?(unrecorded===choiceKey||!recordedChoice(condition))&&<p role="status">{showcaseNotices.showcase_action_not_recorded}</p>:mode==="statistics"||ready?
+            {busy?<p role="status">{busy}</p>:demo?(unrecorded===choiceKey||!recordedChoice(condition))&&<p role="status">{showcaseNotices.showcase_action_not_recorded}</p>:remaining?<RemainingLine work={remaining} onOpen={openRemaining}/>:mode==="statistics"||ready?
               // 計算 saves the settings itself. Pressing it leaves the settings without the save on leaving them, which
               // would hold the workspace busy (and the button disabled) while the click lands.
               <button className={styles.primary} data-calculate="" disabled={!ready} onMouseDown={event=>event.preventDefault()} onClick={()=>void calculate()}>計算</button>:onStatistics&&<button type="button" onClick={onStatistics}>統計で計算</button>}</section>
@@ -638,14 +644,14 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
         {mode==="statistics"?<div className={styles.resultGrid} data-columns={(!!saved.result.estimates||saved.operation==="distribution"&&!!experiment)&&svgFiles.length>0?2:1}>
           <div>
             {recorded.length>1&&savedChips}
-            {mode==="statistics"&&saved.result.estimates&&<ResultSummaryCard estimates={saved.result.estimates} comparison={(saved.result.comparisons?.[0]??{}) as SavedComparison} metricLabel={resultMetricLabel(saved.result,saved.result.estimates.metric,stainName)} unit={unitLabel(saved.result.unit)} warnings={saved.result.warnings||[]} onEditExperiment={onEditExperiment}
+            {mode==="statistics"&&saved.result.estimates&&<ResultSummaryCard estimates={saved.result.estimates} comparison={(saved.result.comparisons?.[0]??{}) as SavedComparison} metricLabel={resultMetricLabel(saved.result,saved.result.estimates.metric,stainName)} unit={unitLabel(saved.result.unit)} warnings={saved.result.warnings||[]} onEditExperiment={onEditExperiment} testable={testable}
           reported={showcaseDataset?.reported??null}
           counts={breakdown(Array.isArray(saved.result.counts)?saved.result.counts as CountRow[]:[],saved.result.source_field_ledger??[],saved.result.spec?.selection?.source==="field-summary"?null:saved.target==="nuclei"||saved.target==="nucleoplasm"?"核":saved.target==="nucleoli"?"核小体":"領域",
             saved.result.compartment_missing?{rows:saved.result.compartment_missing.rows,perNucleus:saved.result.spec?.selection?.source==="compartment-summary"}:null)}
           missing={saved.result.compartment_missing??null}/>}
             {/* The discussion is a separate, AI-made (or demo example) frame under the computed result (AC-01). */}
             {/* The discussion belongs to the shown result, also a saved one (AC-06, AC-08). */}{mode==="statistics"&&saved.result.estimates&&<DiscussionPanel key={saved.job} adapter={adapter} job={saved.job} demo={demo} workspace={workspace}
-              summary={shownSummary(saved.result.estimates,(saved.result.comparisons?.[0]??{}) as SavedComparison,resultMetricLabel(saved.result,saved.result.estimates.metric,stainName),unitLabel(saved.result.unit),saved.result.warnings||[],saved.result.compartment_missing??null)}/>}
+              summary={shownSummary(saved.result.estimates,(saved.result.comparisons?.[0]??{}) as SavedComparison,resultMetricLabel(saved.result,saved.result.estimates.metric,stainName),unitLabel(saved.result.unit),saved.result.warnings||[],saved.result.compartment_missing??null,testable)}/>}
             {mode==="statistics"&&saved.operation==="distribution"&&experiment&&<RunMedians onEditExperiment={onEditExperiment} design={experiment} summary={saved.result.field_summary??[]} metricLabel={resultMetricLabel(saved.result,saved.result.metric||"",stainName)} unit={unitLabel(saved.result.unit)} reported={showcaseDataset?.reported??null} missing={saved.result.compartment_missing??null}/>}
             {/* Without a summary card the denominators still stand beside the result (Q-05). */}
             {mode==="statistics"&&saved.result.compartment_missing&&!saved.result.estimates&&!(saved.operation==="distribution"&&experiment)&&<><MissingLead summary={saved.result.compartment_missing}/><MissingNucleoli summary={saved.result.compartment_missing}/></>}
@@ -782,14 +788,14 @@ const EXPLORATORY_WARNING="channel_gate_exploratory_threshold_without_negative_c
 /** The comparison as a heading, up to four points and one basis line (RS-01–RS-07); the premises are stated once,
  * in the basis line (NT-01, NT-02). Every number is the saved result's. */
 /** The summary of a saved comparison as the card shows it; the discussion is sent the same heading and points. */
-export function shownSummary(estimates:ComparisonEstimates,comparison:SavedComparison,metricLabel:string,unit:string,warnings:string[],missing:MissingSummary|null){
+export function shownSummary(estimates:ComparisonEstimates,comparison:SavedComparison,metricLabel:string,unit:string,warnings:string[],missing:MissingSummary|null,testable=false){
   const unresolved=missing?missing.rows.reduce((sum,row)=>sum+row.missing,0):0,nuclei=missing?missing.rows.reduce((sum,row)=>sum+row.nuclei,0):0;
   return summarize(estimates,comparison,metricLabel,unit,{exploratory:warnings.includes(EXPLORATORY_WARNING),
-    missing:missing&&unresolved?`核小体を確定できない核 ${unresolved} / ${nuclei} は欠測`:null});
+    missing:missing&&unresolved?`核小体を確定できない核 ${unresolved} / ${nuclei} は欠測`:null,testable});
 }
 
-function ResultSummaryCard({estimates,comparison,metricLabel,unit,warnings,counts,reported,missing,onEditExperiment}:{estimates:ComparisonEstimates;comparison:SavedComparison;metricLabel:string;unit:string;warnings:string[];counts:ReturnType<typeof breakdown>;reported:ShowcaseDataset["reported"];missing:MissingSummary|null;onEditExperiment?:()=>void}){
-  const summary=shownSummary(estimates,comparison,metricLabel,unit,warnings,missing);
+function ResultSummaryCard({estimates,comparison,metricLabel,unit,warnings,counts,reported,missing,onEditExperiment,testable=false}:{estimates:ComparisonEstimates;comparison:SavedComparison;metricLabel:string;unit:string;warnings:string[];counts:ReturnType<typeof breakdown>;reported:ShowcaseDataset["reported"];missing:MissingSummary|null;onEditExperiment?:()=>void;testable?:boolean}){
+  const summary=shownSummary(estimates,comparison,metricLabel,unit,warnings,missing,testable);
   const cautions=[...summary.cautions,...warnings.filter(code=>READ_WARNINGS.has(code)).map(code=>comparisonWarnings[code]||commonWarnings[code]).filter((value):value is string=>!!value)];
   // The demo says what the measured value means, for visitors who are not biologists (DM-11).
   const hint=useShowcaseUi().enabled?METRIC_HINTS[estimates.metric]:undefined;
@@ -821,26 +827,10 @@ const missingReasons:Record<string,string>={no_candidate:"核小体が見つか�
 const reasonText=(reasons:Record<string,number>)=>Object.entries(reasons).map(([reason,count])=>`${missingReasons[reason]||reason} ${count}`).join("、");
 const percent=(part:number,whole:number)=>whole?`${(part/whole*100).toLocaleString(undefined,{maximumFractionDigits:1})}%`:"—";
 
-/** Before the calculation (Q-05): the nuclei whose nucleolus could not be established, by group, unit and
- * reason. Confirming the list keeps them as missing; the result then describes the resolved nuclei. */
-function UnresolvedList({fields,ledger,metadata,labels,confirmed,disabled,onConfirm}:{fields:Record<string,Record<string,number>>;ledger:Record<string,CompartmentLedgerEntry>;metadata:Record<string,Metadata>;labels:Record<string,string>;confirmed:boolean;disabled:boolean;onConfirm:(value:boolean)=>void}){
-  const rows=new Map<string,{condition:string;unit:string;nuclei:number;missing:number;reasons:Record<string,number>;fields:string[]}>();
-  for(const [fid,entry] of Object.entries(ledger)){
-    const condition=metadata[fid]?.condition||"—",unit=metadata[fid]?.experimental_unit||"—",key=JSON.stringify([condition,unit]);
-    const row=rows.get(key)??{condition,unit,nuclei:0,missing:0,reasons:{},fields:[]};
-    row.nuclei+=entry.nuclei;
-    for(const [reason,count] of Object.entries(fields[fid]??{})){row.missing+=count;row.reasons[reason]=(row.reasons[reason]??0)+count;}
-    if(fields[fid])row.fields.push(labels[fid]||fid);
-    rows.set(key,row);
-  }
-  const sorted=[...rows.values()].sort((a,b)=>a.condition.localeCompare(b.condition)||a.unit.localeCompare(b.unit));
-  return <section className={styles.unresolved} aria-label="核小体を確定できない核">
-    <strong>核小体を確定できない核</strong>
-    <p>これらの核は欠測として残し、核小体を確定できた核で計算します。欠測の割合の分母は全核です。</p>
-    <div className={styles.tableScroll} tabIndex={0}><table><thead><tr><th scope="col">群</th><th scope="col">実験単位</th><th scope="col">欠測 / 全核</th><th scope="col">理由</th></tr></thead>
-      <tbody>{sorted.map(row=><tr key={row.condition+row.unit}><th scope="row">{row.condition}</th><td>{row.unit}</td><td>{row.missing} / {row.nuclei}（{percent(row.missing,row.nuclei)}）</td><td title={row.fields.join("、")}>{row.missing?reasonText(row.reasons):"—"}</td></tr>)}</tbody></table></div>
-    <label className={styles.check}><input type="checkbox" checked={confirmed} disabled={disabled} onChange={event=>onConfirm(event.target.checked)}/>この一覧を確認し、欠測として残して計算する</label>
-  </section>;
+/** The one piece of earlier work a result waits for (genellect/cytellect#257 decision 11), in one line that opens that
+ * screen: 「画像：未測定 3 視野 →」. The arrow is a mark, not part of the name read aloud. */
+function RemainingLine({work,onOpen}:{work:RemainingWork;onOpen:(work:RemainingWork)=>void}){
+  return <button type="button" className={styles.remaining} onClick={()=>onOpen(work)}>{work.label}<span aria-hidden="true"> →</span></button>;
 }
 
 /** Right under the result sentence (Q-05): what the values describe, the missing nuclei over all nuclei

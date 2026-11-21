@@ -4,8 +4,11 @@ import type {components} from "../generated";
  * cytellect_analysis.experiment_design; tests/test_experiment_design.py and tests/test_experiment_strata.py
  * hold the same cases. 1.1.0 adds declared strata: a factor's levels, each stratum one level, and the
  * stratum each field was assigned to (never inferred). */
-export type PlainExperimentDesign = components["schemas"]["ExperimentDesign"];
-export type StratifiedExperimentDesign = components["schemas"]["StratifiedExperimentDesign"];
+// The acquisition statement (genellect/cytellect#257 decision 11) is additive: a design saved before it, or one that
+// does not state it, has no key, so it is optional here although the generated (serialization) schema lists it.
+type Stated<T> = Omit<T, "acquisition_confirmed"> & {acquisition_confirmed?:boolean};
+export type PlainExperimentDesign = Stated<components["schemas"]["ExperimentDesign"]>;
+export type StratifiedExperimentDesign = Stated<components["schemas"]["StratifiedExperimentDesign"]>;
 export type ExperimentDesign = PlainExperimentDesign | StratifiedExperimentDesign;
 export type ExperimentGroup = components["schemas"]["ExperimentGroup"];
 export type ExperimentRun = components["schemas"]["ExperimentRun"];
@@ -13,7 +16,7 @@ export type FieldAssignment = components["schemas"]["FieldAssignment"] & {stratu
 export interface DerivedMetadata {condition:string;experimental_unit:string;sample:string;acquisition_date:string|null;pair:string|null;repeat_length:null}
 export type ReadinessIssue =
   | {code:"experiment_design_unassigned_fields"|"experiment_design_unknown_fields"|"experiment_design_acquisition_dates_missing";field_ids:string[]}
-  | {code:"experiment_design_no_runs"|"experiment_design_control_required"|"experiment_design_independence_unconfirmed"|"experiment_design_no_strata"}
+  | {code:"experiment_design_no_runs"|"experiment_design_control_required"|"experiment_design_acquisition_unconfirmed"|"experiment_design_independence_unconfirmed"|"experiment_design_no_strata"}
   | {code:"experiment_design_missing_combination";run_id:string;group_ids:string[];stratum_id?:string}
   | {code:"experiment_design_unstratified_fields";field_ids:string[]}
   | {code:"experiment_design_empty_stratum";stratum_id:string};
@@ -82,6 +85,8 @@ export function readiness(design:ExperimentDesign, registeredFieldIds:string[]):
   const undated = Object.entries(assigned).filter(([id, value]) => registered.has(id) && !(value.acquired_on || runsById.get(value.run_id)?.acquired_on)).map(([id]) => id).sort();
   // Intensities need actual acquisition dates (S10); areas and counts do not.
   if (undated.length) issues.push({code:"experiment_design_acquisition_dates_missing", field_ids:undated});
+  // Comparisons and associations need the acquisition statement (S10); descriptions do not.
+  if (!design.acquisition_confirmed) issues.push({code:"experiment_design_acquisition_unconfirmed"});
   if (!design.independence_confirmed) issues.push({code:"experiment_design_independence_unconfirmed"});
   return issues;
 }
@@ -143,6 +148,15 @@ export function unassignField(design:ExperimentDesign, fieldId:string):Experimen
   return {...design, fields};
 }
 
+/** The acquisition statement (genellect/cytellect#257 decision 11) stated or withdrawn. A withdrawn statement leaves no
+ * key, as in a design saved before the statement existed, so its saved bytes and hash are those of that design. */
+export function withAcquisition<T extends ExperimentDesign>(design:T, stated:boolean):T {
+  const next = {...design};
+  delete next.acquisition_confirmed;
+  if (stated) next.acquisition_confirmed = true;
+  return next;
+}
+
 /** One group becomes the control of a two-group comparison; inputs and assignments are kept (E-07). */
 export function expandToPair(design:ExperimentDesign, label = "処理"):ExperimentDesign {
   if (design.layout === "pair") return design;
@@ -174,6 +188,7 @@ export function issueText(design:ExperimentDesign, issue:ReadinessIssue, fieldLa
     case "experiment_design_no_strata": return "層：未宣言。各因子の水準を 1 つずつ選んで宣言してください。";
     case "experiment_design_empty_stratum": return `層「${stratumLabel(design, issue.stratum_id)}」に視野がありません。`;
     case "experiment_design_acquisition_dates_missing": return `撮影日が未入力の視野：${issue.field_ids.map(fieldLabel).join("、")}。輝度の比較には撮影日が必要です（面積・数には不要）。`;
+    case "experiment_design_acquisition_unconfirmed": return "撮影条件：未確認。群間比較と相関には確認が必要です。";
     case "experiment_design_independence_unconfirmed": return "独立性：未確認。群間比較は記述統計のみです。";
   }
 }
@@ -236,7 +251,7 @@ export function removeStrata(design:StratifiedExperimentDesign):PlainExperimentD
   const fields = Object.fromEntries(Object.entries(design.fields ?? {}).map(([id, value]) =>
     [id, {group_id:value.group_id, run_id:value.run_id, sample:value.sample ?? null, acquired_on:value.acquired_on ?? null}]));
   return {version:"1.0.0", layout:design.layout, groups:design.groups, control_group_id:design.control_group_id ?? null,
-    runs:design.runs ?? [], independence_confirmed:design.independence_confirmed, fields};
+    runs:design.runs ?? [], independence_confirmed:design.independence_confirmed, ...(design.acquisition_confirmed ? {acquisition_confirmed:true} : {}), fields};
 }
 
 /** Fields of a stratified design that have no stratum and are not excluded: each is assigned or excluded

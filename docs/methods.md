@@ -545,8 +545,12 @@ their historical output for previously supported selections.
 A design records what the researcher declared: `layout` (`single`: one group
 described; `pair`: two groups compared), the groups (1 or 2), the control group
 (required before a pair comparison), the independent runs, each field's group,
-run and optional sample (coverslip or well), and whether the researcher confirmed
-that the runs were performed independently. Group, run and sample labels are at
+run and optional sample (coverslip or well), whether the researcher confirmed
+that the runs were performed independently, and whether the researcher stated that the acquisition and pixel
+settings are comparable between the groups: the same settings, or, for areas in µm², a calibrated pixel size
+(`acquisition_confirmed`, added 2026-11-21 by owner
+decision 11 of genellect/cytellect#257). The acquisition statement is additive: it is written only while
+it is stated, so a design saved before it keeps its bytes and its hash, and reads as not stated. Group, run and sample labels are at
 most 24 characters, without leading or trailing spaces, control characters or the
 separator `·`. Dates are ISO `YYYY-MM-DD`. Nothing is inferred from file names,
 folders, dates or plate labels.
@@ -563,10 +567,20 @@ the existing ledgers and the field → sample → unit aggregation (S02):
 
 `experiment_design.readiness` lists issues to resolve before inference: unassigned
 or unknown fields, no runs, no control, a run missing a group, fields without an
-imaging date (needed for intensity comparisons, not for areas or counts), and
+imaging date (needed for intensity comparisons, not for areas or counts), the
+acquisition statement not made (needed for every comparison and association), and
 unconfirmed independence. Descriptions never wait for these issues (S09). The default pair
 comparison is paired by run with contrast `[treatment, control]`, so the reported
-effect is treatment − control; the researcher still confirms the design (S10).
+effect is treatment − control. The design is confirmed where it is declared (S10): since
+owner decision 11 (2026-11-21) the workspace builds a comparison's `acquisition_review`,
+`spatial_sampling_confirmed` and the inference flag from the design's acquisition and
+independence statements, its regions and fields from the adoption in 画像, and
+`missingness_confirmed` from the saved missingness policies, whose missing values the
+result's n breakdown lists; it asks for no separate confirmation in 統計. A workspace
+registered without a design has no place to declare them, so it keeps one confirmation in 統計 for its typed
+groups, units and acquisition (owner decision on genellect/cytellect#273, 2026-11-21). The acquisition statement
+is sent as `acquisition_review.basis` `calibrated-area` for areas in µm² and `same-settings` otherwise, the two
+cases the API accepts.
 
 ### Experiment design 1.1.0: declared strata (2026-11-09)
 
@@ -890,7 +904,10 @@ ledger as missing instead of being removed (`compartment_review.py`).
   equals it exactly (`compartment_missing_confirmation_mismatch`); the review record
   keeps the policy and the ledger. `GET /v1/revisions/{rid}/compartment-ledger`
   returns the ledger before the review. Statistics stop when the ledger no longer
-  equals the reviewed one (`compartment_missing_ledger_changed`).
+  equals the reviewed one (`compartment_missing_ledger_changed`). Since owner decision 11
+  (2026-11-21, genellect/cytellect#257) the workspace sends the ledger it read as the
+  confirmation without asking the researcher to tick it first; the result's n breakdown and
+  the line beside its sentence show the missing nuclei. The API checks are unchanged.
 - Results (common-statistics 2.0.0 comparisons and descriptive results) carry
   `compartment_missing`: per condition and experimental unit, fields, nuclei,
   resolved, missing (with reasons) and excluded. The missing fraction is
