@@ -48,6 +48,7 @@ PR では、`scripts/ci_changes.py` が、`main` との差分のファイルか�
 画面の E2E（`browser-e2e`）を除く統合試験は PR では実行しないため、統合試験で初めて見つかっていた失敗のうち、数十秒で確かめられるものは PR のジョブで確かめる。
 
 - **ローカル版の Web 出力**（`web`）：生成するファイルが配布物の許可リストに収まるか。例：`sitemap.xml` を加えたとき。パッケージ化のスクリプトを変えたときも実行する。
+- **本番の Web コンテナのビルド範囲**（`web`）：Web と契約のコードが相対パスで読み込むファイルを、`infra/Dockerfile.web` がすべてコピーしているか（`scripts/check_web_container_context.py`）。`next build` は試験ファイルも型検査するため、例えば試験が共有する `fixtures/` の JSON を読むときに要る。`infra/Dockerfile.web` を変えたときも実行する。
 
 公開デモがブラウザで動かす Cytellect のホイールは、PR では作り直しを求めない（Python を変える PR がすべてホイールで競合するため）。`main` への push で解析のソースとのずれを警告として示し、ずれていれば作り直す（[公開デモ](showcase.md)）。デプロイの中で作る形に移す予定。
 
