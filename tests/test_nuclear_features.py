@@ -185,7 +185,42 @@ def test_public_statistics_use_the_bound_values_and_record_how():
             RegionSelection(source="region", region_set_id="nuclei", channel_id="dna", metric=metric)
 
 
-def test_public_comparison_keeps_runs_and_sampling():
+def test_public_description_renders_its_figure_and_methods(tmp_path):
+    from cytellect_analysis.descriptive_output import render_descriptive_output
+
+    report, snapshot, images, labels = public_report()
+    features = features_for(report, snapshot, images, labels, {("eccentricity", None)})
+    request = {"mode": "descriptive", "selection": {"source": "region", "region_set_id": "nuclei", "metric": "eccentricity"}}
+    result = describe_regions(report, snapshot, request, features=features)
+    result["revision_id"] = "r"
+    manifest = render_descriptive_output(result, tmp_path)
+    assert manifest["source_files"]
+    methods = (tmp_path / "methods.md").read_text(encoding="utf-8")
+    assert "nuclear-features/1.0.0" in methods and "96 px" in methods
+
+
+def test_worker_binds_the_saved_nuclear_labels(tmp_path, monkeypatch):
+    """The worker's loader reads the adopted labels through the report's mask identity (feature_sources.py)."""
+    from cytellect_api.db import revisions
+    from cytellect_worker.feature_sources import load_nuclear_features
+    from test_region_nuclear_worker import execute, install_detector, nuclear_fields
+
+    store, settings, config = nuclear_fields(tmp_path)
+    install_detector(monkeypatch)
+    report = execute(store, settings, config)
+    rev = store.one(revisions, id="r1")
+    spec = {"selection": {"source": "region", "region_set_id": "nuclei", "metric": "solidity"}}
+    features = load_nuclear_features(store, rev, report, [spec])
+    values = features["solidity", None]["f1"]["values"]
+    # The fixture's two nuclei are 4 px each: below the 96 px minimum, with the reason kept.
+    assert {rid: value["missing_reason"] for rid, value in values.items()} == {7: "below_minimum_area", 19: "below_minimum_area"}
+    assert load_nuclear_features(store, rev, report, [{"selection": {"source": "region", "metric": "area_px"}}]) is None
+    tampered = {**report, "field_masks": {"f1": {**report["field_masks"]["f1"], "mask_sha256": "0" * 64}}}
+    with pytest.raises(ValueError, match="nuclear_features_mismatch"):
+        load_nuclear_features(store, rev, tampered, [spec])
+
+
+def test_public_comparison_keeps_runs_and_sampling(tmp_path):
     report, snapshot, images, labels = public_report(dates=("d1", "d1", "d1"), conditions=("A", "B", "A"))
     features = features_for(report, snapshot, images, labels, {("solidity", None)})
     config = {"recipe": report["recipe"], "field_ids": sorted(snapshot), "field_snapshot": snapshot,
@@ -211,6 +246,14 @@ def test_public_comparison_keeps_runs_and_sampling():
     result = analyze_region_comparison(report, config, sampled, features=features)
     assert {row["value"] for row in result["plot_data"]} <= {
         value["value"] for record in features["solidity", None].values() for value in record["values"].values()}
+    from cytellect_analysis.common_statistics_figures import (
+        common_statistics_methods,
+        render_common_statistics,
+    )
+
+    assert render_common_statistics(result, tmp_path)["source_files"]
+    methods = common_statistics_methods(result)
+    assert "nuclear-features/1.0.0" in methods and "convex-hull" in methods
 
 
 def test_features_are_for_nuclei_only():

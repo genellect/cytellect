@@ -12,7 +12,7 @@ import {createComparisonAdapter,descriptiveSupported,MISSING_POLICY,type CohortS
 import type {ApiAdapter,SavedResult,WorkspaceSelection} from "@/lib/workspace/api-adapter";
 import type {ReviewTarget} from "@/lib/workspace/review-preview";
 import {measureLabel,metricStructure,metricUsesChannel,nucleusPositivity} from "@/lib/workspace/metric-catalog";
-import {OUTCOME_ROLE_LABELS,outcomeRole,type OutcomeRole,type PrimaryOutcome} from "@/lib/workspace/primary-outcome";
+import {OUTCOME_ROLE_LABELS,declaredAfterResults,outcomeRole,type OutcomeRole,type PrimaryOutcome} from "@/lib/workspace/primary-outcome";
 import {associationAxes,associationSupported,checkedPlot,comparisonKind,exploratoryPositivity,saturatedGroups,emptyMetadata,restoredMetric,resultRequest,resultSeries,runTable,seriesOrder,withMaskCorrections,type MaskCorrectionRow,type ResultDesign,type ResultOperation,type RenderPlot} from "./connected-results-model";
 import styles from "./connected-results.module.css";
 import {ErrorText,useShowcaseUi} from "./showcase-ui";
@@ -559,9 +559,11 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
 
   // 主要 or 探索 only when a primary measure is declared (#257 RP-04): a saved result by the server time of its
   // statistics, never of a re-drawn figure; the chosen condition before it is calculated by its measure alone.
-  const roleOf=(entry:Saved):OutcomeRole=>outcomeRole(primary,savedCondition(entry.operation,entry.result as SavedResultLike),entry.calculated??null);
+  // A declaration made after a result of the same measure was seen marks every result of that measure 探索.
+  const postHoc=declaredAfterResults(primary,history.map(entry=>({condition:savedCondition(entry.operation,entry.result as SavedResultLike),calculatedAt:entry.calculated??null})));
+  const roleOf=(entry:Saved):OutcomeRole=>outcomeRole(primary,savedCondition(entry.operation,entry.result as SavedResultLike),entry.calculated??null,postHoc);
   // The mark follows the label it stands beside: グラフ names the saved result even while another choice is pending.
-  const shownRole:OutcomeRole=saved&&(!pending||mode==="figure")?roleOf(saved):outcomeRole(primary,{metric,regionSet,channel:condition.channel});
+  const shownRole:OutcomeRole=saved&&(!pending||mode==="figure")?roleOf(saved):outcomeRole(primary,{metric,regionSet,channel:condition.channel},undefined,postHoc);
   const roleMark=(role:OutcomeRole)=>role&&<span className={styles.outcomeRole} data-outcome-role={role}>{OUTCOME_ROLE_LABELS[role]}</span>;
   const savedChips=<div className={styles.recorded} role="group" aria-label="保存した比較">{recorded.map(entry=><button key={entry.job} aria-pressed={!pending&&saved?.job===entry.job} onClick={()=>showRecorded(entry)}>{resultMetricLabel(entry.result,entry.result.estimates?.metric??"",stainName)}{roleMark(roleOf(entry))}</button>)}</div>;
   if(csv)return <ConnectedCsvResults workspace={workspace} mode={mode} onImages={()=>setCsv(false)}/>;

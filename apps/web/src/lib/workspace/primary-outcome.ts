@@ -21,13 +21,24 @@ export function samePrimary(primary: PrimaryOutcome | null | undefined, conditio
 /** 主要 or 探索 beside a result, only when a declaration exists (none otherwise).
  * A result is primary only when it is the declared measure and the server calculated it after the declaration:
  * `calculatedAt` is the server's calculation time of the statistics (for a re-drawn figure, the original statistics),
- * `undefined` for a choice not yet calculated. A result without a recorded time is never primary. */
+ * `undefined` for a choice not yet calculated. A result without a recorded time is never primary.
+ * `postHoc`: a result of the declared measure existed before the declaration (see declaredAfterResults); then no
+ * result of that measure is primary, including one calculated again after the declaration. */
 export type OutcomeRole = "primary" | "exploratory" | null;
 export function outcomeRole(primary: PrimaryOutcome | null | undefined, condition: OutcomeCondition | null,
-  calculatedAt?: number | null): OutcomeRole {
+  calculatedAt?: number | null, postHoc = false): OutcomeRole {
   if (!primary) return null;
-  if (!samePrimary(primary, condition)) return "exploratory";
+  if (!samePrimary(primary, condition) || postHoc) return "exploratory";
   if (calculatedAt === undefined) return "primary";
   return calculatedAt !== null && !!primary.declared_at && calculatedAt > primary.declared_at ? "primary" : "exploratory";
+}
+
+/** Whether the declaration came after a result of the declared measure was already calculated (or one whose time is
+ * not recorded): 条件を選ぶ -> 結果 -> 宣言 -> 計算し直す must not make the declaration a prior one. */
+export function declaredAfterResults(primary: PrimaryOutcome | null | undefined,
+  results: Array<{condition: OutcomeCondition | null; calculatedAt: number | null}>): boolean {
+  if (!primary) return false;
+  return results.some(result => samePrimary(primary, result.condition)
+    && (result.calculatedAt === null || !primary.declared_at || result.calculatedAt <= primary.declared_at));
 }
 export const OUTCOME_ROLE_LABELS: Record<"primary" | "exploratory", string> = {primary: "主要", exploratory: "探索"};

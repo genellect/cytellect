@@ -793,7 +793,9 @@ measure is unchanged and renewed when it changes, so a client cannot backdate it
 `calculated_at`: a statistics job's creation time, and for a figure re-render the creation time of the statistics job
 it re-draws (followed through re-renders of re-renders), never the re-render's own time. A result is marked primary
 only when it is the declared measure and `calculated_at > declared_at`; a result without a recorded time, or any other
-measure, is exploratory. Nothing is marked without a declaration. The declaration changes no value or test.
+measure, is exploratory. When any result of the declared measure was calculated at or before `declared_at` (or has no
+recorded time), the declaration came after that result was seen, and every result of that measure is exploratory,
+also one calculated again after the declaration. Nothing is marked without a declaration. The declaration changes no value or test.
 
 ### Nucleus table 1.0.0 (2026-11-09)
 
