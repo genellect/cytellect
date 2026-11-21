@@ -93,3 +93,50 @@ def test_other_http_errors_stop_without_retry(tmp_path, fetch):
         server.shutdown()
     assert len(requests) == 1
     assert not (tmp_path / "artifact").exists()
+
+
+def test_fiji_cache_reuses_a_verified_download_without_contacting_the_host(tmp_path, monkeypatch):
+    module = load("fiji_setup")
+    monkeypatch.setattr("time.sleep", lambda _seconds: None)
+    expected = hashlib.sha256(PAYLOAD).hexdigest()
+    cache = tmp_path / "cache"
+    server, url, requests = serve([])
+    try:
+        module.download(url, tmp_path / "first", expected, cache=cache)
+    finally:
+        server.shutdown()
+    assert (cache / expected).read_bytes() == PAYLOAD
+    assert len(requests) == 1
+    # The host is unreachable now; the cached copy alone completes the setup.
+    module.download("http://127.0.0.1:9/unreachable", tmp_path / "second", expected, cache=cache)
+    assert (tmp_path / "second").read_bytes() == PAYLOAD
+
+
+def test_fiji_cache_discards_an_altered_copy_and_downloads_again(tmp_path, monkeypatch):
+    module = load("fiji_setup")
+    monkeypatch.setattr("time.sleep", lambda _seconds: None)
+    expected = hashlib.sha256(PAYLOAD).hexdigest()
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    (cache / expected).write_bytes(b"altered")
+    server, url, requests = serve([])
+    try:
+        module.download(url, tmp_path / "artifact", expected, cache=cache)
+    finally:
+        server.shutdown()
+    assert (tmp_path / "artifact").read_bytes() == PAYLOAD
+    assert (cache / expected).read_bytes() == PAYLOAD
+    assert len(requests) == 1
+
+
+def test_fiji_reports_the_last_transient_failure_when_retries_run_out(tmp_path, monkeypatch):
+    module = load("fiji_setup")
+    monkeypatch.setattr("time.sleep", lambda _seconds: None)
+    server, url, requests = serve(["429"] * 6)
+    try:
+        with pytest.raises(RuntimeError, match=r"Download failed after retries \(last: HTTP 429\)"):
+            module.download(url, tmp_path / "artifact", hashlib.sha256(PAYLOAD).hexdigest(), cache=tmp_path / "cache")
+    finally:
+        server.shutdown()
+    assert len(requests) == 6
+    assert not (tmp_path / "cache").exists()

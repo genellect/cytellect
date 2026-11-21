@@ -267,7 +267,14 @@ jobs:
       - run: uv sync --locked --dev
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @cytellect/web exec playwright install --with-deps chromium
-      - run: uv run python scripts/fiji_setup.py /tmp/cytellect-fiji --platform linux-x64
+      # The pinned Fiji archive and plugins come from public hosts that rate-limit CI runners
+      # (Maven Central answered 429 and 404 on main); reuse verified copies instead.
+      - name: Restore pinned Fiji downloads (content-addressed, verified again on use)
+        uses: actions/cache@v5
+        with:
+          path: ${{ runner.temp }}/fiji-downloads
+          key: fiji-downloads-linux-x64-${{ hashFiles('engines/fiji/runtime.lock.json') }}
+      - run: uv run python scripts/fiji_setup.py /tmp/cytellect-fiji --platform linux-x64 --cache-dir "${{ runner.temp }}/fiji-downloads"
       - run: uv run pytest -m fiji
       - name: Published DNA-actin inputs and independent ImageJ arithmetic
         timeout-minutes: 10
@@ -351,7 +358,14 @@ jobs:
       - run: uv sync --locked --dev
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @cytellect/web exec playwright install --with-deps chromium
-      - run: uv run python scripts/fiji_setup.py /tmp/cytellect-fiji --platform linux-x64
+      # The pinned Fiji archive and plugins come from public hosts that rate-limit CI runners
+      # (Maven Central answered 429 and 404 on main); reuse verified copies instead.
+      - name: Restore pinned Fiji downloads (content-addressed, verified again on use)
+        uses: actions/cache@v5
+        with:
+          path: ${{ runner.temp }}/fiji-downloads
+          key: fiji-downloads-linux-x64-${{ hashFiles('engines/fiji/runtime.lock.json') }}
+      - run: uv run python scripts/fiji_setup.py /tmp/cytellect-fiji --platform linux-x64 --cache-dir "${{ runner.temp }}/fiji-downloads"
       - name: Registered public BBBC007 inputs for the workspace tests
         timeout-minutes: 10
         run: |
