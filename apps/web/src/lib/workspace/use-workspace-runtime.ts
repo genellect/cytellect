@@ -108,7 +108,7 @@ function runtimeNucleolarRecipe(channel:ChannelDefinition,settings:RuntimeSettin
   if(!defining) throw new Error("核小体を定義するマーカーを指定してください。");
   const historical=targets.nucleoli?.recipe;
   if(!processing?.nucleoli && definition.source==="marker" && historical?.defining_channel_id===defining
-    && historical.detector?.engine==="cytellect-nucleolar-v2" && historical.detector.source==="marker" && (historical.detector.protocol_version==="2.0.0"||historical.detector.protocol_version==="2.1.0")){
+    && historical.detector?.engine==="cytellect-nucleolar-v2" && historical.detector.source==="marker" && historical.detector.protocol_version==="2.0.0"){
     processing={...(processing??{version:"1.0.0",nuclei:null,nucleoli:null,signal:null}),nucleoli:{channel:defining,detector:historical.detector}};
   }
   const previous=processing?.nucleoli?.channel === defining ? processing.nucleoli.detector : undefined;
@@ -200,7 +200,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
         const historical=processing?.nucleoli;
         const preserveLegacyMarker=!specification.spec.processing && settings.nucleolarDefinition.source==="marker"
           && historical?.channel===settings.nucleolarDefinition.marker && historical.detector.engine==="cytellect-nucleolar-v2"
-          && historical.detector.source==="marker" && (historical.detector.protocol_version==="2.0.0"||historical.detector.protocol_version==="2.1.0");
+          && historical.detector.source==="marker" && historical.detector.protocol_version==="2.0.0";
         const preserveHistoricalCellpose=!specification.spec.processing&&settings.nucleolarDefinition.source==="ncl"
           &&historical?.channel===settings.nucleolarDefinition.marker&&isCellposeDetector(historical.detector)
           &&(!settings.nucleolarDefinition.algorithm||settings.nucleolarDefinition.algorithm==="cellpose");

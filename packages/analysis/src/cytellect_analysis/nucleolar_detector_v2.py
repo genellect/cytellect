@@ -19,7 +19,8 @@ defines nucleoli from a source the researcher selects:
 Protocol 2.1.0 keeps the marker operations but uses the recorded Gaussian sigma,
 with 0.7 px as its default. Protocol 2.0.0 marker replay remains fixed at 0.7 px.
 
-Protocol 2.2.0 (2026-11-21, owner decisions 20, 22 of genellect/cytellect#257) keeps the
+Protocol 2.2.0 (2026-11-21, owner decisions 20, 22 of genellect/cytellect#257; failed its pre-registered
+public validation and is not the default, see MINIMUM_CONTRAST_SNR) keeps the
 2.1.0 operations and adds two rules. (1) A parent whose marker contrast is below
 ``minimum_contrast_snr`` times the field's noise is ``indeterminate``
 (``insufficient_marker_contrast``); its candidates are not adopted. The contrast and
@@ -54,7 +55,8 @@ PROTOCOL = "2.0.0"
 # Protocol 2.2.0: minimum parent marker contrast in units of the field noise. The value of
 # cellpose-sam-ncl-parent/4.2.0: on the public tuning split no grid value met every acceptance criterion, so the
 # pre-registered fallback applies, and the evaluation split did not pass either (docs/public-nucleolar-shape-
-# validation.md). Its use as the default needs the owner's decision.
+# validation.md). 2.2.0 is therefore not the default (new marker definitions keep 2.1.0); adoption awaits the
+# owner's decision, and neither its form nor k is changed after the evaluation split was seen.
 MINIMUM_CONTRAST_SNR = 5.0
 # Marker contrast statistic of cellpose-sam-ncl-parent/4.2.0, reused unchanged by protocol 2.2.0.
 CONTRAST_SMOOTHING_SIGMA_PX = 0.9

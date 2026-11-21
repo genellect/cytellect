@@ -12,7 +12,9 @@ from .analysis_spec import AnalysisSpec
 # Protocols of new detection runs. The public demo's in-browser runtime pins the ones its recordings were made
 # with (services/showcase runtime.py), so its replay is unchanged until the demo is recorded again.
 NUCLEAR_SCALE_PROTOCOL = "nuclear-size/1.1.0"
-MARKER_PROTOCOL = "2.2.0"
+# Marker protocol 2.2.0 (decisions 20, 22) failed its pre-registered acceptance criteria on public images
+# (docs/public-nucleolar-shape-validation.md); it is not the default. Adopting it awaits the owner's decision.
+MARKER_PROTOCOL = "2.1.0"
 
 
 def _round(value):
@@ -35,7 +37,7 @@ def _nucleolar_defaults(definition):
                 "minimum_area_px": max(1, _round(0.3 / (um * um))) if um else 4,
                 "maximum_area_px": None, "minimum_solidity": 0.6}
     if marker and MARKER_PROTOCOL == "2.2.0":
-        # Protocol 2.2.0 (owner decision 20, 2026-11-21): the 4 px floor and 0.3 um2 converted with the
+        # Protocol 2.2.0 (decisions 20, 22, not adopted): the 4 px floor and 0.3 um2 converted with the
         # field's own calibration in the worker; the noise-based marker contrast rule per nucleus.
         # A workspace pixel size (pixelUm) does not set it: the minimum comes from each field's calibration.
         detector.update(minimum_area_px=4, minimum_area_um2=0.3, minimum_contrast_snr=MINIMUM_CONTRAST_SNR)
@@ -115,8 +117,7 @@ def build_run_request(spec: dict, target: str, field_id: str, parents: dict,
                 and historical.get("defining_channel_id") == defining
                 and historical_detector.get("engine") == "cytellect-nucleolar-v2"
                 and historical_detector.get("source") == "marker"
-                and historical_detector.get("protocol_version") in ("2.0.0", "2.1.0")):
-            # Saved marker nucleoli keep their protocol; 2.2.0 applies to new marker definitions.
+                and historical_detector.get("protocol_version") == "2.0.0"):
             proposed_detector = historical_detector
         if definition["source"] == "ncl":
             algorithm = definition["algorithm"]

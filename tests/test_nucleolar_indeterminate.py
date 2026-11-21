@@ -4,7 +4,6 @@ The arrays here are synthetic (合成): minimal label and value arrays for check
 Whether the rule is useful on real nucleolar images is checked on public images by
 scripts/validate_nucleolar_indeterminate_public.py (docs/public-nucleolar-shape-validation.md).
 """
-import re
 from pathlib import Path
 
 import numpy as np
@@ -136,16 +135,21 @@ def test_compartments_keep_indeterminate_parents_missing_never_zero():
     assert morphology[1].status == "measured" and morphology[1].count == 1  # the 3 x 3 block is below 11 px
 
 
-def test_api_and_browser_build_the_same_2_2_0_marker_defaults():
-    from cytellect_api.run_recipes import _nucleolar_defaults
+def test_new_marker_definitions_stay_2_1_0_because_2_2_0_failed_its_acceptance_criteria():
+    """2026-11-21: 2.2.0 failed the pre-registered public validation; new marker definitions keep 2.1.0."""
+    from cytellect_api import run_recipes
 
-    detector = _nucleolar_defaults({"source": "marker", "pixelUm": None, "relative": 0.7})
-    assert NucleolarDetectorV22.model_validate(detector) == NucleolarDetectorV22()
-    dapi = _nucleolar_defaults({"source": "dapi_poor", "pixelUm": None, "relative": 0.7})
+    assert run_recipes.MARKER_PROTOCOL == "2.1.0" and run_recipes.NUCLEAR_SCALE_PROTOCOL == "nuclear-size/1.1.0"
+    detector = run_recipes._nucleolar_defaults({"source": "marker", "pixelUm": None, "relative": 0.7})
+    assert NucleolarDetectorV21.model_validate(detector) == NucleolarDetectorV21()
+    assert "minimum_contrast_snr" not in detector and "minimum_area_um2" not in detector
+    dapi = run_recipes._nucleolar_defaults({"source": "dapi_poor", "pixelUm": None, "relative": 0.7})
     assert dapi["protocol_version"] == "2.0.0" and "minimum_contrast_snr" not in dapi
+    # The browser builds the same (nucleolar-definition.ts keeps 2.1.0 and has no 2.2.0 fields).
     source = (ROOT / "apps/web/src/lib/workspace/nucleolar-definition.ts").read_text(encoding="utf-8")
-    constant = re.search(r"export const MINIMUM_CONTRAST_SNR = ([0-9.]+);", source)
-    assert constant and float(constant.group(1)) == MINIMUM_CONTRAST_SNR
+    assert '"2.1.0" as const' in source and "minimum_contrast_snr" not in source
+    # The explicit 2.2.0 keeps its own defaults for reproducing the validation.
+    assert NucleolarDetectorV22().minimum_contrast_snr == MINIMUM_CONTRAST_SNR == 5.0
 
 
 def test_methods_text_states_the_contrast_rule_and_the_physical_minimum():
@@ -189,7 +193,7 @@ def test_demo_runtime_keeps_the_protocols_its_recordings_were_made_with():
     finally:
         for undo in reversed(restore):
             undo()
-    assert run_recipes.NUCLEAR_SCALE_PROTOCOL == "nuclear-size/1.1.0" and run_recipes.MARKER_PROTOCOL == "2.2.0"
+    assert run_recipes.NUCLEAR_SCALE_PROTOCOL == "nuclear-size/1.1.0" and run_recipes.MARKER_PROTOCOL == "2.1.0"
     restore = []
     _pin_protocols(restore, Store([]))  # a seed without detections keeps the current protocols
     assert not restore
@@ -212,12 +216,14 @@ def test_size_breakdown_counts_confirmed_nucleoli_of_kept_nuclei_in_the_shared_i
     assert nucleolar_sizes([row(None, status="missing")], None) is None
 
 
-def test_saved_protocols_are_kept_and_2_2_0_has_a_4_px_floor():
+def test_2_2_0_physical_minimum_stays_inside_2_2_0():
     from cytellect_api.run_recipes import _nucleolar_defaults
 
-    # A workspace pixel size does not raise the 2.2.0 floor; each field's calibration does.
+    # The 2.1.0 default keeps its workspace-pixel-size conversion and has no physical minimum of its own.
     detector = _nucleolar_defaults({"source": "marker", "pixelUm": 0.0355, "relative": 0.7})
-    assert detector["minimum_area_px"] == 4 and detector["minimum_area_um2"] == 0.3
+    assert detector["protocol_version"] == "2.1.0" and detector["minimum_area_px"] == 238
+    assert "minimum_area_um2" not in detector
+    assert effective_minimum_area(NucleolarDetectorV22(), 0.1625 * 0.1625)["px"] == 11
     with pytest.raises(ValueError, match="nucleolar_area_range_invalid"):
         nuclei, dapi, marker = synthetic_field(textured=False)
         detect_nucleoli_v2(dapi, marker, nuclei, NucleolarDetectorV22(maximum_area_px=20), pixel_area_um2=0.01)

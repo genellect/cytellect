@@ -377,11 +377,14 @@ not rename saved scientific outputs.
 
 Marker-only protocol `2.1.0` uses the recorded `smoothing_sigma_px` (0–20 px), with 0.7 px as the new-request default. Rolling-ball subtraction, threshold definition, rim exclusion, component filtering, coordinates and original measurement pixels are unchanged. Opening an old result or editing an unrelated setting does not upgrade it. An explicit marker sigma edit, a new marker configuration or adoption of a 2.1.0 proposal creates the new protocol configuration; accepted masks remain unchanged until the usual preview/adoption operation. Fiji NCL protocol 1.1.0 is unaffected. This is parameter-semantic compatibility, not a claim of biological validation.
 
-### Marker protocol 2.2.0: nuclei without marker contrast and the physical minimum (2026-11-21)
+### Marker protocol 2.2.0: nuclei without marker contrast and the physical minimum (2026-11-21, not adopted)
 
 Owner decisions 20 and 22 of genellect/cytellect#257 ([plan](drafts/nucleolar-measurement/implementation.md#82-目的と統計の結果図の決定2026-11-21)).
-New marker definitions use `cytellect-nucleolar-v2/2.2.0`. Rolling ball, sigma, threshold, rim, solidity and
-coordinates are those of 2.1.0. Two rules are added:
+**2.2.0 failed its pre-registered acceptance criteria on public real images and is not the default; whether to
+adopt it awaits the owner's decision.** New marker definitions keep 2.1.0. 2.2.0 is kept as an explicit recipe
+(for reproducing the validation) and is not offered in the workspace; neither its form nor `k` is changed after
+the evaluation split was seen. Rolling ball, sigma, threshold, rim, solidity and coordinates are those of 2.1.0.
+It adds two rules:
 
 1. **Marker contrast against noise.** The statistic of `cellpose-sam-ncl-parent/4.2.0`, unchanged: the original
    marker plane is smoothed with Gaussian sigma 0.9 px (`reflect` edges); the field noise is 1.4826 × MAD of
@@ -390,22 +393,22 @@ coordinates are those of 2.1.0. Two rules are added:
    inside it. A parent whose signal is below `minimum_contrast_snr` × noise is `indeterminate`
    (`insufficient_marker_contrast`) before thresholding; its candidates are not adopted. The criterion is
    against noise, never against the enrichment being measured; no object is removed for its brightness. Signal,
-   noise and their ratio are recorded per parent. The default `minimum_contrast_snr` is 5, the 4.2.0 value:
-   no value of the pre-registered grid met every acceptance criterion on the tuning split of the public validation,
-   and the one evaluation run did not pass either; using it as the default awaits the owner's decision
+   noise and their ratio are recorded per parent. Its `minimum_contrast_snr` is 5, the 4.2.0 value and the
+   pre-registered fallback: no value of the grid met every acceptance criterion on the tuning split of the public
+   validation, and the one evaluation run did not pass either
    ([report](public-nucleolar-shape-validation.md#判定できない核の規則決定-20)).
 2. **Minimum area.** max(`minimum_area_px` (4), `minimum_area_um2` (0.3) converted with the field's confirmed
    calibration, rounded half up); 4 px without a calibration. The applied value and its source are recorded
    (`minimum_area`). An explicit pixel minimum set by the researcher removes the physical minimum. Rim exclusion
    and the rolling-ball radius stay in pixels (not switched in this version).
 
-An indeterminate parent has no nucleolar union or nucleoplasm. The nucleus table reports its nucleolar values
+Under 2.2.0, an indeterminate parent has no nucleolar union or nucleoplasm. The nucleus table reports its nucleolar values
 missing with the reason `indeterminate`; compartment-summary statistics describe nuclei with at least one
 adopted nucleolus; under `unresolved-as-missing/1.0.0` it is kept in the ledger as missing. Its count, area
 and intensity are never 0. Adopted small nucleoli stay in the count, total area and per-nucleolus values; the
-nucleus table records each nucleus's object areas (`object_areas_px`) for the size breakdown. Saved 2.0.0 and
-2.1.0 records replay unchanged and ignore the calibration; re-running a saved marker revision without a new
-definition or proposal keeps its protocol. `dapi_poor` (2.0.0) is unchanged. Detection
+nucleus table records each nucleus's object areas (`object_areas_px`) and the field's size breakdown
+(`nucleolar_sizes`, for any protocol), and the statistics basis lists indeterminate nuclei only when there are
+any. Saved 2.0.0 and 2.1.0 records replay unchanged and ignore the calibration. `dapi_poor` (2.0.0) is unchanged. Detection
 correctness is not established: no independent hand-drawn outlines exist (NS-03).
 
 ### Measured CSV distribution and SVG source navigation

@@ -2940,7 +2940,7 @@ export interface components {
             /** Channel */
             channel: string;
             /** Detector */
-            detector: components["schemas"]["NucleolarDetectorV11"] | components["schemas"]["NucleolarDetectorV20"] | components["schemas"]["NucleolarDetectorV21"] | components["schemas"]["NucleolarDetectorV22"] | components["schemas"]["NclObjectDetector"] | components["schemas"]["CellposeDetectorSpec"] | components["schemas"]["NclCellposeDetectorSpec"] | components["schemas"]["NclParentCellposeDetectorSpec"];
+            detector: components["schemas"]["NucleolarDetectorV11"] | components["schemas"]["NucleolarDetectorV20"] | components["schemas"]["NucleolarDetectorV21"] | components["schemas"]["NclObjectDetector"] | components["schemas"]["CellposeDetectorSpec"] | components["schemas"]["NclCellposeDetectorSpec"] | components["schemas"]["NclParentCellposeDetectorSpec"];
         };
         /**
          * DraftProcessing
@@ -6507,7 +6507,7 @@ export interface components {
             /** Channel */
             channel: string;
             /** Detector */
-            detector: components["schemas"]["NucleolarDetectorV11"] | components["schemas"]["NucleolarDetectorV20"] | components["schemas"]["NucleolarDetectorV21"] | components["schemas"]["NucleolarDetectorV22"] | components["schemas"]["NclObjectDetector"] | components["schemas"]["CellposeDetectorSpec"] | components["schemas"]["NclCellposeDetectorSpec"] | components["schemas"]["NclParentCellposeDetectorSpec"];
+            detector: components["schemas"]["NucleolarDetectorV11"] | components["schemas"]["NucleolarDetectorV20"] | components["schemas"]["NucleolarDetectorV21"] | components["schemas"]["NclObjectDetector"] | components["schemas"]["CellposeDetectorSpec"] | components["schemas"]["NclCellposeDetectorSpec"] | components["schemas"]["NclParentCellposeDetectorSpec"];
         };
         /** SavedProcessing */
         SavedProcessing: {

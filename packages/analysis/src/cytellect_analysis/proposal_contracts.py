@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, StrictBool, mode
 from .cellpose_engine import CellposeDetectorSpec, NclCellposeDetectorSpec, NclParentCellposeDetectorSpec
 from .compartment_engine import NucleolarDetectorV11
 from .ncl_objects import NclObjectDetector
-from .nucleolar_detector_v2 import NucleolarDetectorV20, NucleolarDetectorV21, NucleolarDetectorV22
+from .nucleolar_detector_v2 import NucleolarDetectorV20, NucleolarDetectorV21
 from .planning import ReferenceId
 from .region_contracts import NuclearDetectorSpec
 from .signal_engine import SignalDetectorSpec
@@ -199,7 +199,7 @@ class DraftNuclearProcessing(ProposalModel):
 
 class DraftNucleolarProcessing(ProposalModel):
     channel: Token
-    detector: NucleolarDetectorV11 | NucleolarDetectorV20 | NucleolarDetectorV21 | NucleolarDetectorV22 | NclObjectDetector | CellposeDetectorSpec | NclCellposeDetectorSpec | NclParentCellposeDetectorSpec
+    detector: NucleolarDetectorV11 | NucleolarDetectorV20 | NucleolarDetectorV21 | NclObjectDetector | CellposeDetectorSpec | NclCellposeDetectorSpec | NclParentCellposeDetectorSpec
 
 
 class DraftCellProcessing(ProposalModel):

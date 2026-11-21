@@ -2,7 +2,7 @@ import {describe, expect, it, vi} from "vitest";
 import {createWorkspaceRuntime, defaultRuntimeSettings, runtimeRecipe} from "./use-workspace-runtime";
 import type {createApiAdapter, Recipe, SavedResult, ValidatedProposal} from "./api-adapter";
 import type {ReviewData} from "./review-preview";
-import type {NucleolarProcessingDetector,ProposalProcessing} from "./proposal-processing";
+import type {ProposalProcessing} from "./proposal-processing";
 import type {ChannelDefinition} from "./grouping";
 import {nclObjectDetector,nucleolarDetectorV2} from "./nucleolar-definition";
 import {cellposeDetector,legacyNclCellposeDetector,nclCellposeDetector,selectNclModel} from "./cellpose-settings";
@@ -73,12 +73,9 @@ describe("NCL settings contracts without images",()=>{
 
 describe("marker smoothing protocol compatibility without images",()=>{
   const definition={source:"marker" as const,marker:"marker",pixelUm:null,relative:.7};
-  // A saved 2.0.0 record has none of the 2.2.0 fields.
-  const current:NucleolarProcessingDetector={...nucleolarDetectorV2(definition)};
-  delete current.minimum_area_um2;delete current.minimum_contrast_snr;
-  const old={...current,protocol_version:"2.0.0" as const,smoothing_sigma_px:2};
-  it("creates new marker settings at 2.2 / 0.7 without changing DAPI defaults",()=>{
-    expect(nucleolarDetectorV2(definition)).toMatchObject({protocol_version:"2.2.0",source:"marker",smoothing_sigma_px:.7});
+  const old={...nucleolarDetectorV2(definition),protocol_version:"2.0.0" as const,smoothing_sigma_px:2};
+  it("creates new marker settings at 2.1 / 0.7 without changing DAPI defaults",()=>{
+    expect(nucleolarDetectorV2(definition)).toMatchObject({protocol_version:"2.1.0",source:"marker",smoothing_sigma_px:.7});
     expect(nucleolarDetectorV2({...definition,source:"dapi_poor"})).toMatchObject({protocol_version:"2.0.0",source:"dapi_poor",smoothing_sigma_px:2});
     expect(nucleolarDetectorV2({...definition,pixelUm:.1}).smoothing_sigma_px).toBe(.7);
   });
@@ -104,13 +101,14 @@ describe("marker smoothing protocol compatibility without images",()=>{
     expect(runtime.getSnapshot().processing?.nucleoli?.detector).toMatchObject({protocol_version:"2.1.0",smoothing_sigma_px:.7});
     runtime.dispose();
   });
-  // 2026-11-21: marker 2.2.0 and nuclear-size/1.1.0 apply to new definitions; saved revisions keep their protocols.
-  it("keeps a saved 2.1.0 marker and saved 1.0.0 nuclei, and builds 2.2.0 / 1.1.0 for new ones",()=>{
+  // 2026-11-21: marker 2.2.0 failed its pre-registered acceptance criteria and is not the default;
+  // nuclear-size/1.1.0 is the default for new nuclei and saved 1.0.0 nuclei keep their protocol.
+  it("builds marker 2.1.0 and nuclear-size/1.1.0 for new runs and keeps saved 1.0.0 nuclei",()=>{
     const settings={...defaultRuntimeSettings(),nucleolarDefinition:definition};
-    const saved={...current,protocol_version:"2.1.0" as const};
-    const kept=runtimeRecipe("nucleoli",nuclear,settings,{nuclei:{recipe:base,result:record("n")},nucleoli:{recipe:{...child,detector:saved},result:record("u")}},null);
-    expect(kept.detector).toEqual(saved);
-    expect(runtimeRecipe("nucleoli",nuclear,settings,{nuclei:{recipe:base,result:record("n")}},null).detector).toMatchObject({protocol_version:"2.2.0"});
+    const detector=runtimeRecipe("nucleoli",nuclear,settings,{nuclei:{recipe:base,result:record("n")}},null).detector;
+    expect(detector).toMatchObject({protocol_version:"2.1.0"});
+    expect(detector).not.toHaveProperty("minimum_contrast_snr");
+    expect(detector).not.toHaveProperty("minimum_area_um2");
     expect(base).toMatchObject({detection_scale:"nuclear-size/1.1.0"});
     const oldNuclei={...base,detection_scale:"nuclear-size/1.0.0" as const};
     expect(runtimeRecipe("nuclei",nuclear,defaultRuntimeSettings(),{nuclei:{recipe:oldNuclei,result:record("n")}},null)).toMatchObject({detection_scale:"nuclear-size/1.0.0"});
