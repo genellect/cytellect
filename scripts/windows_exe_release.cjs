@@ -1,6 +1,8 @@
 const { execFileSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
-const { createReadStream, readdirSync, statSync, writeFileSync } = require('node:fs');
+const { createReadStream, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } = require('node:fs');
+const { tmpdir } = require('node:os');
+const { join } = require('node:path');
 const { setTimeout: delay } = require('node:timers/promises');
 
 const tagPattern = /^v0\.1\.0-local\.([1-9]\d*)$/;
@@ -10,6 +12,7 @@ const requiredJobs = ['python', 'web', 'fiji-browser', 'browser-e2e', 'cellpose-
 const marker = '<!-- cytellect-windows-exe-auto -->';
 const channel = 'windows-exe-channel';
 const channelFile = 'windows-exe.json';
+const signingKeyFile = 'services/api/src/cytellect_api/update_signature.py';
 
 function versionNumber(tag) {
   return Number(tagPattern.exec(tag)?.[1] ?? 0);
@@ -164,12 +167,15 @@ async function publicRecord(github, repo, release) {
   const asset = name => release.assets.find(item => item.name === name && item.state === 'uploaded');
   const installer = asset(filename);
   const manifestAsset = asset(manifestName);
-  if (!installer || !manifestAsset || !asset(`${manifestName}.sig`) || !asset(`Cytellect-${version}-gpl-sources.zip`)) {
+  const signatureAsset = asset(`${manifestName}.sig`);
+  if (!installer || !manifestAsset || !signatureAsset || !asset(`Cytellect-${version}-gpl-sources.zip`)) {
     throw new Error('The published EXE release is missing required files');
   }
   const response = await fetch(`${base}/${manifestName}`, { signal: AbortSignal.timeout(15_000) });
-  if (!response.ok) throw new Error(`The signed manifest is not publicly available (HTTP ${response.status})`);
+  const signatureResponse = await fetch(`${base}/${signatureAsset.name}`, { signal: AbortSignal.timeout(15_000) });
+  if (!response.ok || !signatureResponse.ok) throw new Error('The manifest and signature must both be publicly available');
   const bytes = Buffer.from(await response.arrayBuffer());
+  const signature = Buffer.from(await signatureResponse.arrayBuffer());
   if (`sha256:${createHash('sha256').update(bytes).digest('hex')}` !== manifestAsset.digest) {
     throw new Error('The public update manifest digest differs from the published asset');
   }
@@ -178,13 +184,39 @@ async function publicRecord(github, repo, release) {
   const download = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(15_000) });
   if (!download.ok || installer.browser_download_url !== url ||
       !shaPattern.test(ref.object.sha) || manifest.source_commit !== ref.object.sha ||
-      manifest.version !== version || manifest.installer?.name !== filename ||
+      manifest.schema !== 'cytellect-update-manifest/1' || manifest.version !== version || manifest.installer?.name !== filename ||
       manifest.installer.bytes !== installer.size || !/^[a-f0-9]{64}$/.test(manifest.installer.sha256) ||
       installer.digest !== `sha256:${manifest.installer.sha256}`) {
     throw new Error('The public installer differs from the signed update manifest');
   }
-  return { version, asset: 'installer', url, sha256: manifest.installer.sha256,
-    source_commit: ref.object.sha, size_bytes: installer.size };
+  return {
+    record: { version, asset: 'installer', url, sha256: manifest.installer.sha256,
+      source_commit: ref.object.sha, size_bytes: installer.size },
+    manifest: bytes,
+    signature,
+  };
+}
+
+function verifyChannelSignature(manifest, signature, previousSource) {
+  const source = readFileSync(signingKeyFile, 'utf8');
+  const key = /^UPDATE_PUBLIC_KEY = "(ssh-ed25519 [A-Za-z0-9+/=]+)(?: [^"\r\n]*)?"\r?$/m;
+  const signers = new Set([key.exec(source)?.[1], key.exec(previousSource)?.[1]].filter(Boolean));
+  if (!signers.size || manifest.length > 64 * 1024 || signature.length > 16 * 1024) {
+    throw new Error('The public update manifest or trusted signing key is invalid');
+  }
+  const directory = mkdtempSync(join(tmpdir(), 'cytellect-channel-'));
+  try {
+    const allowed = join(directory, 'allowed_signers');
+    const detached = join(directory, 'manifest.sig');
+    writeFileSync(allowed, Array.from(signers, signer => `cytellect-update ${signer}\n`).join(''));
+    writeFileSync(detached, signature);
+    execFileSync('ssh-keygen', ['-Y', 'verify', '-f', allowed, '-I', 'cytellect-update', '-n', 'cytellect-update', '-s', detached],
+      { input: manifest, stdio: ['pipe', 'ignore', 'ignore'] });
+  } catch {
+    throw new Error('The public update manifest signature is not trusted');
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 }
 
 function pushChannel(record, expectedHead) {
@@ -202,12 +234,15 @@ function pushChannel(record, expectedHead) {
   git('push', 'origin', `HEAD:${ref}`);
 }
 
-async function syncChannel(github, context, core, writeRecord = pushChannel) {
+async function syncChannel(github, context, core, {
+  writeRecord = pushChannel, seedFromPublished = false, verifySignature = verifyChannelSignature,
+} = {}) {
   const repo = context.repo;
   const releases = await github.paginate(github.rest.repos.listReleases, { ...repo, per_page: 100 });
   const release = latestPublicRelease(releases);
-  if (!release?.body?.includes(marker)) return;
+  if (!release || (!seedFromPublished && !release.body?.includes(marker))) return;
   let head;
+  let previous;
   try {
     const { data: ref } = await github.rest.git.getRef({ ...repo, ref: `heads/${channel}` });
     head = ref.object.sha;
@@ -217,23 +252,34 @@ async function syncChannel(github, context, core, writeRecord = pushChannel) {
   if (head) {
     try {
       const { data: current } = await github.rest.repos.getContent({ ...repo, path: channelFile, ref: head });
-      const previous = JSON.parse(Buffer.from(current.content, 'base64').toString('utf8'));
+      previous = JSON.parse(Buffer.from(current.content, 'base64').toString('utf8'));
       if (versionNumber(`v${previous.version}`) >= versionNumber(release.tag_name)) return;
     } catch (error) {
       if (error.status !== 404) throw error;
     }
   }
 
-  let record;
+  let candidate;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      record = await publicRecord(github, repo, release);
+      candidate = await publicRecord(github, repo, release);
       break;
     } catch (error) {
       if (attempt === 3) throw error;
       await delay(attempt * 10_000);
     }
   }
+  // A rotation can be signed by the key in the previous verified record. Release tags and
+  // assets do not select trusted keys.
+  let previousSource = '';
+  if (shaPattern.test(previous?.source_commit)) {
+    const { data: source } = await github.rest.repos.getContent({
+      ...repo, path: signingKeyFile, ref: previous.source_commit,
+    });
+    previousSource = Buffer.from(source.content, 'base64').toString('utf8');
+  }
+  const { record, manifest, signature } = candidate;
+  verifySignature(manifest, signature, previousSource);
   await writeRecord(record, head);
   core.info(`The website channel now points to ${record.version}`);
 }
