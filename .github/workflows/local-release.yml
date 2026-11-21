@@ -12,6 +12,10 @@ on:
         description: "Resume the automatic release of the newest successful main commit"
         type: boolean
         default: false
+      channel_only:
+        description: "Verify the protected website channel with the current public EXE while auto-release is disabled"
+        type: boolean
+        default: false
       version:
         description: "Unique prerelease version, for example 0.1.0-local.2"
         required: false
@@ -40,6 +44,7 @@ jobs:
   source:
     if: >-
       github.ref == 'refs/heads/main' &&
+      !inputs.channel_only &&
       ((github.event_name == 'workflow_dispatch' && !inputs.automatic) ||
        (github.repository == 'genellect/cytellect' && vars.WINDOWS_EXE_AUTO_RELEASE == 'true' &&
         (github.event_name != 'workflow_run' ||
@@ -521,20 +526,37 @@ jobs:
   channel:
     needs: [source, draft]
     if: >-
-      !cancelled() && needs.source.result == 'success' &&
-      (github.event_name != 'workflow_dispatch' || inputs.automatic)
+      !cancelled() && github.repository == 'genellect/cytellect' && github.ref == 'refs/heads/main' &&
+      ((inputs.channel_only && vars.WINDOWS_EXE_AUTO_RELEASE != 'true') ||
+       (needs.source.result == 'success' && (github.event_name != 'workflow_dispatch' || inputs.automatic)))
     runs-on: ubuntu-latest
     environment: windows-exe-channel
     permissions:
       contents: read
     steps:
+      - name: Obtain the current repository's channel writer token
+        id: channel-token
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3
+        with:
+          client-id: ${{ vars.WINDOWS_EXE_CHANNEL_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WINDOWS_EXE_CHANNEL_APP_PRIVATE_KEY }}
+          owner: genellect
+          repositories: cytellect
+          permission-contents: write
       - uses: actions/checkout@v5
         with:
-          sparse-checkout: scripts/windows_exe_release.cjs
+          sparse-checkout: |
+            scripts/windows_exe_release.cjs
+            services/api/src/cytellect_api/update_signature.py
           sparse-checkout-cone-mode: false
-          ssh-key: ${{ secrets.WINDOWS_EXE_CHANNEL_DEPLOY_KEY }}
+          token: ${{ steps.channel-token.outputs.token }}
           persist-credentials: true
       - name: Verify the public installer and update the website record
         uses: actions/github-script@v8
+        env:
+          CHANNEL_ONLY: ${{ inputs.channel_only }}
         with:
-          script: await require('./scripts/windows_exe_release.cjs').syncChannel(github, context, core)
+          script: |
+            await require('./scripts/windows_exe_release.cjs').syncChannel(github, context, core, {
+              seedFromPublished: process.env.CHANNEL_ONLY === 'true',
+            });

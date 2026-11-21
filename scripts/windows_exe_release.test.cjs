@@ -95,13 +95,14 @@ test('preserves the current public release unless draft assets match the tested 
   assert.equal(published, 1);
 });
 
-test('repairs the website record from the same published installer after a failed write', async t => {
+test('rejects an unsigned website update and repairs a verified record after a failed write', async t => {
   const installer = { name: `Cytellect-Setup-${version}.exe`, sha256: 'b'.repeat(64), bytes: 123 };
   const base = `https://github.com/genellect/cytellect/releases/download/v${version}`;
-  const manifest = JSON.stringify({ version, source_commit: commit, installer });
+  const manifest = JSON.stringify({ schema: 'cytellect-update-manifest/1', version, source_commit: commit, installer });
   const manifestName = `Cytellect-update-${version}.json`;
+  const signature = 'invalid signature';
   const upload = name => ({ name, state: 'uploaded' });
-  const release = { tag_name: `v${version}`, draft: false, body: '<!-- cytellect-windows-exe-auto -->', assets: [
+  const release = { tag_name: `v${version}`, draft: false, body: 'Manually published', assets: [
     { ...upload(installer.name), size: installer.bytes, digest: `sha256:${installer.sha256}`, browser_download_url: `${base}/${installer.name}` },
     { ...upload(manifestName), digest: `sha256:${createHash('sha256').update(manifest).digest('hex')}` },
     upload(`${manifestName}.sig`),
@@ -109,6 +110,7 @@ test('repairs the website record from the same published installer after a faile
   ] };
   t.mock.method(globalThis, 'fetch', async (url, request) => {
     if (url === `${base}/${manifestName}`) return new Response(manifest);
+    if (url === `${base}/${manifestName}.sig`) return new Response(signature);
     assert.equal(url, `${base}/${installer.name}`);
     assert.equal(request.method, 'HEAD');
     return new Response();
@@ -134,9 +136,21 @@ test('repairs the website record from the same published installer after a faile
     assert.equal(head, commit);
     content = Buffer.from(JSON.stringify(record)).toString('base64');
   };
-  await assert.rejects(syncChannel(github, context, core, write), /write failed/);
-  await syncChannel(github, context, core, write);
-  await syncChannel(github, context, core, write);
+  await syncChannel(github, context, core, { writeRecord: write });
+  assert.equal(writes, 0);
+  await assert.rejects(syncChannel(github, context, core, { writeRecord: write, seedFromPublished: true }),
+    /signature is not trusted/);
+  assert.equal(writes, 0);
+  const options = {
+    writeRecord: write, seedFromPublished: true,
+    verifySignature: (payload, detached) => {
+      assert.equal(payload.toString(), manifest);
+      assert.equal(detached.toString(), signature);
+    },
+  };
+  await assert.rejects(syncChannel(github, context, core, options), /write failed/);
+  await syncChannel(github, context, core, options);
+  await syncChannel(github, context, core, options);
   assert.equal(writes, 2);
   assert.deepEqual(JSON.parse(Buffer.from(content, 'base64')), {
     version, asset: 'installer', url: `${base}/${installer.name}`, sha256: installer.sha256,

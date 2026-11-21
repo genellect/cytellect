@@ -91,3 +91,10 @@ medians matched exactly; the maximum absolute integrated-intensity discrepancy w
 New nucleoplasmic pixel areas matched the ImageJ pixel count for every nucleus; unknown
 physical calibration and absent GFP remained missing. This is a regression/arithmetic
 check on the same public image, not an additional independent biological sample.
+
+## Per-nucleolus shape and signal metrics
+
+This single field cannot show whether per-nucleolus shape (solidity, axis ratio, eccentricity) or pixel-signal
+metrics are usable across treatments. That check uses Schmidt et al. DS6b and DS1 (Zenodo, CC BY 4.0) with a
+tuning/evaluation split fixed before any value was read: see the
+[nucleolar shape and signal validation](public-nucleolar-shape-validation.md) (Japanese).

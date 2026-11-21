@@ -18,6 +18,7 @@ Private acceptance remains open until raw images are supplied and evaluated. Pro
 
 - [BBBC039](public-validation.md): fixed published nuclear test subset; retain field-level errors and training-overlap limitations.
 - [Published NCL image](public-nucleolar-validation.md): real 16-bit image and explicit channel metadata discrepancy; no nucleolar ground-truth accuracy claim.
+- [Nucleolar shape and signal metrics](public-nucleolar-shape-validation.md) (Japanese): Schmidt et al. DS6b and DS1 with a tuning/evaluation split and rules fixed before reading values; resolution error, measurable rates and missingness per condition; no hand-drawn ground truth.
 - [BBBC013 GFP](public-gfp-validation.md): 817 ImageJ/Python object comparisons on published 8-bit exports; native FRM intensities remain unvalidated.
 - [Statistical audit](archive/scientific-audit-2026-10-02.md): closed-form t references, explicit CRV1 matrix calculation, selection/missingness/pairing checks.
 - [Figures](figures.md): physical/vector/font/source checks.
