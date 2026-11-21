@@ -168,11 +168,14 @@ async function calculate(page, refusal = null) {
   // still waits where its result will appear (a test, or a condition the description did not start for).
   const waiting = results.getByRole("region", {name: "選択中の条件"});
   await idle(page);
+  // While the description runs the condition shows no 計算, and it goes once the result is in: the button is
+  // counted, never waited for.
+  const press = waiting.getByRole("button", {name: "計算", exact: true});
   for (let index = 0; index < LIVE / 500; index++) {
-    if (!await waiting.count() || await waiting.getByRole("button", {name: "計算", exact: true}).isEnabled()) break;
+    if (!await waiting.count() || (await press.count() && await press.isEnabled())) break;
     await page.waitForTimeout(500);
   }
-  if (await waiting.count()) await waiting.getByRole("button", {name: "計算", exact: true}).click();
+  if (await waiting.count() && await press.count()) await press.click();
   await page.waitForFunction(() => [...document.querySelectorAll("button")].some(button => button.textContent === "計算" && !button.disabled), null, {timeout: LIVE});
   await idle(page);
   const refused = (await results.getByRole("alert").allTextContents()).filter(text => text.trim());
