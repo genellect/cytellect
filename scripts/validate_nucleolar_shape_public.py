@@ -48,8 +48,13 @@ Rules fixed on 2026-11-21, before any nucleolar value of these files was read (t
 
 Every field that fails is listed with its reason and is never dropped silently.
 
+Supplementary, added after the rules above (owner, 2026-11-21: tiny nucleolar detections are in scope): the
+``small-objects`` command re-runs the product detection on the DS6b tuning split only (it refuses any other field)
+and records each nucleolus's area, NPM1 enrichment over its nucleus and context. Facts only; it sets no rule.
+
     uv run python scripts/validate_nucleolar_shape_public.py register --data-dir DIR
     uv run python scripts/validate_nucleolar_shape_public.py run --data-dir DIR --work DIR --fiji FIJI [--workers 3]
+    uv run python scripts/validate_nucleolar_shape_public.py small-objects --data-dir DIR --work DIR --fiji FIJI
     uv run python scripts/validate_nucleolar_shape_public.py summarize --work DIR
 """
 from __future__ import annotations
@@ -92,6 +97,12 @@ PR258_MINIMUM_AREA_PX = 96
 AGREEMENT = 1e-9
 METHODS = ("mask", "image")
 CONTROL = {"ds6b": "UntreatedWithEU", "ds1": "Untreated"}
+# Supplementary facts on small detections (owner, 2026-11-21: tiny nucleolar detections are in scope). Tuning split
+# of DS6b only; nothing here sets a rule. 8 px is the size the request names (from the demo's DS6a, 0.1625 um/px).
+SMALL_AREA_PX = 8
+SMALL_PERMUTATIONS = 200
+SMALL_SEED = 20261121
+NEAR_GAP_PX = 2
 
 DATASETS: dict[str, dict[str, Any]] = {
     "ds6b": {
@@ -785,6 +796,258 @@ def run(data_dir: Path, work: Path, fiji: str, workers: int, datasets: list[str]
 
 
 # --------------------------------------------------------------------------------------------------------------
+# Supplementary: small detections on the tuning split (facts only, no rule)
+# --------------------------------------------------------------------------------------------------------------
+def small_objects_field(task: dict[str, Any]) -> dict[str, Any]:
+    """Area, marker enrichment and context of every product nucleolus of one DS6b tuning field.
+
+    Enrichment uses raw NPM1 (the defining marker): object mean / parent nucleus median, and object mean / parent
+    nucleoplasm mean (nucleus pixels outside every nucleolus). Corrected versions subtract the product's automatic
+    background of NPM1 from numerator and denominator. The detection is the main run's, executed again here.
+    """
+    import tifffile
+    from scipy import ndimage as ndi
+
+    dataset, entry = task["dataset"], task["entry"]
+    if dataset != "ds6b" or entry["split"] != "tuning":
+        raise ValueError("small_objects_tuning_split_only")
+    work, fiji = Path(task["work"]), task["fiji"]
+    stem = entry["name"].removesuffix(".tif")
+    target = work / "small"
+    target.mkdir(parents=True, exist_ok=True)
+    result_path, arrays_path = target / f"{stem}.json", target / f"{stem}.npz"
+    if result_path.is_file():
+        previous = json.loads(result_path.read_text(encoding="utf-8"))
+        if previous.get("sha256") == entry["sha256"] and previous.get("status") == "ok" and arrays_path.is_file():
+            return previous
+    info: dict[str, Any] = {"protocol": PROTOCOL, "dataset": dataset, "name": entry["name"], "sha256": entry["sha256"],
+                            "split": entry["split"], "group": entry["group"], "condition": entry["condition"],
+                            "status": "failed"}
+    scratch = work / "tmp" / f"small-{stem}"
+    try:
+        path = Path(task["data_dir"]) / dataset / entry["name"]
+        data = path.read_bytes()
+        if len(data) != entry["bytes"] or hashlib.sha256(data).hexdigest() != entry["sha256"]:
+            raise ValueError("public_original_hash_mismatch")
+        del data
+        check_ome(dataset, ome_record(path))
+        stack = tifffile.imread(path)
+        index = {channel["id"]: channel["index"] for channel in DATASETS[dataset]["channels"]}
+        nuclear, marker = np.ascontiguousarray(stack[index["nuclear"]]), np.ascontiguousarray(stack[index["npm1"]])
+        detectors = task["detectors"]
+        nuclei, _ = detect_nuclei_auto(nuclear, detectors["nuclear"], scratch, fiji)
+        nucleoli, states = detect_nucleoli_product(nuclear, marker, nuclei, detectors["nucleolar"], scratch, fiji)
+        background = automatic_background(marker, (nucleoli > 0) | (nuclei > 0))
+        pixels = marker.astype(np.float64)
+        nucleus_ids = np.asarray([int(value) for value in np.unique(nuclei) if value], np.int64)
+        labels = nucleus_ids.tolist()
+        nucleus_median = np.asarray(ndi.median(pixels, nuclei, labels), np.float64) if labels else np.zeros(0)
+        nucleoplasm = np.where(nucleoli > 0, 0, nuclei)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            nucleoplasm_mean = (np.asarray(ndi.mean(pixels, nucleoplasm, labels), np.float64) if labels else np.zeros(0))
+        nucleus_area = np.asarray(ndi.sum_labels(np.ones_like(pixels), nuclei, labels), np.int64) if labels else np.zeros(0)
+        touching = border_ids(nuclei)
+        # Interior after the detector's rim exclusion, and interior pixels next to an excluded pixel.
+        rim = int(detectors["nucleolar"]["rim_exclusion_px"])
+        interior = np.zeros(nuclei.shape, bool)
+        for nid, window in enumerate(ndi.find_objects(nuclei.astype(np.int64)), start=1):
+            if window is not None:
+                inside = nuclei[window] == nid
+                interior[window] |= ndi.binary_erosion(inside, np.ones((3, 3), bool), iterations=rim) if rim else inside
+        rim_edge = interior & ndi.binary_dilation(~interior, np.ones((3, 3), bool))
+        object_ids = np.asarray([int(value) for value in np.unique(nucleoli) if value], np.int64)
+        objects = object_ids.tolist()
+        area = np.asarray(ndi.sum_labels(np.ones_like(pixels), nucleoli, objects), np.int64) if objects else np.zeros(0, np.int64)
+        mean = np.asarray(ndi.mean(pixels, nucleoli, objects), np.float64) if objects else np.zeros(0)
+        on_rim = (np.asarray(ndi.maximum(rim_edge.astype(np.uint8), nucleoli, objects)) > 0) if objects else np.zeros(0, bool)
+        slices = ndi.find_objects(nucleoli.astype(np.int64))
+        parent = np.zeros(len(objects), np.int64)
+        near = np.zeros(len(objects), bool)
+        height, width = nucleoli.shape
+        for position, rid in enumerate(objects):
+            window = slices[rid - 1]
+            local = nucleoli[window] == rid
+            parent[position] = int(nuclei[window][local][0])
+            rows = slice(max(window[0].start - NEAR_GAP_PX, 0), min(window[0].stop + NEAR_GAP_PX, height))
+            cols = slice(max(window[1].start - NEAR_GAP_PX, 0), min(window[1].stop + NEAR_GAP_PX, width))
+            grown = ndi.binary_dilation(nucleoli[rows, cols] == rid, np.ones((3, 3), bool), iterations=NEAR_GAP_PX)
+            others = nucleoli[rows, cols][grown]
+            near[position] = bool(np.any((others > 0) & (others != rid)))
+        lookup = {int(nid): position for position, nid in enumerate(nucleus_ids)}
+        rows_of = np.asarray([lookup[int(value)] for value in parent], np.int64)
+        median_of = nucleus_median[rows_of] if objects else np.zeros(0)
+        plasma_of = nucleoplasm_mean[rows_of] if objects else np.zeros(0)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            enrichment = mean / median_of
+            enrichment_plasma = mean / plasma_of
+            if background is None:
+                corrected = np.full(len(objects), math.nan)
+            else:
+                numerator, denominator = mean - background, median_of - background
+                corrected = np.where((numerator > 0) & (denominator > 0), numerator / denominator, math.nan)
+        field_median = float(np.median(nucleus_median)) if labels else math.nan
+        main = work / "fields" / dataset / f"{stem}.npz"
+        same = None
+        if main.is_file():
+            with np.load(main) as previous_arrays:
+                same = bool(np.array_equal(previous_arrays["n_id"], object_ids)
+                            and np.array_equal(previous_arrays["n_area"], area))
+        np.savez_compressed(arrays_path, id=object_ids, area=area, parent=parent, mean=mean, enrichment=enrichment,
+                            enrichment_nucleoplasm=enrichment_plasma, enrichment_corrected=corrected, on_rim=on_rim,
+                            near_other=near, nucleus_id=nucleus_ids, nucleus_median=nucleus_median,
+                            nucleus_nucleoplasm_mean=nucleoplasm_mean, nucleus_area=nucleus_area,
+                            nucleus_border=np.isin(nucleus_ids, sorted(touching)),
+                            nucleus_relative_brightness=nucleus_median / field_median if labels else np.zeros(0))
+        info.update(status="ok", background=background, nuclei=len(labels), objects=len(objects),
+                    same_objects_as_main_run=same, states=states["states"])
+    except Exception as error:  # noqa: BLE001 - every failure is recorded with its reason
+        info.update(error=f"{type(error).__name__}: {error}", traceback=traceback.format_exc(limit=4)[-1500:])
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+    result_path.write_text(json.dumps(info, indent=1, default=float) + "\n", encoding="utf-8")
+    return info
+
+
+def small_objects(data_dir: Path, work: Path, fiji: str, workers: int) -> None:
+    data_dir, work = outside_checkout(data_dir), outside_checkout(work)
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    detectors = product_detectors()
+    tasks = [{"dataset": "ds6b", "entry": entry, "work": str(work), "fiji": fiji, "data_dir": str(data_dir),
+              "detectors": detectors}
+             for entry in manifest["datasets"]["ds6b"]["files"] if entry["split"] == "tuning"]
+    context = multiprocessing.get_context("spawn")
+    with concurrent.futures.ProcessPoolExecutor(max_workers=workers, mp_context=context) as pool:
+        for done, info in enumerate(pool.map(small_objects_field, tasks), start=1):
+            print(f"[{done}/{len(tasks)}] small {info['name']} {info['status']}"
+                  + (f" {info.get('error')}" if info["status"] != "ok" else ""), flush=True)
+
+
+def concentration(small_counts: np.ndarray) -> float | None:
+    """Share of the small objects held by the 10 % of nuclei (rounded up) with the most small objects."""
+    total = int(small_counts.sum())
+    if not total or not small_counts.size:
+        return None
+    top = max(1, math.ceil(0.1 * small_counts.size))
+    return float(np.sort(small_counts)[::-1][:top].sum() / total)
+
+
+def small_objects_summary(work: Path, manifest: dict[str, Any]) -> dict[str, Any] | None:
+    folder = work / "small"
+    if not folder.is_dir():
+        return None
+    pixel = DATASETS["ds6b"]["pixel_um"]
+    rng = np.random.default_rng(SMALL_SEED)
+    infos, arrays = [], {}
+    for entry in manifest["datasets"]["ds6b"]["files"]:
+        if entry["split"] != "tuning":
+            continue
+        path = folder / f"{entry['name'].removesuffix('.tif')}.json"
+        info = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {
+            "name": entry["name"], "status": "not_run", "group": entry["group"], "condition": entry["condition"]}
+        infos.append(info)
+        if info["status"] == "ok":
+            with np.load(path.with_suffix(".npz")) as data:
+                arrays[entry["name"]] = {key: data[key] for key in data.files}
+
+    def describe(infos_here: list[dict[str, Any]]) -> dict[str, Any]:
+        parts = [arrays[info["name"]] for info in infos_here]
+        area = np.concatenate([part["area"] for part in parts]) if parts else np.zeros(0)
+        small = area <= SMALL_AREA_PX
+
+        def pick(key, mask=None):
+            values = np.concatenate([part[key] for part in parts]) if parts else np.zeros(0)
+            return values if mask is None else values[mask]
+
+        parent_border, parent_brightness, parent_objects = [], [], []
+        for part in parts:
+            lookup = {int(nid): position for position, nid in enumerate(part["nucleus_id"])}
+            counts = Counter(int(value) for value in part["parent"])
+            for value in part["parent"]:
+                position = lookup[int(value)]
+                parent_border.append(bool(part["nucleus_border"][position]))
+                parent_brightness.append(float(part["nucleus_relative_brightness"][position]))
+                parent_objects.append(counts[int(value)])
+        parent_border_array, brightness_array = np.asarray(parent_border, bool), np.asarray(parent_brightness)
+        objects_array = np.asarray(parent_objects, float)
+        out: dict[str, Any] = {
+            "fields": len(parts), "objects": int(area.size), "small_objects": int(small.sum()),
+            "small_share": float(small.mean()) if area.size else None,
+            "area_px": quantiles(area.astype(float)), "area_um2": quantiles(area.astype(float) * pixel * pixel),
+            "area_bins_px": {label: int(((area >= low) & (area <= high)).sum()) for label, low, high in
+                             (("4-8", 4, 8), ("9-16", 9, 16), ("17-32", 17, 32), ("33-64", 33, 64),
+                              ("65-128", 65, 128), (">128", 129, 10 ** 9))},
+        }
+        for key, name in (("enrichment", "enrichment_nucleus_median"), ("enrichment_nucleoplasm", "enrichment_nucleoplasm_mean"),
+                          ("enrichment_corrected", "enrichment_nucleus_median_corrected")):
+            out[name] = {"all": quantiles(pick(key)), "small": quantiles(pick(key, small)), "larger": quantiles(pick(key, ~small))}
+        for key, name in (("on_rim", "touches_rim_exclusion_edge"), ("near_other", f"within_{NEAR_GAP_PX}px_of_another_nucleolus")):
+            values = pick(key).astype(bool)
+            out[name] = {"small": float(values[small].mean()) if small.any() else None,
+                         "larger": float(values[~small].mean()) if (~small).any() else None}
+        out["parent_touches_image_border"] = {"small": float(parent_border_array[small].mean()) if small.any() else None,
+                                              "larger": float(parent_border_array[~small].mean()) if (~small).any() else None}
+        out["parent_relative_brightness"] = {"small": quantiles(brightness_array[small], (25, 50, 75)),
+                                             "larger": quantiles(brightness_array[~small], (25, 50, 75))}
+        out["parent_object_count"] = {"small": quantiles(objects_array[small], (25, 50, 75)),
+                                      "larger": quantiles(objects_array[~small], (25, 50, 75))}
+        # Clustering in nuclei: observed concentration against shuffling the small labels within each field.
+        per_field = [(np.unique(part["parent"], return_inverse=True)[1], part["area"] <= SMALL_AREA_PX) for part in parts]
+
+        def nucleus_counts(labels_by_field):
+            counts = [np.bincount(inverse, weights=flags.astype(float)).astype(int)
+                      for (inverse, _), flags in zip(per_field, labels_by_field, strict=True) if inverse.size]
+            return np.concatenate(counts) if counts else np.zeros(0, int)
+
+        observed = concentration(nucleus_counts([flags for _, flags in per_field]))
+        null = [concentration(nucleus_counts([rng.permutation(flags) for _, flags in per_field]))
+                for _ in range(SMALL_PERMUTATIONS)] if observed is not None else []
+        null_values = np.asarray([value for value in null if value is not None])
+        counts = nucleus_counts([flags for _, flags in per_field])
+        out["nuclei_with_nucleoli"] = int(counts.size)
+        out["nuclei_with_small"] = int((counts > 0).sum())
+        out["top_decile_nuclei_small_share"] = {
+            "observed": observed, "null_mean": float(null_values.mean()) if null_values.size else None,
+            "null_p2.5": float(np.percentile(null_values, 2.5)) if null_values.size else None,
+            "null_p97.5": float(np.percentile(null_values, 97.5)) if null_values.size else None,
+            "null_at_least_observed": (float((null_values >= observed).mean()) if null_values.size and observed is not None
+                                       else None)}
+        # Clustering in fields: spread of the per-field small share against shuffling labels across the fields.
+        shares = np.asarray([flags.mean() for _, flags in per_field if flags.size])
+        sizes = [flags.size for _, flags in per_field if flags.size]
+        pooled = np.concatenate([flags for _, flags in per_field]) if per_field else np.zeros(0, bool)
+        null_sd = []
+        for _ in range(SMALL_PERMUTATIONS if pooled.size else 0):
+            shuffled = rng.permutation(pooled)
+            pieces = np.split(shuffled, np.cumsum(sizes)[:-1])
+            null_sd.append(float(np.std([piece.mean() for piece in pieces])))
+        out["field_small_share"] = {
+            **quantiles(shares, (0, 50, 100)), "sd": float(np.std(shares)) if shares.size else None,
+            "null_sd_mean": float(np.mean(null_sd)) if null_sd else None,
+            "null_sd_p97.5": float(np.percentile(null_sd, 97.5)) if null_sd else None,
+            "null_at_least_observed": float(np.mean(np.asarray(null_sd) >= np.std(shares))) if null_sd else None}
+        return out
+
+    ok = [info for info in infos if info["status"] == "ok"]
+    groups: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    for info in ok:
+        groups[(info["group"], info["condition"])].append(info)
+    return {
+        "scope": "DS6b tuning split (30min, 2hrs) only; product detection at native resolution; facts, no rule",
+        "small_area_px": SMALL_AREA_PX, "small_area_um2": SMALL_AREA_PX * pixel * pixel,
+        "permutations": SMALL_PERMUTATIONS, "seed": SMALL_SEED, "near_gap_px": NEAR_GAP_PX,
+        "enrichment_definition": "raw NPM1: object mean / parent nucleus median; also / parent nucleoplasm mean; "
+                                 "corrected: both minus the product's automatic NPM1 background",
+        "fields": {"registered": len(infos), "ok": len(ok)},
+        "failures": [{key: info.get(key) for key in ("name", "status", "error")} for info in infos if info["status"] != "ok"],
+        "same_objects_as_main_run": Counter(str(info.get("same_objects_as_main_run")) for info in ok),
+        "background_not_established_fields": sum(1 for info in ok if info.get("background") is None),
+        "conditions": [{"group": group, "condition": condition, **describe(items)}
+                       for (group, condition), items in sorted(groups.items())],
+        "pooled": describe(ok),
+    }
+
+
+# --------------------------------------------------------------------------------------------------------------
 # Summary
 # --------------------------------------------------------------------------------------------------------------
 def quantiles(values: np.ndarray, points=(10, 25, 50, 75, 90)) -> dict[str, float | None]:
@@ -1173,6 +1436,7 @@ def summarize(work: Path, output: Path) -> dict[str, Any]:
         "implementation_agreement": agreement(fields),
         "resolution": resolution, "minimum_area": minima, "conditions": tables, "decision4": decisions,
         "missingness": bias, "signal": signal_summary(fields), "ds1_substitute_on_ds6b": substitute,
+        "tuning_small_objects": small_objects_summary(work, manifest),
     }
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(summary, indent=1, ensure_ascii=False, default=float) + "\n", encoding="utf-8")
@@ -1193,12 +1457,19 @@ def main(argv: list[str] | None = None) -> None:
     three = commands.add_parser("summarize", help="write the JSON summary")
     three.add_argument("--work", type=Path, required=True)
     three.add_argument("--output", type=Path, default=SUMMARY)
+    four = commands.add_parser("small-objects", help="supplementary small-detection facts, DS6b tuning split only")
+    four.add_argument("--data-dir", type=Path, required=True)
+    four.add_argument("--work", type=Path, required=True)
+    four.add_argument("--fiji", required=True)
+    four.add_argument("--workers", type=int, default=1)
     args = parser.parse_args(argv)
     if args.command == "register":
         manifest = register(args.data_dir)
         print(json.dumps({dataset: spec["registered_files"] for dataset, spec in manifest["datasets"].items()}))
     elif args.command == "run":
         run(args.data_dir, args.work, args.fiji, args.workers, args.dataset or list(DATASETS))
+    elif args.command == "small-objects":
+        small_objects(args.data_dir, args.work, args.fiji, args.workers)
     else:
         summary = summarize(args.work, args.output)
         print(json.dumps({"fields": summary["fields"],
