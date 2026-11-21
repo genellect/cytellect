@@ -623,6 +623,21 @@ def _render_publication(canonical, output: Path, template, order, images=None):
                     _write_svg_font_stack(output / "figure.svg")
         finally:
             plt.close(fig)
+    # The fields behind a comparison, group → run → field, for checking which fields carry the result.
+    fields = None
+    if not association:
+        from .field_check import render_field_check
+
+        # A check that cannot be laid out is left out (with its reason); it never fails the comparison's own figure.
+        try:
+            fields = render_field_check(canonical, order, output, font_size=size.font_size,
+                                        series_colors=(plot.get("style") or {}).get("series_colors"))
+        except ValueError as error:
+            if str(error) not in ("figure_labels_overlap", "figure_text_outside_canvas", "figure_font_glyphs_unavailable"):
+                raise
+            for name in ("fields.svg", "fields.pdf", "fields.png"):
+                (output / name).unlink(missing_ok=True)
+            fields = {"skipped": str(error), "files": []}
     tables = _tables(canonical)
     tables["graphical-summary"] = drawn.summary
     csv_files = []
@@ -658,13 +673,16 @@ def _render_publication(canonical, output: Path, template, order, images=None):
                                 "presentation": presentation, "forms": forms["forms"], "default_form": forms["default"],
                                 "legend_gaps": gaps,
                                 "compositions": [] if association else ["quantification", "images-quantification"],
-                                "images": image_figure.record() if image_figure is not None else None}
+                                "images": image_figure.record() if image_figure is not None else None,
+                                "field_check": fields}
     annotations = [{"left": b.left, "right": b.right, "lines": b.lines} for b in drawn.annotations.brackets]
     source = {**canonical, **metadata, "unit_glyphs": drawn.glyphs, "graphical_summary": drawn.summary,
               "annotations": annotations, "layout": "deterministic beeswarm",
-              "source_hashes": {n: hashlib.sha256((output / n).read_bytes()).hexdigest() for n in csv_files}}
+              "source_hashes": {n: hashlib.sha256((output / n).read_bytes()).hexdigest()
+                                for n in [*csv_files, *((fields or {}).get("files") or [])]}}
     (output / "figure-data.json").write_text(json.dumps(source, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
     return {**metadata, "figure_version": "2.0.0", "formats": ["svg", "pdf", "png"], "svg_text": "editable",
             "source_files": ["figure.svg", "figure.pdf", "figure.png", *csv_files, "figure-data.json",
                              "figure-legend.md", "figure-caption.md", "methods.md",
-                             *(["figure-images.npz"] if image_figure is not None else [])]}
+                             *(["figure-images.npz"] if image_figure is not None else []),
+                             *((fields or {}).get("files") or [])]}
