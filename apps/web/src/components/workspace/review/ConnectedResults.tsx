@@ -306,7 +306,8 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   // choice answer it alike (the test is 計算 on the described result, D-5), but a tested result no longer answers a
   // design that cannot be tested (independence withdrawn, an exploratory threshold).
   const requestIdentity=JSON.stringify({...design,independence:undefined,acquisition:undefined,sampling:undefined,missingness:undefined,inference:undefined,...(operation==="association"?{}:{xMetric:undefined,xChannel:undefined})});
-  const tested=(entry:Saved)=>entry.operation==="comparison"&&!!entry.result.spec?.test&&entry.result.spec.test!=="none";
+  // An association is always a test; a comparison is one unless it was described (test "none").
+  const tested=(entry:Saved)=>entry.operation==="association"||entry.operation==="comparison"&&!!entry.result.spec?.test&&entry.result.spec.test!=="none";
   const stale=!!saved&&!saved.historical&&(saved.identity!==identity||saved.requestIdentity!==requestIdentity||(design.inference===false&&tested(saved)));
   const excludedCount=items.filter(item=>item.excluded).length;
   const ready=(!stratifiedDesign||!!stratumRequest&&!unstratified)&&!!sources.length&&!missing&&!disabled&&!busy&&stated.regions&&!remaining&&ledgerReady&&!unsupportedAxes&&!independenceMissing&&!datesMissing&&!positivityMissing&&(!channelGate||!!currentGate);

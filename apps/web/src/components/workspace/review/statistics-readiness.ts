@@ -23,8 +23,9 @@ export interface DeclarationSource {demo:boolean;experiment:ExperimentDesign|nul
 export function declarations({demo,experiment,unmeasured}:DeclarationSource):Declarations {
   const independence=!!experiment?.independence_confirmed;
   // The public demo calculates with the confirmations its tour recorded (decision 2): its requests are replayed as
-  // recorded, and nothing is declared for the public data on the visitor's behalf.
-  if(demo)return {regions:true,independence,acquisition:true,sampling:true,missingness:true};
+  // recorded, and nothing is declared for the public data on the visitor's behalf. A recorded scene without a design
+  // was recorded with the tour's own confirmation of its units, as before.
+  if(demo)return {regions:true,independence:experiment?independence:true,acquisition:true,sampling:true,missingness:true};
   const acquisition=!!experiment?.acquisition_confirmed;
   return {regions:unmeasured===0,independence,acquisition,sampling:acquisition,missingness:true};
 }

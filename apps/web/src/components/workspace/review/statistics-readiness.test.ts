@@ -20,6 +20,8 @@ describe("statistics declarations",()=>{
   });
   it("keeps the demo's recorded confirmations and never adds independence to public data",()=>{
     expect(declarations({demo:true,experiment:pair(),unmeasured:0})).toEqual({regions:true,independence:false,acquisition:true,sampling:true,missingness:true});
+    // A recorded scene without a design keeps the tour's own confirmation, as the recording was made.
+    expect(declarations({demo:true,experiment:null,unmeasured:0}).independence).toBe(true);
   });
 });
 
