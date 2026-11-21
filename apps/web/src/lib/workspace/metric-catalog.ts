@@ -61,9 +61,9 @@ export const METRIC_QUESTIONS: MetricQuestion[] = [
   ]},
   {question: "核の形", metrics: [
     {id: "solidity", label: "核のソリディティ", target: "nuclei", channel: false,
-      definition: "核ごとの、面積 ÷ 凸包の面積（1 = 凹みなし）。96 px 未満の核と画像の端にかかる核は測りません。"},
+      definition: "核ごとの、面積 ÷ くぼみを埋めた面積（1 = くぼみなし）。96 px 未満の核と画像の端にかかる核は測りません。"},
     {id: "axis_ratio", label: "核の長短軸比", target: "nuclei", channel: false,
-      definition: "核ごとの、同じ二次モーメントの楕円の長軸 ÷ 短軸（1 = 円）。96 px 未満の核と画像の端にかかる核は測りません。"},
+      definition: "核ごとの、長軸 ÷ 短軸（1 = 円）。画素の広がり（二次モーメント）で決めます。96 px 未満の核と画像の端にかかる核は測りません。"},
     {id: "eccentricity", label: "核の離心率", target: "nuclei", channel: false,
       definition: "核ごとの離心率（0 = 円、1 に近いほど細長い）。96 px 未満の核と画像の端にかかる核は測りません。比較では差で示します。"},
   ]},
