@@ -358,7 +358,7 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
   const gateChannels=(field?.channels||data?.channels||[]).filter(value=>!sceneGate||sceneGate.includes(value.id));
   const metricOffered=(id:string,chosen:ReviewTarget=target)=>regionOffered(metricTarget(id,chosen))&&(!id.startsWith("positive_")||!sceneGate||sceneGate.length>0);
   /** Statistics: the subject sets the region as the region choice did; a metric of the subject keeps that region (M-01). */
-  function chooseSubject(subject:ReviewTarget){changeTarget(subject);setMetric(metricForSubject(metric,subject,id=>metricOffered(id,subject)));}
+  function chooseSubject(subject:ReviewTarget){if(regionOffered(subject))changeTarget(subject);setMetric(metricForSubject(metric,subject,id=>metricOffered(id,subject)));}
   function chooseMetric(id:string,subject:ReviewTarget){setMetric(id);if(!metricChoice(id)?.target&&target!==subject)changeTarget(subject);}
   // The colour modes the shown field can be coloured by, and the one in effect (MV-01). They are per nucleus.
   const colorChoices=colorByChoices({nuclei:!!field&&!!r.currentResult(field.id,"nuclei"),gateChannels:gateChannels.length,

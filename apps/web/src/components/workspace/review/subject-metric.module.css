@@ -2,6 +2,7 @@
 .subjects{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin-bottom:14px}
 .subjects button[type=button]{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0;padding:6px 0 4px;border:1px solid #cdd3dc;border-radius:6px;background:#fff;font-size:12px;line-height:1.3;overflow-wrap:anywhere}
 .subjects button[type=button][aria-checked=true]{border-color:var(--accent);background:#eff6ff}
+.subjects.twoColumns{grid-template-columns:repeat(2,minmax(0,1fr))}
 .metric{margin-bottom:14px}
 .unit{padding:1px 6px;border-radius:4px;background:#f1f5f9;color:#475569;font-size:12px}
 .variants{display:inline-flex;margin-top:6px;border:1px solid #cdd3dc;border-radius:5px}

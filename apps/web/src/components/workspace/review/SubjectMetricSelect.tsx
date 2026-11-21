@@ -1,5 +1,5 @@
 import {useId, type KeyboardEvent, type ReactNode} from "react";
-import {SUBJECTS, SUBJECT_METRICS, UNIT_LABELS, metricChoice, metricSubject, subjectEntry, type MetricSubject, type SubjectMetric} from "@/lib/workspace/metric-catalog";
+import {SUBJECTS, SUBJECT_METRICS, UNIT_LABELS, metricChoice, metricLabel, metricSubject, subjectEntry, type MetricSubject, type SubjectMetric} from "@/lib/workspace/metric-catalog";
 import type {ReviewTarget} from "@/lib/workspace/review-preview";
 import styles from "./subject-metric.module.css";
 
@@ -66,11 +66,13 @@ export function SubjectMetricSelect({metric, target, calibrated, offered, onSubj
   const choice = metricChoice(metric);
   return <>
     <div className={styles.caption} id={`${id}-subject`}>対象</div>
-    <RadioGroup className={styles.subjects} label={{"aria-labelledby": `${id}-subject`}} value={subject} onChoose={onSubject}
+    <RadioGroup className={`${styles.subjects} ${subjects.length > 3 ? styles.twoColumns : ""}`} label={{"aria-labelledby": `${id}-subject`}} value={subject} onChoose={onSubject}
       radios={subjects.map(value => ({value, label: <><Pictogram subject={value}/>{SUBJECT_LABELS[value]}</>}))}/>
     <div className={styles.metric}>
       <div className={styles.caption}><span id={`${id}-metric`}>指標</span>{entry && <span className={styles.unit} id={`${id}-unit`}>{UNIT_LABELS[entry.unit]}</span>}</div>
-      <select aria-labelledby={`${id}-metric`} aria-describedby={entry ? `${id}-unit` : undefined} value={entry?.metric.variants[0].id ?? ""} onChange={event => onMetric(event.target.value, subject)}>
+      <select aria-labelledby={`${id}-metric`} aria-describedby={entry ? `${id}-unit` : undefined} value={entry?.metric.variants[0].id ?? metric} onChange={event => onMetric(event.target.value, subject)}>
+        {/* A metric set elsewhere (a saved result) that no subject lists is shown as it is, not as the first entry. */}
+        {!entry && <option value={metric} disabled>{metricLabel(metric)}</option>}
         {groups.map(group => <optgroup key={group.unit} label={UNIT_LABELS[group.unit]}>
           {group.metrics.filter(item => listed(item, subject)).map(item => {
             const base = item.variants[0].id, unavailable = needsCalibration(base);

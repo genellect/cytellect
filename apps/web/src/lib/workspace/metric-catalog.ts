@@ -5,7 +5,7 @@ import type {ReviewTarget} from "./review-preview";
  * Labels and definitions describe the saved common implementation; nothing is computed here. */
 export interface MetricChoice {
   id: string; label: string;
-  /** What is measured, on which region, and what one observation is. */
+  /** What is measured and on which region; what one observation is comes with SUBJECT_METRICS (subjectEntry). */
   definition: string;
   /** The region set the values come from, when the metric fixes it. */
   target?: ReviewTarget;
