@@ -56,9 +56,9 @@ UPDATE_PUBLIC_KEY = "ssh-ed25519 AAAA... cytellect-update"
 
 有効化はオーナーが行う。
 
-1. GitHub の `windows-exe-preflight` と `windows-exe-publish` environments を作成し、デプロイ元を `main` に限定する。自動経路には実行ごとの承認者を設定しない。
+1. GitHub の `windows-exe-preflight`、`windows-exe-publish`、`windows-exe-channel` environments を作成し、デプロイ元を `main` に限定する。自動経路には実行ごとの承認者を設定しない。
 2. `windows-exe-preflight` に変数 `PROPOSAL_PREFLIGHT_URL` と秘密 `PROPOSAL_PREFLIGHT_DEVICE_TOKEN`、`windows-exe-publish` に秘密 `UPDATE_SIGNING_KEY` を登録する。[配布前の互換性検査](proposal-deployment.md#required-prompt-version-check-before-distribution)とこの文書の鍵の手順を使う。
-3. `windows-exe-channel` ブランチに、配布ワークフロー以外の更新と削除を止める保護（ruleset）を設定する。公式サイトはこのブランチの記録からダウンロード先を選ぶため、保護がない間は、リポジトリの書き込み権限だけでサイトのダウンロード先を変えられる。有効化の後、初回の配布で、ワークフローが記録を更新できることを確かめる。
+3. `windows-exe-channel` ブランチの作成・更新・削除を制限する ruleset を有効にし、Deploy keys だけを例外にする。このリポジトリで唯一の書き込み可能な deploy key を配布記録専用に登録し、その秘密鍵は `windows-exe-channel` environment の `WINDOWS_EXE_CHANNEL_DEPLOY_KEY` に置く。配布記録の更新ジョブはこの鍵で Git に push する。公式サイトと自動配布を有効にする前に、通常の書き込み権限がこのブランチを更新できないことと、専用鍵が更新できることを確かめる。
 4. 初回の配布候補を確認し、リポジトリ変数 `WINDOWS_EXE_AUTO_RELEASE` を `true` にする。次の `Verify` 成功時、定期実行時、または Actions の `automatic` を選んだ手動起動時に配布を進める。
 5. 初回は Actions の公開ログと配布記録、公式サイトからの取得・新規導入、既存版からのアプリ内更新を確認する。サイトの記録は GitHub とサイトのキャッシュを経て反映される。
 

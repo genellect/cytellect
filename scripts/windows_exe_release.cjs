@@ -1,6 +1,6 @@
 const { execFileSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
-const { createReadStream, readdirSync, statSync } = require('node:fs');
+const { createReadStream, readdirSync, statSync, writeFileSync } = require('node:fs');
 const { setTimeout: delay } = require('node:timers/promises');
 
 const tagPattern = /^v0\.1\.0-local\.([1-9]\d*)$/;
@@ -187,28 +187,41 @@ async function publicRecord(github, repo, release) {
     source_commit: ref.object.sha, size_bytes: installer.size };
 }
 
-async function syncChannel(github, context, core) {
+function pushChannel(record, expectedHead) {
+  const git = (...args) => execFileSync('git', args, { encoding: 'utf8' }).trim();
+  const ref = `refs/heads/${channel}`;
+  if (expectedHead) {
+    git('fetch', '--no-tags', 'origin', ref);
+    if (git('rev-parse', 'FETCH_HEAD') !== expectedHead) throw new Error('The website channel advanced during verification');
+    git('switch', '--detach', expectedHead);
+  }
+  writeFileSync(channelFile, `${JSON.stringify(record, null, 2)}\n`);
+  git('add', '--sparse', '--', channelFile);
+  git('-c', 'user.name=Cytellect EXE release', '-c', 'user.email=github-actions[bot]@users.noreply.github.com',
+    'commit', '-m', `Publish Windows EXE ${record.version}`);
+  git('push', 'origin', `HEAD:${ref}`);
+}
+
+async function syncChannel(github, context, core, writeRecord = pushChannel) {
   const repo = context.repo;
   const releases = await github.paginate(github.rest.repos.listReleases, { ...repo, per_page: 100 });
   const release = latestPublicRelease(releases);
   if (!release?.body?.includes(marker)) return;
+  let head;
   try {
-    await github.rest.git.getRef({ ...repo, ref: `heads/${channel}` });
-  } catch (error) {
-    if (error.status !== 404) throw error;
-    await github.rest.git.createRef({ ...repo, ref: `refs/heads/${channel}`, sha: context.sha });
-  }
-
-  const path = { ...repo, path: channelFile };
-  let current;
-  try {
-    ({ data: current } = await github.rest.repos.getContent({ ...path, ref: channel }));
+    const { data: ref } = await github.rest.git.getRef({ ...repo, ref: `heads/${channel}` });
+    head = ref.object.sha;
   } catch (error) {
     if (error.status !== 404) throw error;
   }
-  if (current) {
-    const previous = JSON.parse(Buffer.from(current.content, 'base64').toString('utf8'));
-    if (versionNumber(`v${previous.version}`) >= versionNumber(release.tag_name)) return;
+  if (head) {
+    try {
+      const { data: current } = await github.rest.repos.getContent({ ...repo, path: channelFile, ref: head });
+      const previous = JSON.parse(Buffer.from(current.content, 'base64').toString('utf8'));
+      if (versionNumber(`v${previous.version}`) >= versionNumber(release.tag_name)) return;
+    } catch (error) {
+      if (error.status !== 404) throw error;
+    }
   }
 
   let record;
@@ -221,10 +234,7 @@ async function syncChannel(github, context, core) {
       await delay(attempt * 10_000);
     }
   }
-  await github.rest.repos.createOrUpdateFileContents({
-    ...path, branch: channel, sha: current?.sha, message: `Publish Windows EXE ${record.version}`,
-    content: Buffer.from(`${JSON.stringify(record, null, 2)}\n`).toString('base64'),
-  });
+  await writeRecord(record, head);
   core.info(`The website channel now points to ${record.version}`);
 }
 

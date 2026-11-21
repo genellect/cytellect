@@ -29,7 +29,7 @@ env:
 # of the release group: a queued run there replaces the run already waiting, such as a manual release.
 concurrency:
   group: >-
-    ${{ github.event_name != 'workflow_dispatch' &&
+    ${{ (github.event_name != 'workflow_dispatch' || inputs.automatic) &&
     (vars.WINDOWS_EXE_AUTO_RELEASE != 'true' ||
     (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion != 'success')) &&
     format('windows-release-idle-{0}', github.run_id) || 'windows-release' }}
@@ -524,15 +524,16 @@ jobs:
       !cancelled() && needs.source.result == 'success' &&
       (github.event_name != 'workflow_dispatch' || inputs.automatic)
     runs-on: ubuntu-latest
-    environment: windows-exe-publish
+    environment: windows-exe-channel
     permissions:
-      contents: write
+      contents: read
     steps:
       - uses: actions/checkout@v5
         with:
           sparse-checkout: scripts/windows_exe_release.cjs
           sparse-checkout-cone-mode: false
-          persist-credentials: false
+          ssh-key: ${{ secrets.WINDOWS_EXE_CHANNEL_DEPLOY_KEY }}
+          persist-credentials: true
       - name: Verify the public installer and update the website record
         uses: actions/github-script@v8
         with:

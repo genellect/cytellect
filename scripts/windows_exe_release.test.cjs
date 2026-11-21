@@ -124,19 +124,19 @@ test('repairs the website record from the same published installer after a faile
           if (!content) throw Object.assign(new Error('not found'), { status: 404 });
           return { data: { content, sha: 'file-sha' } };
         },
-        createOrUpdateFileContents: async data => {
-          if (++writes === 1) throw new Error('write failed');
-          assert.equal(data.branch, 'windows-exe-channel');
-          content = data.content;
-        },
       },
     },
   };
   const context = { repo: { owner: 'genellect', repo: 'cytellect' } };
   const core = { info() {} };
-  await assert.rejects(syncChannel(github, context, core), /write failed/);
-  await syncChannel(github, context, core);
-  await syncChannel(github, context, core);
+  const write = async (record, head) => {
+    if (++writes === 1) throw new Error('write failed');
+    assert.equal(head, commit);
+    content = Buffer.from(JSON.stringify(record)).toString('base64');
+  };
+  await assert.rejects(syncChannel(github, context, core, write), /write failed/);
+  await syncChannel(github, context, core, write);
+  await syncChannel(github, context, core, write);
   assert.equal(writes, 2);
   assert.deepEqual(JSON.parse(Buffer.from(content, 'base64')), {
     version, asset: 'installer', url: `${base}/${installer.name}`, sha256: installer.sha256,
