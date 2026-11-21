@@ -46,9 +46,6 @@ function RadioGroup<T extends string>({radios, value, onChoose, className, label
   </div>;
 }
 
-/** The statistics side panel's choice of what to measure: the subject first (a pictogram of the nucleus), then that
- * subject's metrics grouped by what one observation is, then a switch between a metric's variants (requirements M-01).
- * Metrics in physical units need a confirmed pixel size and cannot be chosen without one (M-02). */
 /** The primary-measure mark beside the metric (#257 RP-04): an outline star, filled once this condition is declared. */
 function PrimaryStar({declared, disabled, onToggle}: {declared: boolean; disabled?: boolean; onToggle: () => void}) {
   return <button type="button" className={styles.primary} aria-pressed={declared} disabled={disabled} onClick={onToggle}
@@ -58,6 +55,9 @@ function PrimaryStar({declared, disabled, onToggle}: {declared: boolean; disable
   </button>;
 }
 
+/** The statistics side panel's choice of what to measure: the subject first (a pictogram of the nucleus), then that
+ * subject's metrics grouped by what one observation is, then a switch between a metric's variants (requirements M-01).
+ * Metrics in physical units need a confirmed pixel size and cannot be chosen without one (M-02). */
 export function SubjectMetricSelect({metric, target, calibrated, offered, onSubject, onMetric, declaration}: {
   metric: string; target: ReviewTarget; calibrated: boolean;
   /** Whether a metric can be chosen when its subject is the chosen region (the demo offers what it holds). */
