@@ -1,4 +1,4 @@
-import {useId} from "react";
+import {useId, type KeyboardEvent, type ReactNode} from "react";
 import {SUBJECTS, SUBJECT_METRICS, UNIT_LABELS, metricChoice, metricSubject, subjectEntry, type MetricSubject, type SubjectMetric} from "@/lib/workspace/metric-catalog";
 import type {ReviewTarget} from "@/lib/workspace/review-preview";
 import styles from "./subject-metric.module.css";
@@ -18,6 +18,32 @@ function Pictogram({subject}: {subject: MetricSubject}) {
         : <circle key={cx} cx={cx} cy={cy} r={r} fill="#fff" stroke={line} strokeWidth="1"/>)}
     </>}
   </svg>;
+}
+
+interface Radio<T extends string> {value: T; label: ReactNode; disabled?: boolean; title?: string}
+/** A choice of one (WAI-ARIA radio group): a single Tab stop on the checked radio; the arrow keys move to the next
+ * choosable radio and choose it. */
+function RadioGroup<T extends string>({radios, value, onChoose, className, label}: {
+  radios: Radio<T>[]; value: T; onChoose: (value: T) => void; className: string;
+  label: {"aria-labelledby": string} | {"aria-label": string};
+}) {
+  const focusable = radios.some(radio => radio.value === value && !radio.disabled) ? value : radios.find(radio => !radio.disabled)?.value;
+  function move(event: KeyboardEvent<HTMLButtonElement>, from: number) {
+    const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
+    if (!step) return;
+    event.preventDefault();
+    for (let offset = 1; offset < radios.length; offset++) {
+      const index = (from + step * offset + radios.length) % radios.length;
+      if (radios[index].disabled) continue;
+      event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("[role=radio]")[index]?.focus();
+      if (radios[index].value !== value) onChoose(radios[index].value);
+      return;
+    }
+  }
+  return <div className={className} role="radiogroup" {...label}>
+    {radios.map((radio, index) => <button key={radio.value} type="button" role="radio" aria-checked={radio.value === value} tabIndex={radio.value === focusable ? 0 : -1}
+      disabled={radio.disabled} title={radio.title} onKeyDown={event => move(event, index)} onClick={() => {if (radio.value !== value) onChoose(radio.value);}}>{radio.label}</button>)}
+  </div>;
 }
 
 /** The statistics side panel's choice of what to measure: the subject first (a pictogram of the nucleus), then that
@@ -40,9 +66,8 @@ export function SubjectMetricSelect({metric, target, calibrated, offered, onSubj
   const choice = metricChoice(metric);
   return <>
     <div className={styles.caption} id={`${id}-subject`}>対象</div>
-    <div className={styles.subjects} role="group" aria-labelledby={`${id}-subject`}>
-      {subjects.map(value => <button key={value} type="button" aria-pressed={value === subject} onClick={() => {if (value !== subject) onSubject(value);}}><Pictogram subject={value}/>{SUBJECT_LABELS[value]}</button>)}
-    </div>
+    <RadioGroup className={styles.subjects} label={{"aria-labelledby": `${id}-subject`}} value={subject} onChoose={onSubject}
+      radios={subjects.map(value => ({value, label: <><Pictogram subject={value}/>{SUBJECT_LABELS[value]}</>}))}/>
     <div className={styles.metric}>
       <div className={styles.caption}><span id={`${id}-metric`}>指標</span>{entry && <span className={styles.unit} id={`${id}-unit`}>{UNIT_LABELS[entry.unit]}</span>}</div>
       <select aria-labelledby={`${id}-metric`} aria-describedby={entry ? `${id}-unit` : undefined} value={entry?.metric.variants[0].id ?? ""} onChange={event => onMetric(event.target.value, subject)}>
@@ -53,12 +78,9 @@ export function SubjectMetricSelect({metric, target, calibrated, offered, onSubj
           })}
         </optgroup>)}
       </select>
-      {variants.length > 1 && <div className={styles.variants} role="group" aria-label={variants.some(variant => variant.label === "µm²") ? "単位" : "補正"}>
-        {variants.map(variant => {
-          const unavailable = needsCalibration(variant.id);
-          return <button key={variant.id} type="button" aria-pressed={variant.id === metric} disabled={unavailable} title={unavailable ? "画素の大きさが必要" : undefined} onClick={() => onMetric(variant.id, subject)}>{variant.label}</button>;
-        })}
-      </div>}
+      {variants.length > 1 && <RadioGroup className={styles.variants} label={{"aria-label": variants.some(variant => variant.label === "µm²") ? "単位" : "補正"}}
+        value={metric} onChoose={value => onMetric(value, subject)}
+        radios={variants.map(variant => {const unavailable = needsCalibration(variant.id); return {value: variant.id, label: variant.label, disabled: unavailable, title: unavailable ? "画素の大きさが必要" : undefined};})}/>}
     </div>
     {choice && <small data-testid="metric-definition">{choice.definition}</small>}
   </>;
