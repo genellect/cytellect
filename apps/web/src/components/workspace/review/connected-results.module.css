@@ -57,3 +57,7 @@
 .legendDraft{max-width:760px;margin:0 0 18px;display:grid;gap:6px}
 .legendHead{display:flex;align-items:center;gap:10px}.legendHead button{font-size:14px;padding:4px 12px}.legendHead span{font-size:12px;color:#66717f}
 .legendDraft textarea{width:100%;font:13px/1.5 ui-sans-serif,system-ui,sans-serif;padding:8px;border:1px solid #d5dbe3;border-radius:4px;resize:vertical;box-sizing:border-box}
+/* A declared experiment design, read on one line (genellect/cytellect#257 D-6). */
+.designLine{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;margin:0;color:#26303c;font-size:14px}
+.designLine span+span::before{content:"・";margin-right:12px;color:#8a94a3}
+.designLine button{margin-left:auto;border:0;background:none;padding:0;color:#2468cc;cursor:pointer;font-size:14px}
