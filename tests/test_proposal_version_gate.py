@@ -88,7 +88,10 @@ def test_both_distribution_paths_require_the_protected_gate():
             assert "proposal-compatibility" in ancestors(mapping, target)
         gates = [name for name in mapping if name.endswith("proposal-compatibility")]
         for gate in (mapping[name] for name in gates):
-            assert "environment: proposal-preflight" in gate
+            if file == "local-release.yml":
+                assert "inputs.automatic) && 'windows-exe-preflight' || 'proposal-preflight'" in gate
+            else:
+                assert "environment: proposal-preflight" in gate
             assert "doctor --proposal-version --packaged-client" in gate
             assert "persist-credentials: false" in gate  # the job that holds the token keeps no repository token
             assert "pull_request" not in (ROOT / ".github/workflows" / file).read_text(encoding="utf-8").split("jobs:")[0]
