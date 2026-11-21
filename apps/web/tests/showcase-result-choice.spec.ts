@@ -170,7 +170,8 @@ test("a subject chosen before the opening result arrives stays chosen (M-01)", a
     await page.goto(url("step=statistics"));
     await expect(subjectRadio(page, subject)).toBeVisible({timeout: live});
     await subjectRadio(page, subject).click();
-    await expect(page.getByRole("region", {name: "結果のまとめ"})).toBeVisible({timeout: live});
+    // The chosen condition's result (a comparison, or the per-run values where a comparison is not possible).
+    await expect(page.getByRole("region", {name: "測定結果の統計解析"}).getByRole("heading", {level: 3}).first()).toBeVisible({timeout: live});
     await page.waitForLoadState("networkidle");
     // Neither the opening comparison nor the move to a recorded region takes the researcher's subject back.
     await expect(subjectRadio(page, subject)).toBeChecked();
