@@ -50,6 +50,10 @@ PR では、`scripts/ci_changes.py` が、`main` との差分のファイルか�
 - **ローカル版の Web 出力**（`web`）：生成するファイルが配布物の許可リストに収まるか。例：`sitemap.xml` を加えたとき。パッケージ化のスクリプトを変えたときも実行する。
 - **本番の Web コンテナのビルド範囲**（`web`）：Web と契約のコードが相対パスで読み込むファイルを、`infra/Dockerfile.web` がすべてコピーしているか（`scripts/check_web_container_context.py`）。`next build` は試験ファイルも型検査するため、例えば試験が共有する `fixtures/` の JSON を読むときに要る。`infra/Dockerfile.web` を変えたときも実行する。
 
+## 外部からの取得
+
+Fiji を使う Linux のジョブ（`fiji-browser`、`browser-e2e`）は、固定した Fiji の配布物とプラグインを、`scripts/fiji_setup.py --cache-dir` で GitHub Actions のキャッシュに残し、次の実行で使い回す。キャッシュは Fiji の準備の直後に保存するので、後の工程が失敗しても次の実行で使える。キャッシュのキーは `engines/fiji/runtime.lock.json` のハッシュで、固定の一覧を変えると取り直す。使い回すときも、ファイルごとに固定の SHA-256 と照合し、合わないものは捨てて取り直す。公開ホスト（Maven Central など）は CI のランナーに 429 や一時的な 404 を返すことがあり、毎回取りに行くと、変更と関係なく `main` が失敗していた。Windows のジョブは、同じ考え方の `windows-installer` のキャッシュを使う。
+
 公開デモがブラウザで動かす Cytellect のホイールは、PR では作り直しを求めない（Python を変える PR がすべてホイールで競合するため）。`main` への push で解析のソースとのずれを警告として示し、ずれていれば作り直す（[公開デモ](showcase.md)）。デプロイの中で作る形に移す予定。
 
 ## 配布の条件
