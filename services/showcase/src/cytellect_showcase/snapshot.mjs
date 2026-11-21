@@ -164,7 +164,8 @@ const tabs = page.getByRole("navigation", {name: "作業の切替"});
 await step("statistics", () => tabs.getByRole("button", {name: "統計"}).click());
 await step("figure", () => tabs.getByRole("button", {name: "グラフ"}).click());
 const history = page.getByRole("combobox", {name: "保存した図", exact: true});
-if (await history.count()) {
+// The list appears once the saved results have loaded.
+if (await appears(history)) {
   const values = await history.locator("option:not([disabled])").evaluateAll(options => options.map(option => option.value));
   for (const value of values) await step(`figure ${value}`, () => history.selectOption(value));
   report.figures = values.length;
