@@ -140,3 +140,16 @@ def test_fiji_reports_the_last_transient_failure_when_retries_run_out(tmp_path, 
         server.shutdown()
     assert len(requests) == 6
     assert not (tmp_path / "cache").exists()
+
+
+def test_fiji_setup_continues_when_the_cache_cannot_be_written(tmp_path, monkeypatch):
+    module = load("fiji_setup")
+    monkeypatch.setattr("time.sleep", lambda _seconds: None)
+    blocker = tmp_path / "not-a-directory"
+    blocker.write_text("file", encoding="utf-8")
+    server, url, _requests = serve([])
+    try:
+        module.download(url, tmp_path / "artifact", hashlib.sha256(PAYLOAD).hexdigest(), cache=blocker / "cache")
+    finally:
+        server.shutdown()
+    assert (tmp_path / "artifact").read_bytes() == PAYLOAD

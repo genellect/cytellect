@@ -10,6 +10,7 @@ reused on the next setup (CI keeps it between runs); every reused copy is hash-c
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import http.client
 import json
@@ -88,10 +89,16 @@ def copy_cached(cache: Path, target: Path, expected: str) -> bool:
 
 
 def store_cached(cache: Path, target: Path, expected: str) -> None:
-    cache.mkdir(parents=True, exist_ok=True)
+    """Keep a verified download; the cache only saves time, so a failure to write it is a warning."""
     partial = cache / f".{expected}.partial"
-    shutil.copyfile(target, partial)
-    os.replace(partial, cache / expected)
+    try:
+        cache.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(target, partial)
+        os.replace(partial, cache / expected)
+    except OSError as error:
+        with contextlib.suppress(OSError):
+            partial.unlink(missing_ok=True)
+        print("Download cache not updated;", type(error).__name__, flush=True)
 
 
 def download(url: str, target: Path, expected: str, offline: Path | None = None, cache: Path | None = None) -> None:
@@ -116,8 +123,14 @@ def download(url: str, target: Path, expected: str, offline: Path | None = None,
         failure = "SHA-256 mismatch"
         print("Incomplete or mismatched artifact; retry", attempt + 1, "bytes", target.stat().st_size, flush=True)
         # A complete but incorrect payload must be fetched from byte zero.
-        with urllib.request.urlopen(urllib.request.Request(url, method="HEAD"), timeout=30) as response:
-            size = int(response.headers.get("Content-Length", "0"))
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, method="HEAD"), timeout=30) as response:
+                size = int(response.headers.get("Content-Length", "0"))
+        except urllib.error.HTTPError as error:
+            if error.code not in TRANSIENT_HTTP:
+                raise
+            size = 0
+            target.unlink()  # the size is unknown, so start the next attempt from byte zero
         if size and target.stat().st_size >= size:
             target.unlink()
     # Name the last failure: a rate limit that outlasts the retries is not a corrupted artifact.
