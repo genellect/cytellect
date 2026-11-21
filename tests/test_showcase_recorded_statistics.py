@@ -32,6 +32,31 @@ def test_lists_each_recorded_choice_once_per_scene():
     }}
 
 
+def test_the_seed_saved_results_are_recorded_choices(tmp_path):
+    """The demo opens a saved result without calculating it again, so no request is recorded for it: its choice comes
+    from the seed's saved results (the opening comparison and its companions must stay offered)."""
+    from cytellect_showcase.build import recorded_statistics, seed_statistics
+
+    spec = {"mode": "region-experimental-unit", "selection": {"source": "compartment-summary", "region_set_id": "nucleoplasm",
+                                                              "metric": "nucleolar_eccentricity", "channel_id": None}}
+    (tmp_path / "jobs.json").write_text(json.dumps([{"id": "j1"}, {"id": "j2"}]))
+    (tmp_path / "result.json").write_text(json.dumps({"spec": spec}))
+    (tmp_path / "other.json").write_text(json.dumps({"spec": {"mode": "descriptive"}}))
+    (tmp_path / "scenes.json").write_text(json.dumps({"version": 1, "scenes": [{"id": "ox", "workspaceId": "w1"}]}))
+    (tmp_path / "index.json").write_text(json.dumps({"version": 1, "entries": {
+        "GET /v1/workspaces/w1/jobs": {"status": 200, "file": "jobs.json"},
+        "GET /v1/jobs/j1/common-statistics": {"status": 200, "file": "result.json"},
+        # A job of no listed workspace and a failed read are not choices.
+        "GET /v1/jobs/j9/result": {"status": 200, "file": "other.json"},
+        "GET /v1/jobs/j2/result": {"status": 404, "file": "other.json"},
+    }}))
+    saved = seed_statistics(tmp_path)
+    assert saved == [("ox", spec)]
+    assert recorded_statistics([], saved) == {"version": 1, "scenes": {"ox": [
+        {"analysis": "comparison", "region": "nucleoplasm", "metric": "nucleolar_eccentricity", "channel": None,
+         "positivity": None, "gate": None}]}}
+
+
 def test_an_association_records_both_axes():
     from cytellect_showcase.build import recorded_statistics
 

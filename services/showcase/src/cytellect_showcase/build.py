@@ -1373,6 +1373,13 @@ def start_next(command: str, web: Path, env: dict, origin_port: int, ready_path:
     """Start ``next dev`` or ``next start`` and wait until it answers. The Next.js CLI sometimes stops
     once to show a notice instead of serving; a server that exits before answering is started again."""
     url = f"http://127.0.0.1:{origin_port}{ready_path}"
+    # A server left on the port (an interrupted build's) would answer for the new one and be recorded instead.
+    try:
+        urllib.request.urlopen(url, timeout=timeout)
+    except OSError:
+        pass
+    else:
+        raise SystemExit(f"port {origin_port} already answers; stop the server there before building")
     for _attempt in range(4):
         process = subprocess.Popen(["pnpm", "exec", "next", command, "--hostname", "127.0.0.1", "--port", str(origin_port)],
                                    cwd=web, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
@@ -1481,7 +1488,7 @@ def rank_examples(manifest: dict) -> list[int]:
 
 
 def journal(work: Path, origin_port: int, out: Path, scenes: list[dict], keep: str | None = None,
-            previous: Path | None = None) -> dict:
+            previous: Path | None = None, hours: float = 6) -> dict:
     """Record the tour on /demo (published seed, in-browser API) into ``snapshot/journal.json``.
 
     ``keep`` (a regular expression of walk names) keeps those walks' entries from the journal in
@@ -1530,7 +1537,8 @@ def journal(work: Path, origin_port: int, out: Path, scenes: list[dict], keep: s
         walker.stdin.write(json.dumps(config))
         walker.stdin.close()
         errors: list[str] = []
-        deadline = time.monotonic() + 21600
+        # Recording every scene in full (the public demo since 2026-11-21) takes longer than one with story scenes.
+        deadline = time.monotonic() + hours * 3600
         for line in walker.stderr:
             if line.startswith('{"progress"'):
                 log("journal", line.strip())
@@ -1546,6 +1554,10 @@ def journal(work: Path, origin_port: int, out: Path, scenes: list[dict], keep: s
             sys.stderr.write("".join(errors)[-4000:])
             raise SystemExit("journal walk failed")
         report = json.loads((destination / "journal-report.json").read_text())
+        # Choices the walk left out (a scene without the region) or the shared analysis refused: not offered by the demo.
+        for key in ("skipped", "unanswered"):
+            if report.get(key):
+                log(f"journal {key}", len(report[key]), json.dumps(report[key], ensure_ascii=False)[:4000])
         if report["alerts"] or report["consoleErrors"]:
             raise SystemExit(f"journal walk reported problems: {json.dumps(report, ensure_ascii=False)[:2000]}")
     finally:
@@ -1583,21 +1595,25 @@ def journal(work: Path, origin_port: int, out: Path, scenes: list[dict], keep: s
     return {key: report[key] for key in ("entries", "scenes", "kept_scenes", "reused_from_commit") if key in report}
 
 
-def recorded_statistics(entries: list[dict]) -> dict:
+def recorded_statistics(entries: list[dict], saved: list[tuple[str, dict]] = ()) -> dict:
     """The statistics the tour recorded, scene by scene (``snapshot/recorded-statistics.json``).
 
     The demo offers only these choices and shows their recorded results as soon as one is chosen
     (genellect/cytellect#257 D-1, owner decision 2026-11-21): a choice the tour did not record would
     end without a result. Each item is what the side panel chooses: the analysis, the region set,
-    the metric, the measured stain and the classified stain of a nucleus filter or positivity."""
+    the metric, the measured stain and the classified stain of a nucleus filter or positivity.
+    ``saved``: the seed's saved results (scene, request spec). The demo opens those without calculating
+    them again, so the tour records no request for them (seed_statistics)."""
     analyses = {"descriptive": "distribution", "region-experimental-unit": "comparison", "region-association": "association"}
     scenes: dict[str, dict[str, dict]] = {}
+    requests = []
     for entry in entries:
         path = entry.get("path", "").split("?")[0]
         if entry.get("method") != "POST" or not 200 <= int(entry.get("status") or 0) < 300 \
                 or not path.endswith(("/descriptive", "/common-statistics")) or not entry.get("body"):
             continue
-        body = json.loads(entry["body"])
+        requests.append(((entry.get("scene") or "").split(":")[0], json.loads(entry["body"])))
+    for scene, body in [*requests, *saved]:
         analysis = analyses.get(body.get("mode", ""))
         selection = body.get("y_selection") if analysis == "association" else body.get("selection")
         if not analysis or not isinstance(selection, dict):
@@ -1610,15 +1626,41 @@ def recorded_statistics(entries: list[dict]) -> dict:
         if analysis == "association":
             x = body.get("x_selection") or {}
             item["x"] = {"metric": x.get("metric"), "channel": x.get("channel_id")}
-        scene = (entry.get("scene") or "").split(":")[0]
         scenes.setdefault(scene, {})[json.dumps(item, sort_keys=True)] = item
     return {"version": 1, "scenes": {scene: [items[key] for key in sorted(items)] for scene, items in sorted(scenes.items())}}
+
+
+def seed_statistics(target: Path) -> list[tuple[str, dict]]:
+    """The saved statistics of the opening state (``snapshot/index.json``) with their scene: each result's request
+    spec, found through the scene workspace's job list."""
+    import re
+
+    index = json.loads((target / "index.json").read_text())["entries"]
+    scenes_path = target / "scenes.json"
+    scenes = ({item["workspaceId"]: item["id"] for item in json.loads(scenes_path.read_text())["scenes"]}
+              if scenes_path.is_file() else {})
+    workspace_of: dict[str, str] = {}
+    for key, entry in index.items():
+        listed = re.fullmatch(r"GET /v1/workspaces/([^/?]+)/jobs", key)
+        if listed and entry.get("file") and entry.get("status") == 200:
+            for job in json.loads((target / entry["file"]).read_text()):
+                workspace_of[job["id"]] = listed.group(1)
+    saved = []
+    for key, entry in sorted(index.items()):
+        result = re.fullmatch(r"GET /v1/jobs/([^/?]+)/(result|common-statistics)", key)
+        if not result or not entry.get("file") or entry.get("status") != 200:
+            continue
+        spec = json.loads((target / entry["file"]).read_text()).get("spec")
+        workspace = workspace_of.get(result.group(1))
+        if isinstance(spec, dict) and workspace is not None:
+            saved.append((scenes.get(workspace, ""), spec))
+    return saved
 
 
 def write_recorded_statistics(target: Path) -> None:
     entries = json.loads((target / "journal.json").read_text())["entries"]
     (target / "recorded-statistics.json").write_text(
-        json.dumps(recorded_statistics(entries), ensure_ascii=False, separators=(",", ":")) + "\n")
+        json.dumps(recorded_statistics(entries, seed_statistics(target)), ensure_ascii=False, separators=(",", ":")) + "\n")
 
 
 def _owner_session(app, workspace_id: str) -> str:
@@ -1805,6 +1847,8 @@ def main(argv: list[str] | None = None) -> None:
                         help="regular expression of journal walks kept from --journal-previous instead of recorded again")
     parser.add_argument("--journal-previous", type=Path, default=None,
                         help="snapshot directory holding the journal and files the kept walks come from")
+    parser.add_argument("--journal-hours", type=float, default=6,
+                        help="journal: stop the walk after this many hours")
     parser.add_argument("--figures-reuse", action="store_true",
                         help="figures: keep the groups the previous run drew and draw only the rest")
     parser.add_argument("--figure-drawings", type=Path,
@@ -1944,7 +1988,7 @@ def main(argv: list[str] | None = None) -> None:
              "rank": rank_examples(manifest),
              "gateChannels": manifest["scenario"].get("gate_channels", []),
              "scope": journal_scope(manifest), "story": story_metrics(manifest)} for _, manifest in manifests],
-            keep=args.journal_keep, previous=args.journal_previous)
+            keep=args.journal_keep, previous=args.journal_previous, hours=args.journal_hours)
         save()
         write_manifest(args, manifests, state)
     if "figures" in stages:
