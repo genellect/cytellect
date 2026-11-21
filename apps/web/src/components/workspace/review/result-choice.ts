@@ -148,6 +148,9 @@ export function sameMethod(operation: ResultOperation, spec: SavedResultLike["sp
   const kind = spec.design?.kind;
   if (kind && kind !== (chosen.paired ? "paired" : "independent")) return false;
   if (!spec.test) return true;
+  // A description answers a choice that could be tested as well: chosen without 計算, a comparison is described, and
+  // 計算 tests it (D-5, genellect/cytellect#257 decision 11). A test never answers a choice that cannot be tested.
+  if (spec.test === "none") return true;
   const expected = !chosen.inference ? "none" : chosen.paired ? (chosen.rank ? "wilcoxon" : "paired-t") : (chosen.rank ? "mann-whitney-u" : "welch-t");
   return spec.test === expected;
 }

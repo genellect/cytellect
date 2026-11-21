@@ -92,7 +92,7 @@ review route `/workspace-review` (the workspace without its session gate) redire
   `?step=image|statistics|figure` opens that tab; statistics and figures open on the latest saved
   result, and saved comparisons switch with one click (保存した比較); a condition chosen in the side
   panel opens its own saved result at once, and without one the demo replays its recorded calculation
-  (production describes it once the confirmations are given), never showing another condition's
+  (production describes it; a test runs only on 計算), never showing another condition's
   result (genellect/cytellect#257 D-1), and グラフ follows the same choice both ways (a saved figure chosen
   there sets the side panel; SR-04); a design of two or more groups is compared (分布 is offered only
   to a design without a comparison, or when every pair holds saturated pixels), an analysis the measure
@@ -104,6 +104,17 @@ review route `/workspace-review` (the workspace without its session gate) redire
   フォルダ buttons do; the first images of a workspace without a form wait for the choice of the form
   (1 画面 takes them, 2 画面 asks which run and group, 実験デザインなしで登録 keeps typing groups per field
   in statistics, 取り消す drops them), so they never open in a view the researcher did not choose.
+- Production only, 統計 has no confirmations (owner decision 11, 2026-11-21, genellect/cytellect#257): the
+  regions and fields are those adopted in 画像, the acquisition and pixel settings (群の間で撮影・画素条件を比べられる)
+  and the runs' independence are declared in 実験 beside each other and shown there as status marks (撮影条件、
+  独立性), pairing follows the declared layout, and nuclei without an established nucleolus are kept as missing
+  under `unresolved-as-missing/1.0.0` and counted in the result's n. A request states exactly these
+  declarations. While earlier work is missing, the result's place shows that one item in one line that opens its
+  screen (「実験：撮影条件 未確認 →」, 「画像：未測定 3 視野 →」). The statement covers both cases of S10: the same
+  settings, or a calibrated pixel size for areas in µm² (sent as `calibrated-area`; otherwise `same-settings`). A
+  workspace registered without a design has no place to declare them, so it keeps one confirmation in 統計 for its
+  typed groups, units and acquisition (owner decision on genellect/cytellect#273, 2026-11-21). The demo shows no such line and no
+  撮影条件 mark: its recorded design states no acquisition settings and its calculations replay the tour's record.
 - Demo only: the AI composer also offers the recorded instructions (`snapshot/proposal-examples.json`)
   as examples. The header shows a デモ badge with the image source and limits (`snapshot/dataset.json`)
   and a ダウンロード link. Image, folder, drag-and-drop and CSV intake open a dialog that points to the

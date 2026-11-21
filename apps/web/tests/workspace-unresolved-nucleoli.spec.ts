@@ -4,9 +4,10 @@ import type {WorkspaceSelection} from "../src/lib/workspace/api-adapter";
 import {nucleusTableFixture} from "./nucleus-table-fixture";
 
 /** Requirements Q-05 (genellect/cytellect#109), transport and UI only: a nucleus whose nucleolus could not
- * be established is listed by group, unit and reason before the calculation; the comparison runs once
- * the list is confirmed, the policy and the exact per-field list are sent, and the result states the
- * denominators and the warning beside it. Fixed response records, not microscopy acceptance. */
+ * be established stays as missing. Since genellect/cytellect#257 decision 11 (owner, 2026-11-21) 統計 asks for no
+ * confirmation of its own: the design and its acquisition statement are declared in 実験, the policy and the
+ * ledger's exact per-field list are sent with the calculation, and the result states the denominators and the
+ * warning beside it. Fixed response records, not microscopy acceptance. */
 async function nucleolarWorkspace(context:BrowserContext,page:Page){
   const writes:Array<{path:string;body:Record<string,unknown>}> = [];
   const unexpected:string[]=[];
@@ -15,7 +16,12 @@ async function nucleolarWorkspace(context:BrowserContext,page:Page){
   const nuclear={id:"region-2d",version:"1.7.0",source:"stardist_nuclear",region_set_id:"nuclei",label:"核",defining_channel_id:"c1",nuclear_role_source:"recorded_stain"};
   const nucleolar={id:"region-2d",version:"1.4.0",source:"fiji_nuclear_compartment",region_set_id:"nucleoli",label:"核小体",compartment:"nucleoli",defining_channel_id:"c2"};
   let selection:WorkspaceSelection={version:1,entries:fieldIds.map((id,index)=>({id,field_id:id,revision_id:`n${index+1}`,target_revisions:{nuclei:`r${index+1}`,nucleoli:`n${index+1}`},exclusion_reason:null}))};
-  let spec:{version:number;spec:Record<string,unknown>|null}={version:0,spec:null};
+  // Two declared groups of one run (transport records only); the acquisition statement is made in the test.
+  const experiment={version:"1.0.0",layout:"pair",groups:[{id:"a",label:"A"},{id:"b",label:"B"}],control_group_id:"a",
+    runs:[{id:"r1",label:"R1",performed_on:null,acquired_on:null}],independence_confirmed:true,
+    fields:{f1:{group_id:"a",run_id:"r1",sample:null,acquired_on:null},f2:{group_id:"b",run_id:"r1",sample:null,acquired_on:null}}};
+  let spec:{version:number;spec:Record<string,unknown>|null}={version:1,spec:{schema_version:"1.0.0",channel_assignment_version:1,target:"nuclei",settings:{},experiment}};
+  const posted:Array<Record<string,unknown>>=[];
   let statistics:Record<string,unknown>|null=null,cohort:Record<string,unknown>|null=null,review:Record<string,unknown>|null=null;
   const revision=(id:string,fid:string,recipe:Record<string,unknown>)=>({id,state:"succeeded",created:1,config:{recipe,field_ids:[fid],measurement:{version:"1.1.0",mode:"raw_intensity"},backgrounds:{}}});
   // A nucleolar result is shown only on its own parent nuclear revision and nuclear channel.
@@ -50,7 +56,7 @@ async function nucleolarWorkspace(context:BrowserContext,page:Page){
     if(path.endsWith("/compartment-ledger")){const rid=path.split("/")[3];return json({policy:"unresolved-as-missing/1.0.0",fields:ledgers[rid]});}
     if(path.endsWith("/region-cohorts")){cohort=body;return json({job_id:"cohortjob",revision_id:"cohort"},202);}
     if(path.endsWith("/review")){review=body;return json({reviewed:true});}
-    if(path.endsWith("/common-statistics")){if(method==="POST"){statistics=body;return json({job_id:"stats"},202);}
+    if(path.endsWith("/common-statistics")){if(method==="POST"){statistics=body;posted.push(body);return json({job_id:"stats"},202);}
       return json({revision_id:"cohort",source_kind:"region-2d",analysis_kind:"region-comparison",region_comparison_version:"2.0.0",spec:statistics,comparisons:[],counts:[],warnings:["compartment_missing_rate_differs"],source_fields:[],estimates:null,compartment_missing:missing,figure:{source_files:[]}});}
     if(path.endsWith("/region-measurements")){const rid=path.split("/")[3],fid=rid.endsWith("2")?"f2":"f1";return json({revision_id:rid,protocol_version:"3.0.0",measurement:{version:"1.1.0",mode:"raw_intensity"},field_failures:[],exclusions:[],field_tables:{[fid]:{rows:[1,2].map(region_id=>({region_id,channel_id:"c2",area_px:region_id*10,area_um2:null,mean:30,median:29,integrated:300}))}}});}
     // Adopted nuclei open on their nucleus table before the statistics tab is chosen (MV-07); whether that request
@@ -61,10 +67,11 @@ async function nucleolarWorkspace(context:BrowserContext,page:Page){
     const record=revisions.find(value=>path.endsWith(`/revisions/${value.id}`));if(record)return json(record);
     unexpected.push(`${method} ${path}${url.search}`);return json({detail:"unexpected_transport_route"},404);
   });
-  return {writes,unexpected,cohort:()=>cohort,review:()=>review};
+  return {writes,unexpected,cohort:()=>cohort,review:()=>review,posted,
+    design:()=>(spec.spec?.experiment??null) as Record<string,unknown>|null};
 }
 
-test("unresolved nucleoli are confirmed by group, unit and reason, then kept as missing beside the result",async({page,context})=>{
+test("unresolved nucleoli stay as missing without a confirmation of their own, counted beside the result (Q-05, #257 decision 11)",async({page,context})=>{
   const fixture=await nucleolarWorkspace(context,page);
   await page.goto("/workspace?id=w");
   const navigation=page.getByRole("navigation",{name:"作業の切替"});
@@ -73,30 +80,35 @@ test("unresolved nucleoli are confirmed by group, unit and reason, then kept as 
   await side.getByRole("radiogroup",{name:"対象",exact:true}).getByRole("radio",{name:"核小体",exact:true}).click();
   await side.getByRole("combobox",{name:"指標",exact:true}).selectOption("area_px");
   const panel=page.getByRole("region",{name:"測定結果の統計解析"});
-  // The settings saved by choosing the region and metric come back and set the analysis they hold;
-  // the comparison is chosen once that round trip has settled.
   await page.waitForLoadState("networkidle");
-  const analysis=panel.getByRole("combobox",{name:"解析",exact:true});
-  await expect(async()=>{await analysis.selectOption("comparison");await expect(panel.getByLabel("独立実験単位",{exact:true})).toBeVisible({timeout:2000});}).toPass({timeout:30000});
-  await panel.getByLabel("独立実験単位",{exact:true}).fill("Transport independent units");
-  for(let i=0;i<2;i++)for(const [key,value] of [["condition",i?"B":"A"],["sample",`sample-${i}`],["experimental_unit",`unit-${i}`]])await panel.locator(`input[aria-label$=" ${key}"]`).nth(i).fill(value);
-  await panel.getByLabel("A / B",{exact:true}).check();
-  await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み",{exact:true}).check();
-  await panel.getByLabel("測定領域と採用する視野を確認済み",{exact:true}).check();
-  // The list names each group and unit with its missing nuclei over all nuclei and the reason.
-  const list=panel.getByRole("region",{name:"核小体を確定できない核"});
-  await expect(list).toBeVisible();
-  await expect(list.getByRole("row").filter({hasText:"unit-0"})).toContainText("1 / 3（33.3%）");
-  await expect(list.getByRole("row").filter({hasText:"unit-0"})).toContainText("核小体が見つからない 1");
-  await expect(list.getByRole("row").filter({hasText:"unit-1"})).toContainText("0 / 2");
-  const calculate=panel.getByRole("button",{name:"計算",exact:true});
-  await expect(calculate).toBeDisabled();
-  await list.getByLabel("この一覧を確認し、欠測として残して計算する",{exact:true}).check();
-  await expect(calculate).toBeEnabled();
-  await calculate.click();
+  // Two declared groups are compared (decision 15). 統計 has no confirmation: without the acquisition statement of 実験
+  // nothing is calculated, and the result's place names that one item.
+  await expect(panel.getByRole("combobox",{name:"解析",exact:true})).toHaveValue("comparison");
+  const remaining=panel.getByRole("button",{name:"実験：撮影条件 未確認",exact:true});
+  await expect(remaining).toBeVisible();
+  await expect(panel.getByRole("checkbox",{name:/確認済み|欠測として残して計算する/})).toHaveCount(0);
+  await expect(panel.getByRole("region",{name:"核小体を確定できない核"})).toHaveCount(0);
+  await expect(panel.getByRole("button",{name:"計算",exact:true})).toHaveCount(0);
+  expect(fixture.posted).toEqual([]);
+  expect(fixture.review()).toBeNull();
+  // The line opens 実験, where the statement is declared next to independence and shown as a status mark.
+  await remaining.click();
+  const setup=page.getByRole("region",{name:"実験デザイン"});
+  const status=setup.getByRole("list",{name:"実験デザインの状態"});
+  await expect(status.getByRole("listitem").filter({hasText:/^撮影条件：/})).toHaveText("撮影条件：未確認");
+  await expect(status.getByRole("listitem").filter({hasText:/^撮影条件：/}).getByRole("img",{name:"要確認"})).toBeVisible();
+  await setup.getByLabel("群の間で撮影・画素条件を比べられる",{exact:true}).check();
+  await expect.poll(()=>fixture.design()?.acquisition_confirmed).toBe(true);
+  await expect(status.getByRole("listitem").filter({hasText:/^撮影条件：/})).toHaveText("撮影条件：確認済み");
+  await expect(status.getByRole("listitem").filter({hasText:/^撮影条件：/}).getByRole("img",{name:"完了"})).toBeVisible();
+  await setup.getByRole("button",{name:"統計で比べる →",exact:true}).click();
+  // Chosen, the comparison is described at once (D-5): the cohort names the policy and the review sends the ledger's
+  // own per-field list, never a list typed or ticked in 統計.
   await expect.poll(()=>fixture.review()).not.toBeNull();
   expect(fixture.cohort()).toMatchObject({compartment_missing:"unresolved-as-missing/1.0.0"});
   expect(fixture.review()).toEqual({accept_invalidated_fields:[],compartment_missing:{policy:"unresolved-as-missing/1.0.0",confirmed:{f1:{no_candidate:1}}}});
+  await expect.poll(()=>fixture.posted.length).toBe(1);
+  expect(fixture.posted[0]).toMatchObject({test:"none",design:{kind:"paired",confirmed:true},acquisition_review:{confirmed:true,basis:"same-settings",spatial_sampling_confirmed:true},missingness_confirmed:true});
   // Beside the result: all missing over all nuclei, in the basis line of a comparison (RS-07), and the
   // within-run warning; the same card lists every group and unit.
   const summary=page.getByRole("region",{name:"結果のまとめ"}).or(page.getByRole("region",{name:"測定結果の統計解析"})).first();
@@ -105,5 +117,9 @@ test("unresolved nucleoli are confirmed by group, unit and reason, then kept as 
   const shown=page.getByRole("group",{name:"核小体を確定できない核の内訳"});
   await expect(shown.getByRole("row").filter({hasText:"unit-0"})).toContainText("1 / 3（33.3%）");
   await expect(shown.getByRole("row").filter({hasText:"unit-1"})).toContainText("0 / 2（0%）");
+  // The test waits for 計算, with the independence declared in 実験.
+  await panel.getByRole("button",{name:"計算",exact:true}).click();
+  await expect.poll(()=>fixture.posted.length).toBe(2);
+  expect(fixture.posted[1]).toMatchObject({test:"paired-t",design:{kind:"paired",confirmed:true}});
   expect(fixture.unexpected).toEqual([]);
 });

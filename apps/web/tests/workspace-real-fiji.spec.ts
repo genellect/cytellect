@@ -88,12 +88,14 @@ test("registered BBBC007 bytes pass real Fiji, raw measurement, correction and v
     "print(json.dumps({'rows':len(report['field_tables'][fid]['rows']),'max_absolute_error':max(errors),'label_count':int(len(np.unique(mask))-1)}))",
   ].join("\n"), data!, initial.revision_id, field.id, inputs!], {encoding: "utf8", env: process.env, stdio: ["ignore", "pipe", "pipe"]}));
   async function calculate(revision:string){
+    // genellect/cytellect#257 decision 11: 統計 asks for no confirmation. The adopted field is described as soon as its
+    // condition is chosen (D-5); the request answers the chosen measure and stain only.
+    const response=page.waitForResponse(value=>{if(new URL(value.url()).pathname!==`/v1/revisions/${revision}/descriptive`||value.request().method()!=="POST")return false;
+      const selection=(value.request().postDataJSON() as {selection?:{metric?:string;channel_id?:string|null}}).selection;return selection?.metric==="mean"&&selection.channel_id==="c1";},{timeout:240000});
     await page.getByRole("navigation",{name:"作業の切替"}).getByRole("button", {name: "統計", exact: true}).click();
+    await expect(page.getByRole("checkbox",{name:/確認済み/})).toHaveCount(0);
     await page.getByRole("complementary",{name:"解析対象"}).getByRole("combobox",{name:"指標",exact:true}).selectOption("mean");
     await page.getByRole("complementary",{name:"解析対象"}).getByRole("combobox",{name:"染色",exact:true}).selectOption("c1");
-    await page.getByLabel("測定領域と採用する視野を確認済み",{exact:true}).check();
-    const response=page.waitForResponse(value=>new URL(value.url()).pathname===`/v1/revisions/${revision}/descriptive`&&value.request().method()==="POST");
-    await page.getByRole("button",{name:"計算",exact:true}).click();
     const queued=await response;expect(queued.status()).toBe(202);const job=await queued.json();
     await expect(page.getByRole("button",{name:"計算",exact:true})).toBeEnabled({timeout:120000});
     await page.getByRole("navigation",{name:"作業の切替"}).getByRole("button",{name:"グラフ",exact:true}).click();
