@@ -53,17 +53,19 @@ PR では、`scripts/ci_changes.py` が、`main` との差分のファイルか�
 
 ## 配布の条件
 
-Windows のインストーラーと Store の両配布経路は、同じソース SHA の解析提案・考察の版を `proposal-compatibility` で確かめてからパッケージを作る。Store の定期提出も検査の成功を要する。定期実行では、提出待ちのパッケージがあるときだけ検査と承認の依頼を行う（`scheduled-proposal-compatibility`）。検査先は Windows に組み込む接続先と一致しなければならない。`proposal-preflight` environment にオーナーの承認を必須とし、接続先 `PROPOSAL_PREFLIGHT_URL` と資格情報 `PROPOSAL_PREFLIGHT_DEVICE_TOKEN` はその environment に置く。repository secret は使わない。未設定・不一致は配布を止める。モデル・GPUを呼ばず、利用回数にも数えない。[課金のない検査の手順](proposal-deployment.md#required-prompt-version-check-before-distribution)と、Docker／手動配布でも同じ確認を行う。
+EXE の自動配布を有効にすると、`Verify` の成功後に、成功した最新の `main` のコミットを選んで既存の配布試験を行う。自動経路の互換性検査と署名には、オーナーが `main` 限定で設定する EXE 専用環境を使う。運用・停止・再開は[配布手順](release-signing.md#exe-の自動配布)を参照する。
 
-Windows 版は、配布する `main` のコミットで次の 9 つのジョブがすべて成功している場合にだけ配布する（`.github/workflows/local-release.yml` が確かめる）。配布するコミットは、実行した時点の `main` の先頭か、入力 `commit` で指定したその祖先で、成功の確認・ビルド・署名・タグはすべてそのコミットに対して行う（[配布する](release-signing.md#4-配布する)）。ブランチ保護の必須チェックは、`windows-installer` と `browser-e2e` を除く 7 つのまま。`browser-e2e` は PR でも実行するが、必須チェックへの追加はオーナーが設定で行う（未設定）。それまでは、マージの前に `browser-e2e` の成功も確かめる。
+Windows のインストーラーと Store の両配布経路は、同じソース SHA の解析提案・考察の版を `proposal-compatibility` で確かめてからパッケージを作る。Store の定期提出も検査の成功を要する。定期実行では、提出待ちのパッケージがあるときだけ検査と承認の依頼を行う（`scheduled-proposal-compatibility`）。検査先は Windows に組み込む接続先と一致しなければならない。手動配布と Store はオーナーの承認が必要な `proposal-preflight` を使う。EXE の自動配布は `windows-exe-preflight` を使う。接続先 `PROPOSAL_PREFLIGHT_URL` と資格情報 `PROPOSAL_PREFLIGHT_DEVICE_TOKEN` はそれぞれの environment に置く。repository secret は使わない。未設定・不一致は配布を止める。モデル・GPUを呼ばず、利用回数にも数えない。[課金のない検査の手順](proposal-deployment.md#required-prompt-version-check-before-distribution)と、Docker／手動配布でも同じ確認を行う。
+
+Windows 版は、配布する `main` のコミットで次の 9 つのジョブがすべて成功している場合にだけ配布する（`.github/workflows/local-release.yml` が確かめる）。手動配布では実行時の `main` 先頭か入力 `commit` で指定した祖先、自動配布では `Verify` が成功した最新の `main` を選ぶ。成功の確認・ビルド・署名・タグはすべてそのコミットに対して行う（[配布する](release-signing.md#4-配布する)）。ブランチ保護の必須チェックは、`windows-installer` と `browser-e2e` を除く 7 つのまま。`browser-e2e` は PR でも実行するが、必須チェックへの追加はオーナーが設定で行う（未設定）。それまでは、マージの前に `browser-e2e` の成功も確かめる。
 
 `python`、`web`、`fiji-browser`、`browser-e2e`、`cellpose-gpu-image`、`local-windows`、`windows-installed`、`windows-installer`、`python-windows-314`
 
-加えて、インストーラーが同梱する GPL・LGPL などのソフトの、同梱した版ちょうどのソース（`Cytellect-<版>-gpl-sources.zip`）がそろわなければ、下書きのリリースを作らない。ソースが必要なのに固定されたソースがない部品は、例外の一覧（`engines/fiji/source-exceptions.json`）に同じ SHA-256 で載っているものだけを通し、それ以外の部品や、同梱物と合わなくなった例外があればビルドが失敗する。作成後に資産が添付されていなければ下書きを削除する（[GPL などの対応するソース](oss.md#gpl-などの対応するソース)）。
+加えて、インストーラーが同梱する GPL・LGPL などのソフトの、同梱した版ちょうどのソース（`Cytellect-<版>-gpl-sources.zip`）がそろわなければ、下書きのリリースを作らない。ソースが必要なのに固定されたソースがない部品は、例外の一覧（`engines/fiji/source-exceptions.json`）に同じ SHA-256 で載っているものだけを通し、それ以外の部品や、同梱物と合わなくなった例外があればビルドが失敗する。添付に失敗した場合、手動配布では下書きを削除し、自動配布では再試行できるよう下書きに留める（[GPL などの対応するソース](oss.md#gpl-などの対応するソース)）。
 
 `main` で失敗した場合は、次の配布までに修正するか取り消す。
 
-下書きのリリースを作る `draft` ジョブは environment `release` で動き、オーナーの承認を待つ。承認されると、アプリ内更新の manifest に secret `UPDATE_SIGNING_KEY` で署名し、アプリに組み込んだ公開鍵で検証してから、タグとリリースを作る。secret がない、または公開鍵と合わない場合は何も作らない（[リリースの署名](release-signing.md)）。
+`draft` は、手動配布ではオーナーの承認を待つ `release`、自動配布では `windows-exe-publish` で動く。アプリ内更新の manifest に secret `UPDATE_SIGNING_KEY` で署名し、アプリに組み込んだ公開鍵で検証してから下書きを作る。自動配布では、添付物の照合を通過した下書きを公開する（[リリースの署名](release-signing.md)）。
 
 リリースの本文は研究者向けの文で、`scripts/release_notes.py` が [`packaging/windows/release-notes.ja.md`](../packaging/windows/release-notes.ja.md) から作る。その版で何ができるようになったかは、`packaging/windows/release-highlights/<版>.ja.md` に利用者の言葉で書き、配布の前に `main` に入れる。このファイルがない場合、本文には前の版からのコミットの一覧へのリンクが入るので、公開する前に下書きで書き直す。試験の記録は本文に入れず、実行の Summary に出す。
 

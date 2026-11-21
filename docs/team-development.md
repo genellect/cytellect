@@ -79,7 +79,7 @@ Cytellect の開発に参加するメンバーのためのルール。開発の�
 ### 7. 本番公開と配布
 
 - `main` へのマージは、Vercel による本番サイトの自動デプロイを起動する。
-- Windows 版の配布は、`main` へのマージとは別に、配布物の導入後の受入確認を経てオーナーが行う。
+- Windows 版の配布には、配布物の導入後の受入確認を要する。オーナーは EXE の[自動配布](release-signing.md#exe-の自動配布)を有効にできる。手動配布と Store の公開は個別にオーナーの判断を得る。
 - 有料サービスの契約、外部サービスの追加、費用が発生する設定は、オーナーが判断する。
 
 ### 8. このルールの変更
@@ -165,7 +165,7 @@ Research data falls into these categories.
 ### 7. Production release and distribution
 
 - Merging into `main` triggers an automatic Vercel deployment of the production site.
-- Windows distribution is separate from merging into `main`; the owner releases it after installed-copy acceptance.
+- Windows distribution requires installed-copy acceptance. The owner can enable [automatic EXE distribution](release-signing.md#exe-の自動配布). Manual and Store releases require a separate owner decision.
 - The owner decides on paid subscriptions, new external services and settings that incur costs.
 
 ### 8. Changing these rules

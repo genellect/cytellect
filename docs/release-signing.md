@@ -4,10 +4,10 @@ Windows 版のアプリ内更新は、オーナーの Ed25519 鍵で署名され
 
 ## 仕組み
 
-パッケージ作成の前に、配布するソースと同じ SHA と、Windows に組み込む接続先で解析提案・考察の版を検査する。配布用の `PROPOSAL_PREFLIGHT_URL` と `PROPOSAL_PREFLIGHT_DEVICE_TOKEN` は、オーナーの承認を必須にした `proposal-preflight` environment に置き、検査ジョブだけで使う。repository secret、署名・パッケージのジョブへ渡さない。Store のパッケージと定期提出にも同じ検査を必須とする。未設定・不一致は配布を止める。[設定と検査の手順](proposal-deployment.md#required-prompt-version-check-before-distribution)を先に満たす。
+パッケージ作成の前に、配布するソースと同じ SHA と、Windows に組み込む接続先で解析提案・考察の版を検査する。配布用の `PROPOSAL_PREFLIGHT_URL` と `PROPOSAL_PREFLIGHT_DEVICE_TOKEN` は、手動配布と Store ではオーナーの承認を必須にした `proposal-preflight`、EXE の自動配布では `windows-exe-preflight` に置き、検査ジョブだけで使う。repository secret、署名・パッケージのジョブへ渡さない。Store のパッケージと定期提出にも同じ検査を必須とする。未設定・不一致は配布を止める。[設定と検査の手順](proposal-deployment.md#required-prompt-version-check-before-distribution)を先に満たす。
 
 - リリースごとに `Cytellect-update-<版>.json`（版、インストーラーのファイル名・SHA-256・大きさ、ソースのコミット、発行時刻）と、その署名 `Cytellect-update-<版>.json.sig` を添付する。
-- 署名は `.github/workflows/local-release.yml` の `draft` ジョブが行う。このジョブは environment `release` で動き、オーナーが承認するまで始まらない。secret `UPDATE_SIGNING_KEY` で `ssh-keygen -Y sign -n cytellect-update` を実行し、アプリと同じ検証（`scripts/update_manifest.py verify`）で確かめてから、タグと下書きのリリースを作る。secret がない場合や、組み込んだ公開鍵と合わない場合は、何も作らずに止まる。
+- 署名は `.github/workflows/local-release.yml` の `draft` ジョブが行う。手動配布はオーナーが承認する `release`、EXE の自動配布はオーナーが有効にした `windows-exe-publish` 環境で動く。secret `UPDATE_SIGNING_KEY` で `ssh-keygen -Y sign -n cytellect-update` を実行し、アプリと同じ検証（`scripts/update_manifest.py verify`）で確かめてから、タグと下書きのリリースを作る。secret がない場合や公開鍵と合わない場合は公開せずに止まる。自動配布では再試行に使うタグが先に作られる。
 - インストール済みのアプリは、組み込んだ公開鍵（`services/api/src/cytellect_api/update_signature.py` の `UPDATE_PUBLIC_KEY`）で署名を確かめ、manifest の版と、インストーラーの SHA-256 と大きさが一致したときだけ実行する。リリースの `.sha256` と GitHub の digest は信頼の起点にしない。
 - 公開鍵が空の版は、アプリ内で更新しない。新しい版があれば「cytellect.app から新しい版のインストーラーをダウンロードして開いてください」と表示する。
 - 秘密鍵はリポジトリ・Issue・PR・チャット・CI のログに置かない。CI と試験は、実行のたびに生成する試験用の鍵を使う。
@@ -50,7 +50,22 @@ UPDATE_PUBLIC_KEY = "ssh-ed25519 AAAA... cytellect-update"
 
 ## 4. 配布する
 
-1. **Actions → Prepare Windows release** を、ブランチ `main` のまま実行する。`version` に新しい版を入れ、`commit` に配布するコミットの SHA（40 文字）を入れる。`commit` を空にすると、実行した時点の `main` の先頭を配布する。
+### EXE の自動配布
+
+オーナーが有効化すると、`main` への push の `Verify` が成功した時点で `Prepare Windows release` が起動する。直近に成功したコミットを `main` の履歴順で選び、同じ SHA の配布を再開するときは、予約済みのタグと有効期限内の検証済み成果物を使う。手動の配布と同じインストール試験と署名を通し、下書きの添付物の SHA-256 を照合して公開する。公開済み EXE と署名済み manifest が一致したら、`windows-exe-channel` ブランチの `windows-exe.json` を更新する。公式サイトはこの記録から版を選び、アプリ内更新は GitHub Releases から選ぶ。
+
+有効化はオーナーが行う。
+
+1. GitHub の `windows-exe-preflight` と `windows-exe-publish` environments を作成し、デプロイ元を `main` に限定する。自動経路には実行ごとの承認者を設定しない。
+2. `windows-exe-preflight` に変数 `PROPOSAL_PREFLIGHT_URL` と秘密 `PROPOSAL_PREFLIGHT_DEVICE_TOKEN`、`windows-exe-publish` に秘密 `UPDATE_SIGNING_KEY` を登録する。[配布前の互換性検査](proposal-deployment.md#required-prompt-version-check-before-distribution)とこの文書の鍵の手順を使う。
+3. 初回の配布候補を確認し、リポジトリ変数 `WINDOWS_EXE_AUTO_RELEASE` を `true` にする。次の `Verify` 成功時、定期実行時、または Actions の `automatic` を選んだ手動起動時に配布を進める。
+4. 初回は Actions の公開ログと配布記録、公式サイトからの取得・新規導入、既存版からのアプリ内更新を確認する。サイトの記録は GitHub とサイトのキャッシュを経て反映される。
+
+停止時は `WINDOWS_EXE_AUTO_RELEASE` を無効にし、進行中の自動配布を Actions で取り消す。修正後は `automatic` で起動する。公開後にサイト反映だけ失敗した場合も同じ操作で再開でき、すでに公開した EXE の版・ファイルを再利用する。6時間ごとの実行も公開記録を再確認する。公開済み版の差し替えが必要な場合は、修正した `main` を新しい版として配布する。緊急の手動配布は下記の手順に従う。署名鍵を交換するときは自動配布を停止し、手順 5 の配布を済ませてから再開する。
+
+### 手動配布
+
+1. **Actions → Prepare Windows release** を、ブランチ `main` のまま実行する。`automatic` は選ばず、`version` に新しい版を入れ、`commit` に配布するコミットの SHA（40 文字）を入れる。`commit` を空にすると、実行した時点の `main` の先頭を配布する。
 2. `package` ジョブの後、`draft` ジョブが承認待ちになる。内容を確かめて **Approve** する。
 3. 下書きのリリースに `Cytellect-Setup-<版>.exe`、`Cytellect-update-<版>.json`、`Cytellect-update-<版>.json.sig` があり、本文が研究者向けの文になっている（[CI](ci.md) の配布の節）こと、実行の Summary の `Source:` が指定したコミットであることを確かめてから公開する。
 4. 公開した後、サイトの「Windows版をダウンロード」をインストーラーに切り替える。公開されたインストーラーを取得して SHA-256 を確かめてから、別の PR で `apps/web/src/lib/published-release.json` の `version`、`asset`（`installer`）、`url`、`sha256`、`source_commit`、`size_bytes` を更新する（[手順](../apps/web/README.md#windows-release-link)）。公開前の版を記録しない。

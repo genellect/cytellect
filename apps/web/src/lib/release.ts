@@ -4,9 +4,7 @@ import published from "./published-release.json";
 // Published metadata is updated only after checking the actual public asset and checksum.
 // From 0.1.0-local.21 a release carries the per-user installer Cytellect-Setup-<version>.exe;
 // the record then names it with "asset": "installer". "zip" stays only for versions without an
-// installer. The record (version, asset, url, sha256, source_commit, size_bytes) is changed in its
-// own PR after the owner has published the release (apps/web/README.md, docs/release-signing.md).
-// No /latest redirects, background probes, or local-service discovery.
+// installer. This checked-in record is the fallback for the public release channel.
 export type WindowsAsset="installer"|"zip";
 const ASSET_PATH:Record<WindowsAsset,RegExp>={
  // The installer is accepted only from the tag of its own version: v<version>/Cytellect-Setup-<version>.exe.
