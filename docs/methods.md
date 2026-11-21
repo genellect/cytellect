@@ -731,8 +731,8 @@ Adds to the 1.0.0 metrics, for nuclei with at least one adopted nucleolus
 - `largest_nucleolus_fraction` (added 2026-11-21, genellect/cytellect#257 A-3): the pixel area of the nucleus's
   largest adopted nucleolus divided by the pixel area of its adopted nucleoli together (0–1], the nucleus table's
   `largest_nucleolus_fraction`. Near 1, the nucleolar area is in one large nucleolus; smaller values mean it is
-  divided among similar nucleoli. It is compared as a difference and read from the same per-nucleus shapes as
-  eccentricity (below).
+  divided among similar nucleoli. It is compared as a difference in percentage points, like the nucleolar area
+  fraction, and read from the same per-nucleus shapes as eccentricity (below).
 - Eccentricity is computed when the comparison runs, from each field's adopted
   nuclear mask (with its exclusions) and adopted nucleolar mask, the same inputs as
   the saved summary. Every summarized nucleus must have the same nuclear and
@@ -1107,7 +1107,8 @@ automatic background has no corrected CV, as for corrected intensities.
 
 Each result records, per source field, the protocol, the metric, the source protocol (`region-shape/1.0.0` or
 `nuclear-signal/1.0.0`), the minimum area and perimeter estimator for shape, and the value basis, background and the
-field's Otsu threshold for pixel signal. Methods state the definition, the minimum area or the range of field
+field's Otsu threshold for pixel signal. Treatment − control estimates are differences (shape, CV) or differences in
+percentage points (positive-area fraction), never ratios. Methods state the definition, the minimum area or the range of field
 thresholds, and the limits (2D values; staining, exposure and focus for CV; exposure and brightness for the positive
 area).
 

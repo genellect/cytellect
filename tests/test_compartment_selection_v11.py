@@ -103,7 +103,7 @@ def test_largest_nucleolus_fraction_reads_the_bound_shapes_like_the_nucleus_tabl
                                        summaries=summaries, shapes=shapes)
     assert set(values(result).values()) == set(by_unit.values())
     assert {row["missing_reason"] for row in result["observation_ledger"] if row["value"] is None} <= {"no_nucleolus"}
-    assert result["estimates"]["scale"] == "difference" and result["unit"] == "dimensionless"
+    assert result["estimates"]["scale"] == "fraction" and result["unit"] == "dimensionless"
     with pytest.raises(ValueError, match="compartment_summary_shape_unavailable"):
         analyze_region_comparison(report, config, v11("largest_nucleolus_fraction"), summaries=summaries)
     # The shape module computes it as the nucleus table does: largest object area / union area.

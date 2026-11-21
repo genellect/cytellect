@@ -60,7 +60,10 @@ _SCALES: dict[str, MetricScale] = {
     "nucleus_count": "ratio", "nucleus_density_per_mm2": "ratio", "positive_count": "ratio",
     "positive_fraction": "fraction",
     "nucleolar_count": "ratio", "nucleolar_area_px": "ratio", "nucleolar_area_um2": "ratio",
-    "nucleolar_area_fraction": "fraction", "nucleolar_eccentricity": "difference", "largest_nucleolus_fraction": "difference",
+    "nucleolar_area_fraction": "fraction", "nucleolar_eccentricity": "difference", "largest_nucleolus_fraction": "fraction",
+    # region-features/1.0.0 (#257): shape and pixel CV are differences; the positive-area fraction is in percentage points.
+    "solidity": "difference", "axis_ratio": "difference", "eccentricity": "difference",
+    "cv": "difference", "cv_corrected": "difference", "positive_area_fraction": "fraction",
     "log2_nucleoplasm_over_nucleolus": "log2",
 }
 

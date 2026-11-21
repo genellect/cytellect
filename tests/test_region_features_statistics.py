@@ -111,13 +111,14 @@ def test_shape_comparison_association_export_and_replay(tmp_path):
     client, app, settings = authenticated(tmp_path)
     rid, _ = feature_units(client, app, settings)
     base = common_request()
-    shape = {**base, "selection": selection("axis_ratio"),
+    shape = {**base, "selection": selection("axis_ratio"), "estimates": "comparison-estimates/1.0.0",
              "acquisition_review": {**base["acquisition_review"], "spatial_sampling_confirmed": True}}
     value, methods = finished(client, app, settings, client.post(f"/v1/revisions/{rid}/common-statistics",
                                                                   headers=HEADERS, json=shape), "common-statistics")
     units = {row["experimental_unit"]: row["value"] for row in value["unit_summary"]}
     assert sorted(units.values()) == pytest.approx(sorted(rectangle_axis_ratio(h, w) for h, w, *_ in FIELDS))
     assert value["unit"] == "dimensionless" and value["channel"] is None
+    assert value["estimates"]["scale"] == "difference"
     association = common_request(association=True)
     pair = {**association, "x_selection": selection("axis_ratio"), "y_selection": selection("cv_corrected")}
     paired, _ = finished(client, app, settings, client.post(f"/v1/revisions/{rid}/common-statistics",
@@ -203,3 +204,11 @@ def test_one_list_of_feature_metrics():
 
     assert SHAPE_METRICS == OFFERED_METRICS
     assert set(FEATURE_METRICS) <= set(get_args(RegionMetric))
+
+
+@pytest.mark.parametrize("metric", FEATURE_METRICS)
+def test_every_feature_metric_has_a_treatment_control_estimate_scale(metric):
+    """A declared two-group comparison reports treatment − control on the metric's scale (comparison-estimates/1.0.0)."""
+    from cytellect_analysis.group_comparison_contracts import metric_scale
+
+    assert metric_scale(metric) == ("fraction" if metric == "positive_area_fraction" else "difference")
