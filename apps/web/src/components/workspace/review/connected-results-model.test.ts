@@ -2,7 +2,7 @@ import {descriptiveSupported} from "../../../lib/workspace/comparison-adapter";
 import {describe,it,expect} from "vitest";
 import {associationAxes,associationSupported,checkedPlot,exploratoryPositivity,saturatedGroups,emptyMetadata,numericFigureFiles,restoredMetric,resultRequest,resultSeries,runTable,seriesOrder,withMaskCorrections,type ResultDesign} from "./connected-results-model";
 
-const design:ResultDesign={operation:"comparison",metric:"mean",channel:"gfp",regionSet:"nuclei",paired:false,rank:false,unit:"independent cultures",pairing:"",confirmed:true,contrasts:[["A","B"]],xMetric:"area_px",xChannel:null};
+const design:ResultDesign={operation:"comparison",metric:"mean",channel:"gfp",regionSet:"nuclei",paired:false,rank:false,unit:"independent cultures",pairing:"",independence:true,acquisition:true,sampling:true,missingness:true,contrasts:[["A","B"]],xMetric:"area_px",xChannel:null};
 const fields={f1:{...emptyMetadata,condition:"A",sample:"s1",experimental_unit:"u1",acquisition_date:"day1"},f2:{...emptyMetadata,condition:"B",sample:"s2",experimental_unit:"u2",acquisition_date:"day1"}};
 const plot=checkedPlot(178,100,7,"","","","");
 describe("connected result contracts",()=>{
@@ -38,11 +38,26 @@ describe("connected result contracts",()=>{
     expect(resultRequest({...design,operation:"association",rank:true},fields,plot)).toMatchObject({mode:"region-association",method:"spearman",scope:"per-condition",x_selection:{metric:"area_px",channel_id:null},y_selection:{metric:"mean",channel_id:"gfp"},plot:{kind:"scatter"}});
   });
   it("blocks unconfirmed design and missing experimental metadata",()=>{
-    expect(()=>resultRequest({...design,confirmed:false},fields,plot)).toThrow();
+    // Without the acquisition statement of 実験 nothing is compared or associated, a description included (S10).
+    expect(()=>resultRequest({...design,acquisition:false,sampling:false},fields,plot)).toThrow("撮影条件");
+    expect(()=>resultRequest({...design,inference:false,acquisition:false,sampling:false},fields,plot)).toThrow("撮影条件");
+    expect(()=>resultRequest({...design,operation:"association",acquisition:false,sampling:false},fields,plot)).toThrow("撮影条件");
+    expect(()=>resultRequest({...design,missingness:false},fields,plot)).toThrow();
     expect(()=>resultRequest(design,{...fields,f1:{...fields.f1,experimental_unit:null}},plot)).toThrow();
   });
+  it("tests only with declared independence; a description needs none (E-05, genellect/cytellect#257 decision 11)",()=>{
+    expect(()=>resultRequest({...design,independence:false},fields,plot)).toThrow();
+    expect(resultRequest({...design,independence:false,inference:false},fields,plot)).toMatchObject({test:"none",design:{confirmed:true},acquisition_review:{confirmed:true,basis:"same-settings"},missingness_confirmed:true});
+    expect(()=>resultRequest({...design,operation:"association",independence:false},fields,plot)).toThrow("独立性");
+  });
+  it("states spatial sampling only from the acquisition statement",()=>{
+    expect(resultRequest({...design,metric:"area_px",channel:null},fields,plot)).toMatchObject({acquisition_review:{spatial_sampling_confirmed:true}});
+    expect(()=>resultRequest({...design,metric:"area_px",channel:null,sampling:false},fields,plot)).toThrow("空間サンプリング");
+    expect(resultRequest({...design,operation:"association"},fields,plot)).toMatchObject({design:{kind:"independent",confirmed:true},acquisition_review:{spatial_sampling_confirmed:true},missingness_confirmed:true});
+    expect(resultRequest({...design,operation:"association",sampling:false},fields,plot)).toMatchObject({acquisition_review:{spatial_sampling_confirmed:false}});
+  });
   it("distribution needs no fabricated experiment metadata",()=>{
-    expect(resultRequest({...design,operation:"distribution",confirmed:false},{f1:emptyMetadata},plot)).toMatchObject({mode:"descriptive",group_by:"field",selection:{metric:"mean",channel_id:"gfp"}});
+    expect(resultRequest({...design,operation:"distribution",independence:false,acquisition:false,sampling:false,missingness:false},{f1:emptyMetadata},plot)).toMatchObject({mode:"descriptive",group_by:"field",selection:{metric:"mean",channel_id:"gfp"}});
   });
   it("figure series and order list exactly the compared groups",()=>{
     const three={...fields,f3:{...emptyMetadata,condition:"C",sample:"s3",experimental_unit:"u3",acquisition_date:"day1"}};
@@ -117,7 +132,7 @@ describe("one-group summary distributions", () => {
     ["nucleolar_eccentricity", "compartment-summary", "1.1.0"],
   ])("keeps %s descriptive with unknown independence and one field", (metric, source, version) => {
     expect(descriptiveSupported(metric)).toBe(true);
-    const result = resultRequest({...design, operation:"distribution", metric, confirmed:false,
+    const result = resultRequest({...design, operation:"distribution", metric, independence:false, acquisition:false, sampling:false, missingness:false,
       channel:null, regionSet:source === "field-summary" ? "nuclei" : "nucleoplasm"}, {f1:emptyMetadata}, plot);
     expect(result).toMatchObject({mode:"descriptive", group_by:"field", selection:{source, version, metric},
       figure_policy:{version:"2.0.0", layout:"field-pages"}});

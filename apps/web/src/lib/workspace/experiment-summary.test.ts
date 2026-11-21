@@ -32,8 +32,16 @@ describe("experiment heading", () => {
 describe("status chips", () => {
   it("marks a complete design and the unconfirmed independence that limits it to description", () => {
     expect(statusChips(design(), fields([1, 2, 3, 4])).map(chip => [chip.label, chip.value, chip.ok])).toEqual([
-      ["実験回", "2", true], ["群", "2", true], ["視野", "4 / 4", true], ["独立性", "未確認 → 検定なし", false]]);
+      ["実験回", "2", true], ["群", "2", true], ["視野", "4 / 4", true], ["撮影条件", "未確認", false], ["独立性", "未確認 → 検定なし", false]]);
     expect(statusChips(design({ independence_confirmed: true }), fields([1, 2, 3, 4])).at(-1)).toMatchObject({ value: "確認済み", ok: true });
+  });
+  it("marks the acquisition statement declared in 実験 (genellect/cytellect#257 decisions 11 and 13)", () => {
+    const acquisition = (value: ExperimentDesign, recorded = false) => statusChips(value, fields([1, 2, 3, 4]), recorded).find(chip => chip.key === "acquisition");
+    expect(acquisition(design({ acquisition_confirmed: true }))).toMatchObject({ label: "撮影条件", value: "確認済み", ok: true });
+    expect(acquisition(design())).toMatchObject({ value: "未確認", ok: false });
+    // A recorded public design states nothing about acquisition: no mark is made up for it.
+    expect(acquisition(design(), true)).toBeUndefined();
+    expect(acquisition(design({ acquisition_confirmed: true }), true)).toMatchObject({ value: "確認済み", ok: true });
   });
   it("marks unassigned fields, a run without both groups and a missing control", () => {
     const missing = design({ control_group_id: null, fields: { f1: { group_id: "dmso", run_id: "r1", sample: null, acquired_on: null } } });

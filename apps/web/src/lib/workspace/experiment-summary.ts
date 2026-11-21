@@ -2,7 +2,7 @@ import {readiness,type ExperimentDesign} from "./experiment-design";
 
 /** A field as the 「実験」 view counts it: its adopted nuclei (null: not measured) and whether it is excluded. */
 export interface SummaryField {id:string;nuclei?:number|null;excluded?:boolean}
-export interface StatusChip {key:"runs"|"groups"|"fields"|"independence";label:string;value:string;ok:boolean}
+export interface StatusChip {key:"runs"|"groups"|"fields"|"acquisition"|"independence";label:string;value:string;ok:boolean}
 /** The experiment's own numbers, from the nuclei to the runs (n is the number of runs). */
 export interface SummaryCounts {nuclei:number|null;fields:number;runs:number}
 
@@ -19,9 +19,10 @@ export function experimentHeading(design:ExperimentDesign):string {
   return `2 群の比較：${ordered.map(group=>group.label).join(" × ")}`;
 }
 
-/** The state of the design as 項目：値, each complete (✓) or missing or limiting (▲). Independence is shown
- * only for two groups: one group is described, never tested. */
-export function statusChips(design:ExperimentDesign, fields:SummaryField[]):StatusChip[] {
+/** The state of the design as 項目：値, each complete (✓) or missing or limiting (▲). The acquisition statement and
+ * independence are shown only for two groups: one group is described, never compared. A recorded design (the public
+ * demo, `recorded`) shows the acquisition statement only when it states it: nothing is declared for public data. */
+export function statusChips(design:ExperimentDesign, fields:SummaryField[], recorded=false):StatusChip[] {
   const ids=fields.map(field=>field.id),codes=new Set(readiness(design,ids).map(issue=>issue.code));
   const runs=design.runs??[],assigned=ids.filter(id=>id in (design.fields??{})).length;
   const chips:StatusChip[]=[
@@ -31,6 +32,10 @@ export function statusChips(design:ExperimentDesign, fields:SummaryField[]):Stat
     {key:"fields",label:"視野",value:`${assigned} / ${ids.length}`,ok:ids.length>0&&assigned===ids.length
       &&!codes.has("experiment_design_unstratified_fields")&&!codes.has("experiment_design_unknown_fields")},
   ];
+  // Acquisition and pixel settings (S10, genellect/cytellect#257 decisions 11 and 13).
+  if(design.layout==="pair"&&(!recorded||design.acquisition_confirmed))chips.push(design.acquisition_confirmed
+    ?{key:"acquisition",label:"撮影条件",value:"確認済み",ok:true}
+    :{key:"acquisition",label:"撮影条件",value:"未確認",ok:false});
   if(design.layout==="pair")chips.push(design.independence_confirmed
     ?{key:"independence",label:"独立性",value:"確認済み",ok:true}
     :{key:"independence",label:"独立性",value:"未確認 → 検定なし",ok:false});
