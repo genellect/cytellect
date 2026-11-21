@@ -52,7 +52,7 @@ UPDATE_PUBLIC_KEY = "ssh-ed25519 AAAA... cytellect-update"
 
 ### EXE の自動配布
 
-オーナーが有効化すると、`main` への push の `Verify` が成功した時点で `Prepare Windows release` が起動する。直近に成功したコミットを `main` の履歴順で選び、同じ SHA の配布を再開するときは、予約済みのタグと有効期限内の検証済み成果物を使う。手動の配布と同じインストール試験と署名を通し、下書きの添付物の SHA-256 を照合して公開する。公開済み EXE と署名済み manifest が一致したら、`windows-exe-channel` ブランチの `windows-exe.json` を更新する。公式サイトはこの記録から版を選び、アプリ内更新は GitHub Releases から選ぶ。
+オーナーが有効化すると、`main` への push の `Verify` が成功した時点で `Prepare Windows release` が起動する。直近に成功したコミットを `main` の履歴順で選び、同じ SHA の配布を再開するときは、予約済みのタグと有効期限内の検証済み成果物を使う。手動の配布と同じインストール試験と署名を通し、下書きの添付物の SHA-256 を照合して公開する。公開済み manifest の署名を `main` または直前の保護済み配布記録のソースに組み込まれた公開鍵で検証し、EXE の記録と一致したら、`windows-exe-channel` ブランチの `windows-exe.json` を更新する。公式サイトはこの記録から版を選び、アプリ内更新は GitHub Releases から選ぶ。
 
 有効化はオーナーが行う。
 

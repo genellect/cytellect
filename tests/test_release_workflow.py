@@ -201,6 +201,7 @@ def test_manual_and_automatic_routes_enforce_their_release_protections():
     assert RELEASE.count("secrets.WINDOWS_EXE_CHANNEL_APP_PRIVATE_KEY") == 1
     assert "owner: genellect\n          repositories: cytellect\n          permission-contents: write" in channel
     assert "token: ${{ steps.channel-token.outputs.token }}" in channel
+    assert "services/api/src/cytellect_api/update_signature.py" in channel
     assert "!inputs.channel_only" in source
     assert "inputs.channel_only && vars.WINDOWS_EXE_AUTO_RELEASE != 'true'" in channel
 

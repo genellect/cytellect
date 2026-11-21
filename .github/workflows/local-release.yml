@@ -545,7 +545,9 @@ jobs:
           permission-contents: write
       - uses: actions/checkout@v5
         with:
-          sparse-checkout: scripts/windows_exe_release.cjs
+          sparse-checkout: |
+            scripts/windows_exe_release.cjs
+            services/api/src/cytellect_api/update_signature.py
           sparse-checkout-cone-mode: false
           token: ${{ steps.channel-token.outputs.token }}
           persist-credentials: true
