@@ -167,7 +167,7 @@ export function issueText(design:ExperimentDesign, issue:ReadinessIssue, fieldLa
     case "experiment_design_missing_combination": {
       const within = issue.stratum_id ? `層「${stratumLabel(design, issue.stratum_id)}」の ` : "";
       return design.layout === "pair"
-        ? `${within}${run(issue.run_id)} に ${issue.group_ids.map(group).join("、")} の画像がありません。この回は対にできません。`
+        ? `${within}${run(issue.run_id)} に ${issue.group_ids.map(group).join("、")} の画像がありません。この実験回は対にできません。`
         : `${within}${run(issue.run_id)} に画像がありません。`;
     }
     case "experiment_design_unstratified_fields": return `層が未割り当ての視野：${issue.field_ids.map(fieldLabel).join("、")}。層を選ぶまで、どの層の比較にも含めません。`;
