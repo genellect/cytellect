@@ -73,9 +73,11 @@ describe("NCL settings contracts without images",()=>{
 
 describe("marker smoothing protocol compatibility without images",()=>{
   const definition={source:"marker" as const,marker:"marker",pixelUm:null,relative:.7};
-  const old={...nucleolarDetectorV2(definition),protocol_version:"2.0.0" as const,smoothing_sigma_px:2};
-  it("creates new marker settings at 2.1 / 0.7 without changing DAPI defaults",()=>{
-    expect(nucleolarDetectorV2(definition)).toMatchObject({protocol_version:"2.1.0",source:"marker",smoothing_sigma_px:.7});
+  // A saved 2.0.0 record has none of the 2.2.0 fields.
+  const {minimum_area_um2:_area,minimum_contrast_snr:_contrast,...current}=nucleolarDetectorV2(definition) as ReturnType<typeof nucleolarDetectorV2>&{minimum_area_um2?:number|null;minimum_contrast_snr?:number};
+  const old={...current,protocol_version:"2.0.0" as const,smoothing_sigma_px:2};
+  it("creates new marker settings at 2.2 / 0.7 without changing DAPI defaults",()=>{
+    expect(nucleolarDetectorV2(definition)).toMatchObject({protocol_version:"2.2.0",source:"marker",smoothing_sigma_px:.7});
     expect(nucleolarDetectorV2({...definition,source:"dapi_poor"})).toMatchObject({protocol_version:"2.0.0",source:"dapi_poor",smoothing_sigma_px:2});
     expect(nucleolarDetectorV2({...definition,pixelUm:.1}).smoothing_sigma_px).toBe(.7);
   });

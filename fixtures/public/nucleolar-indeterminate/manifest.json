@@ -1,0 +1,688 @@
+{
+ "schema": "cytellect-public-nucleolar-indeterminate/1",
+ "protocol": "nucleolar-indeterminate-validation/1.0.0",
+ "script": "scripts/validate_nucleolar_indeterminate_public.py",
+ "originals": "Downloaded outside the checkout; never committed.",
+ "ds6b": "All 360 files of fixtures/public/nucleolar-shape/manifest.json: 30min and 2hrs = tuning, 4hrs = evaluation.",
+ "ds6a": {
+  "name": "DS6a_5EU_Pulse_RawData (Schmidt, Rohatgi, Brandman 2022)",
+  "source": "https://zenodo.org/records/6643470",
+  "doi": "10.5281/zenodo.6643470",
+  "license": "CC-BY-4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0/",
+  "citation": "Schmidt HB et al. Oxaliplatin disrupts nucleolar function through biophysical disintegration. Cell Reports 2022. doi:10.1016/j.celrep.2022.111629",
+  "attribution": "Images: Schmidt HB, Rohatgi R, Brandman O (2022), DS6a_5EU_Pulse_RawData, Zenodo, doi:10.5281/zenodo.6643470, CC BY 4.0. Originals are not redistributed; only aggregate values derived from them are stored.",
+  "scope": "U2OS FBL-sfGFP / NPM1-mTagRFP knock-in cells, 5-EU pulse, Hoechst. Olympus IX83, 40x/1.4 oil, 0.1625 um/px, single plane, uint16 (the registered demo scenes' description).",
+  "pixel_um": 0.1625,
+  "channels": {
+   "nuclear": 3,
+   "npm1": 1
+  },
+  "channel_basis": "The registered demo scenes (services/showcase/datasets/zenodo-6643470*.json): Hoechst = OME channel 3 (filter DAPI), NPM1-mTagRFP = OME channel 1 (filter TRITC). Checked in each file's OME.",
+  "record": 6643470,
+  "record_title": "DS6a_5EU_Pulse_RawData",
+  "record_license_id": "cc-by-4.0",
+  "record_files": 180,
+  "excluded_demo_files": [
+   "40x_1.4_Rep1_ActD1_20211201_01_51.tif",
+   "40x_1.4_Rep1_ActD1_20211201_01_52.tif",
+   "40x_1.4_Rep1_ActD1_20211201_01_53.tif",
+   "40x_1.4_Rep1_Cis10_20211201_01_11.tif",
+   "40x_1.4_Rep1_Cis10_20211201_01_12.tif",
+   "40x_1.4_Rep1_Cis10_20211201_01_13.tif",
+   "40x_1.4_Rep1_Ox10_20211201_01_31.tif",
+   "40x_1.4_Rep1_Ox10_20211201_01_32.tif",
+   "40x_1.4_Rep1_Ox10_20211201_01_33.tif",
+   "40x_1.4_Rep1_Untreated_20211201_01_01.tif",
+   "40x_1.4_Rep1_Untreated_20211201_01_02.tif",
+   "40x_1.4_Rep1_Untreated_20211201_01_03.tif",
+   "40x_1.4_Rep1_Untreated_20211201_01_05.tif",
+   "40x_1.4_Rep2_ActD1_20211201_01_111.tif",
+   "40x_1.4_Rep2_ActD1_20211201_01_112.tif",
+   "40x_1.4_Rep2_ActD1_20211201_01_113.tif",
+   "40x_1.4_Rep2_Cis10_20211201_01_71.tif",
+   "40x_1.4_Rep2_Cis10_20211201_01_72.tif",
+   "40x_1.4_Rep2_Cis10_20211201_01_73.tif",
+   "40x_1.4_Rep2_Ox10_20211201_01_91.tif",
+   "40x_1.4_Rep2_Ox10_20211201_01_92.tif",
+   "40x_1.4_Rep2_Ox10_20211201_01_93.tif",
+   "40x_1.4_Rep2_Untreated_20211201_01_61.tif",
+   "40x_1.4_Rep2_Untreated_20211201_01_62.tif",
+   "40x_1.4_Rep2_Untreated_20211201_01_63.tif",
+   "40x_1.4_Rep3_ActD1_20211201_01_171.tif",
+   "40x_1.4_Rep3_ActD1_20211201_01_172.tif",
+   "40x_1.4_Rep3_ActD1_20211201_01_173.tif",
+   "40x_1.4_Rep3_Cis10_20211201_01_131.tif",
+   "40x_1.4_Rep3_Cis10_20211201_01_132.tif",
+   "40x_1.4_Rep3_Cis10_20211201_01_133.tif",
+   "40x_1.4_Rep3_Ox10_20211201_01_151.tif",
+   "40x_1.4_Rep3_Ox10_20211201_01_152.tif",
+   "40x_1.4_Rep3_Ox10_20211201_01_153.tif",
+   "40x_1.4_Rep3_Untreated_20211201_01_121.tif",
+   "40x_1.4_Rep3_Untreated_20211201_01_122.tif",
+   "40x_1.4_Rep3_Untreated_20211201_01_123.tif"
+  ],
+  "excluded_rule": "Every file named in the sources of services/showcase/datasets/zenodo-6643470*.json (the registered demo scenes).",
+  "split_rule": "Parity of the first byte of SHA-256('cytellect-nucleolar-indeterminate/1:' + file name): even = tuning, odd = evaluation. Names only; fixed before download.",
+  "subset_rule": "Per replicate x condition x split, the 1 files with the smallest such digest (disk space).",
+  "split_counts": {
+   "tuning": 79,
+   "evaluation": 64
+  },
+  "registered_files": 36,
+  "files": [
+   {
+    "name": "40x_1.4_Rep1_ActD1_20211201_01_56.tif",
+    "replicate": "Rep1",
+    "condition": "ActD1",
+    "split": "tuning",
+    "split_digest": "2ad401cfc97ced6bcf20b3831365b1bc197c762f307f5299cb36253b9cc8fe86",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep1_ActD1_20211201_01_56.tif/content",
+    "bytes": 42566665,
+    "md5": "a21d9ecb622e036dad696071e8406ebe",
+    "sha256": "9dc69ccc29ceaf8547065af8c26245ca06dd779c4bc8f8565a0346cf26bfeb5e",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T18:27:28Z"
+   },
+   {
+    "name": "40x_1.4_Rep1_ActD1_20211201_01_59.tif",
+    "replicate": "Rep1",
+    "condition": "ActD1",
+    "split": "evaluation",
+    "split_digest": "0398dd60c10069867366aa65b42d0e705ff4469ae42e3e7d471b52ac714504b3",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep1_ActD1_20211201_01_59.tif/content",
+    "bytes": 42566719,
+    "md5": "6a62ae44ea979b0335d7b87ad52d4b22",
+    "sha256": "23a230d458a5d4a935d66e211802023d247a7bdf150f901d3ec90409146be0db",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T18:29:00Z"
+   },
+   {
+    "name": "40x_1.4_Rep1_Cis100_20211201_01_23.tif",
+    "replicate": "Rep1",
+    "condition": "Cis100",
+    "split": "evaluation",
+    "split_digest": "0b58c3350f8acb558f648378d8b4a7aeb1315b100b6ee0dedd8296e6b643ce38",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep1_Cis100_20211201_01_23.tif/content",
+    "bytes": 42566733,
+    "md5": "42232635be2783ba356dc34a3a66a798",
+    "sha256": "a6a7dcdde7bfb893c77dac84a290475e66760b96b52abe6b1983495a31674460",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T18:08:18Z"
+   },
+   {
+    "name": "40x_1.4_Rep1_Cis100_20211201_01_27.tif",
+    "replicate": "Rep1",
+    "condition": "Cis100",
+    "split": "tuning",
+    "split_digest": "007ba50e1377d4aea5e7dadddc1b1daff92f1c3fdad46a7073c631822cfe4bd2",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep1_Cis100_20211201_01_27.tif/content",
+    "bytes": 42566733,
+    "md5": "0a8889fb9e3beb74ba41f46637440a30",
+    "sha256": "74d7cb380c7e7554940ae1ec0dcac212c190048e21d0b7ec2cbe1d383480356e",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T18:10:36Z"
+   },
+   {
+    "name": "40x_1.4_Rep1_Cis10_20211201_01_14.tif",
+    "replicate": "Rep1",
+    "condition": "Cis10",
+    "split": "evaluation",
+    "split_digest": "bfcd784349b212be1fa7239e37f5583f418f42372af1afddcf8ff98e3070ffa0",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep1_Cis10_20211201_01_14.tif/content",
+    "bytes": 42566707,
+    "md5": "753ea42739372e5149a81c3b7846e4e0",
+    "sha256": "fce9c0e603abc7e53e6a6cce235802a2689526e422340c42ec38c4ab89edab6d",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T18:03:11Z"
+   },
+   {
+    "name": "40x_1.4_Rep1_Cis10_20211201_01_20.tif",
+    "replicate": "Rep1",
+    "condition": "Cis10",
+    "split": "tuning",
+    "split_digest": "780365cb1e93e4c0b951f66e00c2973e3a7317dd592fed482cb3c33336115c94",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep1_Cis10_20211201_01_20.tif/content",
+    "bytes": 42566719,
+    "md5": "ef2092606cb4866dc0f23d974c6bc4f6",
+    "sha256": "455f476dd7c4dada056b068210232287be32dab9e498d3c6e80b3a8807e731e9",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T18:06:12Z"
+   },
+   {
+    "name": "40x_1.4_Rep1_Ox100_20211201_01_43.tif",
+    "replicate": "Rep1",
+    "condition": "Ox100",
+    "split": "evaluation",
+    "split_digest": "2516adc0a6e34709ad969900d5310e17028b5674c897b15bd4e2925d4c74d9fe",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep1_Ox100_20211201_01_43.tif/content",
+    "bytes": 42566709,
+    "md5": "641f2b0cf422d1dd56aa180443abe452",
+    "sha256": "59156b87ce0f8e87d2dbeceb37d55cb5a04161ed309518db5a2d5d25b6dcfd1b",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T18:20:23Z"
+   },
+   {
+    "name": "40x_1.4_Rep1_Ox100_20211201_01_46.tif",
+    "replicate": "Rep1",
+    "condition": "Ox100",
+    "split": "tuning",
+    "split_digest": "18f9094a28b3245877cf0f0ade095db486bf3a6299d924cd6912432b732c1288",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep1_Ox100_20211201_01_46.tif/content",
+    "bytes": 42566719,
+    "md5": "3a723f6e983d9eec5b5056c19bdc4840",
+    "sha256": "1e7ca4e08edf71d3503d9b22912c78c307d71268c4768f931fdb6488bb2d00ea",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T18:22:10Z"
+   },
+   {
+    "name": "40x_1.4_Rep1_Ox10_20211201_01_35.tif",
+    "replicate": "Rep1",
+    "condition": "Ox10",
+    "split": "tuning",
+    "split_digest": "3a36db3ce2826eb88edf14985feed2aace30a3c6547a5f6d54e57f509eaa4512",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep1_Ox10_20211201_01_35.tif/content",
+    "bytes": 42566681,
+    "md5": "22670d9a21e25907522b9738f7f189b0",
+    "sha256": "01e87b8205fe3ec446f893525edcc3f13ca7398f88db8a51ed62b793c1dbad73",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T18:15:37Z"
+   },
+   {
+    "name": "40x_1.4_Rep1_Ox10_20211201_01_39.tif",
+    "replicate": "Rep1",
+    "condition": "Ox10",
+    "split": "evaluation",
+    "split_digest": "33e2799ed42e1b78c406d5383c6dc80d6e7dcf79f917cdea1f49f1bda327828b",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep1_Ox10_20211201_01_39.tif/content",
+    "bytes": 42566695,
+    "md5": "cd141f2a840a3a15579c69640c00521c",
+    "sha256": "67d2a9ad99730adc8f1bcd9a7312ca0172011c52a9c1af2431f89f79689f5449",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T18:17:42Z"
+   },
+   {
+    "name": "40x_1.4_Rep1_Untreated_20211201_01_07.tif",
+    "replicate": "Rep1",
+    "condition": "Untreated",
+    "split": "tuning",
+    "split_digest": "2243622caf912f469f52d30c56e9308d18e6fdee84b029ccd8e695fe2f09010b",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep1_Untreated_20211201_01_07.tif/content",
+    "bytes": 42566765,
+    "md5": "a8e915f87547c38a26a9e93e654c8cf3",
+    "sha256": "d05093b280821bf3179650470b047f5b203c959e0649de54b56c0662195822b4",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T17:58:36Z"
+   },
+   {
+    "name": "40x_1.4_Rep1_Untreated_20211201_01_10.tif",
+    "replicate": "Rep1",
+    "condition": "Untreated",
+    "split": "evaluation",
+    "split_digest": "ab3ddbc4a8ca1e18b76319c621812094508e7701d36375eb038285fbad5c4576",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep1_Untreated_20211201_01_10.tif/content",
+    "bytes": 42566731,
+    "md5": "d07309c0473a6609d86ee5617d3a83ce",
+    "sha256": "23d655b95547222f13115e1df3be3b3d50f74197498047ce7e3c2bf684ad673d",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T18:00:02Z"
+   },
+   {
+    "name": "40x_1.4_Rep2_ActD1_20211201_01_119.tif",
+    "replicate": "Rep2",
+    "condition": "ActD1",
+    "split": "tuning",
+    "split_digest": "1a3381bc7d7a833c2703b751fc478b2d3c4ce6d53aafed88e49c5be088b18fb2",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep2_ActD1_20211201_01_119.tif/content",
+    "bytes": 42566675,
+    "md5": "67ae3617a63c611520b7ccad76684e79",
+    "sha256": "e53532a13e144bfac39dc1747a61ee46d54a17e10f5b4347557f5825bf9e1d34",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T19:07:57Z"
+   },
+   {
+    "name": "40x_1.4_Rep2_ActD1_20211201_01_120.tif",
+    "replicate": "Rep2",
+    "condition": "ActD1",
+    "split": "evaluation",
+    "split_digest": "5d4ffe06ca60c528e26e282b943386d16d61f217467a1741849a93f6b8e46d35",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep2_ActD1_20211201_01_120.tif/content",
+    "bytes": 42566715,
+    "md5": "f3c9a642af23db945d1c54ae39d3329d",
+    "sha256": "d8483b358c64c233acf352ee5fa5c481cd10cd166786e185405d197aece90fa1",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T19:09:36Z"
+   },
+   {
+    "name": "40x_1.4_Rep2_Cis100_20211201_01_83.tif",
+    "replicate": "Rep2",
+    "condition": "Cis100",
+    "split": "tuning",
+    "split_digest": "3239d959ea15141ddfb4282650a8612e89b2a52bbc730d2106a58ee0427c755c",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep2_Cis100_20211201_01_83.tif/content",
+    "bytes": 42566729,
+    "md5": "a1156a2c81467784d919848741e05f0d",
+    "sha256": "29ad60df32a106f78a1b39d6706ce5ec6a93283a89c4766e0232c53363add107",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T18:45:06Z"
+   },
+   {
+    "name": "40x_1.4_Rep2_Cis100_20211201_01_89.tif",
+    "replicate": "Rep2",
+    "condition": "Cis100",
+    "split": "evaluation",
+    "split_digest": "5d2ef73248166e27d6484052b6b771965903b43d49de60938c925f8f71f77a4c",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep2_Cis100_20211201_01_89.tif/content",
+    "bytes": 42566733,
+    "md5": "fb083770a3699f3868e86981574a3671",
+    "sha256": "c279b23d360c9ef60a6d2a68bb33dd50949d57142171b577170340dd42a8c9fb",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T18:47:56Z"
+   },
+   {
+    "name": "40x_1.4_Rep2_Cis10_20211201_01_75.tif",
+    "replicate": "Rep2",
+    "condition": "Cis10",
+    "split": "tuning",
+    "split_digest": "1c068c81dae9c284e193f843efd9c6e3cb463756a61ce841f299f0079570ff1b",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep2_Cis10_20211201_01_75.tif/content",
+    "bytes": 42566709,
+    "md5": "1466aa9a047684721f9934b06898e050",
+    "sha256": "6dabf7693b5105bb376d50af6138a43e6aca668688ee8cf082c0c259c2051027",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T18:40:25Z"
+   },
+   {
+    "name": "40x_1.4_Rep2_Cis10_20211201_01_78.tif",
+    "replicate": "Rep2",
+    "condition": "Cis10",
+    "split": "evaluation",
+    "split_digest": "b3aa7aad322fd50e98d8769a56f8f97b5e0a3140673c94ed10f4d413b6468d47",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep2_Cis10_20211201_01_78.tif/content",
+    "bytes": 42566709,
+    "md5": "888f39aaacb79097db117941d10668c4",
+    "sha256": "1b6177eb337af4828c45bc89eb4b7a138b9f5463d2d268c52b20b6601418baf4",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T18:42:02Z"
+   },
+   {
+    "name": "40x_1.4_Rep2_Ox100_20211201_01_101.tif",
+    "replicate": "Rep2",
+    "condition": "Ox100",
+    "split": "tuning",
+    "split_digest": "0ead805f3165ca53bd975fdc47b26dd1cde9e2ed0b2d7e75ebe13553c60ce288",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep2_Ox100_20211201_01_101.tif/content",
+    "bytes": 42566719,
+    "md5": "0df823ca3d537e0f7979d49aae0abd56",
+    "sha256": "35f6953482e9b697f83949375f9141b4477ecc6bd974e9254a2e5a345a77f750",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T18:56:53Z"
+   },
+   {
+    "name": "40x_1.4_Rep2_Ox100_20211201_01_107.tif",
+    "replicate": "Rep2",
+    "condition": "Ox100",
+    "split": "evaluation",
+    "split_digest": "1d464a363e591ab133930b4324beee23be3ae78cb013cf8a659f540aa7b05066",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep2_Ox100_20211201_01_107.tif/content",
+    "bytes": 42566719,
+    "md5": "8b1fad97408888e841a601cc5c554998",
+    "sha256": "c9b478657e0feda9533773c51ee2adaa7c64a15f469aba7f6255e3a4cf32bcb8",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T19:00:12Z"
+   },
+   {
+    "name": "40x_1.4_Rep2_Ox10_20211201_01_100.tif",
+    "replicate": "Rep2",
+    "condition": "Ox10",
+    "split": "evaluation",
+    "split_digest": "05c70cef581178a239bb6513fe90a34b5401ae60350aa49cce899c8a2030dd1a",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep2_Ox10_20211201_01_100.tif/content",
+    "bytes": 42566665,
+    "md5": "66cc4d3663bff8e047089e257f8c134a",
+    "sha256": "9b80b797c008609ae17b0ed30c9332e709452cd7b28905e5d71484f6649f0ea5",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T18:55:59Z"
+   },
+   {
+    "name": "40x_1.4_Rep2_Ox10_20211201_01_98.tif",
+    "replicate": "Rep2",
+    "condition": "Ox10",
+    "split": "tuning",
+    "split_digest": "a08d14d69ebc8a4b2ea38c858d49ac6871392f71ed60212bcbae32f3248b97fb",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep2_Ox10_20211201_01_98.tif/content",
+    "bytes": 42566655,
+    "md5": "398393039c1567a11f8388506c801679",
+    "sha256": "4b74919836c97f76bb1490acd5ee7822092316d1b79776eeb75cf344f949b653",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T18:55:02Z"
+   },
+   {
+    "name": "40x_1.4_Rep2_Untreated_20211201_01_65.tif",
+    "replicate": "Rep2",
+    "condition": "Untreated",
+    "split": "evaluation",
+    "split_digest": "8b1f7241bc56cab6646a2d39a5be48e794e67b541ef81cc52c5654e891802b5d",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep2_Untreated_20211201_01_65.tif/content",
+    "bytes": 42566765,
+    "md5": "11faa22b9cfe813abf5826aec354a93d",
+    "sha256": "5def45ef66996221caba388175625a680af9f12e6455d2cb65b276d38ff84228",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T18:33:56Z"
+   },
+   {
+    "name": "40x_1.4_Rep2_Untreated_20211201_01_66.tif",
+    "replicate": "Rep2",
+    "condition": "Untreated",
+    "split": "tuning",
+    "split_digest": "049a3593d01a02213a89c58222af780c6e40e45310a04bf08cf8188ca3fb31b7",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep2_Untreated_20211201_01_66.tif/content",
+    "bytes": 42566725,
+    "md5": "772b840a375b6f40594bc275110758ef",
+    "sha256": "1b40498e5f4555a268922be22613a7decc7b71d032a89961dc46b7bc7ac8fbed",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T18:34:32Z"
+   },
+   {
+    "name": "40x_1.4_Rep3_ActD1_20211201_01_174.tif",
+    "replicate": "Rep3",
+    "condition": "ActD1",
+    "split": "evaluation",
+    "split_digest": "55fb6b280e5b32b96322026ce82312daf3ec9975618223fad413b3cd51479fdc",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep3_ActD1_20211201_01_174.tif/content",
+    "bytes": 42566705,
+    "md5": "e2df10a5bbf822c900fe6c70f9327a58",
+    "sha256": "85292d470722f99c668c9f20a03e89dbab656dc2c64aee0ec01d6386657a675d",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T19:48:47Z"
+   },
+   {
+    "name": "40x_1.4_Rep3_ActD1_20211201_01_179.tif",
+    "replicate": "Rep3",
+    "condition": "ActD1",
+    "split": "tuning",
+    "split_digest": "0469dd69c6608b586ebe2361bed3e8d4a92a48b7e67a246229c5ddb805900ba2",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep3_ActD1_20211201_01_179.tif/content",
+    "bytes": 42566661,
+    "md5": "318105de19c08b2838ee2779ad690ce6",
+    "sha256": "c5dae3055535cb45041cd8bc8853d15823daf2afb821edd4e7cf42c089d0df8b",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T19:51:59Z"
+   },
+   {
+    "name": "40x_1.4_Rep3_Cis100_20211201_01_145.tif",
+    "replicate": "Rep3",
+    "condition": "Cis100",
+    "split": "evaluation",
+    "split_digest": "5771e9eaaef671bfe2cf1e364e51399ce7ac965c426e0f25542ccac69bd283b0",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep3_Cis100_20211201_01_145.tif/content",
+    "bytes": 42566723,
+    "md5": "6e0a44d6124f5dd75422936372e044b5",
+    "sha256": "fcab6b4f26b2a6ba180649b67fb53a61ddeedd4ea3d54e059703e0bc2bcc9d7b",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T19:27:28Z"
+   },
+   {
+    "name": "40x_1.4_Rep3_Cis100_20211201_01_149.tif",
+    "replicate": "Rep3",
+    "condition": "Cis100",
+    "split": "tuning",
+    "split_digest": "24eef9ec0bbadb6962b7658bbceb1e7d912c62baa033453e1bce4424bcf3f350",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep3_Cis100_20211201_01_149.tif/content",
+    "bytes": 42566733,
+    "md5": "504bf363ec591f464ddfe81d14f42b03",
+    "sha256": "e92baf9d0fd96762d00f18eef177d08769af2bdc4bc259783b04e84a82e9eb9e",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T19:29:42Z"
+   },
+   {
+    "name": "40x_1.4_Rep3_Cis10_20211201_01_136.tif",
+    "replicate": "Rep3",
+    "condition": "Cis10",
+    "split": "tuning",
+    "split_digest": "20bc57f4237431b625940034501d3f139d7096aa9f70cf50548104b386149bfc",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep3_Cis10_20211201_01_136.tif/content",
+    "bytes": 42566709,
+    "md5": "910818dbf35bb0e5b7a5d0eb778c87a0",
+    "sha256": "3fc8251837d10d68b0c062073a6a626dbbbbd71d33d59816424a5b7a55d832ff",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T19:21:52Z"
+   },
+   {
+    "name": "40x_1.4_Rep3_Cis10_20211201_01_137.tif",
+    "replicate": "Rep3",
+    "condition": "Cis10",
+    "split": "evaluation",
+    "split_digest": "37f321044d904319651e5a0628586cf81e1349ae32aee9534cf3724e8cbb6038",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep3_Cis10_20211201_01_137.tif/content",
+    "bytes": 42566719,
+    "md5": "befc5cc8a783c18d5a6083bd35fb7fd5",
+    "sha256": "de0d82f557d031786c2b4bfc683d883441a2585d3373b9a397eac2e154609284",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T19:22:24Z"
+   },
+   {
+    "name": "40x_1.4_Rep3_Ox100_20211201_01_165.tif",
+    "replicate": "Rep3",
+    "condition": "Ox100",
+    "split": "tuning",
+    "split_digest": "4ebbbfcd4961889c819aef4e7868630426508f638d95f9f6faa523780024fea6",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep3_Ox100_20211201_01_165.tif/content",
+    "bytes": 42566705,
+    "md5": "be025b6bd6a43e19d40a616628b78363",
+    "sha256": "6738ed2aad29e902057e5ad8f66f2f190a8b99781ba5f0a526705a3aa35a5678",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T19:42:39Z"
+   },
+   {
+    "name": "40x_1.4_Rep3_Ox100_20211201_01_169.tif",
+    "replicate": "Rep3",
+    "condition": "Ox100",
+    "split": "evaluation",
+    "split_digest": "11a50d6e3a6e5ba411d8c683085ef20553436c9ad06d390377e7407f3ed22288",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep3_Ox100_20211201_01_169.tif/content",
+    "bytes": 42566709,
+    "md5": "f71180010d62c4fd14fc8e6395c59e01",
+    "sha256": "48f1ed9c7a6cfdffb9a768329e8cafed83396da6e0187bc19057435e87f56b08",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T19:45:38Z"
+   },
+   {
+    "name": "40x_1.4_Rep3_Ox10_20211201_01_157.tif",
+    "replicate": "Rep3",
+    "condition": "Ox10",
+    "split": "evaluation",
+    "split_digest": "1d8cdcc050c5b7ad70ef9d7cd8ac31ad0e65cfe17ff47c378c906f2b007d72d9",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep3_Ox10_20211201_01_157.tif/content",
+    "bytes": 42566661,
+    "md5": "eeb38f71dcb8896f4bc558d6c2a6b262",
+    "sha256": "c57f289d497fd65d9d2c293f557e88dfa7f262bc9f1810ee4a4cc59a287ef2c9",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T19:37:10Z"
+   },
+   {
+    "name": "40x_1.4_Rep3_Ox10_20211201_01_158.tif",
+    "replicate": "Rep3",
+    "condition": "Ox10",
+    "split": "tuning",
+    "split_digest": "24b586a56669424539b670efa1bc373da64b80b02ab75e0e182c47066b6f449d",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep3_Ox10_20211201_01_158.tif/content",
+    "bytes": 42566651,
+    "md5": "55941449efcf7f5a4bd1b9f5ededdb15",
+    "sha256": "5f6fa40ddee1822d8b476d1f40517cdeff2c005c61111f26f48c21604337465c",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T19:37:41Z"
+   },
+   {
+    "name": "40x_1.4_Rep3_Untreated_20211201_01_124.tif",
+    "replicate": "Rep3",
+    "condition": "Untreated",
+    "split": "evaluation",
+    "split_digest": "3513ecb345858cbcedfb7a74304611718f7b7b316db9713f37542f3c64d28abd",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep3_Untreated_20211201_01_124.tif/content",
+    "bytes": 42566765,
+    "md5": "d3762f067214faa5f0f27c6e478fcfd2",
+    "sha256": "6681b70f6f3412924bd0c81784cbeb932b33b298a0c7eda4eff3c260ef2e6521",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T19:13:26Z"
+   },
+   {
+    "name": "40x_1.4_Rep3_Untreated_20211201_01_129.tif",
+    "replicate": "Rep3",
+    "condition": "Untreated",
+    "split": "tuning",
+    "split_digest": "02a0f0baf8283a5519be02fc55ec1e02f6e68e3df242dd799e6267796ab63f0e",
+    "url": "https://zenodo.org/api/records/6643470/files/40x_1.4_Rep3_Untreated_20211201_01_129.tif/content",
+    "bytes": 42566765,
+    "md5": "a95d2641650aa96ffe0b45a2973db322",
+    "sha256": "3bc916dd95d64cf407c4140b44c3338d4d53e1ab0741ce3eba6d7f054f7eb633",
+    "shape": [
+     4,
+     2304,
+     2304
+    ],
+    "acquired": "2021-12-01T19:15:48Z"
+   }
+  ]
+ }
+}

@@ -146,3 +146,21 @@ def test_api_and_browser_build_the_same_2_2_0_marker_defaults():
     source = (ROOT / "apps/web/src/lib/workspace/nucleolar-definition.ts").read_text(encoding="utf-8")
     constant = re.search(r"export const MINIMUM_CONTRAST_SNR = ([0-9.]+);", source)
     assert constant and float(constant.group(1)) == MINIMUM_CONTRAST_SNR
+
+
+def test_methods_text_states_the_contrast_rule_and_the_physical_minimum():
+    from cytellect_analysis.region_contracts import RegionCompartmentRecipe
+    from cytellect_analysis.region_exports import _compartment_initial
+
+    recipe = RegionCompartmentRecipe(region_set_id="nucleoli", label="Nucleoli", compartment="nucleoli",
+                                     nuclear_revision_id="n1", nuclear_channel_id="dapi", defining_channel_id="npm1",
+                                     detector=NucleolarDetectorV22())
+    text = _compartment_initial(recipe)
+    assert "cytellect-nucleolar-v2 2.2.0" in text and "indeterminate" in text and "missing, not zero" in text
+    assert f"{MINIMUM_CONTRAST_SNR:g} × the field's noise" in text and "0.3 µm²" in text
+    # 2.1.0 keeps its earlier (absent) text.
+    old = RegionCompartmentRecipe(region_set_id="nucleoli", label="Nucleoli", compartment="nucleoli",
+                                  nuclear_revision_id="n1", nuclear_channel_id="dapi", defining_channel_id="npm1",
+                                  detector=NucleolarDetectorV21())
+    assert _compartment_initial(old) is None
+

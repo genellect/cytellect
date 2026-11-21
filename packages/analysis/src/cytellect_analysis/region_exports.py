@@ -101,11 +101,27 @@ def _compartment_initial(recipe) -> str | None:
                 "All recorded detector parameters use original-coordinate pixels and input intensity code units. "
                 "Measurements use unchanged original pixels, including the filled object envelope. "
                 "NCL-defined candidates depend on the measured marker and do not establish stress-independent nucleoli.")
-    if getattr(detector, "protocol_version", None) != "2.0.0":
+    version = getattr(detector, "protocol_version", None)
+    if version not in ("2.0.0", "2.2.0"):
         return None
-    size = (f"8-connected components of {detector.minimum_area_px}"
+    physical = getattr(detector, "minimum_area_um2", None)
+    minimum = (f"max({detector.minimum_area_px} px, {physical:g} µm² converted with the field's calibration; "
+               f"{detector.minimum_area_px} px without one)" if physical is not None else f"{detector.minimum_area_px}")
+    size = (f"8-connected components of {minimum}"
             + (f"–{detector.maximum_area_px}" if detector.maximum_area_px is not None else " or more")
             + f" px with solidity ≥ {detector.minimum_solidity:g} are kept.")
+    if version == "2.2.0":
+        return ("Initial masks: nucleolar candidates from a nucleolar marker channel (cytellect-nucleolar-v2 2.2.0). "
+                f"After rolling-ball subtraction (radius {detector.background_radius_px} px) and a Gaussian σ "
+                f"{detector.smoothing_sigma_px:g} px, pixels above min + {detector.marker_fraction:g} × (max − min) of the "
+                f"nucleus interior (a {detector.rim_exclusion_px} px rim excluded) are candidates (after Potapova et al., "
+                f"eLife 2023, doi:10.7554/eLife.88799). {size} A nucleus whose marker contrast (99th minus 75th "
+                "percentile of the Gaussian σ 0.9 px smoothed original marker in the nucleus) is below "
+                f"{detector.minimum_contrast_snr:g} × the field's noise (1.4826 × MAD of original minus smoothed over "
+                "the lower three quarters of nuclear pixels) is indeterminate: its candidates are not adopted and its "
+                "nucleolar values are missing, not zero. The criterion is relative to noise, not to nucleolar enrichment. "
+                "UBF, FBL or NPM1 mark nucleolar sub-compartments or the granular component; candidates are "
+                "marker-defined.")
     if detector.source == "dapi_poor":
         return ("Initial masks: nucleolar candidates are DNA-poor regions of the nuclear stain "
                 f"(cytellect-nucleolar-v2 2.0.0). Within each nucleus, after a Gaussian σ {detector.smoothing_sigma_px:g} px "

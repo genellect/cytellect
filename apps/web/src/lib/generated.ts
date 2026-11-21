@@ -4231,6 +4231,8 @@ export interface components {
             eccentricity_missing_reason: string | null;
             /** Excluded Objects */
             excluded_objects: number;
+            /** Object Areas Px */
+            object_areas_px?: number[] | null;
         };
         /** NucleolarSource */
         NucleolarSource: {

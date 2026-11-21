@@ -67,6 +67,9 @@ class NucleolarMorphology(RegionModel):
     eccentricity: Fraction01 | None
     eccentricity_missing_reason: Reason | None
     excluded_objects: Count
+    # Areas (px) of the confirmed nucleoli, smallest first, for the size breakdown (owner decision 20, 2026-11-21).
+    # Absent in tables saved before it; never a substitute for a missing nucleolus.
+    object_areas_px: list[Annotated[int, Field(ge=1)]] | None = None
 
 
 class NucleusRow(RegionModel):
@@ -202,7 +205,8 @@ def nucleolar_morphology(nuclei: np.ndarray, nucleoli: np.ndarray, states: Mappi
                 union_area_um2_missing_reason=area_missing_reason if pixel_area_um2 is None else None,
                 area_fraction=union / nuclear_area[parent], largest_object_area_px=largest,
                 largest_object_fraction=largest / union, eccentricity=shape["nucleolar_eccentricity"],
-                eccentricity_missing_reason=shape["missing_reason"], excluded_objects=dropped)
+                eccentricity_missing_reason=shape["missing_reason"], excluded_objects=dropped,
+                object_areas_px=sorted(areas))
     return result
 
 

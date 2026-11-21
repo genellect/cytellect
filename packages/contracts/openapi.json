@@ -11159,6 +11159,21 @@
             "type": "integer",
             "minimum": 0.0,
             "title": "Excluded Objects"
+          },
+          "object_areas_px": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer",
+                  "minimum": 1.0
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Areas Px"
           }
         },
         "additionalProperties": false,
