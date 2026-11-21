@@ -83,7 +83,7 @@ RULE_FILES = ("scripts/validate_nucleolar_indeterminate_public.py",
               "packages/analysis/src/cytellect_analysis/nucleolar_detector_v2.py")
 
 SPLIT_SALT = "cytellect-nucleolar-indeterminate/1:"
-DS6A_PER_CELL = 2
+DS6A_PER_CELL = 1  # 2 at first; reduced before any value was computed because the shared disk filled
 K_GRID = (1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0)
 PRECEDENT_K = 5.0
 RATE_SPREAD = 0.10
