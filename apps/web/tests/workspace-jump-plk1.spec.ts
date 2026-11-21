@@ -90,13 +90,16 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   await choice.getByRole("button", {name: /^2 画面/}).click();
 
   const setup = page.getByRole("region", {name: "実験デザイン"});
-  await expect(setup.getByRole("heading", {name: "2 画面：2 群の比較", level: 1})).toBeVisible();
+  // The heading is the purpose with the group names, control first (#257 ED-01); the one next step sits beside it (#257 ED-02).
+  await expect(setup.getByRole("heading", {name: "2 群の比較：対照 × 処理", level: 1})).toBeVisible();
+  await expect(setup.getByRole("button", {name: "統計で比べる →", exact: true})).toBeEnabled();
   await expect(page).toHaveURL(/[?&]id=[^&]+/);
   const workspace = new URL(page.url()).searchParams.get("id")!;
   // Choosing the form saves the design only; nothing is detected or measured (requirements E-01).
   expect(writes.some(value => /\/runs|\/region-fields|\/proposal/.test(value))).toBe(false);
   const grid = setup.getByRole("table", {name: "群と実験回"});
   const issues = setup.getByRole("list", {name: "統計の前の確認事項"});
+  const status = setup.getByRole("list", {name: "実験デザインの状態"});
 
   // E-02: name the two groups and choose the control. The control is a radio choice on one group.
   const headers = grid.getByRole("columnheader");
@@ -106,6 +109,7 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
     await name.blur();
     await expect(headers.nth(index + 1).getByLabel("群の名前")).toHaveValue(group.label);
   }
+  await expect(setup.getByRole("heading", {name: `2 群の比較：${GROUPS[0].label} × ${GROUPS[1].label}`, level: 1})).toBeVisible();
   const controls = grid.getByRole("radio", {name: "対照"});
   await expect(controls).toHaveCount(2);
   await headers.nth(2).getByRole("radio", {name: "対照"}).check();
@@ -132,7 +136,7 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
     await expect(runName(index)).toHaveValue(run);
     await expect(rows.nth(index + 1).getByRole("rowheader").getByLabel("実施日")).toHaveValue(PERFORMED[run]);
   }
-  for (const run of RUNS) await expect(issues).toContainText(`${run} に ${GROUPS.map(group => group.label).join("、")} の画像がありません。この回は対にできません。`);
+  for (const run of RUNS) await expect(issues).toContainText(`${run} に ${GROUPS.map(group => group.label).join("、")} の画像がありません。この実験回は対にできません。`);
 
   // E-03/E-04: each run × group's fields are added in its own cell. Group, run and stain come from
   // the cell and the researcher's entries, not from the plate, well or channel in the file names.
@@ -149,7 +153,7 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   const combinations = RUNS.flatMap(run => GROUPS.map((_, groupIndex) => [run, groupIndex] as const));
   for (const [run, groupIndex] of combinations.slice(0, -1)) await add(run, groupIndex);
   // E-06: before statistics, the one missing combination is named; it disappears once added.
-  await expect(issues.getByText("Run3 に PLK1 KO の画像がありません。この回は対にできません。", {exact: true})).toBeVisible();
+  await expect(issues.getByText("Run3 に PLK1 KO の画像がありません。この実験回は対にできません。", {exact: true})).toBeVisible();
   await expect(issues.getByText(/の画像がありません。/)).toHaveCount(1);
   await expect(cell("Run3", 1)).toContainText("PLK1 KO · 画像なし");
   await add("Run3", 1);
@@ -158,7 +162,19 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   await expect(setup.getByRole("region", {name: "群・実験回が未割り当ての視野"})).toHaveCount(0);
   // E-05: independence is the researcher's statement, never inferred from dates or plates.
   await expect(setup.getByRole("checkbox", {name: /各実験回は独立に行った/})).not.toBeChecked();
-  await expect(issues).toContainText("独立性：未確認。群間比較は記述統計のみです。");
+  const chip = (label: string) => status.getByRole("listitem").filter({hasText: new RegExp(`^${label}：`)});
+  await expect(chip("独立性")).toHaveText("独立性：未確認 → 検定なし");
+  await expect(chip("独立性").getByRole("img", {name: "要確認"})).toBeVisible();
+  const fieldCount = RUNS.length * GROUPS.length * SITES.length;
+  for (const [label, value] of [["群", GROUPS.length], ["視野", `${fieldCount} / ${fieldCount}`]] as const) {
+    await expect(chip(label)).toHaveText(`${label}：${value}`);
+    await expect(chip(label).getByRole("img", {name: "完了"})).toBeVisible();
+  }
+  // n counts only runs whose groups both have measured fields: before measuring, none, and each run says so.
+  await expect(chip("実験回")).toHaveText(`実験回：0 / ${RUNS.length}`);
+  await expect(chip("実験回").getByRole("img", {name: "要確認"})).toBeVisible();
+  for (const run of RUNS) await expect(chip(run)).toHaveText(`${run}：未測定`);
+  await expect(setup.getByRole("columnheader", {name: "実験回（n = 0）", exact: true})).toBeVisible();
   await noAlerts();
 
   // N-02: every field has the four channels, grouped from the file names only (no stain from names).
@@ -230,6 +246,12 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   }
   await page.getByRole("navigation", {name: "作業の切替"}).getByRole("button", {name: "実験", exact: true}).click();
   for (const [run, groupIndex] of combinations) await expect(cell(run, groupIndex)).toContainText(`${GROUPS[groupIndex].label} · ${SITES.length} 視野`);
+  // Once every field is measured, all three runs count: the chip, the figure and the table give the same n.
+  await expect(chip("実験回")).toHaveText(`実験回：${RUNS.length}`);
+  await expect(chip("実験回").getByRole("img", {name: "完了"})).toBeVisible();
+  for (const run of RUNS) await expect(chip(run)).toHaveCount(0);
+  await expect(setup.getByText(`（n = ${RUNS.length}）`, {exact: true})).toBeVisible();
+  await expect(setup.getByRole("columnheader", {name: `実験回（n = ${RUNS.length}）`, exact: true})).toBeVisible();
   for (const [index, run] of RUNS.entries()) await expect(runName(index)).toHaveValue(run);
 
   // Statistics: nuclei per field, compared between the groups.
@@ -310,7 +332,8 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   await descriptive.getByRole("button", {name: "実験デザインを編集", exact: true}).click();
   await setup.getByRole("checkbox", {name: /各実験回は独立に行った/}).check();
   await expect(setup.getByRole("checkbox", {name: /各実験回は独立に行った/})).toBeChecked();
-  await expect(issues).not.toContainText("独立性：未確認");
+  await expect(status.getByRole("listitem").filter({hasText: /^独立性：/})).toHaveText("独立性：確認済み");
+  await expect(status.getByRole("listitem").filter({hasText: /^独立性：/}).getByRole("img", {name: "完了"})).toBeVisible();
   await page.getByRole("navigation", {name: "作業の切替"}).getByRole("button", {name: "統計", exact: true}).click();
   await expect(method).toHaveValue("parametric");
   await expect(method).toBeEnabled();
