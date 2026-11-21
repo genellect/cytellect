@@ -43,8 +43,9 @@ FEATURE_METRICS = (*SHAPE_METRICS, *SIGNAL_METRICS)
 # Set from digitisation error on public nucleus masks (#258, scripts/evaluate_shape_minimum_area.py on JUMP and DS6a).
 MINIMUM_AREA_PX = 96
 # The Signal QC 1.0.0 ratio below which a nucleus's signal is not distinguished from the background spread. Chosen on
-# the tuning split of the public check (docs/public-nuclear-signal-validation.md); None until it is chosen.
-MINIMUM_SIGNAL_TO_BACKGROUND: float | None = None
+# the tuning split of the public check (docs/public-nuclear-signal-validation.md, fixtures/public/nuclear-signal/tuning.json):
+# no candidate separated the unlabelled 5-EU control, so the rule fell back to 1 (one background spread).
+MINIMUM_SIGNAL_TO_BACKGROUND: float | None = 1.0
 NUCLEAR_SOURCE = "stardist_nuclear"
 UNITS = {metric: "dimensionless" for metric in FEATURE_METRICS}
 LABELS = {"solidity": ("Nuclear solidity", "核のソリディティ"), "axis_ratio": ("Nuclear axis ratio", "核の長短軸比"),

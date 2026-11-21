@@ -1,0 +1,4872 @@
+{
+ "protocol": "nuclear-signal-validation/1.0.0",
+ "split": "tuning",
+ "rules": "scripts/validate_nuclear_signal_public.py",
+ "rules_commit": "7727bf3eebf41ae80f2aaa1607c3a158f85afc1f",
+ "minimum_signal_to_background": {
+  "candidates": [
+   {
+    "ratio": 1.0,
+    "flagged_no_eu": 0.09770114942528736,
+    "flagged_with_eu": 0.04190751445086705
+   },
+   {
+    "ratio": 2.0,
+    "flagged_no_eu": 0.21379310344827587,
+    "flagged_with_eu": 0.10115606936416185
+   },
+   {
+    "ratio": 3.0,
+    "flagged_no_eu": 0.3586206896551724,
+    "flagged_with_eu": 0.16907514450867053
+   },
+   {
+    "ratio": 5.0,
+    "flagged_no_eu": 0.6551724137931034,
+    "flagged_with_eu": 0.33670520231213874
+   },
+   {
+    "ratio": 10.0,
+    "flagged_no_eu": 0.9448275862068966,
+    "flagged_with_eu": 0.6921965317919075
+   }
+  ],
+  "chosen": 1.0,
+  "separates_unlabelled_control": false,
+  "ratio_quantiles_controls": [
+   0.732099087361503,
+   4.846258836234208,
+   14.247675836551926
+  ]
+ },
+ "criteria": {
+  "cv_corrected/nuclear": {
+   "rho_min": 0.9249274027228132,
+   "rho_crit": 0.8749274027228131,
+   "q_tuning": [
+    0.4520923633599491,
+    1.2887610510700633
+   ],
+   "q_range": [
+    0.3520923633599491,
+    1.3887610510700634
+   ],
+   "evaluated_contrasts": 2,
+   "tuning_allows": false,
+   "tuning_failures": [
+    "tuning_too_few_evaluated_contrasts",
+    "tuning_size_outside_range"
+   ]
+  },
+  "positive_area_fraction/nuclear": {
+   "rho_min": 0.9409184263526642,
+   "rho_crit": 0.8909184263526642,
+   "q_tuning": [
+    0.8706181121030029,
+    1.4159990414837567
+   ],
+   "q_range": [
+    0.75,
+    1.5159990414837567
+   ],
+   "evaluated_contrasts": 10,
+   "tuning_allows": true,
+   "tuning_failures": []
+  },
+  "cv_corrected/npm1": {
+   "rho_min": 0.9845588803443158,
+   "rho_crit": 0.9,
+   "q_tuning": [
+    0.8975657011171059,
+    1.0611902166487497
+   ],
+   "q_range": [
+    0.75,
+    1.25
+   ],
+   "evaluated_contrasts": 5,
+   "tuning_allows": true,
+   "tuning_failures": []
+  },
+  "positive_area_fraction/npm1": {
+   "rho_min": 0.9825308630772318,
+   "rho_crit": 0.9,
+   "q_tuning": [
+    1.0009264818586034,
+    1.1244859843560215
+   ],
+   "q_range": [
+    0.75,
+    1.25
+   ],
+   "evaluated_contrasts": 12,
+   "tuning_allows": true,
+   "tuning_failures": []
+  },
+  "cv_corrected/fbl": {
+   "rho_min": 0.9692530824566741,
+   "rho_crit": 0.9,
+   "q_tuning": [
+    0.36521235055812945,
+    1.036607643276098
+   ],
+   "q_range": [
+    0.2652123505581294,
+    1.25
+   ],
+   "evaluated_contrasts": 3,
+   "tuning_allows": false,
+   "tuning_failures": [
+    "tuning_size_outside_range"
+   ]
+  },
+  "positive_area_fraction/fbl": {
+   "rho_min": 0.9533420244474616,
+   "rho_crit": 0.9,
+   "q_tuning": [
+    0.9786777968832193,
+    1.0712023074561259
+   ],
+   "q_range": [
+    0.75,
+    1.25
+   ],
+   "evaluated_contrasts": 8,
+   "tuning_allows": true,
+   "tuning_failures": []
+  },
+  "cv_corrected/eu5": {
+   "rho_min": 0.9305357989568516,
+   "rho_crit": 0.8805357989568515,
+   "q_tuning": [
+    0.9964416260212678,
+    1.2655410350733742
+   ],
+   "q_range": [
+    0.75,
+    1.3655410350733743
+   ],
+   "evaluated_contrasts": 7,
+   "tuning_allows": true,
+   "tuning_failures": []
+  },
+  "positive_area_fraction/eu5": {
+   "rho_min": 0.7665018653431189,
+   "rho_crit": 0.7165018653431189,
+   "q_tuning": [
+    0.9286597988228815,
+    1.0063239801493513
+   ],
+   "q_range": [
+    0.75,
+    1.25
+   ],
+   "evaluated_contrasts": 6,
+   "tuning_allows": false,
+   "tuning_failures": [
+    "tuning_rank_below_floor"
+   ]
+  }
+ },
+ "statistics": {
+  "cv_corrected/nuclear": {
+   "by_group": {
+    "2hrs": {
+     "conditions": {
+      "ActD1": {
+       "fields": 15,
+       "nuclei": 655,
+       "measurable_fraction": 0.7206106870229008,
+       "measurable_fraction_not_border": 0.8309859154929577,
+       "reasons": {
+        "measured": 472,
+        "saturated_pixels": 96,
+        "touches_border": 87
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9724137931034481,
+       "rho_redetected_median": 0.7879551820728292
+      },
+      "ActD10": {
+       "fields": 15,
+       "nuclei": 727,
+       "measurable_fraction": 0.8046767537826685,
+       "measurable_fraction_not_border": 0.9069767441860465,
+       "reasons": {
+        "measured": 585,
+        "saturated_pixels": 60,
+        "touches_border": 82
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9592051431911165,
+       "rho_redetected_median": 0.8168016194331984
+      },
+      "Cis10": {
+       "fields": 15,
+       "nuclei": 1436,
+       "measurable_fraction": 0.8419220055710307,
+       "measurable_fraction_not_border": 0.9386645962732919,
+       "reasons": {
+        "below_background_spread": 10,
+        "measured": 1209,
+        "saturated_pixels": 69,
+        "touches_border": 148
+       },
+       "rho_fields": 13,
+       "rho_median": 0.9810370009737098,
+       "rho_redetected_median": 0.8730951681289618
+      },
+      "Cis100": {
+       "fields": 15,
+       "nuclei": 1119,
+       "measurable_fraction": 0.868632707774799,
+       "measurable_fraction_not_border": 0.9848024316109423,
+       "reasons": {
+        "below_background_spread": 1,
+        "measured": 972,
+        "saturated_pixels": 14,
+        "touches_border": 132
+       },
+       "rho_fields": 14,
+       "rho_median": 0.9611334485947489,
+       "rho_redetected_median": 0.8568237111752922
+      },
+      "Ox10": {
+       "fields": 15,
+       "nuclei": 765,
+       "measurable_fraction": 0.8130718954248366,
+       "measurable_fraction_not_border": 0.9228486646884273,
+       "reasons": {
+        "below_background_spread": 9,
+        "measured": 622,
+        "nonpositive_mean": 7,
+        "saturated_pixels": 36,
+        "touches_border": 91
+       },
+       "rho_fields": 12,
+       "rho_median": 0.9596665457928013,
+       "rho_redetected_median": 0.8250189592368267
+      },
+      "Ox100": {
+       "fields": 15,
+       "nuclei": 887,
+       "measurable_fraction": 0.8105975197294251,
+       "measurable_fraction_not_border": 0.9078282828282829,
+       "reasons": {
+        "below_background_spread": 6,
+        "measured": 719,
+        "nonpositive_mean": 2,
+        "saturated_pixels": 65,
+        "touches_border": 95
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9634146341463415,
+       "rho_redetected_median": 0.8406827880512091
+      },
+      "UntreatedNoEU": {
+       "fields": 15,
+       "nuclei": 1018,
+       "measurable_fraction": 0.849705304518664,
+       "measurable_fraction_not_border": 0.9600443951165372,
+       "reasons": {
+        "below_background_spread": 9,
+        "measured": 865,
+        "saturated_pixels": 27,
+        "touches_border": 117
+       },
+       "rho_fields": 13,
+       "rho_median": 0.9750586492159526,
+       "rho_redetected_median": 0.8661224489795918
+      },
+      "UntreatedWithEU": {
+       "fields": 15,
+       "nuclei": 804,
+       "measurable_fraction": 0.6393034825870647,
+       "measurable_fraction_not_border": 0.7219101123595506,
+       "reasons": {
+        "measured": 514,
+        "saturated_pixels": 198,
+        "touches_border": 92
+       },
+       "rho_fields": 15,
+       "rho_median": 0.969048980369735,
+       "rho_redetected_median": 0.8576195773081201
+      }
+     },
+     "contrasts": {
+      "ActD1": {
+       "native": {
+        "difference": -0.0033500930484745006,
+        "se": 0.00281679637768818,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.004819139681079276,
+        "se": 0.002787567352269004,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "ActD10": {
+       "native": {
+        "difference": -0.0021239046837216446,
+        "se": 0.002702079452539746,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.004128850171982973,
+        "se": 0.0028386465544901745,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Cis10": {
+       "native": {
+        "difference": 0.0061054254316016965,
+        "se": 0.00483222747739732,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.003478133312452253,
+        "se": 0.004690811382243005,
+        "fields": [
+         13,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Cis100": {
+       "native": {
+        "difference": 0.003472313004412142,
+        "se": 0.0035015212155822223,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.0018155890101974048,
+        "se": 0.0032719446215945117,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Ox10": {
+       "native": {
+        "difference": -0.00638228696624632,
+        "se": 0.0028897816141535944,
+        "fields": [
+         12,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.008225242858850373,
+        "se": 0.003274806396691285,
+        "fields": [
+         12,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.2887610510700633
+      },
+      "Ox100": {
+       "native": {
+        "difference": -0.00035415255499307574,
+        "se": 0.003191705986409715,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.006278342090410366,
+        "se": 0.003544127699836604,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "UntreatedNoEU": {
+       "native": {
+        "difference": 0.006249832784791243,
+        "se": 0.004559295757236744,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "binned": {
+        "difference": 0.0017134497956836081,
+        "se": 0.0034410461598430625,
+        "fields": [
+         13,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      }
+     },
+     "threshold_native": {
+      "acquisition_date": "2hrs",
+      "value": 18889.908203125,
+      "pixels": 13272219,
+      "nuclei": 5958,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     },
+     "threshold_binned": {
+      "acquisition_date": "2hrs",
+      "value": 19724.87890625,
+      "pixels": 3098431,
+      "nuclei": 5520,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     }
+    },
+    "30min": {
+     "conditions": {
+      "ActD1": {
+       "fields": 15,
+       "nuclei": 1218,
+       "measurable_fraction": 0.8210180623973727,
+       "measurable_fraction_not_border": 0.9182736455463728,
+       "reasons": {
+        "measured": 1000,
+        "saturated_pixels": 89,
+        "touches_border": 129
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9731379731379731,
+       "rho_redetected_median": 0.8662698412698413
+      },
+      "ActD10": {
+       "fields": 15,
+       "nuclei": 1797,
+       "measurable_fraction": 0.8547579298831386,
+       "measurable_fraction_not_border": 0.9770992366412213,
+       "reasons": {
+        "measured": 1536,
+        "saturated_pixels": 36,
+        "touches_border": 225
+       },
+       "rho_fields": 12,
+       "rho_median": 0.974398570396839,
+       "rho_redetected_median": 0.857881981212566
+      },
+      "Cis10": {
+       "fields": 15,
+       "nuclei": 938,
+       "measurable_fraction": 0.7899786780383795,
+       "measurable_fraction_not_border": 0.8831942789034565,
+       "reasons": {
+        "below_background_spread": 3,
+        "measured": 741,
+        "nonpositive_mean": 1,
+        "saturated_pixels": 94,
+        "touches_border": 99
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9676268048870788,
+       "rho_redetected_median": 0.818815331010453
+      },
+      "Cis100": {
+       "fields": 15,
+       "nuclei": 752,
+       "measurable_fraction": 0.8683510638297872,
+       "measurable_fraction_not_border": 0.9588839941262849,
+       "reasons": {
+        "background_not_established": 2,
+        "below_background_spread": 23,
+        "measured": 653,
+        "nonpositive_mean": 5,
+        "touches_border": 69
+       },
+       "rho_fields": 10,
+       "rho_median": 0.9249274027228132,
+       "rho_redetected_median": 0.8100999661235406
+      },
+      "Ox10": {
+       "fields": 15,
+       "nuclei": 1300,
+       "measurable_fraction": 0.8630769230769231,
+       "measurable_fraction_not_border": 0.9639175257731959,
+       "reasons": {
+        "below_background_spread": 2,
+        "measured": 1122,
+        "saturated_pixels": 40,
+        "touches_border": 136
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9794679005205321,
+       "rho_redetected_median": 0.9015045932053529
+      },
+      "Ox100": {
+       "fields": 15,
+       "nuclei": 1397,
+       "measurable_fraction": 0.8525411596277738,
+       "measurable_fraction_not_border": 0.9746317512274959,
+       "reasons": {
+        "measured": 1191,
+        "saturated_pixels": 31,
+        "touches_border": 175
+       },
+       "rho_fields": 14,
+       "rho_median": 0.9786937120588899,
+       "rho_redetected_median": 0.8664983198959026
+      },
+      "UntreatedNoEU": {
+       "fields": 14,
+       "nuclei": 819,
+       "measurable_fraction": 0.8522588522588522,
+       "measurable_fraction_not_border": 0.9509536784741145,
+       "reasons": {
+        "measured": 698,
+        "saturated_pixels": 36,
+        "touches_border": 85
+       },
+       "rho_fields": 13,
+       "rho_median": 0.9704433497536946,
+       "rho_redetected_median": 0.8473107607741344
+      },
+      "UntreatedWithEU": {
+       "fields": 15,
+       "nuclei": 882,
+       "measurable_fraction": 0.7936507936507936,
+       "measurable_fraction_not_border": 0.8905852417302799,
+       "reasons": {
+        "below_background_spread": 7,
+        "measured": 700,
+        "nonpositive_mean": 2,
+        "saturated_pixels": 77,
+        "touches_border": 96
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9714765906362545,
+       "rho_redetected_median": 0.8817067530064754
+      }
+     },
+     "contrasts": {
+      "ActD1": {
+       "native": {
+        "difference": -0.006300056306688201,
+        "se": 0.0033976156066425327,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.0030455343676573376,
+        "se": 0.003435516952942034,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "ActD10": {
+       "native": {
+        "difference": 0.001614045100402195,
+        "se": 0.0031420555041956487,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": 0.0012230808469732013,
+        "se": 0.003734096675951127,
+        "fields": [
+         12,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Cis10": {
+       "native": {
+        "difference": -0.008254021527406258,
+        "se": 0.0033135640650824943,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.0037315800995489923,
+        "se": 0.0032397441868382087,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 0.4520923633599491
+      },
+      "Cis100": {
+       "native": {
+        "difference": 0.01484772538427867,
+        "se": 0.01308124744635041,
+        "fields": [
+         10,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.010513691964540495,
+        "se": 0.008531809252467581,
+        "fields": [
+         10,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Ox10": {
+       "native": {
+        "difference": 0.0010512137828321555,
+        "se": 0.0032175216673741127,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": 0.0027693298085283424,
+        "se": 0.0033181786519465508,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Ox100": {
+       "native": {
+        "difference": 0.0034418430997865956,
+        "se": 0.0038726405192715573,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": 0.006928071183309181,
+        "se": 0.003984678318392489,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "UntreatedNoEU": {
+       "native": {
+        "difference": -0.005934107043198966,
+        "se": 0.003596019999301654,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.0010694468257643752,
+        "se": 0.003811138367091264,
+        "fields": [
+         13,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      }
+     },
+     "threshold_native": {
+      "acquisition_date": "30min",
+      "value": 17394.126953125,
+      "pixels": 16166392,
+      "nuclei": 7641,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     },
+     "threshold_binned": {
+      "acquisition_date": "30min",
+      "value": 17908.91015625,
+      "pixels": 3726632,
+      "nuclei": 6978,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     }
+    }
+   }
+  },
+  "positive_area_fraction/nuclear": {
+   "by_group": {
+    "2hrs": {
+     "conditions": {
+      "ActD1": {
+       "fields": 15,
+       "nuclei": 655,
+       "measurable_fraction": 0.7206106870229008,
+       "measurable_fraction_not_border": 0.8309859154929577,
+       "reasons": {
+        "measured": 472,
+        "saturated_pixels": 96,
+        "touches_border": 87
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9940886699507387,
+       "rho_redetected_median": 0.9875070982396368
+      },
+      "ActD10": {
+       "fields": 15,
+       "nuclei": 727,
+       "measurable_fraction": 0.8046767537826685,
+       "measurable_fraction_not_border": 0.9069767441860465,
+       "reasons": {
+        "measured": 585,
+        "saturated_pixels": 60,
+        "touches_border": 82
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9948849104859335,
+       "rho_redetected_median": 0.9895141268132845
+      },
+      "Cis10": {
+       "fields": 15,
+       "nuclei": 1436,
+       "measurable_fraction": 0.8419220055710307,
+       "measurable_fraction_not_border": 0.9386645962732919,
+       "reasons": {
+        "below_background_spread": 10,
+        "measured": 1209,
+        "saturated_pixels": 69,
+        "touches_border": 148
+       },
+       "rho_fields": 11,
+       "rho_median": 0.9967407914721446,
+       "rho_redetected_median": 0.9855874912480554
+      },
+      "Cis100": {
+       "fields": 15,
+       "nuclei": 1119,
+       "measurable_fraction": 0.868632707774799,
+       "measurable_fraction_not_border": 0.9848024316109423,
+       "reasons": {
+        "below_background_spread": 1,
+        "measured": 972,
+        "saturated_pixels": 14,
+        "touches_border": 132
+       },
+       "rho_fields": 14,
+       "rho_median": 0.9925720297798726,
+       "rho_redetected_median": 0.991200639300085
+      },
+      "Ox10": {
+       "fields": 15,
+       "nuclei": 765,
+       "measurable_fraction": 0.8130718954248366,
+       "measurable_fraction_not_border": 0.9228486646884273,
+       "reasons": {
+        "below_background_spread": 9,
+        "measured": 622,
+        "nonpositive_mean": 7,
+        "saturated_pixels": 36,
+        "touches_border": 91
+       },
+       "rho_fields": 9,
+       "rho_median": 0.993497464003242,
+       "rho_redetected_median": 0.9845145524754166
+      },
+      "Ox100": {
+       "fields": 15,
+       "nuclei": 887,
+       "measurable_fraction": 0.8105975197294251,
+       "measurable_fraction_not_border": 0.9078282828282829,
+       "reasons": {
+        "below_background_spread": 6,
+        "measured": 719,
+        "nonpositive_mean": 2,
+        "saturated_pixels": 65,
+        "touches_border": 95
+       },
+       "rho_fields": 8,
+       "rho_median": 0.9925595270260847,
+       "rho_redetected_median": 0.9806182436049888
+      },
+      "UntreatedNoEU": {
+       "fields": 15,
+       "nuclei": 1018,
+       "measurable_fraction": 0.849705304518664,
+       "measurable_fraction_not_border": 0.9600443951165372,
+       "reasons": {
+        "below_background_spread": 9,
+        "measured": 865,
+        "saturated_pixels": 27,
+        "touches_border": 117
+       },
+       "rho_fields": 10,
+       "rho_median": 0.9940202031958857,
+       "rho_redetected_median": 0.9855216196946014
+      },
+      "UntreatedWithEU": {
+       "fields": 15,
+       "nuclei": 804,
+       "measurable_fraction": 0.6393034825870647,
+       "measurable_fraction_not_border": 0.7219101123595506,
+       "reasons": {
+        "measured": 514,
+        "saturated_pixels": 198,
+        "touches_border": 92
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9946430247522744,
+       "rho_redetected_median": 0.984037531561019
+      }
+     },
+     "contrasts": {
+      "ActD1": {
+       "native": {
+        "difference": -0.02979315605480526,
+        "se": 0.04252452605988984,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.04135275748718659,
+        "se": 0.04517085393409885,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "ActD10": {
+       "native": {
+        "difference": -0.09448981007042645,
+        "se": 0.0410617016507608,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.13379748048970608,
+        "se": 0.044757136940153056,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.4159990414837567
+      },
+      "Cis10": {
+       "native": {
+        "difference": -0.44751148505937455,
+        "se": 0.08804769703153396,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.43334862474876346,
+        "se": 0.08918754323257039,
+        "fields": [
+         13,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 0.9683519623887821
+      },
+      "Cis100": {
+       "native": {
+        "difference": -0.4979212323335368,
+        "se": 0.059561429385112434,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.5418949041525343,
+        "se": 0.05406153012118132,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.088314514351823
+      },
+      "Ox10": {
+       "native": {
+        "difference": -0.29321684141979903,
+        "se": 0.11716397643990299,
+        "fields": [
+         12,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.3255074548605465,
+        "se": 0.11441106290149747,
+        "fields": [
+         12,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.110125370986167
+      },
+      "Ox100": {
+       "native": {
+        "difference": -0.4284316795050418,
+        "se": 0.10297259614971305,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.44760758658560573,
+        "se": 0.09985400222635527,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.0447583780515892
+      },
+      "UntreatedNoEU": {
+       "native": {
+        "difference": -0.4948254437744709,
+        "se": 0.09006877071552302,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.5099297834416028,
+        "se": 0.08699400659927785,
+        "fields": [
+         13,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.0305245816624096
+      }
+     },
+     "threshold_native": {
+      "acquisition_date": "2hrs",
+      "value": 18889.908203125,
+      "pixels": 13272219,
+      "nuclei": 5958,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     },
+     "threshold_binned": {
+      "acquisition_date": "2hrs",
+      "value": 19724.87890625,
+      "pixels": 3098431,
+      "nuclei": 5520,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     }
+    },
+    "30min": {
+     "conditions": {
+      "ActD1": {
+       "fields": 15,
+       "nuclei": 1218,
+       "measurable_fraction": 0.8210180623973727,
+       "measurable_fraction_not_border": 0.9182736455463728,
+       "reasons": {
+        "measured": 1000,
+        "saturated_pixels": 89,
+        "touches_border": 129
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9928040458293151,
+       "rho_redetected_median": 0.9815071990218256
+      },
+      "ActD10": {
+       "fields": 15,
+       "nuclei": 1797,
+       "measurable_fraction": 0.8547579298831386,
+       "measurable_fraction_not_border": 0.9770992366412213,
+       "reasons": {
+        "measured": 1536,
+        "saturated_pixels": 36,
+        "touches_border": 225
+       },
+       "rho_fields": 12,
+       "rho_median": 0.9939727617096836,
+       "rho_redetected_median": 0.987949359133129
+      },
+      "Cis10": {
+       "fields": 15,
+       "nuclei": 938,
+       "measurable_fraction": 0.7899786780383795,
+       "measurable_fraction_not_border": 0.8831942789034565,
+       "reasons": {
+        "below_background_spread": 3,
+        "measured": 741,
+        "nonpositive_mean": 1,
+        "saturated_pixels": 94,
+        "touches_border": 99
+       },
+       "rho_fields": 14,
+       "rho_median": 0.9929636963189672,
+       "rho_redetected_median": 0.9769870120987025
+      },
+      "Cis100": {
+       "fields": 15,
+       "nuclei": 752,
+       "measurable_fraction": 0.8683510638297872,
+       "measurable_fraction_not_border": 0.9588839941262849,
+       "reasons": {
+        "background_not_established": 2,
+        "below_background_spread": 23,
+        "measured": 653,
+        "nonpositive_mean": 5,
+        "touches_border": 69
+       },
+       "rho_fields": 1,
+       "rho_median": 0.9646920886642909,
+       "rho_redetected_median": 0.9546652421600204
+      },
+      "Ox10": {
+       "fields": 15,
+       "nuclei": 1300,
+       "measurable_fraction": 0.8630769230769231,
+       "measurable_fraction_not_border": 0.9639175257731959,
+       "reasons": {
+        "below_background_spread": 2,
+        "measured": 1122,
+        "saturated_pixels": 40,
+        "touches_border": 136
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9975181548466667,
+       "rho_redetected_median": 0.9889543980083843
+      },
+      "Ox100": {
+       "fields": 15,
+       "nuclei": 1397,
+       "measurable_fraction": 0.8525411596277738,
+       "measurable_fraction_not_border": 0.9746317512274959,
+       "reasons": {
+        "measured": 1191,
+        "saturated_pixels": 31,
+        "touches_border": 175
+       },
+       "rho_fields": 14,
+       "rho_median": 0.9949246995481088,
+       "rho_redetected_median": 0.9865081301456875
+      },
+      "UntreatedNoEU": {
+       "fields": 14,
+       "nuclei": 819,
+       "measurable_fraction": 0.8522588522588522,
+       "measurable_fraction_not_border": 0.9509536784741145,
+       "reasons": {
+        "measured": 698,
+        "saturated_pixels": 36,
+        "touches_border": 85
+       },
+       "rho_fields": 13,
+       "rho_median": 0.9968643646514473,
+       "rho_redetected_median": 0.986837486837487
+      },
+      "UntreatedWithEU": {
+       "fields": 15,
+       "nuclei": 882,
+       "measurable_fraction": 0.7936507936507936,
+       "measurable_fraction_not_border": 0.8905852417302799,
+       "reasons": {
+        "below_background_spread": 7,
+        "measured": 700,
+        "nonpositive_mean": 2,
+        "saturated_pixels": 77,
+        "touches_border": 96
+       },
+       "rho_fields": 12,
+       "rho_median": 0.9409184263526642,
+       "rho_redetected_median": 0.9382080691853862
+      }
+     },
+     "contrasts": {
+      "ActD1": {
+       "native": {
+        "difference": 0.45748742846508494,
+        "se": 0.12257131909433171,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": 0.4383399953883099,
+        "se": 0.12786332776610737,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 0.9581465371824172
+      },
+      "ActD10": {
+       "native": {
+        "difference": 0.056562969262730495,
+        "se": 0.11922259549946967,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": 0.07872040833749272,
+        "se": 0.12629896127740692,
+        "fields": [
+         12,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Cis10": {
+       "native": {
+        "difference": 0.24339291468937344,
+        "se": 0.1405905215304531,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": 0.22472495234494955,
+        "se": 0.1451511903381187,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Cis100": {
+       "native": {
+        "difference": -0.2367319901913568,
+        "se": 0.0959867271713141,
+        "fields": [
+         10,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.24811765387590068,
+        "se": 0.10173312652039228,
+        "fields": [
+         10,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.0480951631224007
+      },
+      "Ox10": {
+       "native": {
+        "difference": 0.2552920768736474,
+        "se": 0.11882837387965345,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": 0.2222619060025896,
+        "se": 0.12415825437689935,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 0.8706181121030029
+      },
+      "Ox100": {
+       "native": {
+        "difference": 0.16531187942541645,
+        "se": 0.12343830258955003,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": 0.1602322934462173,
+        "se": 0.12810989434192122,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "UntreatedNoEU": {
+       "native": {
+        "difference": 0.44343132255280815,
+        "se": 0.11680882703341158,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "binned": {
+        "difference": 0.46054237718881064,
+        "se": 0.1129776547094082,
+        "fields": [
+         13,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.038587834836509
+      }
+     },
+     "threshold_native": {
+      "acquisition_date": "30min",
+      "value": 17394.126953125,
+      "pixels": 16166392,
+      "nuclei": 7641,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     },
+     "threshold_binned": {
+      "acquisition_date": "30min",
+      "value": 17908.91015625,
+      "pixels": 3726632,
+      "nuclei": 6978,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     }
+    }
+   }
+  },
+  "cv_corrected/npm1": {
+   "by_group": {
+    "2hrs": {
+     "conditions": {
+      "ActD1": {
+       "fields": 15,
+       "nuclei": 655,
+       "measurable_fraction": 0.8610687022900764,
+       "measurable_fraction_not_border": 0.9929577464788732,
+       "reasons": {
+        "below_background_spread": 2,
+        "measured": 564,
+        "nonpositive_mean": 1,
+        "saturated_pixels": 1,
+        "touches_border": 87
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9969935245143388,
+       "rho_redetected_median": 0.9961538461538463
+      },
+      "ActD10": {
+       "fields": 15,
+       "nuclei": 727,
+       "measurable_fraction": 0.8707015130674003,
+       "measurable_fraction_not_border": 0.9813953488372092,
+       "reasons": {
+        "below_background_spread": 7,
+        "measured": 633,
+        "nonpositive_mean": 5,
+        "touches_border": 82
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9971103084190054,
+       "rho_redetected_median": 0.9954163483575248
+      },
+      "Cis10": {
+       "fields": 15,
+       "nuclei": 1436,
+       "measurable_fraction": 0.850974930362117,
+       "measurable_fraction_not_border": 0.9487577639751553,
+       "reasons": {
+        "below_background_spread": 50,
+        "measured": 1222,
+        "nonpositive_mean": 16,
+        "touches_border": 148
+       },
+       "rho_fields": 14,
+       "rho_median": 0.9845588803443158,
+       "rho_redetected_median": 0.9806952252072914
+      },
+      "Cis100": {
+       "fields": 15,
+       "nuclei": 1119,
+       "measurable_fraction": 0.870420017873101,
+       "measurable_fraction_not_border": 0.9868287740628167,
+       "reasons": {
+        "below_background_spread": 8,
+        "measured": 974,
+        "nonpositive_mean": 4,
+        "saturated_pixels": 1,
+        "touches_border": 132
+       },
+       "rho_fields": 15,
+       "rho_median": 0.996753246753247,
+       "rho_redetected_median": 0.9939209726443768
+      },
+      "Ox10": {
+       "fields": 15,
+       "nuclei": 765,
+       "measurable_fraction": 0.8470588235294118,
+       "measurable_fraction_not_border": 0.9614243323442137,
+       "reasons": {
+        "below_background_spread": 13,
+        "measured": 648,
+        "nonpositive_mean": 12,
+        "saturated_pixels": 1,
+        "touches_border": 91
+       },
+       "rho_fields": 12,
+       "rho_median": 0.9960300520788866,
+       "rho_redetected_median": 0.9950269313652162
+      },
+      "Ox100": {
+       "fields": 15,
+       "nuclei": 887,
+       "measurable_fraction": 0.874859075535513,
+       "measurable_fraction_not_border": 0.9797979797979798,
+       "reasons": {
+        "below_background_spread": 9,
+        "measured": 776,
+        "nonpositive_mean": 3,
+        "saturated_pixels": 4,
+        "touches_border": 95
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9962406015037595,
+       "rho_redetected_median": 0.9943100995732574
+      },
+      "UntreatedNoEU": {
+       "fields": 15,
+       "nuclei": 1018,
+       "measurable_fraction": 0.8664047151277013,
+       "measurable_fraction_not_border": 0.978912319644839,
+       "reasons": {
+        "below_background_spread": 14,
+        "measured": 882,
+        "nonpositive_mean": 5,
+        "touches_border": 117
+       },
+       "rho_fields": 13,
+       "rho_median": 0.9958724202626642,
+       "rho_redetected_median": 0.9904761904761905
+      },
+      "UntreatedWithEU": {
+       "fields": 15,
+       "nuclei": 804,
+       "measurable_fraction": 0.8793532338308457,
+       "measurable_fraction_not_border": 0.9929775280898876,
+       "reasons": {
+        "below_background_spread": 2,
+        "measured": 707,
+        "nonpositive_mean": 2,
+        "saturated_pixels": 1,
+        "touches_border": 92
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9972498090145148,
+       "rho_redetected_median": 0.9919324577861166
+      }
+     },
+     "contrasts": {
+      "ActD1": {
+       "native": {
+        "difference": 0.23862619432775123,
+        "se": 0.03948991473025835,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": 0.21418268741669477,
+        "se": 0.037235877912968535,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 0.8975657011171059
+      },
+      "ActD10": {
+       "native": {
+        "difference": 0.2755455892880039,
+        "se": 0.05906034110473749,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": 0.25114902134435835,
+        "se": 0.05615969197311428,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 0.9114608656713212
+      },
+      "Cis10": {
+       "native": {
+        "difference": -0.2908700275357211,
+        "se": 0.03388224274244574,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.30866842753725965,
+        "se": 0.03372544830391683,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.0611902166487497
+      },
+      "Cis100": {
+       "native": {
+        "difference": -0.05164696062825791,
+        "se": 0.05780545892541233,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.06564183120460021,
+        "se": 0.05521790330641237,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Ox10": {
+       "native": {
+        "difference": 0.08159212843136587,
+        "se": 0.058451040962272494,
+        "fields": [
+         12,
+         15
+        ]
+       },
+       "binned": {
+        "difference": 0.06266844406359784,
+        "se": 0.056126685856153255,
+        "fields": [
+         12,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Ox100": {
+       "native": {
+        "difference": 0.4305844818751745,
+        "se": 0.05025484402579386,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": 0.39040007792794706,
+        "se": 0.04854478631549321,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 0.9066747510912927
+      },
+      "UntreatedNoEU": {
+       "native": {
+        "difference": -0.24811621795459826,
+        "se": 0.06290745867478152,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.2487193846052993,
+        "se": 0.06674687127184928,
+        "fields": [
+         13,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.002430984381728
+      }
+     },
+     "threshold_native": {
+      "acquisition_date": "2hrs",
+      "value": 6433.197265625,
+      "pixels": 14250168,
+      "nuclei": 6406,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     },
+     "threshold_binned": {
+      "acquisition_date": "2hrs",
+      "value": 6248.154296875,
+      "pixels": 3471755,
+      "nuclei": 6204,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     }
+    },
+    "30min": {
+     "conditions": {
+      "ActD1": {
+       "fields": 15,
+       "nuclei": 1218,
+       "measurable_fraction": 0.8694581280788177,
+       "measurable_fraction_not_border": 0.9724517906336089,
+       "reasons": {
+        "below_background_spread": 20,
+        "measured": 1059,
+        "nonpositive_mean": 10,
+        "touches_border": 129
+       },
+       "rho_fields": 15,
+       "rho_median": 0.994076655052265,
+       "rho_redetected_median": 0.9901286797109115
+      },
+      "ActD10": {
+       "fields": 15,
+       "nuclei": 1797,
+       "measurable_fraction": 0.857540345019477,
+       "measurable_fraction_not_border": 0.9802798982188295,
+       "reasons": {
+        "below_background_spread": 23,
+        "measured": 1541,
+        "nonpositive_mean": 8,
+        "touches_border": 225
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9965434008248969,
+       "rho_redetected_median": 0.9904072398190045
+      },
+      "Cis10": {
+       "fields": 15,
+       "nuclei": 938,
+       "measurable_fraction": 0.8880597014925373,
+       "measurable_fraction_not_border": 0.9928486293206198,
+       "reasons": {
+        "below_background_spread": 4,
+        "measured": 833,
+        "nonpositive_mean": 2,
+        "touches_border": 99
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9974115436802005,
+       "rho_redetected_median": 0.9936123577914625
+      },
+      "Cis100": {
+       "fields": 15,
+       "nuclei": 752,
+       "measurable_fraction": 0.8803191489361702,
+       "measurable_fraction_not_border": 0.9720998531571219,
+       "reasons": {
+        "below_background_spread": 16,
+        "measured": 662,
+        "nonpositive_mean": 3,
+        "touches_border": 71
+       },
+       "rho_fields": 10,
+       "rho_median": 0.9924183029053573,
+       "rho_redetected_median": 0.9737379701629949
+      },
+      "Ox10": {
+       "fields": 15,
+       "nuclei": 1300,
+       "measurable_fraction": 0.88,
+       "measurable_fraction_not_border": 0.9828178694158075,
+       "reasons": {
+        "below_background_spread": 14,
+        "measured": 1144,
+        "nonpositive_mean": 6,
+        "touches_border": 136
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9960530373111316,
+       "rho_redetected_median": 0.9925994449583719
+      },
+      "Ox100": {
+       "fields": 15,
+       "nuclei": 1397,
+       "measurable_fraction": 0.8618468146027202,
+       "measurable_fraction_not_border": 0.9852700490998363,
+       "reasons": {
+        "below_background_spread": 12,
+        "measured": 1204,
+        "nonpositive_mean": 4,
+        "saturated_pixels": 2,
+        "touches_border": 175
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9957983193277312,
+       "rho_redetected_median": 0.9928019932941649
+      },
+      "UntreatedNoEU": {
+       "fields": 14,
+       "nuclei": 819,
+       "measurable_fraction": 0.8937728937728938,
+       "measurable_fraction_not_border": 0.997275204359673,
+       "reasons": {
+        "measured": 732,
+        "nonpositive_mean": 2,
+        "touches_border": 85
+       },
+       "rho_fields": 14,
+       "rho_median": 0.9953715865140769,
+       "rho_redetected_median": 0.9887435680118608
+      },
+      "UntreatedWithEU": {
+       "fields": 15,
+       "nuclei": 882,
+       "measurable_fraction": 0.8764172335600907,
+       "measurable_fraction_not_border": 0.9834605597964376,
+       "reasons": {
+        "below_background_spread": 7,
+        "measured": 773,
+        "nonpositive_mean": 2,
+        "saturated_pixels": 4,
+        "touches_border": 96
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9963354474982381,
+       "rho_redetected_median": 0.9885375494071146
+      }
+     },
+     "contrasts": {
+      "ActD1": {
+       "native": {
+        "difference": 0.03154826997563043,
+        "se": 0.07744756149316878,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": 0.022457280630148957,
+        "se": 0.0768096866165286,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "ActD10": {
+       "native": {
+        "difference": 0.1297608839783706,
+        "se": 0.07800198893051266,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": 0.11547861347197874,
+        "se": 0.07800588401112536,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Cis10": {
+       "native": {
+        "difference": -0.06317944360373817,
+        "se": 0.08085699950002252,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.059996006312997396,
+        "se": 0.08006801602834555,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Cis100": {
+       "native": {
+        "difference": -0.12231968559851125,
+        "se": 0.08068159658652599,
+        "fields": [
+         10,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.1308539899148089,
+        "se": 0.08094936674952423,
+        "fields": [
+         10,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Ox10": {
+       "native": {
+        "difference": -0.006939674518269157,
+        "se": 0.08842256260809582,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.013624858741448143,
+        "se": 0.08714273810661226,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Ox100": {
+       "native": {
+        "difference": 0.09797264036823505,
+        "se": 0.07892010642683456,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": 0.09430393632181078,
+        "se": 0.0780852480476309,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "UntreatedNoEU": {
+       "native": {
+        "difference": 0.030338554598918432,
+        "se": 0.07881536386159665,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "binned": {
+        "difference": 0.02957361388778834,
+        "se": 0.07782049601016279,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      }
+     },
+     "threshold_native": {
+      "acquisition_date": "30min",
+      "value": 4851.279296875,
+      "pixels": 16741699,
+      "nuclei": 7948,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     },
+     "threshold_binned": {
+      "acquisition_date": "30min",
+      "value": 4668.96484375,
+      "pixels": 4190686,
+      "nuclei": 7963,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     }
+    }
+   }
+  },
+  "positive_area_fraction/npm1": {
+   "by_group": {
+    "2hrs": {
+     "conditions": {
+      "ActD1": {
+       "fields": 15,
+       "nuclei": 655,
+       "measurable_fraction": 0.8610687022900764,
+       "measurable_fraction_not_border": 0.9929577464788732,
+       "reasons": {
+        "below_background_spread": 2,
+        "measured": 564,
+        "nonpositive_mean": 1,
+        "saturated_pixels": 1,
+        "touches_border": 87
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9825308630772318,
+       "rho_redetected_median": 0.9809105277021302
+      },
+      "ActD10": {
+       "fields": 15,
+       "nuclei": 727,
+       "measurable_fraction": 0.8707015130674003,
+       "measurable_fraction_not_border": 0.9813953488372092,
+       "reasons": {
+        "below_background_spread": 7,
+        "measured": 633,
+        "nonpositive_mean": 5,
+        "touches_border": 82
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9891204521370538,
+       "rho_redetected_median": 0.9850479440923126
+      },
+      "Cis10": {
+       "fields": 15,
+       "nuclei": 1436,
+       "measurable_fraction": 0.850974930362117,
+       "measurable_fraction_not_border": 0.9487577639751553,
+       "reasons": {
+        "below_background_spread": 50,
+        "measured": 1222,
+        "nonpositive_mean": 16,
+        "touches_border": 148
+       },
+       "rho_fields": 14,
+       "rho_median": 0.9862581338979767,
+       "rho_redetected_median": 0.9874155186811397
+      },
+      "Cis100": {
+       "fields": 15,
+       "nuclei": 1119,
+       "measurable_fraction": 0.870420017873101,
+       "measurable_fraction_not_border": 0.9868287740628167,
+       "reasons": {
+        "below_background_spread": 8,
+        "measured": 974,
+        "nonpositive_mean": 4,
+        "saturated_pixels": 1,
+        "touches_border": 132
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9951885325069905,
+       "rho_redetected_median": 0.9924325124355772
+      },
+      "Ox10": {
+       "fields": 15,
+       "nuclei": 765,
+       "measurable_fraction": 0.8470588235294118,
+       "measurable_fraction_not_border": 0.9614243323442137,
+       "reasons": {
+        "below_background_spread": 13,
+        "measured": 648,
+        "nonpositive_mean": 12,
+        "saturated_pixels": 1,
+        "touches_border": 91
+       },
+       "rho_fields": 12,
+       "rho_median": 0.9906031756086535,
+       "rho_redetected_median": 0.9887509821765462
+      },
+      "Ox100": {
+       "fields": 15,
+       "nuclei": 887,
+       "measurable_fraction": 0.874859075535513,
+       "measurable_fraction_not_border": 0.9797979797979798,
+       "reasons": {
+        "below_background_spread": 9,
+        "measured": 776,
+        "nonpositive_mean": 3,
+        "saturated_pixels": 4,
+        "touches_border": 95
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9894072897106263,
+       "rho_redetected_median": 0.9863599348534203
+      },
+      "UntreatedNoEU": {
+       "fields": 15,
+       "nuclei": 1018,
+       "measurable_fraction": 0.8664047151277013,
+       "measurable_fraction_not_border": 0.978912319644839,
+       "reasons": {
+        "below_background_spread": 14,
+        "measured": 882,
+        "nonpositive_mean": 5,
+        "touches_border": 117
+       },
+       "rho_fields": 13,
+       "rho_median": 0.9946196457115533,
+       "rho_redetected_median": 0.9934922935418123
+      },
+      "UntreatedWithEU": {
+       "fields": 15,
+       "nuclei": 804,
+       "measurable_fraction": 0.8793532338308457,
+       "measurable_fraction_not_border": 0.9929775280898876,
+       "reasons": {
+        "below_background_spread": 2,
+        "measured": 707,
+        "nonpositive_mean": 2,
+        "saturated_pixels": 1,
+        "touches_border": 92
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9951863354037267,
+       "rho_redetected_median": 0.9955478880293838
+      }
+     },
+     "contrasts": {
+      "ActD1": {
+       "native": {
+        "difference": -0.049366436244826256,
+        "se": 0.006712417672207257,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.05023892487044943,
+        "se": 0.006720509500092537,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.0176737210945548
+      },
+      "ActD10": {
+       "native": {
+        "difference": -0.043075828324193495,
+        "se": 0.006944587069669421,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.04508529383405013,
+        "se": 0.007031942380516168,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.0466494920244638
+      },
+      "Cis10": {
+       "native": {
+        "difference": -0.0806995081295597,
+        "se": 0.0064500533168378475,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.08338578795250016,
+        "se": 0.006443643278397037,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.033287437373568
+      },
+      "Cis100": {
+       "native": {
+        "difference": -0.043702414829474824,
+        "se": 0.007589312073441646,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.04560979112584954,
+        "se": 0.007605162555760515,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.043644643066458
+      },
+      "Ox10": {
+       "native": {
+        "difference": -0.028289548578302744,
+        "se": 0.007826889460259789,
+        "fields": [
+         12,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.029031646816967217,
+        "se": 0.007935053654904538,
+        "fields": [
+         12,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.0262322403841269
+      },
+      "Ox100": {
+       "native": {
+        "difference": -0.045808868797506265,
+        "se": 0.0068099589448469946,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.045871813492657974,
+        "se": 0.006872183460692188,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.001374072244175
+      },
+      "UntreatedNoEU": {
+       "native": {
+        "difference": -0.057401214302335225,
+        "se": 0.01051636882701171,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.057454395486048145,
+        "se": 0.010992361858290623,
+        "fields": [
+         13,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.0009264818586034
+      }
+     },
+     "threshold_native": {
+      "acquisition_date": "2hrs",
+      "value": 6433.197265625,
+      "pixels": 14250168,
+      "nuclei": 6406,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     },
+     "threshold_binned": {
+      "acquisition_date": "2hrs",
+      "value": 6248.154296875,
+      "pixels": 3471755,
+      "nuclei": 6204,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     }
+    },
+    "30min": {
+     "conditions": {
+      "ActD1": {
+       "fields": 15,
+       "nuclei": 1218,
+       "measurable_fraction": 0.8694581280788177,
+       "measurable_fraction_not_border": 0.9724517906336089,
+       "reasons": {
+        "below_background_spread": 20,
+        "measured": 1059,
+        "nonpositive_mean": 10,
+        "touches_border": 129
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9963593015013856,
+       "rho_redetected_median": 0.9948049867918797
+      },
+      "ActD10": {
+       "fields": 15,
+       "nuclei": 1797,
+       "measurable_fraction": 0.857540345019477,
+       "measurable_fraction_not_border": 0.9802798982188295,
+       "reasons": {
+        "below_background_spread": 23,
+        "measured": 1541,
+        "nonpositive_mean": 8,
+        "touches_border": 225
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9961296565070148,
+       "rho_redetected_median": 0.9932795855851873
+      },
+      "Cis10": {
+       "fields": 15,
+       "nuclei": 938,
+       "measurable_fraction": 0.8880597014925373,
+       "measurable_fraction_not_border": 0.9928486293206198,
+       "reasons": {
+        "below_background_spread": 4,
+        "measured": 833,
+        "nonpositive_mean": 2,
+        "touches_border": 99
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9973844316824926,
+       "rho_redetected_median": 0.996677069100563
+      },
+      "Cis100": {
+       "fields": 15,
+       "nuclei": 752,
+       "measurable_fraction": 0.8803191489361702,
+       "measurable_fraction_not_border": 0.9720998531571219,
+       "reasons": {
+        "below_background_spread": 16,
+        "measured": 662,
+        "nonpositive_mean": 3,
+        "touches_border": 71
+       },
+       "rho_fields": 10,
+       "rho_median": 0.9865581415695395,
+       "rho_redetected_median": 0.9864356141747074
+      },
+      "Ox10": {
+       "fields": 15,
+       "nuclei": 1300,
+       "measurable_fraction": 0.88,
+       "measurable_fraction_not_border": 0.9828178694158075,
+       "reasons": {
+        "below_background_spread": 14,
+        "measured": 1144,
+        "nonpositive_mean": 6,
+        "touches_border": 136
+       },
+       "rho_fields": 15,
+       "rho_median": 0.994570751927749,
+       "rho_redetected_median": 0.994160747380953
+      },
+      "Ox100": {
+       "fields": 15,
+       "nuclei": 1397,
+       "measurable_fraction": 0.8618468146027202,
+       "measurable_fraction_not_border": 0.9852700490998363,
+       "reasons": {
+        "below_background_spread": 12,
+        "measured": 1204,
+        "nonpositive_mean": 4,
+        "saturated_pixels": 2,
+        "touches_border": 175
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9965010190542631,
+       "rho_redetected_median": 0.995029887836658
+      },
+      "UntreatedNoEU": {
+       "fields": 14,
+       "nuclei": 819,
+       "measurable_fraction": 0.8937728937728938,
+       "measurable_fraction_not_border": 0.997275204359673,
+       "reasons": {
+        "measured": 732,
+        "nonpositive_mean": 2,
+        "touches_border": 85
+       },
+       "rho_fields": 14,
+       "rho_median": 0.9952276481273277,
+       "rho_redetected_median": 0.9936882383236232
+      },
+      "UntreatedWithEU": {
+       "fields": 15,
+       "nuclei": 882,
+       "measurable_fraction": 0.8764172335600907,
+       "measurable_fraction_not_border": 0.9834605597964376,
+       "reasons": {
+        "below_background_spread": 7,
+        "measured": 773,
+        "nonpositive_mean": 2,
+        "saturated_pixels": 4,
+        "touches_border": 96
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9954908792785407,
+       "rho_redetected_median": 0.9950995405819295
+      }
+     },
+     "contrasts": {
+      "ActD1": {
+       "native": {
+        "difference": -0.04876079788547999,
+        "se": 0.013290350421313043,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.052009936260051765,
+        "se": 0.013823767840856356,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.0666342331436562
+      },
+      "ActD10": {
+       "native": {
+        "difference": -0.026284368784799658,
+        "se": 0.014870015452866222,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.029147500510413288,
+        "se": 0.015694276615661567,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Cis10": {
+       "native": {
+        "difference": -0.043360972979012716,
+        "se": 0.014786722910707959,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.04621470246935944,
+        "se": 0.01516438214245601,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.065813317697644
+      },
+      "Cis100": {
+       "native": {
+        "difference": -0.11480070900907587,
+        "se": 0.012020641208164137,
+        "fields": [
+         10,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.1207586913432331,
+        "se": 0.012761099078170884,
+        "fields": [
+         10,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.0518984802932376
+      },
+      "Ox10": {
+       "native": {
+        "difference": -0.05167426059693385,
+        "se": 0.014653605362748602,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.05350679386556621,
+        "se": 0.015411616025041453,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.0354631734922415
+      },
+      "Ox100": {
+       "native": {
+        "difference": 0.004326512773009161,
+        "se": 0.013984384540936631,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": 0.004088711472319997,
+        "se": 0.014688762791608408,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "UntreatedNoEU": {
+       "native": {
+        "difference": -0.031942532023767845,
+        "se": 0.013370974811560708,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.03591892956557033,
+        "se": 0.013944716932692388,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.1244859843560215
+      }
+     },
+     "threshold_native": {
+      "acquisition_date": "30min",
+      "value": 4851.279296875,
+      "pixels": 16741699,
+      "nuclei": 7948,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     },
+     "threshold_binned": {
+      "acquisition_date": "30min",
+      "value": 4668.96484375,
+      "pixels": 4190686,
+      "nuclei": 7963,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     }
+    }
+   }
+  },
+  "cv_corrected/fbl": {
+   "by_group": {
+    "2hrs": {
+     "conditions": {
+      "ActD1": {
+       "fields": 15,
+       "nuclei": 655,
+       "measurable_fraction": 0.8656488549618321,
+       "measurable_fraction_not_border": 0.9982394366197183,
+       "reasons": {
+        "below_background_spread": 1,
+        "measured": 567,
+        "touches_border": 87
+       },
+       "rho_fields": 15,
+       "rho_median": 0.978048780487805,
+       "rho_redetected_median": 0.949274255156608
+      },
+      "ActD10": {
+       "fields": 15,
+       "nuclei": 727,
+       "measurable_fraction": 0.8473177441540578,
+       "measurable_fraction_not_border": 0.9550387596899225,
+       "reasons": {
+        "below_background_spread": 20,
+        "measured": 616,
+        "nonpositive_mean": 9,
+        "touches_border": 82
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9768951978254304,
+       "rho_redetected_median": 0.9555750082065871
+      },
+      "Cis10": {
+       "fields": 15,
+       "nuclei": 1436,
+       "measurable_fraction": 0.791782729805014,
+       "measurable_fraction_not_border": 0.8827639751552795,
+       "reasons": {
+        "below_background_spread": 103,
+        "measured": 1137,
+        "nonpositive_mean": 47,
+        "saturated_pixels": 1,
+        "touches_border": 148
+       },
+       "rho_fields": 14,
+       "rho_median": 0.9692530824566741,
+       "rho_redetected_median": 0.938679117593348
+      },
+      "Cis100": {
+       "fields": 15,
+       "nuclei": 1119,
+       "measurable_fraction": 0.8364611260053619,
+       "measurable_fraction_not_border": 0.9483282674772037,
+       "reasons": {
+        "below_background_spread": 38,
+        "measured": 936,
+        "nonpositive_mean": 13,
+        "touches_border": 132
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9809491978609627,
+       "rho_redetected_median": 0.9560728744939272
+      },
+      "Ox10": {
+       "fields": 15,
+       "nuclei": 765,
+       "measurable_fraction": 0.8313725490196079,
+       "measurable_fraction_not_border": 0.9436201780415431,
+       "reasons": {
+        "below_background_spread": 23,
+        "measured": 636,
+        "nonpositive_mean": 15,
+        "touches_border": 91
+       },
+       "rho_fields": 12,
+       "rho_median": 0.9751099125770543,
+       "rho_redetected_median": 0.9454470009538021
+      },
+      "Ox100": {
+       "fields": 15,
+       "nuclei": 887,
+       "measurable_fraction": 0.8816234498308907,
+       "measurable_fraction_not_border": 0.9873737373737373,
+       "reasons": {
+        "below_background_spread": 9,
+        "measured": 782,
+        "nonpositive_mean": 1,
+        "touches_border": 95
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9745701357466062,
+       "rho_redetected_median": 0.939698875547932
+      },
+      "UntreatedNoEU": {
+       "fields": 15,
+       "nuclei": 1018,
+       "measurable_fraction": 0.8428290766208252,
+       "measurable_fraction_not_border": 0.9522752497225305,
+       "reasons": {
+        "below_background_spread": 33,
+        "measured": 858,
+        "nonpositive_mean": 10,
+        "touches_border": 117
+       },
+       "rho_fields": 13,
+       "rho_median": 0.9804361869020888,
+       "rho_redetected_median": 0.9508163265306122
+      },
+      "UntreatedWithEU": {
+       "fields": 15,
+       "nuclei": 804,
+       "measurable_fraction": 0.8694029850746269,
+       "measurable_fraction_not_border": 0.9817415730337079,
+       "reasons": {
+        "below_background_spread": 10,
+        "measured": 699,
+        "nonpositive_mean": 3,
+        "touches_border": 92
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9810542398777692,
+       "rho_redetected_median": 0.9559969442322382
+      }
+     },
+     "contrasts": {
+      "ActD1": {
+       "native": {
+        "difference": -0.020881280611561165,
+        "se": 0.0041556056575846835,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.01853660887648939,
+        "se": 0.004429312011468379,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 0.8877141790923676
+      },
+      "ActD10": {
+       "native": {
+        "difference": -0.0027483043542269048,
+        "se": 0.00692344266453751,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.004511789784816506,
+        "se": 0.006588889987740459,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Cis10": {
+       "native": {
+        "difference": 0.011780316851708217,
+        "se": 0.008096739973111552,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.0011222744178110422,
+        "se": 0.009822316648746238,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Cis100": {
+       "native": {
+        "difference": -0.0018315305421581496,
+        "se": 0.010132932650089455,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.007346885480499693,
+        "se": 0.00786149444172891,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Ox10": {
+       "native": {
+        "difference": -0.0158664450597564,
+        "se": 0.00678449968222595,
+        "fields": [
+         12,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.01644727822056377,
+        "se": 0.005959972750779268,
+        "fields": [
+         12,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.036607643276098
+      },
+      "Ox100": {
+       "native": {
+        "difference": -0.00042944341313816414,
+        "se": 0.006027108823834842,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.003155243008493319,
+        "se": 0.005552653160697721,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "UntreatedNoEU": {
+       "native": {
+        "difference": -0.007044911669978754,
+        "se": 0.008829489955517793,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.005529381645344583,
+        "se": 0.009487472149905292,
+        "fields": [
+         13,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      }
+     },
+     "threshold_native": {
+      "acquisition_date": "2hrs",
+      "value": 4678.490234375,
+      "pixels": 13888079,
+      "nuclei": 6231,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     },
+     "threshold_binned": {
+      "acquisition_date": "2hrs",
+      "value": 4835.927734375,
+      "pixels": 3429074,
+      "nuclei": 6121,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     }
+    },
+    "30min": {
+     "conditions": {
+      "ActD1": {
+       "fields": 15,
+       "nuclei": 1218,
+       "measurable_fraction": 0.8308702791461412,
+       "measurable_fraction_not_border": 0.9292929292929293,
+       "reasons": {
+        "below_background_spread": 58,
+        "measured": 1012,
+        "nonpositive_mean": 19,
+        "touches_border": 129
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9736688301701069,
+       "rho_redetected_median": 0.956450377503009
+      },
+      "ActD10": {
+       "fields": 15,
+       "nuclei": 1797,
+       "measurable_fraction": 0.8135781858653311,
+       "measurable_fraction_not_border": 0.9300254452926209,
+       "reasons": {
+        "below_background_spread": 78,
+        "measured": 1462,
+        "nonpositive_mean": 32,
+        "touches_border": 225
+       },
+       "rho_fields": 15,
+       "rho_median": 0.974690299218601,
+       "rho_redetected_median": 0.9553618661359801
+      },
+      "Cis10": {
+       "fields": 15,
+       "nuclei": 938,
+       "measurable_fraction": 0.8752665245202559,
+       "measurable_fraction_not_border": 0.9785458879618594,
+       "reasons": {
+        "below_background_spread": 14,
+        "measured": 821,
+        "nonpositive_mean": 4,
+        "touches_border": 99
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9820549294233504,
+       "rho_redetected_median": 0.9426894701542589
+      },
+      "Cis100": {
+       "fields": 15,
+       "nuclei": 752,
+       "measurable_fraction": 0.8829787234042553,
+       "measurable_fraction_not_border": 0.9750367107195301,
+       "reasons": {
+        "below_background_spread": 16,
+        "measured": 664,
+        "nonpositive_mean": 1,
+        "touches_border": 71
+       },
+       "rho_fields": 10,
+       "rho_median": 0.9802950560221846,
+       "rho_redetected_median": 0.9158091782091127
+      },
+      "Ox10": {
+       "fields": 15,
+       "nuclei": 1300,
+       "measurable_fraction": 0.8338461538461538,
+       "measurable_fraction_not_border": 0.9312714776632303,
+       "reasons": {
+        "below_background_spread": 58,
+        "measured": 1084,
+        "nonpositive_mean": 22,
+        "touches_border": 136
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9759601706970127,
+       "rho_redetected_median": 0.9618807848944833
+      },
+      "Ox100": {
+       "fields": 15,
+       "nuclei": 1397,
+       "measurable_fraction": 0.8367931281317108,
+       "measurable_fraction_not_border": 0.9566284779050737,
+       "reasons": {
+        "below_background_spread": 42,
+        "measured": 1169,
+        "nonpositive_mean": 11,
+        "touches_border": 175
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9829249469419257,
+       "rho_redetected_median": 0.9596193280403806
+      },
+      "UntreatedNoEU": {
+       "fields": 14,
+       "nuclei": 819,
+       "measurable_fraction": 0.8778998778998779,
+       "measurable_fraction_not_border": 0.9795640326975477,
+       "reasons": {
+        "below_background_spread": 14,
+        "measured": 719,
+        "nonpositive_mean": 1,
+        "touches_border": 85
+       },
+       "rho_fields": 14,
+       "rho_median": 0.9739364526188015,
+       "rho_redetected_median": 0.9368972746331237
+      },
+      "UntreatedWithEU": {
+       "fields": 15,
+       "nuclei": 882,
+       "measurable_fraction": 0.8752834467120182,
+       "measurable_fraction_not_border": 0.9821882951653944,
+       "reasons": {
+        "below_background_spread": 10,
+        "measured": 772,
+        "nonpositive_mean": 4,
+        "touches_border": 96
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9794515373574073,
+       "rho_redetected_median": 0.9590441789385942
+      }
+     },
+     "contrasts": {
+      "ActD1": {
+       "native": {
+        "difference": -0.007842434946723986,
+        "se": 0.007488728376987142,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.014491785445831157,
+        "se": 0.007256288955059144,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "ActD10": {
+       "native": {
+        "difference": 0.026250445290528668,
+        "se": 0.00873808050934953,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": 0.009586986827751554,
+        "se": 0.008408812427991914,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 0.36521235055812945
+      },
+      "Cis10": {
+       "native": {
+        "difference": -0.0030443316529210618,
+        "se": 0.007711185249752539,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.0031110206113747485,
+        "se": 0.007535089674184639,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Cis100": {
+       "native": {
+        "difference": 0.03159922436856938,
+        "se": 0.0177257721608153,
+        "fields": [
+         10,
+         15
+        ]
+       },
+       "binned": {
+        "difference": 0.02367939263595631,
+        "se": 0.01673324618179384,
+        "fields": [
+         10,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Ox10": {
+       "native": {
+        "difference": 0.00033019621515162356,
+        "se": 0.008106235594010707,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.010016721988136551,
+        "se": 0.007367968137906419,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Ox100": {
+       "native": {
+        "difference": 0.009405196695197293,
+        "se": 0.008647875405780697,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": 0.004416803154733195,
+        "se": 0.008405908305075994,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "UntreatedNoEU": {
+       "native": {
+        "difference": -0.008654006028062433,
+        "se": 0.009295497137537773,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.008508953575488531,
+        "se": 0.008343132351094714,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      }
+     },
+     "threshold_native": {
+      "acquisition_date": "30min",
+      "value": 4744.79296875,
+      "pixels": 16211455,
+      "nuclei": 7703,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     },
+     "threshold_binned": {
+      "acquisition_date": "30min",
+      "value": 4821.4296875,
+      "pixels": 4113984,
+      "nuclei": 7824,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     }
+    }
+   }
+  },
+  "positive_area_fraction/fbl": {
+   "by_group": {
+    "2hrs": {
+     "conditions": {
+      "ActD1": {
+       "fields": 15,
+       "nuclei": 655,
+       "measurable_fraction": 0.8656488549618321,
+       "measurable_fraction_not_border": 0.9982394366197183,
+       "reasons": {
+        "below_background_spread": 1,
+        "measured": 567,
+        "touches_border": 87
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9806741701738463,
+       "rho_redetected_median": 0.9807565354026335
+      },
+      "ActD10": {
+       "fields": 15,
+       "nuclei": 727,
+       "measurable_fraction": 0.8473177441540578,
+       "measurable_fraction_not_border": 0.9550387596899225,
+       "reasons": {
+        "below_background_spread": 20,
+        "measured": 616,
+        "nonpositive_mean": 9,
+        "touches_border": 82
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9673358232774731,
+       "rho_redetected_median": 0.9781188243906197
+      },
+      "Cis10": {
+       "fields": 15,
+       "nuclei": 1436,
+       "measurable_fraction": 0.791782729805014,
+       "measurable_fraction_not_border": 0.8827639751552795,
+       "reasons": {
+        "below_background_spread": 103,
+        "measured": 1137,
+        "nonpositive_mean": 47,
+        "saturated_pixels": 1,
+        "touches_border": 148
+       },
+       "rho_fields": 14,
+       "rho_median": 0.9948717499491952,
+       "rho_redetected_median": 0.9947075270070359
+      },
+      "Cis100": {
+       "fields": 15,
+       "nuclei": 1119,
+       "measurable_fraction": 0.8364611260053619,
+       "measurable_fraction_not_border": 0.9483282674772037,
+       "reasons": {
+        "below_background_spread": 38,
+        "measured": 936,
+        "nonpositive_mean": 13,
+        "touches_border": 132
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9945148976047901,
+       "rho_redetected_median": 0.9919517102615695
+      },
+      "Ox10": {
+       "fields": 15,
+       "nuclei": 765,
+       "measurable_fraction": 0.8313725490196079,
+       "measurable_fraction_not_border": 0.9436201780415431,
+       "reasons": {
+        "below_background_spread": 23,
+        "measured": 636,
+        "nonpositive_mean": 15,
+        "touches_border": 91
+       },
+       "rho_fields": 12,
+       "rho_median": 0.9894511855265861,
+       "rho_redetected_median": 0.9921269801372039
+      },
+      "Ox100": {
+       "fields": 15,
+       "nuclei": 887,
+       "measurable_fraction": 0.8816234498308907,
+       "measurable_fraction_not_border": 0.9873737373737373,
+       "reasons": {
+        "below_background_spread": 9,
+        "measured": 782,
+        "nonpositive_mean": 1,
+        "touches_border": 95
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9844745446221111,
+       "rho_redetected_median": 0.9896233356111084
+      },
+      "UntreatedNoEU": {
+       "fields": 15,
+       "nuclei": 1018,
+       "measurable_fraction": 0.8428290766208252,
+       "measurable_fraction_not_border": 0.9522752497225305,
+       "reasons": {
+        "below_background_spread": 33,
+        "measured": 858,
+        "nonpositive_mean": 10,
+        "touches_border": 117
+       },
+       "rho_fields": 13,
+       "rho_median": 0.9908089189329083,
+       "rho_redetected_median": 0.9897192957610247
+      },
+      "UntreatedWithEU": {
+       "fields": 15,
+       "nuclei": 804,
+       "measurable_fraction": 0.8694029850746269,
+       "measurable_fraction_not_border": 0.9817415730337079,
+       "reasons": {
+        "below_background_spread": 10,
+        "measured": 699,
+        "nonpositive_mean": 3,
+        "touches_border": 92
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9841583758998493,
+       "rho_redetected_median": 0.9839827738451313
+      }
+     },
+     "contrasts": {
+      "ActD1": {
+       "native": {
+        "difference": -0.029338796249807515,
+        "se": 0.01614254729561851,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.023269973249615064,
+        "se": 0.012608691865378174,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "ActD10": {
+       "native": {
+        "difference": -0.02729167936051769,
+        "se": 0.018085241234421876,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.019836611921755225,
+        "se": 0.014300121401960426,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Cis10": {
+       "native": {
+        "difference": 0.08304247846563031,
+        "se": 0.046599112897229865,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "binned": {
+        "difference": 0.08866688593272398,
+        "se": 0.042261478951895026,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Cis100": {
+       "native": {
+        "difference": 0.24406126351776886,
+        "se": 0.09111574640411589,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": 0.23885733968410486,
+        "se": 0.08702917574630915,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 0.9786777968832193
+      },
+      "Ox10": {
+       "native": {
+        "difference": 0.19735969493310468,
+        "se": 0.10430602620416533,
+        "fields": [
+         12,
+         15
+        ]
+       },
+       "binned": {
+        "difference": 0.19921016217476678,
+        "se": 0.10358100077350389,
+        "fields": [
+         12,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Ox100": {
+       "native": {
+        "difference": -0.025040389812004654,
+        "se": 0.016977207751863985,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.017969264177347812,
+        "se": 0.013541784557956958,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "UntreatedNoEU": {
+       "native": {
+        "difference": 0.4169701862954779,
+        "se": 0.11051316250307319,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "binned": {
+        "difference": 0.44665942570012657,
+        "se": 0.11486417073964254,
+        "fields": [
+         13,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.0712023074561259
+      }
+     },
+     "threshold_native": {
+      "acquisition_date": "2hrs",
+      "value": 4678.490234375,
+      "pixels": 13888079,
+      "nuclei": 6231,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     },
+     "threshold_binned": {
+      "acquisition_date": "2hrs",
+      "value": 4835.927734375,
+      "pixels": 3429074,
+      "nuclei": 6121,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     }
+    },
+    "30min": {
+     "conditions": {
+      "ActD1": {
+       "fields": 15,
+       "nuclei": 1218,
+       "measurable_fraction": 0.8308702791461412,
+       "measurable_fraction_not_border": 0.9292929292929293,
+       "reasons": {
+        "below_background_spread": 58,
+        "measured": 1012,
+        "nonpositive_mean": 19,
+        "touches_border": 129
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9909903268298427,
+       "rho_redetected_median": 0.9833614891041235
+      },
+      "ActD10": {
+       "fields": 15,
+       "nuclei": 1797,
+       "measurable_fraction": 0.8135781858653311,
+       "measurable_fraction_not_border": 0.9300254452926209,
+       "reasons": {
+        "below_background_spread": 78,
+        "measured": 1462,
+        "nonpositive_mean": 32,
+        "touches_border": 225
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9533420244474616,
+       "rho_redetected_median": 0.9257111010355661
+      },
+      "Cis10": {
+       "fields": 15,
+       "nuclei": 938,
+       "measurable_fraction": 0.8752665245202559,
+       "measurable_fraction_not_border": 0.9785458879618594,
+       "reasons": {
+        "below_background_spread": 14,
+        "measured": 821,
+        "nonpositive_mean": 4,
+        "touches_border": 99
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9930479156370134,
+       "rho_redetected_median": 0.9880100317507146
+      },
+      "Cis100": {
+       "fields": 15,
+       "nuclei": 752,
+       "measurable_fraction": 0.8829787234042553,
+       "measurable_fraction_not_border": 0.9750367107195301,
+       "reasons": {
+        "below_background_spread": 16,
+        "measured": 664,
+        "nonpositive_mean": 1,
+        "touches_border": 71
+       },
+       "rho_fields": 10,
+       "rho_median": 0.9816894521001389,
+       "rho_redetected_median": 0.9285879373790882
+      },
+      "Ox10": {
+       "fields": 15,
+       "nuclei": 1300,
+       "measurable_fraction": 0.8338461538461538,
+       "measurable_fraction_not_border": 0.9312714776632303,
+       "reasons": {
+        "below_background_spread": 58,
+        "measured": 1084,
+        "nonpositive_mean": 22,
+        "touches_border": 136
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9863193937154535,
+       "rho_redetected_median": 0.9753023344068714
+      },
+      "Ox100": {
+       "fields": 15,
+       "nuclei": 1397,
+       "measurable_fraction": 0.8367931281317108,
+       "measurable_fraction_not_border": 0.9566284779050737,
+       "reasons": {
+        "below_background_spread": 42,
+        "measured": 1169,
+        "nonpositive_mean": 11,
+        "touches_border": 175
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9826211379985539,
+       "rho_redetected_median": 0.9507057308587333
+      },
+      "UntreatedNoEU": {
+       "fields": 14,
+       "nuclei": 819,
+       "measurable_fraction": 0.8778998778998779,
+       "measurable_fraction_not_border": 0.9795640326975477,
+       "reasons": {
+        "below_background_spread": 14,
+        "measured": 719,
+        "nonpositive_mean": 1,
+        "touches_border": 85
+       },
+       "rho_fields": 14,
+       "rho_median": 0.9765989110034705,
+       "rho_redetected_median": 0.9559138883151077
+      },
+      "UntreatedWithEU": {
+       "fields": 15,
+       "nuclei": 882,
+       "measurable_fraction": 0.8752834467120182,
+       "measurable_fraction_not_border": 0.9821882951653944,
+       "reasons": {
+        "below_background_spread": 10,
+        "measured": 772,
+        "nonpositive_mean": 4,
+        "touches_border": 96
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9806084950631748,
+       "rho_redetected_median": 0.9650382941914228
+      }
+     },
+     "contrasts": {
+      "ActD1": {
+       "native": {
+        "difference": -0.3649335904766059,
+        "se": 0.12187923650560069,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.36396740973699127,
+        "se": 0.1219389403674027,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 0.9973524477745312
+      },
+      "ActD10": {
+       "native": {
+        "difference": -0.39749143166628104,
+        "se": 0.1211319305340549,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.39476422460721605,
+        "se": 0.12121379196670287,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 0.9931389538445331
+      },
+      "Cis10": {
+       "native": {
+        "difference": -0.06758328249234241,
+        "se": 0.14963755832051825,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.07451832442284517,
+        "se": 0.14927108214171264,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Cis100": {
+       "native": {
+        "difference": -0.3468622046194059,
+        "se": 0.12451086554111378,
+        "fields": [
+         10,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.34042306569006897,
+        "se": 0.12575475297587008,
+        "fields": [
+         10,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 0.9814360318201798
+      },
+      "Ox10": {
+       "native": {
+        "difference": -0.2865040726573888,
+        "se": 0.13901739632735174,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.28248566146790177,
+        "se": 0.140116122654133,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 0.9859743313516789
+      },
+      "Ox100": {
+       "native": {
+        "difference": -0.34835904519939903,
+        "se": 0.1253849052402333,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.3423413014147248,
+        "se": 0.12648736708232813,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 0.9827254556251591
+      },
+      "UntreatedNoEU": {
+       "native": {
+        "difference": -0.30795339210387895,
+        "se": 0.13019620432620785,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.31091055744437834,
+        "se": 0.12941235330703707,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.0096026392834858
+      }
+     },
+     "threshold_native": {
+      "acquisition_date": "30min",
+      "value": 4744.79296875,
+      "pixels": 16211455,
+      "nuclei": 7703,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     },
+     "threshold_binned": {
+      "acquisition_date": "30min",
+      "value": 4821.4296875,
+      "pixels": 4113984,
+      "nuclei": 7824,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     }
+    }
+   }
+  },
+  "cv_corrected/eu5": {
+   "by_group": {
+    "2hrs": {
+     "conditions": {
+      "ActD1": {
+       "fields": 15,
+       "nuclei": 655,
+       "measurable_fraction": 0.8213740458015267,
+       "measurable_fraction_not_border": 0.9471830985915493,
+       "reasons": {
+        "below_background_spread": 20,
+        "measured": 538,
+        "nonpositive_mean": 10,
+        "touches_border": 87
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9523809523809524,
+       "rho_redetected_median": 0.9474972191323694
+      },
+      "ActD10": {
+       "fields": 15,
+       "nuclei": 727,
+       "measurable_fraction": 0.8198074277854195,
+       "measurable_fraction_not_border": 0.924031007751938,
+       "reasons": {
+        "below_background_spread": 32,
+        "measured": 596,
+        "nonpositive_mean": 17,
+        "touches_border": 82
+       },
+       "rho_fields": 15,
+       "rho_median": 0.971877890841813,
+       "rho_redetected_median": 0.9437282229965159
+      },
+      "Cis10": {
+       "fields": 15,
+       "nuclei": 1436,
+       "measurable_fraction": 0.8454038997214485,
+       "measurable_fraction_not_border": 0.9425465838509317,
+       "reasons": {
+        "below_background_spread": 57,
+        "measured": 1214,
+        "nonpositive_mean": 17,
+        "touches_border": 148
+       },
+       "rho_fields": 14,
+       "rho_median": 0.9530758821306953,
+       "rho_redetected_median": 0.9165846046417132
+      },
+      "Cis100": {
+       "fields": 15,
+       "nuclei": 1119,
+       "measurable_fraction": 0.8185880250223414,
+       "measurable_fraction_not_border": 0.92806484295846,
+       "reasons": {
+        "below_background_spread": 46,
+        "measured": 916,
+        "nonpositive_mean": 25,
+        "touches_border": 132
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9779516358463726,
+       "rho_redetected_median": 0.9459129204450449
+      },
+      "Ox10": {
+       "fields": 15,
+       "nuclei": 765,
+       "measurable_fraction": 0.8287581699346406,
+       "measurable_fraction_not_border": 0.9406528189910979,
+       "reasons": {
+        "below_background_spread": 28,
+        "measured": 634,
+        "nonpositive_mean": 12,
+        "touches_border": 91
+       },
+       "rho_fields": 12,
+       "rho_median": 0.9740104786854014,
+       "rho_redetected_median": 0.9399465371082227
+      },
+      "Ox100": {
+       "fields": 15,
+       "nuclei": 887,
+       "measurable_fraction": 0.8478015783540023,
+       "measurable_fraction_not_border": 0.9494949494949495,
+       "reasons": {
+        "below_background_spread": 29,
+        "measured": 752,
+        "nonpositive_mean": 11,
+        "touches_border": 95
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9670408163265306,
+       "rho_redetected_median": 0.9333958724202627
+      },
+      "UntreatedNoEU": {
+       "fields": 15,
+       "nuclei": 1018,
+       "measurable_fraction": 0.7711198428290766,
+       "measurable_fraction_not_border": 0.8712541620421753,
+       "reasons": {
+        "below_background_spread": 85,
+        "measured": 785,
+        "nonpositive_mean": 31,
+        "touches_border": 117
+       },
+       "rho_fields": 13,
+       "rho_median": 0.9643724696356276,
+       "rho_redetected_median": 0.9382734912146676
+      },
+      "UntreatedWithEU": {
+       "fields": 15,
+       "nuclei": 804,
+       "measurable_fraction": 0.8246268656716418,
+       "measurable_fraction_not_border": 0.9311797752808989,
+       "reasons": {
+        "below_background_spread": 29,
+        "measured": 663,
+        "nonpositive_mean": 20,
+        "touches_border": 92
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9899332530911478,
+       "rho_redetected_median": 0.9777307963354476
+      }
+     },
+     "contrasts": {
+      "ActD1": {
+       "native": {
+        "difference": -0.20262341624378635,
+        "se": 0.010591511889750379,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.2061161639662525,
+        "se": 0.010456626514701934,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.0172376312038085
+      },
+      "ActD10": {
+       "native": {
+        "difference": -0.1613208612812576,
+        "se": 0.010842613536350408,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.16124033111403366,
+        "se": 0.010767066191209563,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 0.9995008074802951
+      },
+      "Cis10": {
+       "native": {
+        "difference": -0.08102475942172294,
+        "se": 0.014950860510669895,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.09460324799524056,
+        "se": 0.015717589359799743,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.1675844355531304
+      },
+      "Cis100": {
+       "native": {
+        "difference": -0.1251954991869031,
+        "se": 0.016700455185078334,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.12825112039311132,
+        "se": 0.015323461119815338,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.0244067975770161
+      },
+      "Ox10": {
+       "native": {
+        "difference": -0.11391906261959711,
+        "se": 0.012985328196325313,
+        "fields": [
+         12,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.11426267262295142,
+        "se": 0.012718348273555167,
+        "fields": [
+         12,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.0030162643147944
+      },
+      "Ox100": {
+       "native": {
+        "difference": -0.1541598339749023,
+        "se": 0.01045050722678933,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.15361127563312033,
+        "se": 0.010551791776597033,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 0.9964416260212678
+      },
+      "UntreatedNoEU": {
+       "native": {
+        "difference": -0.1904168967213024,
+        "se": 0.012231584805126072,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.19008118175135819,
+        "se": 0.012019633682809507,
+        "fields": [
+         13,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 0.9982369475833042
+      }
+     },
+     "threshold_native": {
+      "acquisition_date": "2hrs",
+      "value": 1609.521484375,
+      "pixels": 13601043,
+      "nuclei": 6098,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     },
+     "threshold_binned": {
+      "acquisition_date": "2hrs",
+      "value": 1656.748046875,
+      "pixels": 3372630,
+      "nuclei": 6021,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     }
+    },
+    "30min": {
+     "conditions": {
+      "ActD1": {
+       "fields": 15,
+       "nuclei": 1218,
+       "measurable_fraction": 0.7027914614121511,
+       "measurable_fraction_not_border": 0.7860422405876951,
+       "reasons": {
+        "below_background_spread": 152,
+        "measured": 856,
+        "nonpositive_mean": 81,
+        "touches_border": 129
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9305357989568516,
+       "rho_redetected_median": 0.9359886201991464
+      },
+      "ActD10": {
+       "fields": 15,
+       "nuclei": 1797,
+       "measurable_fraction": 0.7128547579298832,
+       "measurable_fraction_not_border": 0.8148854961832062,
+       "reasons": {
+        "below_background_spread": 209,
+        "measured": 1281,
+        "nonpositive_mean": 82,
+        "touches_border": 225
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9416201390929572,
+       "rho_redetected_median": 0.9300898995240611
+      },
+      "Cis10": {
+       "fields": 15,
+       "nuclei": 938,
+       "measurable_fraction": 0.8336886993603412,
+       "measurable_fraction_not_border": 0.932061978545888,
+       "reasons": {
+        "below_background_spread": 42,
+        "measured": 782,
+        "nonpositive_mean": 15,
+        "touches_border": 99
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9710924369747899,
+       "rho_redetected_median": 0.9519056261343014
+      },
+      "Cis100": {
+       "fields": 15,
+       "nuclei": 752,
+       "measurable_fraction": 0.8444148936170213,
+       "measurable_fraction_not_border": 0.9324522760646109,
+       "reasons": {
+        "below_background_spread": 34,
+        "measured": 635,
+        "nonpositive_mean": 12,
+        "touches_border": 71
+       },
+       "rho_fields": 10,
+       "rho_median": 0.9557604755970057,
+       "rho_redetected_median": 0.9104615285357542
+      },
+      "Ox10": {
+       "fields": 15,
+       "nuclei": 1300,
+       "measurable_fraction": 0.7607692307692308,
+       "measurable_fraction_not_border": 0.8496563573883161,
+       "reasons": {
+        "below_background_spread": 119,
+        "measured": 989,
+        "nonpositive_mean": 56,
+        "touches_border": 136
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9483770239983884,
+       "rho_redetected_median": 0.9389986824769432
+      },
+      "Ox100": {
+       "fields": 15,
+       "nuclei": 1397,
+       "measurable_fraction": 0.7387258410880458,
+       "measurable_fraction_not_border": 0.8445171849427169,
+       "reasons": {
+        "below_background_spread": 124,
+        "measured": 1032,
+        "nonpositive_mean": 66,
+        "touches_border": 175
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9540681294288398,
+       "rho_redetected_median": 0.9379596943563161
+      },
+      "UntreatedNoEU": {
+       "fields": 14,
+       "nuclei": 819,
+       "measurable_fraction": 0.7924297924297924,
+       "measurable_fraction_not_border": 0.8841961852861036,
+       "reasons": {
+        "below_background_spread": 59,
+        "measured": 649,
+        "nonpositive_mean": 26,
+        "touches_border": 85
+       },
+       "rho_fields": 14,
+       "rho_median": 0.9233278916205746,
+       "rho_redetected_median": 0.917005432426411
+      },
+      "UntreatedWithEU": {
+       "fields": 15,
+       "nuclei": 882,
+       "measurable_fraction": 0.7936507936507936,
+       "measurable_fraction_not_border": 0.8905852417302799,
+       "reasons": {
+        "below_background_spread": 62,
+        "measured": 700,
+        "nonpositive_mean": 24,
+        "touches_border": 96
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9707142857142858,
+       "rho_redetected_median": 0.9575984990619137
+      }
+     },
+     "contrasts": {
+      "ActD1": {
+       "native": {
+        "difference": -0.04375910358794016,
+        "se": 0.01213738642542944,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.055378941248564795,
+        "se": 0.011663894501176681,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.2655410350733742
+      },
+      "ActD10": {
+       "native": {
+        "difference": 0.02202302264273126,
+        "se": 0.01277282070877131,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": 0.003638544311149683,
+        "se": 0.01269882136298323,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Cis10": {
+       "native": {
+        "difference": 0.0021537083188107875,
+        "se": 0.013400362423960322,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": 0.0043494455769667595,
+        "se": 0.012172787989789218,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Cis100": {
+       "native": {
+        "difference": 0.005232183527150935,
+        "se": 0.0163154080042912,
+        "fields": [
+         10,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.00011820976985421616,
+        "se": 0.015161794100930276,
+        "fields": [
+         10,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Ox10": {
+       "native": {
+        "difference": 0.007133783521291015,
+        "se": 0.013844630224617826,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.0026783779761959114,
+        "se": 0.0125489169946081,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Ox100": {
+       "native": {
+        "difference": 0.006626219407145584,
+        "se": 0.013512924261725772,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.004159116487360448,
+        "se": 0.012901412290753013,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "UntreatedNoEU": {
+       "native": {
+        "difference": -0.03063760015308742,
+        "se": 0.013235581896559316,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.03863846756209624,
+        "se": 0.01211694344554145,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.261145369383723
+      }
+     },
+     "threshold_native": {
+      "acquisition_date": "30min",
+      "value": 976.279296875,
+      "pixels": 14591504,
+      "nuclei": 6924,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     },
+     "threshold_binned": {
+      "acquisition_date": "30min",
+      "value": 969.3984375,
+      "pixels": 3856591,
+      "nuclei": 7335,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     }
+    }
+   }
+  },
+  "positive_area_fraction/eu5": {
+   "by_group": {
+    "2hrs": {
+     "conditions": {
+      "ActD1": {
+       "fields": 15,
+       "nuclei": 655,
+       "measurable_fraction": 0.8213740458015267,
+       "measurable_fraction_not_border": 0.9471830985915493,
+       "reasons": {
+        "below_background_spread": 20,
+        "measured": 538,
+        "nonpositive_mean": 10,
+        "touches_border": 87
+       },
+       "rho_fields": 15,
+       "rho_median": 0.7665018653431189,
+       "rho_redetected_median": 0.765551277728631
+      },
+      "ActD10": {
+       "fields": 15,
+       "nuclei": 727,
+       "measurable_fraction": 0.8198074277854195,
+       "measurable_fraction_not_border": 0.924031007751938,
+       "reasons": {
+        "below_background_spread": 32,
+        "measured": 596,
+        "nonpositive_mean": 17,
+        "touches_border": 82
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9969033739289168,
+       "rho_redetected_median": 0.9964657904936599
+      },
+      "Cis10": {
+       "fields": 15,
+       "nuclei": 1436,
+       "measurable_fraction": 0.8454038997214485,
+       "measurable_fraction_not_border": 0.9425465838509317,
+       "reasons": {
+        "below_background_spread": 57,
+        "measured": 1214,
+        "nonpositive_mean": 17,
+        "touches_border": 148
+       },
+       "rho_fields": 14,
+       "rho_median": 0.9975498954546933,
+       "rho_redetected_median": 0.9944178447638135
+      },
+      "Cis100": {
+       "fields": 15,
+       "nuclei": 1119,
+       "measurable_fraction": 0.8185880250223414,
+       "measurable_fraction_not_border": 0.92806484295846,
+       "reasons": {
+        "below_background_spread": 46,
+        "measured": 916,
+        "nonpositive_mean": 25,
+        "touches_border": 132
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9982198486871386,
+       "rho_redetected_median": 0.9966918221387088
+      },
+      "Ox10": {
+       "fields": 15,
+       "nuclei": 765,
+       "measurable_fraction": 0.8287581699346406,
+       "measurable_fraction_not_border": 0.9406528189910979,
+       "reasons": {
+        "below_background_spread": 28,
+        "measured": 634,
+        "nonpositive_mean": 12,
+        "touches_border": 91
+       },
+       "rho_fields": 12,
+       "rho_median": 0.9968729127797624,
+       "rho_redetected_median": 0.9963103909887028
+      },
+      "Ox100": {
+       "fields": 15,
+       "nuclei": 887,
+       "measurable_fraction": 0.8478015783540023,
+       "measurable_fraction_not_border": 0.9494949494949495,
+       "reasons": {
+        "below_background_spread": 29,
+        "measured": 752,
+        "nonpositive_mean": 11,
+        "touches_border": 95
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9919877637813321,
+       "rho_redetected_median": 0.9920645235041177
+      },
+      "UntreatedNoEU": {
+       "fields": 15,
+       "nuclei": 1018,
+       "measurable_fraction": 0.7711198428290766,
+       "measurable_fraction_not_border": 0.8712541620421753,
+       "reasons": {
+        "below_background_spread": 85,
+        "measured": 785,
+        "nonpositive_mean": 31,
+        "touches_border": 117
+       },
+       "rho_fields": 13,
+       "rho_median": 0.9553132675282301,
+       "rho_redetected_median": 0.9553132675282301
+      },
+      "UntreatedWithEU": {
+       "fields": 15,
+       "nuclei": 804,
+       "measurable_fraction": 0.8246268656716418,
+       "measurable_fraction_not_border": 0.9311797752808989,
+       "reasons": {
+        "below_background_spread": 29,
+        "measured": 663,
+        "nonpositive_mean": 20,
+        "touches_border": 92
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9984856629973138,
+       "rho_redetected_median": 0.9977470414558018
+      }
+     },
+     "contrasts": {
+      "ActD1": {
+       "native": {
+        "difference": -0.3017354131308314,
+        "se": 0.030815708543307337,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.28020954805581694,
+        "se": 0.031535190051403345,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 0.9286597988228815
+      },
+      "ActD10": {
+       "native": {
+        "difference": -0.0216339865566062,
+        "se": 0.05501052957507878,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.018851607982173668,
+        "se": 0.054701916554082027,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Cis10": {
+       "native": {
+        "difference": -0.06004933167818627,
+        "se": 0.05483998789559363,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.04256036906473429,
+        "se": 0.05643520680595349,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Cis100": {
+       "native": {
+        "difference": 0.060752999729241364,
+        "se": 0.05792376072205893,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": 0.075665537396642,
+        "se": 0.06404131178045425,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Ox10": {
+       "native": {
+        "difference": -0.0040888165212435434,
+        "se": 0.060843066385979507,
+        "fields": [
+         12,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.005925486906912358,
+        "se": 0.06405525418367981,
+        "fields": [
+         12,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Ox100": {
+       "native": {
+        "difference": -0.1500006895234345,
+        "se": 0.056931738119332685,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.1435317943804393,
+        "se": 0.05843173239343623,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 0.9568742306215561
+      },
+      "UntreatedNoEU": {
+       "native": {
+        "difference": -0.24847659637654723,
+        "se": 0.042774915800707296,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.23511887046604096,
+        "se": 0.04280397996369479,
+        "fields": [
+         13,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 0.9462415128615829
+      }
+     },
+     "threshold_native": {
+      "acquisition_date": "2hrs",
+      "value": 1609.521484375,
+      "pixels": 13601043,
+      "nuclei": 6098,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     },
+     "threshold_binned": {
+      "acquisition_date": "2hrs",
+      "value": 1656.748046875,
+      "pixels": 3372630,
+      "nuclei": 6021,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     }
+    },
+    "30min": {
+     "conditions": {
+      "ActD1": {
+       "fields": 15,
+       "nuclei": 1218,
+       "measurable_fraction": 0.7027914614121511,
+       "measurable_fraction_not_border": 0.7860422405876951,
+       "reasons": {
+        "below_background_spread": 152,
+        "measured": 856,
+        "nonpositive_mean": 81,
+        "touches_border": 129
+       },
+       "rho_fields": 15,
+       "rho_median": 0.989834594934533,
+       "rho_redetected_median": 0.9888164763497528
+      },
+      "ActD10": {
+       "fields": 15,
+       "nuclei": 1797,
+       "measurable_fraction": 0.7128547579298832,
+       "measurable_fraction_not_border": 0.8148854961832062,
+       "reasons": {
+        "below_background_spread": 209,
+        "measured": 1281,
+        "nonpositive_mean": 82,
+        "touches_border": 225
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9925994326199528,
+       "rho_redetected_median": 0.9943275385377768
+      },
+      "Cis10": {
+       "fields": 15,
+       "nuclei": 938,
+       "measurable_fraction": 0.8336886993603412,
+       "measurable_fraction_not_border": 0.932061978545888,
+       "reasons": {
+        "below_background_spread": 42,
+        "measured": 782,
+        "nonpositive_mean": 15,
+        "touches_border": 99
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9947337925552204,
+       "rho_redetected_median": 0.9928450920363893
+      },
+      "Cis100": {
+       "fields": 15,
+       "nuclei": 752,
+       "measurable_fraction": 0.8444148936170213,
+       "measurable_fraction_not_border": 0.9324522760646109,
+       "reasons": {
+        "below_background_spread": 34,
+        "measured": 635,
+        "nonpositive_mean": 12,
+        "touches_border": 71
+       },
+       "rho_fields": 10,
+       "rho_median": 0.9944028478547176,
+       "rho_redetected_median": 0.990574880946959
+      },
+      "Ox10": {
+       "fields": 15,
+       "nuclei": 1300,
+       "measurable_fraction": 0.7607692307692308,
+       "measurable_fraction_not_border": 0.8496563573883161,
+       "reasons": {
+        "below_background_spread": 119,
+        "measured": 989,
+        "nonpositive_mean": 56,
+        "touches_border": 136
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9944695827048766,
+       "rho_redetected_median": 0.9933401316958305
+      },
+      "Ox100": {
+       "fields": 15,
+       "nuclei": 1397,
+       "measurable_fraction": 0.7387258410880458,
+       "measurable_fraction_not_border": 0.8445171849427169,
+       "reasons": {
+        "below_background_spread": 124,
+        "measured": 1032,
+        "nonpositive_mean": 66,
+        "touches_border": 175
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9953415580777648,
+       "rho_redetected_median": 0.9955326696825497
+      },
+      "UntreatedNoEU": {
+       "fields": 14,
+       "nuclei": 819,
+       "measurable_fraction": 0.7924297924297924,
+       "measurable_fraction_not_border": 0.8841961852861036,
+       "reasons": {
+        "below_background_spread": 59,
+        "measured": 649,
+        "nonpositive_mean": 26,
+        "touches_border": 85
+       },
+       "rho_fields": 14,
+       "rho_median": 0.9785206144671361,
+       "rho_redetected_median": 0.9692296616497011
+      },
+      "UntreatedWithEU": {
+       "fields": 15,
+       "nuclei": 882,
+       "measurable_fraction": 0.7936507936507936,
+       "measurable_fraction_not_border": 0.8905852417302799,
+       "reasons": {
+        "below_background_spread": 62,
+        "measured": 700,
+        "nonpositive_mean": 24,
+        "touches_border": 96
+       },
+       "rho_fields": 15,
+       "rho_median": 0.9898845825504643,
+       "rho_redetected_median": 0.9847442654025631
+      }
+     },
+     "contrasts": {
+      "ActD1": {
+       "native": {
+        "difference": -0.35382186611123473,
+        "se": 0.11385607658221839,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.3560594285689286,
+        "se": 0.11725600070363262,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.0063239801493513
+      },
+      "ActD10": {
+       "native": {
+        "difference": -0.3879248518946897,
+        "se": 0.1080090032908966,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.3897804322829579,
+        "se": 0.10976857981184938,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.0047833501236263
+      },
+      "Cis10": {
+       "native": {
+        "difference": -0.12322602502218638,
+        "se": 0.13533688040937744,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.11884387061610135,
+        "se": 0.13774858169678686,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Cis100": {
+       "native": {
+        "difference": -0.20922310284700796,
+        "se": 0.12085831808050476,
+        "fields": [
+         10,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.18350429748106345,
+        "se": 0.1294151188982903,
+        "fields": [
+         10,
+         15
+        ]
+       },
+       "evaluated": false,
+       "same_sign": null,
+       "q": null
+      },
+      "Ox10": {
+       "native": {
+        "difference": -0.27119844319323283,
+        "se": 0.1287645184183954,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.26549524042595496,
+        "se": 0.1304699886557758,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 0.9789703705518167
+      },
+      "Ox100": {
+       "native": {
+        "difference": -0.28661502795789345,
+        "se": 0.11865143602879813,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.28097693111476646,
+        "se": 0.12188478570707124,
+        "fields": [
+         15,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 0.9803286768202703
+      },
+      "UntreatedNoEU": {
+       "native": {
+        "difference": -0.44540236910898223,
+        "se": 0.1109902633766786,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "binned": {
+        "difference": -0.4594125226839242,
+        "se": 0.11402816216107979,
+        "fields": [
+         14,
+         15
+        ]
+       },
+       "evaluated": true,
+       "same_sign": true,
+       "q": 1.031455049516169
+      }
+     },
+     "threshold_native": {
+      "acquisition_date": "30min",
+      "value": 976.279296875,
+      "pixels": 14591504,
+      "nuclei": 6924,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     },
+     "threshold_binned": {
+      "acquisition_date": "30min",
+      "value": 969.3984375,
+      "pixels": 3856591,
+      "nuclei": 7335,
+      "missing_reason": null,
+      "pixel_basis": "background-corrected",
+      "histogram_bins": 256
+     }
+    }
+   }
+  }
+ },
+ "failed_fields": [],
+ "fields": 239,
+ "nuclei": 16514
+}
