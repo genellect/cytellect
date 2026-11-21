@@ -2,8 +2,13 @@ import { test, expect } from "@playwright/test";
 import path from "node:path";
 import fs from "node:fs";
 import { createHash } from "node:crypto";
-import published from "../src/lib/published-release.json";
-// The published record names its asset; the installer replaces the ZIP steps (src/lib/release.ts).
+import { verifiedRelease } from "../src/lib/release-record";
+import fallback from "../src/lib/published-release.json";
+
+const recordPath = process.env.CYTELLECT_EXPECT_RELEASE_RECORD;
+const published = verifiedRelease(recordPath ? JSON.parse(fs.readFileSync(recordPath, "utf8")) : fallback);
+if (!published) throw new Error("Invalid expected Windows release record");
+
 const assetFile=published.asset==="installer"?`Cytellect-Setup-${published.version}.exe`:`Cytellect-${published.version}-windows-x64.zip`;
 test("unconfigured public build makes no analysis connection",async({page})=>{
  await page.emulateMedia({reducedMotion:"reduce"});
@@ -63,9 +68,10 @@ test("published Windows asset downloads with the recorded checksum",async({page}
  expect(download.suggestedFilename()).toBe(assetFile);
  const destination=testInfo.outputPath(assetFile);
  await download.saveAs(destination);
- const bytes=fs.readFileSync(destination);
- expect(bytes.length).toBe(published.size_bytes);
- expect(createHash("sha256").update(bytes).digest("hex")).toBe(published.sha256);
+ expect(fs.statSync(destination).size).toBe(published.size_bytes);
+ const hash=createHash("sha256");
+ for await (const chunk of fs.createReadStream(destination)) hash.update(chunk);
+ expect(hash.digest("hex")).toBe(published.sha256);
 });
 test("the install guide page shows what happens before and after the download",async({page})=>{
  test.skip(process.env.CYTELLECT_EXPECT_UNCONFIGURED!=="1","Production without API only");

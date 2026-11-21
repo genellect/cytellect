@@ -26,6 +26,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with: {fetch-depth: 0}
+      - name: Check EXE release selection and recovery
+        run: node --test scripts/windows_exe_release.test.cjs
       - name: Select job areas from changed paths
         id: classify
         env:

@@ -1,15 +1,17 @@
 import Link from "next/link";
-import { PUBLISHED_RELEASE, WINDOWS_RELEASE_URL, releaseSize, windowsReleaseAsset } from "@/lib/release";
+import { releaseSize, windowsReleaseAsset } from "@/lib/release";
+import { publicWindowsRelease } from "@/lib/public-windows-release";
 import { CONTACT_URL } from "@/lib/site";
 import { DownloadStart } from "./DownloadStart";
 import lp from "./optical-landing.module.css";
 
-const INSTALLER = windowsReleaseAsset(WINDOWS_RELEASE_URL) === "installer";
 const Out = () => <span aria-hidden="true">↗</span>;
 
 /** The LP's last step, drawn as one line like the patient path above it: start free on your own PC,
  *  then bring the lab cloud in. Questions stay folded; how to install lives on /download. */
-export function LandingDownload() {
+export async function LandingDownload() {
+  const { url, release } = await publicWindowsRelease();
+  const installer = windowsReleaseAsset(url) === "installer";
   return <section id="download" className={[lp.section, lp.download].join(" ")} aria-labelledby="download-title">
     <div className={lp.wide}>
       <h2 id="download-title" className={lp.statement}>まず、あなたのPCで。そして、研究室へ。</h2>
@@ -17,9 +19,9 @@ export function LandingDownload() {
         <li className={lp.stop}>
           <h3>Windows版は無料。</h3>
           <p>検出と測定から、統計、結論と考察、論文の図まで。画像はPCの外に出ません。</p>
-          {WINDOWS_RELEASE_URL ? <DownloadStart url={WINDOWS_RELEASE_URL} installer={INSTALLER} />
+          {url ? <DownloadStart url={url} installer={installer} />
             : <Link data-lp-event="example" href="/demo" className={lp.primary}>デモを体験する <span aria-hidden="true">→</span></Link>}
-          {WINDOWS_RELEASE_URL && <p className={lp.meta}>{INSTALLER ? "インストーラー" : "ZIP"}{PUBLISHED_RELEASE?.url === WINDOWS_RELEASE_URL ? ` ${releaseSize(PUBLISHED_RELEASE.size_bytes)}（v${PUBLISHED_RELEASE.version}）` : ""}<br />Windows 10／11（64ビット）<br /><Link data-lp-event="install_guide" href="/download">インストールの流れ</Link></p>}
+          {url && <p className={lp.meta}>{installer ? "インストーラー" : "ZIP"}{release ? ` ${releaseSize(release.size_bytes)}（v${release.version}）` : ""}<br />Windows 10／11（64ビット）<br /><Link data-lp-event="install_guide" href="/download">インストールの流れ</Link></p>}
         </li>
         <li className={lp.stop}>
           <h3>研究室のクラウドは応相談。</h3>

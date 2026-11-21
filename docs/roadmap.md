@@ -144,6 +144,10 @@ M2 は元画像での解像・対象同定・校正を開始条件とする。M3
 
 [#249](https://github.com/genellect/cytellect/issues/249) の LP-01 の配布前検査は [#256](https://github.com/genellect/cytellect/pull/256) に記録する。`doctor --proposal-version --packaged-client` は GPU を起動せず、Idempotency-Key のない依頼で解析提案・考察の版を検査する。インストーラー・Store の作成と Store の定期提出に、同じ SHA と組み込む接続先での検査を必須とする。検査用資格情報はオーナーの承認付き environment に置く。Docker／手動配布も実際の設定で同じ手順に従う。本番の検査・Worker デプロイ・配布用設定は未実施。
 
+## Windows EXE の自動配布
+
+[#261](https://github.com/genellect/cytellect/issues/261) で、成功した `main` の EXE を既存の配布試験と署名を経て自動公開し、サイトとアプリ内更新に反映する。[有効化手順](release-signing.md#exe-の自動配布)に従い、初回公開後に Windows 実機で新規導入と更新を確認する。
+
 ## 未完了の受入条件
 
 | 項目 | 内容 |
