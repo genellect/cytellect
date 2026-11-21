@@ -20,7 +20,7 @@ async function nucleolarWorkspace(context:BrowserContext,page:Page){
   const experiment={version:"1.0.0",layout:"pair",groups:[{id:"a",label:"A"},{id:"b",label:"B"}],control_group_id:"a",
     runs:[{id:"r1",label:"R1",performed_on:null,acquired_on:null}],independence_confirmed:true,
     fields:{f1:{group_id:"a",run_id:"r1",sample:null,acquired_on:null},f2:{group_id:"b",run_id:"r1",sample:null,acquired_on:null}}};
-  let spec:{version:number;spec:Record<string,unknown>|null}={version:1,spec:{schema_version:"1.0.0",channel_assignment_version:1,target:"nuclei",experiment}};
+  let spec:{version:number;spec:Record<string,unknown>|null}={version:1,spec:{schema_version:"1.0.0",channel_assignment_version:1,target:"nuclei",settings:{},experiment}};
   const posted:Array<Record<string,unknown>>=[];
   let statistics:Record<string,unknown>|null=null,cohort:Record<string,unknown>|null=null,review:Record<string,unknown>|null=null;
   const revision=(id:string,fid:string,recipe:Record<string,unknown>)=>({id,state:"succeeded",created:1,config:{recipe,field_ids:[fid],measurement:{version:"1.1.0",mode:"raw_intensity"},backgrounds:{}}});

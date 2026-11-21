@@ -9,7 +9,7 @@ async function savedWorkspace(context:BrowserContext,page:Page,failed=false,expe
   const fieldIds=failed?["f1","f2","failed1","failed2"]:["f1"];
   const fields=fieldIds.map((id,index)=>({id,workspace_id:"w",metadata:{display_name:`視野 ${index+1}`},image_info:{shape:[32,32],channels:[{channel_id:"c1",label:"DAPI",stain:"DAPI"}]}}));
   let selection:WorkspaceSelection={version:1,entries:fieldIds.map((id,index)=>({id,field_id:id,revision_id:index<2?`r${index+1}`:`bad${index}`,target_revisions:{nuclei:index<2?`r${index+1}`:`bad${index}`},exclusion_reason:null}))};
-  let spec:{version:number;spec:Record<string,unknown>|null}=experiment?{version:1,spec:{schema_version:"1.0.0",channel_assignment_version:1,target:"nuclei",experiment}}:{version:0,spec:null};
+  let spec:{version:number;spec:Record<string,unknown>|null}=experiment?{version:1,spec:{schema_version:"1.0.0",channel_assignment_version:1,target:"nuclei",settings:{},experiment}}:{version:0,spec:null};
   let edited=false,statistics:Record<string,unknown>|null=null,cohort:Record<string,unknown>|null=null;
   const unexpected:string[]=[];
   const recipe={id:"region-2d",version:"1.7.0",source:"stardist_nuclear",region_set_id:"nuclei",label:"核",defining_channel_id:"c1",nuclear_role_source:"recorded_stain"};
