@@ -127,7 +127,8 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pendin
     </section>}
     <div className={styles.grid} style={{gridTemplateColumns:`minmax(200px,270px) repeat(${draft.groups.length},minmax(0,1fr))`}} role="table" aria-label="群と実験回">
       <div role="row" className={styles.row}>
-        <div role="columnheader" className={styles.corner}>実験回（n = {counts.runs}）</div>
+        {/* The same n as the status and the figure, hidden with them while the fields are still loading. */}
+        <div role="columnheader" className={styles.corner}>{loading?"実験回":`実験回（n = ${counts.runs}）`}</div>
         {draft.groups.map(group=><div role="columnheader" key={group.id} className={styles.groupHead}>
           {readOnly?<p className={styles.groupName}><strong>{group.label}</strong>{draft.layout==="pair"&&draft.control_group_id===group.id&&<span className={styles.tag}>対照</span>}</p>:<>
           <label>群の名前<input value={labelOf(`group:${group.id}`,group.label)} maxLength={LABEL_LIMIT} disabled={locked}

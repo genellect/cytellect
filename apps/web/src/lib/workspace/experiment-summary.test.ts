@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { assignStratum, declareStrata, emptyDesign, type PlainExperimentDesign as ExperimentDesign } from "./experiment-design";
-import { adoptedNuclei, experimentHeading, statusChips, summaryCounts } from "./experiment-summary";
+import { adoptedNuclei, analysedRuns, experimentHeading, statusChips, summaryCounts } from "./experiment-summary";
 
 const design = (overrides: Partial<ExperimentDesign> = {}): ExperimentDesign => ({
   version: "1.0.0", layout: "pair",
@@ -47,7 +47,10 @@ describe("status chips", () => {
     const missing = design({ control_group_id: null, fields: { f1: { group_id: "dmso", run_id: "r1", sample: null, acquired_on: null } } });
     const chips = Object.fromEntries(statusChips(missing, fields([1, 2])).map(chip => [chip.key, chip]));
     expect(chips.fields).toMatchObject({ value: "1 / 2", ok: false });
-    expect(chips.runs.ok).toBe(false);
+    expect(chips.runs).toMatchObject({ value: "0 / 2", ok: false });
+    // Each run outside n names what it lacks, as 項目：値.
+    expect(chips["run:r1"]).toMatchObject({ label: "Rep1", value: "Drug 1 uM なし", ok: false });
+    expect(chips["run:r2"]).toMatchObject({ label: "Rep2", value: "画像なし", ok: false });
     expect(chips.groups.ok).toBe(false);
   });
   it("marks fields without a stratum in a stratified design", () => {
@@ -62,6 +65,39 @@ describe("status chips", () => {
     expect(chips.map(chip => chip.key)).toEqual(["runs", "groups", "fields"]);
     expect(chips.find(chip => chip.key === "runs")).toMatchObject({ value: "0", ok: false });
     expect(chips.find(chip => chip.key === "fields")).toMatchObject({ value: "0 / 0", ok: false });
+  });
+});
+
+describe("n: the runs that can be analysed", () => {
+  // Rep1 is split by cell line: the control only in line A, the treatment only in line B.
+  const split = () => {
+    const declared = declareStrata(design(), "細胞株", ["A", "B"]);
+    const [a, b] = declared.strata.map(stratum => stratum.id);
+    return { declared, a, b, stratified: assignStratum(assignStratum(declared, ["f1", "f3", "f4"], a), ["f2"], b) };
+  };
+  it("does not count a run whose groups are only in different strata", () => {
+    const { stratified, a } = split();
+    expect(analysedRuns(stratified, fields([1, 2, 3, 4]))).toMatchObject({ counted: ["r2"], declared: 2, lacking: [{ runId: "r1", label: "Rep1", value: "同じ層の対なし" }] });
+    const onlySplit = { ...stratified, runs: stratified.runs!.slice(0, 1), fields: { f1: stratified.fields!.f1, f2: stratified.fields!.f2 } };
+    expect(summaryCounts(onlySplit, fields([1, 2])).runs).toBe(0);
+    expect(statusChips(onlySplit, fields([1, 2]))[0]).toMatchObject({ label: "実験回", value: "0 / 1", ok: false });
+    // Both groups within the same stratum: the run counts.
+    expect(analysedRuns(assignStratum(stratified, ["f2"], a), fields([1, 2, 3, 4])).counted).toEqual(["r1", "r2"]);
+  });
+  it("does not count a run whose treated fields are not measured", () => {
+    const runs = analysedRuns(design(), fields([1, null, 3, 4]));
+    expect(runs.counted).toEqual(["r2"]);
+    expect(runs.lacking).toEqual([{ runId: "r1", label: "Rep1", value: "Drug 1 uM 未測定" }]);
+    expect(statusChips(design(), fields([1, null, 3, 4])).slice(0, 2).map(chip => [chip.label, chip.value, chip.ok])).toEqual([["実験回", "1 / 2", false], ["Rep1", "Drug 1 uM 未測定", false]]);
+    expect(analysedRuns(design(), fields([null, null, 3, 4])).lacking[0].value).toBe("未測定");
+  });
+  it("counts a run with both groups measured, the same n in the chip, the figure and the table", () => {
+    expect(analysedRuns(design(), fields([1, 2, 3, 4]))).toEqual({ counted: ["r1", "r2"], declared: 2, lacking: [] });
+    expect(summaryCounts(design(), fields([1, 2, 3, 4])).runs).toBe(2);
+    expect(statusChips(design(), fields([1, 2, 3, 4]))[0]).toMatchObject({ value: "2", ok: true });
+    // A field measured for another region (no nucleus count) is measured: it counts in n, not in the nuclei.
+    const cells = [{ id: "f1", measured: true }, { id: "f2", measured: true }, ...fields([0, 0, 3, 4]).slice(2)];
+    expect(summaryCounts(design(), cells)).toEqual({ nuclei: null, fields: 4, runs: 2 });
   });
 });
 
@@ -81,7 +117,7 @@ describe("summary counts", () => {
     expect(summaryCounts(single, fields([5])).runs).toBe(1);
   });
   it("never shows a partial nucleus count", () => {
-    expect(summaryCounts(design(), fields([10, null, 9, 12]))).toEqual({ nuclei: null, fields: 4, runs: 2 });
+    expect(summaryCounts(design(), fields([10, null, 9, 12]))).toEqual({ nuclei: null, fields: 4, runs: 1 });
     expect(summaryCounts(design({ fields: {} }), fields([10]))).toEqual({ nuclei: null, fields: 0, runs: 0 });
   });
   it("counts each region once and leaves out the regions a correction excluded", () => {
