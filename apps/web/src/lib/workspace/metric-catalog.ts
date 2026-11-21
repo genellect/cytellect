@@ -1,10 +1,11 @@
 import type {ReviewTarget} from "./review-preview";
 
-/** Measurements grouped by the change a researcher asks about, named as nouns (requirements M-01, UC-01).
+/** Measurements grouped by the change a researcher asks about, named as nouns (UC-01); the statistics panel lists
+ * them by subject and observation unit (SUBJECT_METRICS, requirements M-01).
  * Labels and definitions describe the saved common implementation; nothing is computed here. */
 export interface MetricChoice {
   id: string; label: string;
-  /** What is measured, on which region, and what one observation is. */
+  /** What is measured and on which region; what one observation is comes with SUBJECT_METRICS (subjectEntry). */
   definition: string;
   /** The region set the values come from, when the metric fixes it. */
   target?: ReviewTarget;
@@ -21,19 +22,19 @@ export interface MetricQuestion {question: string; metrics: MetricChoice[]}
 export const METRIC_QUESTIONS: MetricQuestion[] = [
   {question: "大きさの変化", metrics: [
     {id: "area_px", label: "面積（px²）", channel: false,
-      definition: "選んだ領域（核・核小体など）ごとの面積（画素数）。観測は領域ごとで、視野の中央値 → 試料 → 実験回の順にまとめます。核の面積の低下は形態の所見で、細胞死の確定ではありません。"},
+      definition: "選んだ領域（核・核小体など）ごとの面積（画素数）。視野の中央値 → 試料 → 実験回の順にまとめます。核の面積の低下は形態の所見で、細胞死の確定ではありません。"},
     {id: "area_um2", label: "面積（µm²）", channel: false, calibrated: true,
       definition: "画素数 × 確認した画素の大きさ（µm²）。画素の大きさが登録された視野だけで使えます。"},
   ]},
   {question: "数の増減", metrics: [
     {id: "nucleus_count", label: "視野あたりの核数", target: "nuclei", channel: false,
-      definition: "採用した核の数。画像の端にかかる核を含みます。観測は視野ごとです。画像に写った核の数であり、細胞数・生存率・増殖率そのものではありません。視野の選び方と播種の密度に左右されます。"},
+      definition: "採用した核の数。画像の端にかかる核を含みます。画像に写った核の数であり、細胞数・生存率・増殖率そのものではありません。視野の選び方と播種の密度に左右されます。"},
     {id: "nucleus_density_per_mm2", label: "核の密度（mm² あたり）", target: "nuclei", channel: false, calibrated: true,
-      definition: "視野あたりの核数 ÷ 撮影した視野の面積（mm²）。画素の大きさが確認された視野だけで計算します。観測は視野ごとです。"},
+      definition: "視野あたりの核数 ÷ 撮影した視野の面積（mm²）。画素の大きさが確認された視野だけで計算します。"},
   ]},
   {question: "量（輝度）の変化", metrics: [
-    {id: "mean", label: "平均輝度", channel: true, definition: "選んだ領域の中で、選んだ染色の画素値を平均した値（原値）。観測は領域ごとです。"},
-    {id: "median", label: "中央値", channel: true, definition: "選んだ領域の中の、選んだ染色の画素値の中央値（原値）。観測は領域ごとです。"},
+    {id: "mean", label: "平均輝度", channel: true, definition: "選んだ領域の中で、選んだ染色の画素値を平均した値（原値）。"},
+    {id: "median", label: "中央値", channel: true, definition: "選んだ領域の中の、選んだ染色の画素値の中央値（原値）。"},
     {id: "integrated", label: "積算輝度", channel: true, definition: "選んだ領域の中の、選んだ染色の画素値の合計（原値）。領域の大きさにも左右されます。"},
     {id: "mean_corrected", label: "平均輝度（背景補正）", channel: true, definition: "背景を差し引いた平均輝度。背景の決め方は測定の設定に記録されます。"},
     {id: "integrated_corrected", label: "積算輝度（背景補正）", channel: true, definition: "背景を差し引いた積算輝度。領域の大きさにも左右されます。"},
@@ -72,6 +73,59 @@ export function metricTarget(id: string, chosen: ReviewTarget): ReviewTarget {re
 /** The structure a metric's values are checked on in the image (V-04, X-01). */
 export function metricStructure(id: string, chosen: ReviewTarget): ReviewTarget {return choices.get(id)?.structure ?? metricTarget(id, chosen);}
 export function metricUsesChannel(id: string): boolean {return !id.startsWith("area_") && (choices.get(id)?.channel ?? true);}
+
+/** The part of the nucleus a metric describes, chosen before the metric (requirements M-01; Issue #257, owner decisions 1, 7 and 12).
+ *  The subjects map onto the metrics above; no metric is added here, and the ids sent to the API stay the same. */
+export type MetricSubject = ReviewTarget;
+/** What one observation is. */
+export type ObservationUnit = "nucleus" | "nucleolus" | "field" | "cell";
+export const UNIT_LABELS: Record<ObservationUnit, string> = {nucleus: "核ごと", nucleolus: "核小体ごと", field: "視野ごと", cell: "細胞ごと"};
+/** One entry of a subject's list: the base metric first, then its variants, offered as a switch under the list
+ *  (px² / µm², 原値 / 背景補正) instead of as separate entries. */
+export interface SubjectMetric {label: string; variants: Array<{id: string; label: string}>}
+export interface SubjectGroup {unit: ObservationUnit; metrics: SubjectMetric[]}
+
+const one = (label: string, id: string): SubjectMetric => ({label, variants: [{id, label: ""}]});
+const area: SubjectMetric = {label: "面積", variants: [{id: "area_px", label: "px²"}, {id: "area_um2", label: "µm²"}]};
+const intensities: SubjectMetric[] = [
+  {label: "平均輝度", variants: [{id: "mean", label: "原値"}, {id: "mean_corrected", label: "背景補正"}]},
+  one("中央値", "median"),
+  {label: "積算輝度", variants: [{id: "integrated", label: "原値"}, {id: "integrated_corrected", label: "背景補正"}]},
+];
+export const SUBJECT_METRICS: Record<MetricSubject, SubjectGroup[]> = {
+  nuclei: [
+    {unit: "nucleus", metrics: [area, ...intensities]},
+    {unit: "field", metrics: [one("数", "nucleus_count"), one("密度（mm² あたり）", "nucleus_density_per_mm2"), one("陽性核数", "positive_count"), one("陽性率", "positive_fraction")]},
+  ],
+  nucleoli: [
+    {unit: "nucleolus", metrics: [area, ...intensities]},
+    {unit: "nucleus", metrics: [one("数", "nucleolar_count"),
+      {label: "総面積", variants: [{id: "nucleolar_area_px", label: "px²"}, {id: "nucleolar_area_um2", label: "µm²"}]},
+      one("面積割合", "nucleolar_area_fraction"), one("離心率", "nucleolar_eccentricity")]},
+  ],
+  nucleoplasm: [
+    {unit: "nucleus", metrics: [area, ...intensities, one("核質／核小体 log₂ 比", "log2_nucleoplasm_over_nucleolus")]},
+  ],
+  cell: [
+    {unit: "cell", metrics: [area, ...intensities]},
+  ],
+};
+export const SUBJECTS: MetricSubject[] = ["nuclei", "nucleoli", "nucleoplasm", "cell"];
+
+/** The subject a metric belongs to: the structure its values are checked on. */
+export function metricSubject(id: string, chosen: ReviewTarget): MetricSubject {return metricStructure(id, chosen);}
+/** The entry and observation unit of a metric in a subject's list. */
+export function subjectEntry(subject: MetricSubject, id: string): {unit: ObservationUnit; metric: SubjectMetric} | undefined {
+  for (const group of SUBJECT_METRICS[subject]) for (const metric of group.metrics) if (metric.variants.some(variant => variant.id === id)) return {unit: group.unit, metric};
+  return undefined;
+}
+/** The metric kept when the subject changes: the same one if the subject offers it, else the mean intensity, else its first offered entry. */
+export function metricForSubject(current: string, subject: MetricSubject, offered: (id: string) => boolean): string {
+  if (subjectEntry(subject, current) && offered(current)) return current;
+  if (subjectEntry(subject, "mean") && offered("mean")) return "mean";
+  return SUBJECT_METRICS[subject].flatMap(group => group.metrics).find(metric => offered(metric.variants[0].id))?.variants[0].id ?? current;
+}
+
 /** The positive count and fraction of nuclei (field summary), judged by a recorded classification of a channel. */
 export function nucleusPositivity(id: string): boolean {return id === "positive_count" || id === "positive_fraction";}
 
