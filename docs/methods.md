@@ -390,8 +390,9 @@ coordinates are those of 2.1.0. Two rules are added:
    inside it. A parent whose signal is below `minimum_contrast_snr` × noise is `indeterminate`
    (`insufficient_marker_contrast`) before thresholding; its candidates are not adopted. The criterion is
    against noise, never against the enrichment being measured; no object is removed for its brightness. Signal,
-   noise and their ratio are recorded per parent. The default `minimum_contrast_snr` was chosen on the tuning
-   split of the public validation and checked once on its evaluation split
+   noise and their ratio are recorded per parent. The default `minimum_contrast_snr` is 5, the 4.2.0 value:
+   no value of the pre-registered grid met every acceptance criterion on the tuning split of the public validation,
+   and the one evaluation run did not pass either; using it as the default awaits the owner's decision
    ([report](public-nucleolar-shape-validation.md#判定できない核の規則決定-20)).
 2. **Minimum area.** max(`minimum_area_px` (4), `minimum_area_um2` (0.3) converted with the field's confirmed
    calibration, rounded half up); 4 px without a calibration. The applied value and its source are recorded

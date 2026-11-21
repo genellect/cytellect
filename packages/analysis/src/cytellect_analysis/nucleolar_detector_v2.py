@@ -51,8 +51,10 @@ from .masks import validate_label_array
 from .regions import RegionModel
 
 PROTOCOL = "2.0.0"
-# Protocol 2.2.0: minimum parent marker contrast in units of the field noise. Chosen on the tuning split of the
-# public validation (docs/public-nucleolar-shape-validation.md) before the evaluation split was run.
+# Protocol 2.2.0: minimum parent marker contrast in units of the field noise. The value of
+# cellpose-sam-ncl-parent/4.2.0: on the public tuning split no grid value met every acceptance criterion, so the
+# pre-registered fallback applies, and the evaluation split did not pass either (docs/public-nucleolar-shape-
+# validation.md). Its use as the default needs the owner's decision.
 MINIMUM_CONTRAST_SNR = 5.0
 # Marker contrast statistic of cellpose-sam-ncl-parent/4.2.0, reused unchanged by protocol 2.2.0.
 CONTRAST_SMOOTHING_SIGMA_PX = 0.9
