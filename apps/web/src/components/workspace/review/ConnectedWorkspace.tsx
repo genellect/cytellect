@@ -20,6 +20,7 @@ import {ConnectedBackground,type WorkspaceBackgrounds} from "./ConnectedBackgrou
 import {ConnectedGfp,type WorkspaceGfpFilter} from "./ConnectedGfp";
 import {ConnectedResults} from "./ConnectedResults";
 import {ExperimentSetup,type AddTarget} from "./ExperimentSetup";
+import {adoptedNuclei} from "@/lib/workspace/experiment-summary";
 import {MeasurementTable} from "./MeasurementTable";
 import {ConnectedNucleusTable,type NucleusTableSource} from "./NucleusTable";
 import {ConnectedPartition} from "./ConnectedPartition";
@@ -460,7 +461,9 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
   const addToExperiment=(target:AddTarget,list:FileList|File[],design:ExperimentDesign)=>explained(async()=>{const ids=await r.importFiles(list);if(ids.length)await r.saveExperiment(assignFields(design,ids,{group_id:target.groupId,run_id:target.runId,sample:target.sample}));return ids;});
   // The images that waited for the choice go where the researcher puts them; one screen has one place, and opens on them.
   const placePending=async(target:AddTarget,design:ExperimentDesign)=>{if(!pending)return;const ids=await addToExperiment(target,pending,design);setPending(null);if(design.layout==="single"&&ids[0]){setSelected(ids[0]);setMode("image");}};
-  const setup=<ExperimentSetup design={experiment} fields={fields.filter(value=>value.kind!=="reference").map(value=>{const ch=value.nuclearChannelId||value.channels[0]?.id;return {id:value.id,label:value.label,preview:ch?value.previews[ch]:undefined};})}
+  // Each field's adopted nuclei (null: not measured) and whether it is measured, for n and the summary figure.
+  const setup=<ExperimentSetup design={experiment} fields={fields.filter(value=>value.kind!=="reference").map(value=>{const ch=value.nuclearChannelId||value.channels[0]?.id,nuclear=r.currentResult(value.id,"nuclei");return {id:value.id,label:value.label,preview:ch?value.previews[ch]:undefined,nuclei:nuclear?adoptedNuclei(nuclear):null,measured:!!nuclear||!!r.currentResult(value.id,"cell"),excluded:!!value.exclusionReason};})}
+    onNext={()=>changeMode("statistics")} source={demo?showcase.dataset:null} loading={r.loading}
     busy={r.busy||!transportAvailable} readOnly={demo} onSave={saveExperiment} onAdd={addToExperiment} pending={pending&&!demo?{count:pending.length,onPlace:placePending,onWithoutForm:()=>{const files=pending;setPending(null);setMode("image");void act(()=>r.importFiles(files));},onDiscard:()=>setPending(null)}:undefined} onOpenField={id=>{setSelected(id);changeMode("image");}} onCsv={()=>changeMode("statistics")}/>;
   const setupShown=experimentSetupShown(mode,!!field,demo);
   // The nucleus table step shows one field's nuclei (the table lists one field's nuclei) with its table open.
