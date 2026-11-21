@@ -30,6 +30,10 @@ IsoDate = Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")]
 SEPARATOR = " · "
 
 
+def _not_stated(value: bool) -> bool:
+    return value is False
+
+
 def _clean(value: str) -> str:
     if (not value.strip() or value != value.strip() or any(ord(char) < 32 or 0xD800 <= ord(char) <= 0xDFFF for char in value)
             or SEPARATOR.strip() in value):
@@ -84,6 +88,10 @@ class ExperimentDesign(RegionModel):
     runs: Annotated[list[ExperimentRun], Field(max_length=50)] = Field(default_factory=list)
     # The researcher's statement that runs were performed independently (E-05).
     independence_confirmed: bool = False
+    # The researcher's statement that every field was acquired with the same imaging and pixel settings
+    # (S10; genellect/cytellect#257 decision 11). Additive: omitted while false, so a design saved
+    # before it keeps its bytes and its hash.
+    acquisition_confirmed: bool = Field(default=False, exclude_if=_not_stated)
     fields: Annotated[dict[Id, FieldAssignment], Field(max_length=100)] = Field(default_factory=dict)
 
     @model_validator(mode="after")
@@ -155,6 +163,7 @@ class StratifiedExperimentDesign(RegionModel):
     control_group_id: Id | None = None
     runs: Annotated[list[ExperimentRun], Field(max_length=50)] = Field(default_factory=list)
     independence_confirmed: bool = False
+    acquisition_confirmed: bool = Field(default=False, exclude_if=_not_stated)
     factors: Annotated[list[StratumFactor], Field(min_length=1, max_length=3)]
     # Empty while the researcher is still declaring factors; no cohort can be made until a stratum exists.
     strata: Annotated[list[Stratum], Field(max_length=24)]
@@ -278,6 +287,9 @@ def readiness(design: ExperimentDesign | StratifiedExperimentDesign, registered_
     if undated:
         # Intensities need actual acquisition dates (S10); areas and counts do not.
         issues.append({"code": "experiment_design_acquisition_dates_missing", "field_ids": undated})
+    if not design.acquisition_confirmed:
+        # Comparisons and associations need the acquisition statement (S10); descriptions do not.
+        issues.append({"code": "experiment_design_acquisition_unconfirmed"})
     if not design.independence_confirmed:
         issues.append({"code": "experiment_design_independence_unconfirmed"})
     return issues
