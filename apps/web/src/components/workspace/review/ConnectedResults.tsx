@@ -18,7 +18,7 @@ import {ErrorText,useShowcaseUi} from "./showcase-ui";
 import {METRIC_HINTS} from "../../../lib/showcase/terms";
 import {DiscussionPanel} from "./DiscussionPanel";
 import {showcaseNotices,type RecordedStatistic,type ShowcaseDataset} from "@/lib/showcase";
-import {automaticOperation,choiceFilter,conditionChannel,conditionKey,savedCondition,savedFor,savedMeasureLabel,type ResultCondition,type SavedResultLike} from "./result-choice";
+import {automaticOperation,sameMethod,savedMethod,choiceFilter,conditionChannel,conditionKey,savedCondition,savedFor,savedMeasureLabel,type ResultCondition,type SavedResultLike} from "./result-choice";
 import {AxisControls,axisPlotOptions,emptyAxis,type AxisState} from "./AxisControls";
 import {ConnectedCsvResults} from "./ConnectedCsvResults";
 import {EditableFigure,type FigurePart,type FigureSource} from "./EditableFigure";
@@ -447,6 +447,8 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   if(mode==="statistics")for(const entry of history)if(entry.operation==="comparison"&&entry.result.estimates&&!recorded.some(value=>value.job===entry.job))recorded.push(entry);
   function showRecorded(entry:Saved){
     restoreFigure(entry);
+    // The analysis settings follow the chosen result too, so its test is shown under its own method.
+    const method=savedMethod(entry.operation,entry.result.spec);if(method.paired!==undefined)setPaired(method.paired);if(method.rank!==undefined)setRank(method.rank);
     // The side panel follows, so the shown result is the chosen metric's and not a "previous" one.
     const metric=entry.result.spec?.selection?.metric??entry.result.estimates?.metric??entry.result.metric;
     if(entry.target)onAnalysisTargetChange?.(metricStructure(metric??"",entry.target));
@@ -490,8 +492,11 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   // measurements or settings than the chosen ones (stale) does not answer the choice either.
   // Both 統計 and グラフ follow the side panel's choice (SR-04): neither shows another condition's result.
   const resultMode=mode==="statistics"||mode==="figure";
-  const pending=resultMode&&(!saved||stale||(!!shownCondition&&conditionKey(shownCondition)!==choiceKey));
-  const answers=(entry:Saved)=>!!entry.historical||(entry.identity===identity&&entry.requestIdentity===requestIdentity);
+  const pending=resultMode&&(!saved||stale||(!!saved.historical&&!sameMethod(saved.operation,saved.result.spec,{paired,rank,inference:design.inference!==false}))||(!!shownCondition&&conditionKey(shownCondition)!==choiceKey));
+  // A result calculated here answers the same measurements and request; one saved earlier (reopened) answers when it was
+  // calculated with the test and pairing now chosen.
+  const chosenMethod={paired,rank,inference:design.inference!==false};
+  const answers=(entry:Saved)=>entry.historical?sameMethod(entry.operation,entry.result.spec,chosenMethod):(entry.identity===identity&&entry.requestIdentity===requestIdentity);
   const available=savedFor(history.filter(answers),condition,sources.map(source=>({field:source.field,mask:source.result.masks?.metadata?.mask_revision_id??"",protocol:source.result.protocol,mode:source.result.measurement?.mode})));
   const stainOf=(id:string|null)=>id?stainName(id):null;
   const choiceLabel=measureLabel(metric,regionSet,stainOf(condition.channel));
@@ -542,7 +547,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   const savedChips=<div className={styles.recorded} role="group" aria-label="保存した比較">{recorded.map(entry=><button key={entry.job} aria-pressed={!pending&&saved?.job===entry.job} onClick={()=>showRecorded(entry)}>{resultMetricLabel(entry.result,entry.result.estimates?.metric??"",stainName)}</button>)}</div>;
   if(csv)return <ConnectedCsvResults workspace={workspace} mode={mode} onImages={()=>setCsv(false)}/>;
   return <section className={styles.root} aria-label={mode==="figure"?"図の作成・保存":"測定結果の統計解析"}>
-    <div className={styles.settings} onBlur={event=>{if(event.currentTarget.contains(event.relatedTarget))return;if(!busy&&!saved?.historical)void persist().catch(cause=>setError(fail(cause)));}}>
+    <div className={styles.settings} onBlur={event=>{if(event.currentTarget.contains(event.relatedTarget)||(event.relatedTarget as HTMLElement|null)?.dataset?.calculate)return;if(!busy&&!saved?.historical)void persist().catch(cause=>setError(fail(cause)));}}>
       <header><h2>{mode==="figure"?"グラフ":"統計解析"}</h2><span>{sources.length} 視野{excludedCount?` · 除外 ${excludedCount}`:""}</span></header>
       {stratifiedDesign&&<div className={styles.stratumPick}>
         <label>比べる層<select aria-label="比べる層" value={stratumChoice} disabled={!!busy} onChange={event=>setStratumChoice(event.target.value)}>
@@ -619,10 +624,13 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
       {mode==="statistics"&&operation!=="distribution"&&(<details className={styles.metadata} open={!saved&&!experiment}><summary>実験情報</summary>{experiment&&<p className={styles.derivedNote}>群・試料・独立実験単位・撮影日・対応ペアは、実験デザインから決まります。{onEditExperiment&&<button type="button" onClick={onEditExperiment}>実験デザインを編集</button>}</p>}<div className={styles.tableScroll} tabIndex={0}><table><thead><tr><th>視野</th>{["群","試料","独立実験単位","撮影日",...(paired&&operation==="comparison"?["対応ペア"]:[])].map(value=><th key={value}>{value}</th>)}</tr></thead><tbody>{sources.map(source=><tr key={source.field}><th><button onClick={()=>onSource(source.field)}>{source.label}</button></th>{(["condition","sample","experimental_unit","acquisition_date",...(paired&&operation==="comparison"?["pair"]:[])] as Array<keyof Metadata>).map(key=><td key={key}><input maxLength={80} readOnly={demo||source.field in derived} aria-label={`${source.label} ${key}`} value={String(fields[source.field][key]??"")} onChange={event=>editMetadata(source.field,key,event.target.value)}/></td>)}</tr>)}</tbody></table></div></details>)}
       {pending?<>
         {recorded.length>0&&savedChips}
-        {/* A condition without a result keeps the result's card and figure frame in place: its name and 計算 (§4.1). */}
+        {/* A condition without a result keeps the result's card and figure frame in place: its name and 計算 (plan 4.1). */}
         <div className={styles.resultGrid} data-columns={2}>
           <section className={`${styles.summary} ${styles.pendingCard}`} aria-label="選択中の条件" aria-busy={!!busy}><h3>{choiceLabel}</h3>
-            {busy?<p role="status">{busy}</p>:demo?unrecorded===choiceKey&&<p role="status">{showcaseNotices.showcase_action_not_recorded}</p>:mode==="statistics"||ready?<button className={styles.primary} disabled={!ready} onClick={()=>void calculate()}>計算</button>:onStatistics&&<button type="button" onClick={onStatistics}>統計で計算</button>}</section>
+            {busy?<p role="status">{busy}</p>:demo?(unrecorded===choiceKey||!recordedChoice(condition))&&<p role="status">{showcaseNotices.showcase_action_not_recorded}</p>:mode==="statistics"||ready?
+              // 計算 saves the settings itself. Pressing it leaves the settings without the save on leaving them, which
+              // would hold the workspace busy (and the button disabled) while the click lands.
+              <button className={styles.primary} data-calculate="" disabled={!ready} onMouseDown={event=>event.preventDefault()} onClick={()=>void calculate()}>計算</button>:onStatistics&&<button type="button" onClick={onStatistics}>統計で計算</button>}</section>
           <div className={styles.pendingFrame} aria-hidden="true"/>
         </div>
       </>:saved?<>

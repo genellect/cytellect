@@ -1,5 +1,5 @@
 import {describe,expect,it} from "vitest";
-import {automaticOperation,choiceFilter,conditionChannel,conditionKey,measureLabel,savedCondition,savedFor,savedMeasureLabel,sameSources,type ResultCondition,type SavedResultLike} from "./result-choice";
+import {automaticOperation,sameMethod,savedMethod,choiceFilter,conditionChannel,conditionKey,measureLabel,savedCondition,savedFor,savedMeasureLabel,sameSources,type ResultCondition,type SavedResultLike} from "./result-choice";
 
 const npm1={channel_id:"npm1",label:"NPM1",stain:"NPM1"};
 const sources=[{field:"f1",mask:"m1",protocol:"4.0.0",mode:"automatic_background"},{field:"f2",mask:"m2",protocol:"4.0.0",mode:"automatic_background"}];
@@ -103,5 +103,27 @@ describe("analysis changed by the view (#257 SR-04, owner decision 15)",()=>{
   it("leaves an analysis the measure and design can have",()=>{
     expect(automaticOperation(base)).toBeNull();
     expect(automaticOperation({...base,operation:"association"})).toBeNull();
+  });
+});
+
+describe("a saved result answers only the method now chosen (#257 review)",()=>{
+  const chosen={paired:true,rank:false,inference:true};
+  it("tells a paired t test from a rank test, an independent design and a description",()=>{
+    expect(sameMethod("comparison",{test:"paired-t",design:{kind:"paired"}},chosen)).toBe(true);
+    expect(sameMethod("comparison",{test:"paired-t",design:{kind:"paired"}},{...chosen,rank:true})).toBe(false);
+    expect(sameMethod("comparison",{test:"welch-t",design:{kind:"independent"}},chosen)).toBe(false);
+    expect(sameMethod("comparison",{test:"paired-t",design:{kind:"paired"}},{...chosen,inference:false})).toBe(false);
+    expect(sameMethod("comparison",{test:"none",design:{kind:"paired"}},{...chosen,inference:false})).toBe(true);
+  });
+  it("tells Pearson from Spearman, and takes a result without a recorded method as it was",()=>{
+    expect(sameMethod("association",{method:"spearman"},chosen)).toBe(false);
+    expect(sameMethod("association",{method:"pearson"},chosen)).toBe(true);
+    expect(sameMethod("comparison",{},chosen)).toBe(true);
+    expect(sameMethod("distribution",{test:"anything"},chosen)).toBe(true);
+  });
+  it("gives the side panel the saved method",()=>{
+    expect(savedMethod("comparison",{test:"wilcoxon",design:{kind:"paired"}})).toEqual({paired:true,rank:true});
+    expect(savedMethod("comparison",{test:"none",design:{kind:"independent"}})).toEqual({paired:false});
+    expect(savedMethod("association",{method:"spearman"})).toEqual({rank:true});
   });
 });

@@ -77,3 +77,24 @@ test("グラフ follows the side panel both ways and never shows another conditi
   await expect(pendingCard(page)).toHaveCount(0, {timeout: live});
   expect(errors).toEqual([]);
 });
+
+test("with nuclei classified by a stain, the demo offers only the measures recorded for the classified nuclei (#257 review)", async ({page}) => {
+  test.setTimeout(600_000);
+  const errors = await open(page, "step=image");
+  const color = page.getByRole("toolbar", {name: "画像の表示"}).getByRole("combobox", {name: "色分け", exact: true});
+  await expect(color).toBeVisible({timeout: live});
+  await color.selectOption("positivity");
+  const gate = page.getByRole("complementary", {name: "画像解析"}).getByRole("region", {name: "チャンネルによる核の分類"});
+  await gate.getByRole("button", {name: "チャンネルで分類", exact: true}).click();
+  await expect(gate.locator("output")).toContainText("陽性", {timeout: live});
+  await page.locator("header").getByRole("button", {name: "統計", exact: true}).click();
+  const metric = side(page).getByRole("combobox", {name: "指標", exact: true});
+  await expect(metric).toBeVisible({timeout: live});
+  const region = side(page).getByRole("combobox", {name: "領域", exact: true});
+  if (await region.count()) await region.selectOption("nuclei");
+  // The tour recorded the nuclear mean for classified nuclei, and the nuclear median only for all nuclei.
+  const offered = await metric.locator("option").evaluateAll(options => options.map(option => (option as HTMLOptionElement).value));
+  expect(offered).toContain("mean");
+  expect(offered).not.toContain("median");
+  expect(errors).toEqual([]);
+});

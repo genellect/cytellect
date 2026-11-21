@@ -30,7 +30,9 @@ export interface SavedResultLike {
   estimates?: {metric: string} | null;
   stratum?: {label: string} | null;
   selection?: {channel_gate?: {channel?: SavedChannelLike}} | null;
-  spec?: {selection?: SavedSelectionLike; x_selection?: SavedSelectionLike; y_selection?: SavedSelectionLike} | null;
+  spec?: {selection?: SavedSelectionLike; x_selection?: SavedSelectionLike; y_selection?: SavedSelectionLike;
+    /** The comparison's test ("none" without inference), the association's method and the design, as requested. */
+    test?: string | null; method?: string | null; design?: {kind?: string | null} | null} | null;
   x_source?: {metric?: string; channel?: SavedChannelLike | null; source_fields?: SavedResultLike["source_fields"]} | null;
   y_source?: {metric?: string; channel?: SavedChannelLike | null; source_fields?: SavedResultLike["source_fields"]} | null;
   /** Each field's adopted regions (their mask revision) and measurement, as the result recorded them. */
@@ -133,4 +135,26 @@ export function automaticOperation({operation, comparable, canAssociate, unconfi
   if (operation === "distribution" && comparable && !saturated) return {operation: "comparison", reason: ""};
   if (operation === "distribution" && !descriptive && !saturated) return {operation: "comparison", reason: "この指標は分布を出せません。"};
   return null;
+}
+
+/** The analysis settings that change a result beyond its condition: the test, the pairing and the rank method. */
+export interface ChosenMethod {paired: boolean; rank: boolean; inference: boolean}
+/** Whether a saved result was calculated with the method now chosen (genellect/cytellect#257 review, 2026-11-21): a
+ * p value of a paired t test is not shown under a choice of a rank test, nor a test under a choice of a description.
+ * A result that records no method (an older format) is taken as it was. */
+export function sameMethod(operation: ResultOperation, spec: SavedResultLike["spec"], chosen: ChosenMethod): boolean {
+  if (operation === "distribution" || !spec) return true;
+  if (operation === "association") return !spec.method || spec.method === (chosen.rank ? "spearman" : "pearson");
+  const kind = spec.design?.kind;
+  if (kind && kind !== (chosen.paired ? "paired" : "independent")) return false;
+  if (!spec.test) return true;
+  const expected = !chosen.inference ? "none" : chosen.paired ? (chosen.rank ? "wilcoxon" : "paired-t") : (chosen.rank ? "mann-whitney-u" : "welch-t");
+  return spec.test === expected;
+}
+/** The method a saved result was calculated with, for the side panel to follow it when the result is chosen. */
+export function savedMethod(operation: ResultOperation, spec: SavedResultLike["spec"]): {paired?: boolean; rank?: boolean} {
+  if (!spec || operation === "distribution") return {};
+  if (operation === "association") return spec.method ? {rank: spec.method === "spearman"} : {};
+  return {...(spec.design?.kind ? {paired: spec.design.kind === "paired"} : {}),
+    ...(spec.test && spec.test !== "none" ? {rank: spec.test === "wilcoxon" || spec.test === "mann-whitney-u"} : {})};
 }
