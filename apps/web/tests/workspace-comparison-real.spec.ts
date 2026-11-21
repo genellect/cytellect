@@ -76,8 +76,14 @@ test("synthetic fields reach real independent-unit comparison and editable expor
   await expect(panel.locator('input[aria-label$=" condition"]').first()).toHaveValue("A");
   expect(writes.filter(value => value.endsWith("/review"))).toHaveLength(0);
   await panel.getByLabel("A / B", {exact:true}).check();
-  await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み", {exact:true}).check();
-  await panel.getByLabel("測定領域と採用する視野を確認済み", {exact:true}).check();
+  // genellect/cytellect#257 decision 11: 統計 has no confirmation, and a workspace registered without a design has no
+  // place to state its acquisition settings. Nothing is compared; the result's place points to 実験.
+  await expect(panel.getByRole("checkbox", {name:/確認済み/})).toHaveCount(0);
+  await expect(panel.getByRole("button", {name:"実験：実験デザイン 未宣言", exact:true})).toBeVisible();
+  expect(writes.filter(value => value.endsWith("/common-statistics"))).toHaveLength(0);
+  // The independent-unit (Welch) comparison below is reachable again only once the owner decides how a workspace without
+  // a declared design states its acquisition settings (question in the decision 11 PR).
+  test.fixme(true, "Independent-unit comparison of a workspace without a declared design awaits the owner decision (genellect/cytellect#257 decision 11)");
   await panel.getByRole("button", {name:"計算", exact:true}).click();
   // Include operation errors rather than reporting only a missing-table timeout.
   await expect.poll(async()=>{

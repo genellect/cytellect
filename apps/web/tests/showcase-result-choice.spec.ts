@@ -98,3 +98,23 @@ test("with nuclei classified by a stain, the demo offers only the measures recor
   expect(offered).not.toContain("median");
   expect(errors).toEqual([]);
 });
+
+test("the demo never asks the visitor for earlier work or a declaration (#257 decisions 2, 11 and 13)", async ({page}) => {
+  test.setTimeout(600_000);
+  const errors = await open(page, "step=statistics");
+  const results = page.getByRole("region", {name: "測定結果の統計解析"});
+  await expect(results.getByRole("region", {name: "結果のまとめ"}).first()).toBeVisible({timeout: live});
+  // The recorded calculations carry the tour's confirmations: no confirmation and no line pointing to 画像 or 実験.
+  await choose(page, "nuclei", "area_px", null);
+  await expect(results.getByRole("region", {name: "選択中の条件"})).toHaveCount(0, {timeout: live});
+  await expect(results.getByRole("button", {name: /^(画像|実験)：/})).toHaveCount(0);
+  await expect(results.getByRole("checkbox", {name: /確認済み|欠測として残して計算する/})).toHaveCount(0);
+  // The recorded public design states nothing about the acquisition settings: no mark is made up for it, and the
+  // statement is not offered to the visitor.
+  await page.locator("header").getByRole("button", {name: "実験", exact: true}).click();
+  const status = page.getByRole("region", {name: "実験デザイン"}).getByRole("list", {name: "実験デザインの状態"});
+  await expect(status.getByRole("listitem").filter({hasText: /^独立性：/})).toBeVisible({timeout: live});
+  await expect(status.getByRole("listitem").filter({hasText: /^撮影条件：/})).toHaveCount(0);
+  await expect(page.getByRole("checkbox", {name: "全視野を同じ撮影・画素条件で撮影した"})).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
