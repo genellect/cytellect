@@ -44,7 +44,8 @@ export function nucleolarDetectorV2(definition: NucleolarDefinition) {
   };
   if (definition.source === "marker") return {
     ...common, protocol_version: "2.2.0" as const, source: "marker" as const, smoothing_sigma_px: 0.7,
-    minimum_area_px: Math.max(4, minimumArea), minimum_area_um2: 0.3 as number | null, minimum_contrast_snr: MINIMUM_CONTRAST_SNR,
+    // A workspace pixel size does not set it: the minimum comes from each field's calibration.
+    minimum_area_px: 4, minimum_area_um2: 0.3 as number | null, minimum_contrast_snr: MINIMUM_CONTRAST_SNR,
   };
   return {
     ...common, protocol_version: "2.0.0" as const, source: "dapi_poor" as const,

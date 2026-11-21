@@ -198,8 +198,8 @@ def centre_crop(shape: tuple[int, int], size: list[int]) -> list[int]:
 
 
 def count_whole_nuclei(image, fiji: str, scratch: Path) -> dict:
-    """Default nuclear recipe (1.7.0, nuclear-size/1.0.0, StarDist defaults) on one plane;
-    nuclei touching the image border are not counted."""
+    """Nuclear recipe 1.7.0 with nuclear-size/1.0.0 (the registered selection rules counted with it) and StarDist
+    defaults on one plane; nuclei touching the image border are not counted."""
     import numpy as np
     from cytellect_analysis.engine import detect_nuclei
     from cytellect_analysis.nuclear_scale import automatic_detection_max_side, estimate_nuclear_diameter
@@ -208,7 +208,7 @@ def count_whole_nuclei(image, fiji: str, scratch: Path) -> dict:
     detector = NuclearDetectorSpec.model_validate({"engine": "fiji-stardist-2d", "model": "Versatile (fluorescent nuclei)",
                                                    "percentile_low": 1, "percentile_high": 99.8,
                                                    "probability": 0.5, "nms": 0.3})
-    scale = estimate_nuclear_diameter(image)
+    scale = estimate_nuclear_diameter(image, "nuclear-size/1.0.0")
     side = automatic_detection_max_side(image.shape, scale["diameter_px"])
     if scratch.exists():
         shutil.rmtree(scratch)

@@ -80,6 +80,8 @@ export function runtimeRecipe(target:ReviewTarget,channel:ChannelDefinition,sett
     const base=nuclearRecipe(channel,settings.nuclearMaxSide);
     const saved=targets.nuclei?.recipe;
     if(saved?.defining_channel_id===channel.token && saved.nuclear_role_source)base.nuclear_role_source=saved.nuclear_role_source;
+    // Saved automatically scaled nuclei keep their scale protocol (as run_recipes.py).
+    if(saved?.defining_channel_id===channel.token && saved.version==="1.7.0" && saved.detection_scale && base.detection_scale)base.detection_scale=saved.detection_scale;
     const recipe=withProcessingSettings(base,processing);
     const detector=recipe.detector?.engine === "fiji-stardist-2d" ? recipe.detector : {engine:"fiji-stardist-2d" as const,model:"Versatile (fluorescent nuclei)" as const,percentile_low:1,percentile_high:99.8};
     return {...recipe,detector:{...detector,probability:settings.nuclearProbability,nms:settings.nuclearNms}};
@@ -105,7 +107,7 @@ function runtimeNucleolarRecipe(channel:ChannelDefinition,settings:RuntimeSettin
   if(!defining) throw new Error("核小体を定義するマーカーを指定してください。");
   const historical=targets.nucleoli?.recipe;
   if(!processing?.nucleoli && definition.source==="marker" && historical?.defining_channel_id===defining
-    && historical.detector?.engine==="cytellect-nucleolar-v2" && historical.detector.source==="marker" && historical.detector.protocol_version==="2.0.0"){
+    && historical.detector?.engine==="cytellect-nucleolar-v2" && historical.detector.source==="marker" && (historical.detector.protocol_version==="2.0.0"||historical.detector.protocol_version==="2.1.0")){
     processing={...(processing??{version:"1.0.0",nuclei:null,nucleoli:null,signal:null}),nucleoli:{channel:defining,detector:historical.detector}};
   }
   const previous=processing?.nucleoli?.channel === defining ? processing.nucleoli.detector : undefined;
@@ -197,7 +199,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
         const historical=processing?.nucleoli;
         const preserveLegacyMarker=!specification.spec.processing && settings.nucleolarDefinition.source==="marker"
           && historical?.channel===settings.nucleolarDefinition.marker && historical.detector.engine==="cytellect-nucleolar-v2"
-          && historical.detector.source==="marker" && historical.detector.protocol_version==="2.0.0";
+          && historical.detector.source==="marker" && (historical.detector.protocol_version==="2.0.0"||historical.detector.protocol_version==="2.1.0");
         const preserveHistoricalCellpose=!specification.spec.processing&&settings.nucleolarDefinition.source==="ncl"
           &&historical?.channel===settings.nucleolarDefinition.marker&&isCellposeDetector(historical.detector)
           &&(!settings.nucleolarDefinition.algorithm||settings.nucleolarDefinition.algorithm==="cellpose");

@@ -4239,6 +4239,20 @@ export interface components {
             /** Object Areas Px */
             object_areas_px?: number[] | null;
         };
+        /** NucleolarSizes */
+        NucleolarSizes: {
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "um2" | "px2";
+            /** Small Limit */
+            small_limit: number;
+            /** Small */
+            small: number;
+            /** Other */
+            other: number;
+        };
         /** NucleolarSource */
         NucleolarSource: {
             /** Revision Id */
@@ -4337,6 +4351,7 @@ export interface components {
             backgrounds: components["schemas"]["ChannelBackground"][];
             /** Rows */
             rows: components["schemas"]["NucleusRow"][];
+            nucleolar_sizes?: components["schemas"]["NucleolarSizes"] | null;
         };
         /** NumericalSelection */
         NumericalSelection: {

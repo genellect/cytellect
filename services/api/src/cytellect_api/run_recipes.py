@@ -37,8 +37,8 @@ def _nucleolar_defaults(definition):
     if marker and MARKER_PROTOCOL == "2.2.0":
         # Protocol 2.2.0 (owner decision 20, 2026-11-21): the 4 px floor and 0.3 um2 converted with the
         # field's own calibration in the worker; the noise-based marker contrast rule per nucleus.
-        detector.update(minimum_area_px=max(4, detector["minimum_area_px"]), minimum_area_um2=0.3,
-                        minimum_contrast_snr=MINIMUM_CONTRAST_SNR)
+        # A workspace pixel size (pixelUm) does not set it: the minimum comes from each field's calibration.
+        detector.update(minimum_area_px=4, minimum_area_um2=0.3, minimum_contrast_snr=MINIMUM_CONTRAST_SNR)
     return detector
 
 
@@ -91,10 +91,13 @@ def build_run_request(spec: dict, target: str, field_id: str, parents: dict,
             "percentile_low": 1, "percentile_high": 99.8}
         detector.update(probability=settings["nuclearProbability"], nms=settings["nuclearNms"])
         role = parent_recipe.get("nuclear_role_source") if parent_recipe.get("defining_channel_id") == channel else None
+        # Re-running saved automatically scaled nuclei keeps their scale protocol (saved records are not upgraded).
+        scale = (parent_recipe.get("detection_scale") if parent_recipe.get("defining_channel_id") == channel
+                 and parent_recipe.get("version") == "1.7.0" and parent_recipe.get("detection_scale") else None)
         recipe = {"id": "region-2d", "version": "1.7.0" if side is None else "1.5.0", "region_set_id": "nuclei",
                   "label": "核", "source": "stardist_nuclear", "defining_channel_id": channel,
                   "nuclear_role_source": role or "user_selected_role", "detector": detector,
-                  **({"detection_scale": NUCLEAR_SCALE_PROTOCOL} if side is None else {"detection_max_side_px": side})}
+                  **({"detection_scale": scale or NUCLEAR_SCALE_PROTOCOL} if side is None else {"detection_max_side_px": side})}
     else:
         if not parent or parent_recipe.get("source") != "stardist_nuclear" or parent_recipe.get("defining_channel_id") != channel:
             raise ValueError("analysis_run_nuclear_parent_required")
@@ -112,7 +115,8 @@ def build_run_request(spec: dict, target: str, field_id: str, parents: dict,
                 and historical.get("defining_channel_id") == defining
                 and historical_detector.get("engine") == "cytellect-nucleolar-v2"
                 and historical_detector.get("source") == "marker"
-                and historical_detector.get("protocol_version") == "2.0.0"):
+                and historical_detector.get("protocol_version") in ("2.0.0", "2.1.0")):
+            # Saved marker nucleoli keep their protocol; 2.2.0 applies to new marker definitions.
             proposed_detector = historical_detector
         if definition["source"] == "ncl":
             algorithm = definition["algorithm"]

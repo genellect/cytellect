@@ -103,6 +103,17 @@ describe("marker smoothing protocol compatibility without images",()=>{
     expect(runtime.getSnapshot().processing?.nucleoli?.detector).toMatchObject({protocol_version:"2.1.0",smoothing_sigma_px:.7});
     runtime.dispose();
   });
+  // 2026-11-21: marker 2.2.0 and nuclear-size/1.1.0 apply to new definitions; saved revisions keep their protocols.
+  it("keeps a saved 2.1.0 marker and saved 1.0.0 nuclei, and builds 2.2.0 / 1.1.0 for new ones",()=>{
+    const settings={...defaultRuntimeSettings(),nucleolarDefinition:definition};
+    const saved={...current,protocol_version:"2.1.0" as const};
+    const kept=runtimeRecipe("nucleoli",nuclear,settings,{nuclei:{recipe:base,result:record("n")},nucleoli:{recipe:{...child,detector:saved},result:record("u")}},null);
+    expect(kept.detector).toEqual(saved);
+    expect(runtimeRecipe("nucleoli",nuclear,settings,{nuclei:{recipe:base,result:record("n")}},null).detector).toMatchObject({protocol_version:"2.2.0"});
+    expect(base).toMatchObject({detection_scale:"nuclear-size/1.1.0"});
+    const oldNuclei={...base,detection_scale:"nuclear-size/1.0.0" as const};
+    expect(runtimeRecipe("nuclei",nuclear,defaultRuntimeSettings(),{nuclei:{recipe:oldNuclei,result:record("n")}},null)).toMatchObject({detection_scale:"nuclear-size/1.0.0"});
+  });
 });
 
 

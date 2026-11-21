@@ -276,15 +276,19 @@ def nuclei_field(task: dict[str, Any]) -> dict[str, Any]:
     record = target / f"{stem(field)}.json"
     if out.is_file() and record.is_file():
         previous = json.loads(record.read_text(encoding="utf-8"))
-        if previous.get("sha256") == field["sha256"] and previous.get("status") == "ok":
+        from cytellect_analysis.nuclear_scale import PROTOCOL as SCALE_PROTOCOL
+
+        if (previous.get("sha256") == field["sha256"] and previous.get("status") == "ok"
+                and previous.get("scale_protocol") == SCALE_PROTOCOL):
             return previous
     info: dict[str, Any] = {"protocol": PROTOCOL, "name": field["name"], "sha256": field["sha256"], "status": "failed"}
     scratch = work / "tmp" / stem(field)
     try:
         nuclear, _, _ = load_planes(Path(task["data_dir"]), field)
         detector = shape.product_detectors()["nuclear"]
-        labels, scale = shape.detect_nuclei_auto(nuclear, detector, scratch, task["fiji"])
         from cytellect_analysis.nuclear_scale import PROTOCOL as SCALE_PROTOCOL
+
+        labels, scale = shape.detect_nuclei_auto(nuclear, detector, scratch, task["fiji"], SCALE_PROTOCOL)
 
         np.savez_compressed(out, labels=labels.astype(np.uint32))
         info.update(status="ok", nuclei=int(len(np.unique(labels)) - 1), scale_protocol=SCALE_PROTOCOL,
@@ -567,6 +571,10 @@ def evaluate(data_dir: Path, work: Path, workers: int) -> dict[str, Any]:
     if git("status", "--porcelain", "--", *RULE_FILES):
         raise SystemExit("rule or detector files have uncommitted changes")
     k = float(tuning["chosen_k"])
+    from cytellect_analysis.nucleolar_detector_v2 import NucleolarDetectorV22
+
+    if NucleolarDetectorV22().minimum_contrast_snr != k:
+        raise SystemExit("the product default differs from the tuned k; commit the tuned default first")
     run_stage(data_dir, work, "evaluate", "evaluation", workers, k)
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     result, failures = aggregate(work, "evaluate", fields(manifest), EVALUATION_SETS,

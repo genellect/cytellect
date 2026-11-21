@@ -90,13 +90,13 @@ describe("nucleus table view",()=>{
 
 describe("nucleolar size breakdown",()=>{
   // Decision 20 (2026-11-21): small adopted nucleoli stay in the values; the ledger shows how many there are.
-  it("counts confirmed nucleoli by size in µm² with the table's calibration, and in px² without it",()=>{
-    const sized={...measured,count:3,object_areas_px:[1,3,6]};
-    const view=nucleusTableView({...table,rows:[row(1,sized),row(2,missing("indeterminate"))]},channels);
+  it("shows the API's count of confirmed nucleoli by size, in µm² or px²",()=>{
+    const view=nucleusTableView({...table,rows:[row(1,measured),row(2,missing("indeterminate"))],
+      nucleolar_sizes:{unit:"um2",small_limit:1,small:2,other:1}},channels);
     expect(view.ledger).toContain("欠測 1（核小体を判定不能 1）");
     expect(view.ledger).toContain("核小体の大きさ：1 µm² 未満 2、1 µm² 以上 1");
-    expect(sizeBreakdown({...table,calibration:null},[row(1,{...sized,union_area_um2:null,object_areas_px:[4,8,9]})]))
-      .toBe("核小体の大きさ：8 px² 以下 2、9 px² 以上 1");
+    expect(sizeBreakdown({...table,nucleolar_sizes:{unit:"px2",small_limit:8,small:2,other:1}}))
+      .toBe("核小体の大きさ：8 px² 以下 2、それより大きい 1");
   });
   it("shows nothing for tables saved before object areas were recorded",()=>{
     expect(nucleusTableView(table,channels).ledger).not.toContain("核小体の大きさ");

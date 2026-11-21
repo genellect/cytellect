@@ -82,3 +82,25 @@ def test_background_confirmation_is_scoped_to_each_field_images():
     assert request.confirmed_channel_ids == ["marker"]
     assert set(request.backgrounds) == {"field"}
     assert request.measurement is None
+
+
+def test_saved_scale_and_marker_protocols_are_kept_new_runs_use_the_new_ones():
+    """2026-11-21: nuclear-size/1.1.0 and marker 2.2.0 apply to new definitions; saved revisions are not upgraded."""
+    draft = spec(nucleolarDefinition={"source": "marker", "marker": "marker", "pixelUm": None, "relative": 0.7})
+    fresh = nucleus(draft)
+    assert fresh["config"]["recipe"]["detection_scale"] == "nuclear-size/1.1.0"
+    old = {"id": "old", "config": {"recipe": {**fresh["config"]["recipe"], "detection_scale": "nuclear-size/1.0.0"}}}
+    rerun = build_run_request(draft, "nuclei", "field", {"nuclei": old}, ASSIGNMENTS)
+    assert rerun.recipe.detection_scale == "nuclear-size/1.0.0"
+    child = build_run_request(draft, "nucleoli", "field", {"nuclei": fresh}, ASSIGNMENTS)
+    assert child.recipe.detector.protocol_version == "2.2.0" and child.recipe.detector.minimum_area_um2 == 0.3
+    saved = child.recipe.model_dump(mode="json")
+    saved["detector"] = {key: value for key, value in saved["detector"].items()
+                         if key not in ("minimum_area_um2", "minimum_contrast_snr")} | {"protocol_version": "2.1.0"}
+    kept = build_run_request(draft, "nucleoli", "field", {"nuclei": fresh, "nucleoli": {"id": "n", "config": {"recipe": saved}}},
+                             ASSIGNMENTS)
+    assert kept.recipe.detector.protocol_version == "2.1.0"
+    explicit = build_run_request(spec(nucleolarDefinition=draft["settings"]["nucleolarDefinition"], nucleolarMinimumArea=9),
+                                 "nucleoli", "field", {"nuclei": fresh}, ASSIGNMENTS)
+    assert explicit.recipe.detector.minimum_area_px == 9 and explicit.recipe.detector.minimum_area_um2 is None
+

@@ -202,7 +202,9 @@ wider than about half the image's long side is underestimated (choose an explici
 StarDist's own field-wide percentile normalization still misses nuclei inside the brightest background; 1.1.0
 fixes only the scale. The real-Fiji regression (`tests/test_nuclear_scale.py`) uses a registered public crop
 of one such field (`fixtures/public/nuclear-scale/`) and still requires the BBBC013 ×6 check. Saved 1.0.0
-recipes replay with the 1.0.0 estimate; masks are reused only under the same scale protocol.
+recipes replay with the 1.0.0 estimate, and re-running saved automatically scaled nuclei keeps their protocol
+(API and browser); masks are reused only under the same scale protocol. The public demo runtime asks for the
+protocols its recordings were made with until the demo is recorded again.
 
 ## GFP-positive nuclei from negative controls (gfp-gate/2.0.0, 2026-10-06)
 
@@ -401,7 +403,8 @@ missing with the reason `indeterminate`; compartment-summary statistics describe
 adopted nucleolus; under `unresolved-as-missing/1.0.0` it is kept in the ledger as missing. Its count, area
 and intensity are never 0. Adopted small nucleoli stay in the count, total area and per-nucleolus values; the
 nucleus table records each nucleus's object areas (`object_areas_px`) for the size breakdown. Saved 2.0.0 and
-2.1.0 records replay unchanged and ignore the calibration; `dapi_poor` (2.0.0) is unchanged. Detection
+2.1.0 records replay unchanged and ignore the calibration; re-running a saved marker revision without a new
+definition or proposal keeps its protocol. `dapi_poor` (2.0.0) is unchanged. Detection
 correctness is not established: no independent hand-drawn outlines exist (NS-03).
 
 ### Measured CSV distribution and SVG source navigation

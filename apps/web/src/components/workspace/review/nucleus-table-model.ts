@@ -94,7 +94,7 @@ function ledger(table:NucleusTableData,nucleoli:boolean,channels:Array<{id:strin
     for(const row of kept)if(row.nucleoli.status==="missing")counts.set(reasonText(row.nucleoli.reason),(counts.get(reasonText(row.nucleoli.reason))??0)+1);
     parts.push(`核小体を確定 ${measured}`);
     if(counts.size)parts.push(`欠測 ${[...counts.values()].reduce((a,b)=>a+b,0)}（${[...counts].map(([text,n])=>`${text} ${n}`).join("、")}）`);
-    const sizes=sizeBreakdown(table,kept);
+    const sizes=sizeBreakdown(table);
     if(sizes)parts.push(sizes);
   }else{
     // Analysed nucleoli that could not be read for this field are named; they are not "not analysed yet".
@@ -112,17 +112,12 @@ function ledger(table:NucleusTableData,nucleoli:boolean,channels:Array<{id:strin
   return parts.join(" · ");
 }
 
-/** The confirmed nucleoli by size (owner decision 20, 2026-11-21): small ones stay in every value, so their
- * share is shown. In µm² when the nucleoli carry the table's calibration, else in px² (8 px² is about
- * 0.2 µm² at 0.1625 µm/px). Tables saved before object areas were recorded show nothing here. */
-export function sizeBreakdown(table:NucleusTableData,rows:NucleusTableData["rows"]){
-  const measured=rows.filter(row=>row.nucleoli.status==="measured"&&row.nucleoli.object_areas_px);
-  if(!measured.length)return "";
-  const calibration=table.calibration,areas=measured.flatMap(row=>row.nucleoli.object_areas_px??[]);
-  if(calibration&&measured.every(row=>row.nucleoli.union_area_um2!==null)){
-    const pixel=calibration.pixel_size_x_um*calibration.pixel_size_y_um,small=areas.filter(area=>area*pixel<1).length;
-    return `核小体の大きさ：1 µm² 未満 ${small}、1 µm² 以上 ${areas.length-small}`;
-  }
-  const small=areas.filter(area=>area<=8).length;
-  return `核小体の大きさ：8 px² 以下 ${small}、9 px² 以上 ${areas.length-small}`;
+/** The confirmed nucleoli by size, as the API counted them (owner decisions 20, 22, 2026-11-21): small ones stay
+ * in every value, so their number is shown. Tables saved before the breakdown existed show nothing here. */
+export function sizeBreakdown(table:NucleusTableData){
+  const sizes=table.nucleolar_sizes;
+  if(!sizes)return "";
+  const limit=sizes.small_limit.toLocaleString("ja-JP");
+  return sizes.unit==="um2"?`核小体の大きさ：${limit} µm² 未満 ${sizes.small}、${limit} µm² 以上 ${sizes.other}`
+    :`核小体の大きさ：${limit} px² 以下 ${sizes.small}、それより大きい ${sizes.other}`;
 }

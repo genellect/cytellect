@@ -194,3 +194,31 @@ def test_demo_runtime_keeps_the_protocols_its_recordings_were_made_with():
     _pin_protocols(restore, Store([]))  # a seed without detections keeps the current protocols
     assert not restore
 
+
+def test_size_breakdown_counts_confirmed_nucleoli_of_kept_nuclei_in_the_shared_implementation():
+    from types import SimpleNamespace
+
+    from cytellect_analysis.nucleus_table import nucleolar_sizes
+
+    def row(areas, excluded=False, status="measured"):
+        return SimpleNamespace(excluded=excluded, nucleoli=SimpleNamespace(status=status, object_areas_px=areas))
+
+    rows = [row([4, 30, 40]), row([10], excluded=True), row(None, status="missing")]
+    # 0.1625 um/px: 30 px = 0.79 um2 (< 1), 40 px = 1.06 um2.
+    sizes = nucleolar_sizes(rows, 0.1625 * 0.1625)
+    assert (sizes.unit, sizes.small_limit, sizes.small, sizes.other) == ("um2", 1.0, 2, 1)
+    sizes = nucleolar_sizes(rows, None)
+    assert (sizes.unit, sizes.small_limit, sizes.small, sizes.other) == ("px2", 8, 1, 2)
+    assert nucleolar_sizes([row(None, status="missing")], None) is None
+
+
+def test_saved_protocols_are_kept_and_2_2_0_has_a_4_px_floor():
+    from cytellect_api.run_recipes import _nucleolar_defaults
+
+    # A workspace pixel size does not raise the 2.2.0 floor; each field's calibration does.
+    detector = _nucleolar_defaults({"source": "marker", "pixelUm": 0.0355, "relative": 0.7})
+    assert detector["minimum_area_px"] == 4 and detector["minimum_area_um2"] == 0.3
+    with pytest.raises(ValueError, match="nucleolar_area_range_invalid"):
+        nuclei, dapi, marker = synthetic_field(textured=False)
+        detect_nucleoli_v2(dapi, marker, nuclei, NucleolarDetectorV22(maximum_area_px=20), pixel_area_um2=0.01)
+

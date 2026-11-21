@@ -11199,6 +11199,42 @@
         ],
         "title": "NucleolarMorphology"
       },
+      "NucleolarSizes": {
+        "properties": {
+          "unit": {
+            "type": "string",
+            "enum": [
+              "um2",
+              "px2"
+            ],
+            "title": "Unit"
+          },
+          "small_limit": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Small Limit"
+          },
+          "small": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Small"
+          },
+          "other": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Other"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "unit",
+          "small_limit",
+          "small",
+          "other"
+        ],
+        "title": "NucleolarSizes"
+      },
       "NucleolarSource": {
         "properties": {
           "revision_id": {
@@ -11590,6 +11626,16 @@
             },
             "type": "array",
             "title": "Rows"
+          },
+          "nucleolar_sizes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NucleolarSizes"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,

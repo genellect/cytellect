@@ -158,6 +158,8 @@ def detect_nucleoli_v2(nuclear: np.ndarray, marker: np.ndarray | None, nuclei: n
     contrast = isinstance(parameters, NucleolarDetectorV22)
     minimum = effective_minimum_area(parameters, pixel_area_um2) if contrast else None
     minimum_area_px = minimum["px"] if minimum else parameters.minimum_area_px
+    if parameters.maximum_area_px is not None and minimum_area_px > parameters.maximum_area_px:
+        raise ValueError("nucleolar_area_range_invalid")  # the calibrated minimum exceeds the maximum
     validate_label_array(nuclei)
     if nuclear.shape != nuclei.shape or (marker is not None and marker.shape != nuclei.shape):
         raise ValueError("compartment_source_shape_or_dtype_invalid")

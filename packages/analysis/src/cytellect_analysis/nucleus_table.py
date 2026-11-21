@@ -125,6 +125,33 @@ def _channel_background(provenance) -> ChannelBackground:
     return ChannelBackground(channel_id=channel_id, source="not_established", confirmed_by_researcher=False, median=None)
 
 
+# Size breakdown of the confirmed nucleoli (owner decisions 20, 22, 2026-11-21): small adopted nucleoli stay in every
+# value, so their number is shown. 1 um2 with the nucleoli's calibration; 8 px2 (about 0.2 um2 at 0.1625 um/px) without.
+SMALL_NUCLEOLUS_UM2 = 1.0
+SMALL_NUCLEOLUS_PX = 8
+
+
+class NucleolarSizes(RegionModel):
+    unit: Literal["um2", "px2"]
+    small_limit: Annotated[FiniteFloat, Field(gt=0)]
+    # um2: area < small_limit; px2: area <= small_limit.
+    small: Count
+    other: Count
+
+
+def nucleolar_sizes(rows, pixel_area_um2: float | None) -> NucleolarSizes | None:
+    """Confirmed nucleoli of the kept nuclei by size; None when no nucleus has recorded object areas."""
+    areas = [area for row in rows if not row.excluded and row.nucleoli.status == "measured"
+             for area in (row.nucleoli.object_areas_px or ())]
+    if not any(not row.excluded and row.nucleoli.object_areas_px for row in rows):
+        return None
+    if pixel_area_um2 is not None:
+        small = sum(1 for area in areas if area * pixel_area_um2 < SMALL_NUCLEOLUS_UM2)
+        return NucleolarSizes(unit="um2", small_limit=SMALL_NUCLEOLUS_UM2, small=small, other=len(areas) - small)
+    small = sum(1 for area in areas if area <= SMALL_NUCLEOLUS_PX)
+    return NucleolarSizes(unit="px2", small_limit=SMALL_NUCLEOLUS_PX, small=small, other=len(areas) - small)
+
+
 class NucleusTable(RegionModel):
     protocol: Literal["nucleus-table/1.0.0"] = PROTOCOL
     field_id: Id
@@ -140,6 +167,7 @@ class NucleusTable(RegionModel):
     channels: tuple[TableChannel, ...]
     backgrounds: tuple[ChannelBackground, ...]
     rows: tuple[NucleusRow, ...]
+    nucleolar_sizes: NucleolarSizes | None = None
 
 
 def _channel_values(row, role: Literal["nuclear_stain", "measure"]) -> NucleusChannelValues:
@@ -310,7 +338,9 @@ def nucleus_table(*, field_id: str, nuclear_revision_id: str, nuclear_mask: Mapp
                                     role="nuclear_stain" if item.channel.channel_id == nuclear_channel_id else "measure")
                        for item in nuclear_table.channel_provenance),
         backgrounds=tuple(_channel_background(item) for item in nuclear_table.channel_provenance),
-        rows=tuple(rows))
+        rows=tuple(rows),
+        nucleolar_sizes=nucleolar_sizes(rows, pixel_area if nucleoli is not None and nucleolar_calibration_matches
+                                        else None) if nucleoli is not None else None)
 
 
 # --- CSV export: the same table, one row per nucleus, with units and definitions ---
