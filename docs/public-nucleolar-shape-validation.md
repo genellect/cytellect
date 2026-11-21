@@ -463,3 +463,19 @@ uv run python -I scripts/validate_nucleolar_shape_public.py summarize --work ~/p
 - `register` は、Zenodo の記録から同じファイルを選び、MD5 と OME を確かめて登録を書き直す。
 - `summarize` は [summary.json](../fixtures/public/nucleolar-shape/summary.json) を書く。核小体ごとの値は含めず、集計だけを書く。
 - 2026-11-21 の実行では、`run` が 4 コアで約 3 時間かかった（同じ機械のほかの作業と並行）。
+
+決定 20・22 の検証（核は nuclear-size/1.1.0 で検出し直す）：
+
+```bash
+uv run python -I scripts/validate_nucleolar_indeterminate_public.py register --data-dir ~/public-nucleolar-shape/data
+uv run python -I scripts/validate_nucleolar_indeterminate_public.py nuclei --data-dir ~/public-nucleolar-shape/data \
+  --work ~/public-nucleolar-shape/indeterminate --fiji "$CYTELLECT_FIJI_EXECUTABLE" --workers 3
+uv run python -I scripts/validate_nucleolar_indeterminate_public.py tune --data-dir ~/public-nucleolar-shape/data \
+  --work ~/public-nucleolar-shape/indeterminate --workers 3
+uv run python -I scripts/validate_nucleolar_indeterminate_public.py evaluate --data-dir ~/public-nucleolar-shape/data \
+  --work ~/public-nucleolar-shape/indeterminate --workers 3
+uv run python -I scripts/validate_nucleolar_indeterminate_public.py summarize --work ~/public-nucleolar-shape/indeterminate
+```
+
+- `evaluate` は、調整の記録と製品の既定の k が違うとき、規則のファイルに未コミットの変更があるとき、評価の記録がすでにあるときは実行しない。
+- 2026-11-21 の実行では、核の検出が 3 並列で約 1 時間 20 分、調整が約 7 分、評価が約 10 分かかった。
