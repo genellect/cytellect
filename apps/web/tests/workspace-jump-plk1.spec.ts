@@ -157,10 +157,15 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   await expect(chip("独立性")).toHaveText("独立性：未確認 → 検定なし");
   await expect(chip("独立性").getByRole("img", {name: "要確認"})).toBeVisible();
   const fieldCount = RUNS.length * GROUPS.length * SITES.length;
-  for (const [label, value] of [["実験回", RUNS.length], ["群", GROUPS.length], ["視野", `${fieldCount} / ${fieldCount}`]] as const) {
+  for (const [label, value] of [["群", GROUPS.length], ["視野", `${fieldCount} / ${fieldCount}`]] as const) {
     await expect(chip(label)).toHaveText(`${label}：${value}`);
     await expect(chip(label).getByRole("img", {name: "完了"})).toBeVisible();
   }
+  // n counts only runs whose groups both have measured fields: before measuring, none, and each run says so.
+  await expect(chip("実験回")).toHaveText(`実験回：0 / ${RUNS.length}`);
+  await expect(chip("実験回").getByRole("img", {name: "要確認"})).toBeVisible();
+  for (const run of RUNS) await expect(chip(run)).toHaveText(`${run}：未測定`);
+  await expect(setup.getByRole("columnheader", {name: "実験回（n = 0）", exact: true})).toBeVisible();
   await noAlerts();
 
   // N-02: every field has the four channels, grouped from the file names only (no stain from names).
@@ -232,6 +237,12 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   }
   await page.getByRole("navigation", {name: "作業の切替"}).getByRole("button", {name: "実験", exact: true}).click();
   for (const [run, groupIndex] of combinations) await expect(cell(run, groupIndex)).toContainText(`${GROUPS[groupIndex].label} · ${SITES.length} 視野`);
+  // Once every field is measured, all three runs count: the chip, the figure and the table give the same n.
+  await expect(chip("実験回")).toHaveText(`実験回：${RUNS.length}`);
+  await expect(chip("実験回").getByRole("img", {name: "完了"})).toBeVisible();
+  for (const run of RUNS) await expect(chip(run)).toHaveCount(0);
+  await expect(setup.getByText(`（n = ${RUNS.length}）`, {exact: true})).toBeVisible();
+  await expect(setup.getByRole("columnheader", {name: `実験回（n = ${RUNS.length}）`, exact: true})).toBeVisible();
   for (const [index, run] of RUNS.entries()) await expect(runName(index)).toHaveValue(run);
 
   // Statistics: nuclei per field, compared between the groups.
