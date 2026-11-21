@@ -1,4 +1,5 @@
 import {expect, test} from "@playwright/test";
+import type {Locator} from "@playwright/test";
 import {execFileSync} from "node:child_process";
 import {existsSync} from "node:fs";
 import {mkdir, readFile, writeFile} from "node:fs/promises";
@@ -21,6 +22,14 @@ const CHANNELS = [{id: "c01", suffix: "A01Z01C01", stain: "Hoechst", role: "nucl
 
 const imagesOf = (inputs: string, run: (typeof RUNS)[number], well: string) =>
   SITES.flatMap(site => CHANNELS.map(channel => path.join(inputs, `${PLATES[run]}_${well}_T0001F${String(site).padStart(3, "0")}L01${channel.suffix}.tif`)));
+
+async function expectComparisonFigures(panel: Locator) {
+  const figures = panel.getByRole("img", {name: "保存された解析結果のグラフ", exact: true});
+  await expect(figures).toHaveCount(2, {timeout: 120_000});
+  for (const figure of await figures.all()) await expect(figure).toBeVisible();
+  await expect.poll(() => figures.evaluateAll(images => images.filter(image => (image as HTMLImageElement).naturalWidth > 0).length),
+    {timeout: 60_000}).toBe(2);
+}
 
 test("C1: two groups × three runs of public JUMP images reach a paired comparison with real Fiji", async ({page}) => {
   const inputs = process.env.CYTELLECT_JUMP_PLK1_INPUTS;
@@ -268,8 +277,7 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   await expect(descriptive.getByRole("listitem").filter({hasText: /^3 回の実験すべてで減少$/})).toBeVisible();
   await expect(descriptive).toContainText("n は記録した実験回の数です。核や視野の数は n ではありません。");
   await expect(descriptive).not.toContainText("95% 信頼区間");
-  await expect(panel.getByRole("img", {name: "保存された解析結果のグラフ"})).toBeVisible({timeout: 120_000});
-  await expect.poll(() => panel.getByRole("img", {name: "保存された解析結果のグラフ"}).evaluate(image => (image as HTMLImageElement).naturalWidth), {timeout: 60_000}).toBeGreaterThan(0);
+  await expectComparisonFigures(panel);
   const descriptiveSentence = await descriptive.locator(":scope > h3, :scope > ul li").allTextContents();
   await page.screenshot({path: path.join(output, "comparison-descriptive.png"), fullPage: true});
   // C1 is accepted on the unconfirmed design: the saved result, figure and Methods are descriptive throughout.
@@ -281,7 +289,7 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   expect(describedResult.estimates.runs.map(run => run.pair).sort()).toEqual([...RUNS]);
   expect(describedResult.estimates.runs.every(run => run.difference < 0)).toBe(true);
   const descriptiveFiles: Record<string, string> = {};
-  for (const name of ["figure.svg", "methods.md", "estimates.csv", "estimates-runs.csv", "figure-caption.md"]) {
+  for (const name of ["figure.svg", "fields.svg", "methods.md", "estimates.csv", "estimates-runs.csv", "figure-caption.md"]) {
     const file = await page.request.get(`${api}/v1/jobs/${describedJob}/files/${name}`);
     expect(file.ok(), name).toBe(true);
     descriptiveFiles[name] = await file.text();
@@ -327,8 +335,7 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   const headline = (await summary.getByRole("heading", {level: 3}).textContent())!;
   const interval = summary.getByRole("listitem").filter({hasText: /^差（実験回ごとの差の平均）：−[\d.]+ .*、95% 信頼区間 /});
   await expect(interval).toBeVisible();
-  await expect(panel.getByRole("img", {name: "保存された解析結果のグラフ"})).toBeVisible({timeout: 120_000});
-  await expect.poll(() => panel.getByRole("img", {name: "保存された解析結果のグラフ"}).evaluate(image => (image as HTMLImageElement).naturalWidth), {timeout: 60_000}).toBeGreaterThan(0);
+  await expectComparisonFigures(panel);
   await page.screenshot({path: path.join(output, "comparison.png"), fullPage: true});
 
   const jobs = await (await page.request.get(`${api}/v1/workspaces/${workspace}/jobs`)).json() as Array<{id: string; state: string; revision_id: string}>;
@@ -344,8 +351,11 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   expect(estimate).toBeLessThan(0);
   expect(low).toBeLessThanOrEqual(estimate);
   expect(high).toBeGreaterThanOrEqual(estimate);
-  const svg = await page.request.get(`${api}/v1/jobs/${job.id}/files/figure.svg`);
-  if (svg.ok()) await writeFile(path.join(output, "figure.svg"), await svg.body());
+  for (const name of ["figure.svg", "fields.svg"]) {
+    const svg = await page.request.get(`${api}/v1/jobs/${job.id}/files/${name}`);
+    expect(svg.ok(), name).toBe(true);
+    await writeFile(path.join(output, name), await svg.body());
+  }
 
   await noAlerts();
   expect(dialogs).toEqual([]);
