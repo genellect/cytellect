@@ -36,7 +36,7 @@
 | 4 「実験」（決定 13） | genellect/cytellect#268 `feat/experiment-purpose-status` | Draft |
 | TR-01（診断・組織切片を範囲外にする 1 文） | genellect/cytellect#270 `docs/research-use-scope` | Draft |
 | 5 公開実画像の登録と検証 | genellect/cytellect#272 `test/nucleolar-public-validation` | Draft。核小体の形の 3 指標は決定 4 で不合格（核小体には出さない。核では出す、§5.4） |
-| 6 指標の計算・主要指標 | なし | ごく小さい検出の規則（決定 20）と信号の指標の扱いを、別のエージェントが検討中（2026-11-21、オーナーの指示） |
+| 6 指標の計算・主要指標 | `feat/nucleolar-metrics`（`integration/257` へ） | 核の形 3 指標と最大の核小体の割合を追加。核ごとの CV と陽性面積率は検証で不合格（[記録](../../public-nuclear-signal-validation.md)）で出さない。主要指標の宣言と、元の統計の計算時刻での比較、NS-01 の一覧。ごく小さい検出（決定 22）は別の PR |
 | 7 デモの再記録 | なし | 2〜4・6 のマージの後 |
 
 - #258：開いたまま保留。マージしない。新しい PR に置き換わった時点で閉じる（決定 5）。コードは `claude/gifted-curie-2whvtd` にあり、[§7](#7-258-の変更の扱い) の仕分けに従って新しい PR へ移す。
