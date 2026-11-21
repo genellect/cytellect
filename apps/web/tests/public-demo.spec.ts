@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import path from "node:path";
 import fs from "node:fs";
 import { createHash } from "node:crypto";
-import { verifiedRelease } from "../src/lib/release";
+import { verifiedRelease } from "../src/lib/release-record";
 import fallback from "../src/lib/published-release.json";
 
 const recordPath = process.env.CYTELLECT_EXPECT_RELEASE_RECORD;
