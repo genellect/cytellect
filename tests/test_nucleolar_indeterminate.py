@@ -164,3 +164,33 @@ def test_methods_text_states_the_contrast_rule_and_the_physical_minimum():
                                   detector=NucleolarDetectorV21())
     assert _compartment_initial(old) is None
 
+
+def test_demo_runtime_keeps_the_protocols_its_recordings_were_made_with():
+    """The published demo seed (nuclear-size/1.0.0, marker 2.1.0) must keep asking for what was recorded."""
+    from cytellect_api import run_recipes
+    from cytellect_showcase.runtime import _pin_protocols
+
+    class Store:
+        def __init__(self, recipes):
+            self.recipes = recipes
+
+        def rows(self, _table):
+            return [{"config": {"recipe": recipe}} for recipe in self.recipes]
+
+    old = Store([{"source": "stardist_nuclear", "detection_scale": "nuclear-size/1.0.0"},
+                 {"source": "fiji_nuclear_compartment", "detector": {"engine": "cytellect-nucleolar-v2",
+                                                                     "source": "marker", "protocol_version": "2.1.0"}}])
+    restore: list = []
+    _pin_protocols(restore, old)
+    try:
+        assert run_recipes.NUCLEAR_SCALE_PROTOCOL == "nuclear-size/1.0.0" and run_recipes.MARKER_PROTOCOL == "2.1.0"
+        detector = run_recipes._nucleolar_defaults({"source": "marker", "pixelUm": None, "relative": 0.7})
+        assert NucleolarDetectorV21.model_validate(detector) == NucleolarDetectorV21()
+    finally:
+        for undo in reversed(restore):
+            undo()
+    assert run_recipes.NUCLEAR_SCALE_PROTOCOL == "nuclear-size/1.1.0" and run_recipes.MARKER_PROTOCOL == "2.2.0"
+    restore = []
+    _pin_protocols(restore, Store([]))  # a seed without detections keeps the current protocols
+    assert not restore
+

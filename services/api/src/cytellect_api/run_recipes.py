@@ -9,6 +9,11 @@ from cytellect_analysis.region_contracts import RegionAnalysisRequest
 
 from .analysis_spec import AnalysisSpec
 
+# Protocols of new detection runs. The public demo's in-browser runtime pins the ones its recordings were made
+# with (services/showcase runtime.py), so its replay is unchanged until the demo is recorded again.
+NUCLEAR_SCALE_PROTOCOL = "nuclear-size/1.1.0"
+MARKER_PROTOCOL = "2.2.0"
+
 
 def _round(value):
     # Match JavaScript Math.round for the nonnegative detector calibrations.
@@ -22,14 +27,14 @@ def _nucleolar_defaults(definition):
         return min(maximum, max(1, _round(length / um))) if um else fallback
 
     marker = definition["source"] == "marker"
-    detector = {"engine": "cytellect-nucleolar-v2", "protocol_version": "2.2.0" if marker else "2.0.0",
+    detector = {"engine": "cytellect-nucleolar-v2", "protocol_version": MARKER_PROTOCOL if marker else "2.0.0",
                 "source": "marker" if marker else "dapi_poor",
                 "smoothing_sigma_px": 0.7 if marker else (min(20, _round(0.35 / um * 10) / 10) if um else 2),
                 "rim_exclusion_px": pixels(0.6, 4, 100), "relative_threshold": definition["relative"],
                 "marker_fraction": 0.4, "background_radius_px": pixels(1.0, 10, 200),
                 "minimum_area_px": max(1, _round(0.3 / (um * um))) if um else 4,
                 "maximum_area_px": None, "minimum_solidity": 0.6}
-    if marker:
+    if marker and MARKER_PROTOCOL == "2.2.0":
         # Protocol 2.2.0 (owner decision 20, 2026-11-21): the 4 px floor and 0.3 um2 converted with the
         # field's own calibration in the worker; the noise-based marker contrast rule per nucleus.
         detector.update(minimum_area_px=max(4, detector["minimum_area_px"]), minimum_area_um2=0.3,
@@ -89,7 +94,7 @@ def build_run_request(spec: dict, target: str, field_id: str, parents: dict,
         recipe = {"id": "region-2d", "version": "1.7.0" if side is None else "1.5.0", "region_set_id": "nuclei",
                   "label": "核", "source": "stardist_nuclear", "defining_channel_id": channel,
                   "nuclear_role_source": role or "user_selected_role", "detector": detector,
-                  **({"detection_scale": "nuclear-size/1.1.0"} if side is None else {"detection_max_side_px": side})}
+                  **({"detection_scale": NUCLEAR_SCALE_PROTOCOL} if side is None else {"detection_max_side_px": side})}
     else:
         if not parent or parent_recipe.get("source") != "stardist_nuclear" or parent_recipe.get("defining_channel_id") != channel:
             raise ValueError("analysis_run_nuclear_parent_required")
