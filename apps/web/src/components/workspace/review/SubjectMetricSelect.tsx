@@ -65,7 +65,7 @@ export function SubjectMetricSelect({metric, target, calibrated, offered, onSubj
   onSubject: (subject: MetricSubject) => void;
   onMetric: (metric: string, subject: MetricSubject) => void;
   /** The primary-measure declaration of the chosen condition. The demo shows a recorded declaration read-only and
-   * omits the mark when none was recorded (implementation plan §4.5). */
+   * omits the mark when none was recorded (implementation plan section 4.5). */
   declaration?: {declared: boolean; disabled?: boolean; readOnly?: boolean; onToggle: () => void};
 }) {
   const id = useId();

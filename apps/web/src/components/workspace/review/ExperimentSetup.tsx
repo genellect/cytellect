@@ -72,7 +72,7 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pendin
     <h1>実験デザイン</h1>
     <p>実験デザインに合わせて画面の数を選びます。1 画面は後から 2 画面に拡張できます。</p>
     {pending&&<p className={styles.pending} role="status">受け取った画像：{pending.count} 件。1 画面か 2 画面かの選択後に登録します。
-      <button className={styles.link} disabled={busy} title="群・試料・独立実験単位は、統計の画面で視野ごとに入力します" onClick={pending.onWithoutForm}>実験デザインなしで登録</button>
+      <button className={styles.link} disabled={busy} title="群・試料・実験回は、統計の画面で視野ごとに入力します" onClick={pending.onWithoutForm}>実験デザインなしで登録</button>
       <button className={styles.link} disabled={busy} onClick={pending.onDiscard}>取り消す</button></p>}
     <div className={styles.choices}>
       <button className={styles.choiceCard} disabled={busy||readOnly} onClick={()=>choose("single")}><strong>1 画面</strong><span>1 群の記述</span><small>核の大きさや数の分布を実験回ごとに示します。検定はしません。</small></button>

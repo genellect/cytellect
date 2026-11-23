@@ -832,7 +832,7 @@ test("the statistics view states the premise once, in the basis line, and opens 
       // The discussion is a frame apart from the computed result (AC-01); its limits (AC-04) are not statements of the premise.
       .filter(element => (element as HTMLElement).offsetParent !== null && !element.closest("details:not([open]) > :not(summary)") && !element.closest("section[aria-label='考察']"))
       .map(element => element.textContent ?? "")
-      // The folded counts table names its unit column (独立実験単位); it is a heading, not a statement of the premise.
+      // The folded counts table names its unit column (実験回); it is a heading, not a statement of the premise.
       .filter(text => /独立|検定なし|記述のみ|記述統計/.test(text) && !text.startsWith("数の内訳")));
     expect(statements, scene?.id).toHaveLength(1);
     expect(statements[0]).toMatch(/^記述統計/);
