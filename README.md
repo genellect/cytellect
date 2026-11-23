@@ -2,6 +2,8 @@
 
 **Get your microscopy publication-ready.**
 
+🏆 東京AIハッカソン2026 最優秀賞受賞
+
 [![Cytellect](docs/images/readme-hero.webp)](https://cytellect.app/)
 
 [プロダクト LP](https://cytellect.app/) · [公開デモ](https://cytellect.app/demo) · [Windows](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.24) · [Docker](docs/docker-desktop.md) · [統計解析手法](docs/implementation-overview.ja.md#統計解析) · [ドキュメント](docs/README.md)
