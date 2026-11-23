@@ -44,6 +44,18 @@ def run_view(row):
     }
 
 
+def same_detection_spec(current, snapshot):
+    """Whether two saved specifications agree in content apart from the primary-measure declaration
+    (genellect/cytellect#257 RP-04). Declaring what will be read leaves detection and measurement unchanged, so a run's
+    candidates stay adoptable and reusable after it; a difference in any other item refuses them. Content decides,
+    not the version number: a save that changes nothing else keeps them too."""
+    if not current or not snapshot:
+        return False
+    return {k: v for k, v in current.items() if k != "primary_outcome"} == {
+        k: v for k, v in snapshot.items() if k != "primary_outcome"
+    }
+
+
 def request_fingerprint(body):
     return hashlib.sha256(
         json.dumps(body.model_dump(), sort_keys=True, separators=(",", ":")).encode()
@@ -199,7 +211,6 @@ def advance_workspace_runs(store, settings):
                                 select(workspace_analysis_runs)
                                 .where(
                                     workspace_analysis_runs.c.workspace_id == wid,
-                                    workspace_analysis_runs.c.spec_version == run["spec_version"],
                                     workspace_analysis_runs.c.state == "succeeded",
                                     workspace_analysis_runs.c.id != run["id"],
                                 )
@@ -210,7 +221,8 @@ def advance_workspace_runs(store, settings):
                         )
                         for previous in previous_runs:
                             if (
-                                previous["selection_snapshot"] != run["selection_snapshot"]
+                                not same_detection_spec(previous["spec_snapshot"], run["spec_snapshot"])
+                                or previous["selection_snapshot"] != run["selection_snapshot"]
                                 or previous["assignments_snapshot"] != run["assignments_snapshot"]
                             ):
                                 continue
@@ -322,7 +334,15 @@ def register_workspace_run_routes(api, store, owner, workspace, touch):
     @api.get("/v1/workspaces/{wid}/runs")
     def list_runs(wid: str, who: Owner):
         workspace(wid, who)
-        return [run_view(row) for row in store.rows(workspace_analysis_runs, workspace_id=wid)]
+        with store.engine.connect() as conn:
+            current = analysis_spec_at(conn, wid)
+        # `spec_current`: the run answers the saved specification (same version, or same content apart from the
+        # declaration), so its candidates can be recovered and adopted after a reload.
+        return [
+            {**run_view(row), "spec_current": row["spec_version"] == current["version"]
+             or same_detection_spec(current["spec"], row["spec_snapshot"])}
+            for row in store.rows(workspace_analysis_runs, workspace_id=wid)
+        ]
 
     @api.get("/v1/workspaces/{wid}/runs/{run_id}")
     def get_run(wid: str, run_id: str, who: Owner):
@@ -450,7 +470,10 @@ def register_workspace_run_routes(api, store, owner, workspace, touch):
                 raise HTTPException(409, "analysis_run_background_required")
             if run["state"] != "succeeded":
                 raise HTTPException(409, "analysis_run_not_complete")
-            if analysis_spec_at(conn, wid)["version"] != run["spec_version"]:
+            current_spec = analysis_spec_at(conn, wid)
+            if current_spec["version"] != run["spec_version"] and not same_detection_spec(
+                current_spec["spec"], run["spec_snapshot"]
+            ):
                 raise HTTPException(409, "analysis_spec_changed")
             if assignments_at(conn, wid) != run["assignments_snapshot"]:
                 raise HTTPException(409, "channel_assignments_changed")

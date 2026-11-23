@@ -106,7 +106,7 @@ export interface CompartmentSummaryFile {
   corrected_channels?: Record<string, {protocol: string; rows: CompartmentSummaryRow[]; missing_reason?: string | null}>;
 }
 export type RunTarget = "nuclei" | "nucleoli" | "nucleoplasm" | "cell";
-export interface WorkspaceRun {id:string; workspace_id:string;spec_version:number;target:RunTarget;state:"queued"|"running"|"succeeded"|"failed"|"cancelled"|"adopted";created:number;updated:number;steps:Array<{field_id:string;target:RunTarget;state:"pending"|"queued"|"succeeded"|"reused"|"failed"|"blocked";revision_id:string|null;job_id:string|null;recipe:Recipe|null;error:string|null;background_pending?:boolean}>}
+export interface WorkspaceRun {id:string; workspace_id:string;spec_version:number;/** From the run list: the run answers the saved specification (same version, or same content apart from the primary-measure declaration). */spec_current?:boolean;target:RunTarget;state:"queued"|"running"|"succeeded"|"failed"|"cancelled"|"adopted";created:number;updated:number;steps:Array<{field_id:string;target:RunTarget;state:"pending"|"queued"|"succeeded"|"reused"|"failed"|"blocked";revision_id:string|null;job_id:string|null;recipe:Recipe|null;error:string|null;background_pending?:boolean}>}
 export interface RevisionRecord {id: string; state: string; created: number; config: {recipe: Recipe; field_ids: string[]; exclusions?: SavedResult["exclusions"];measurement?:SavedResult["measurement"];backgrounds?:SavedResult["backgrounds"];confirmed_channel_ids?:string[]}}
 export interface Transport {
   request: typeof request; post: typeof post; blob: typeof fetchBlob; wait: () => Promise<void>;
