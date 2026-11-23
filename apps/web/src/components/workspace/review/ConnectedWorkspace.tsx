@@ -415,7 +415,7 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
     return tableHeading({colorBy:"outline",target,stain:stainName(actualChannel),corrected:shownRows.some(row=>row.mean_corrected!=null),nucleusTable});
   }
   // The one next step beside the table (MV-09), for a two-group design.
-  const nextStep=experiment?.layout==="pair"&&!historicResult&&!candidate?nextComparison({colorBy:colorShown,metric,target,channel:actualChannel,stain:stainName(actualChannel)}):null;
+  const nextStep=experiment?.layout==="pair"&&!historicResult&&!candidate?nextComparison({colorBy:colorShown,metric,target,channel:actualChannel,stain:stainName(actualChannel),corrected:rows.some(row=>row.mean_corrected!=null),nucleusTable:nucleusTableSource?.shown&&target==="nuclei"?{nuclearStain:actualChannel===field?.nuclearChannelId||field?.channels.find(value=>value.id===actualChannel)?.role==="nuclear",calibrated:!!field?.pixelSizeUm,nucleoli:!!(field&&r.currentResult(field.id,"nucleoli"))}:undefined}):null;
   /** The partition table of one field (MV-05): nucleoli and nucleoplasm of its adopted nuclei, in the stain chosen above the image. */
   function partitionFor(value:ReviewField){
     const nuclear=r.currentResult(value.id,"nuclei"),ch=value.channels.find(item=>item.id===actualChannel);
@@ -461,7 +461,7 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
   // Another method's published objects for this scene's images (demo only, display only).
   async function explained<T>(task:()=>Promise<T>){try{return await task();}catch(error){throw new Error(error instanceof ApiError?errorMessage(error):error instanceof Error?errorCodeMessage(error.message):"処理を完了できませんでした。");}}
   // The primary measure (#257 RP-04): the condition chosen now, declared with the star beside the metric. The demo shows
-  // the declaration its scene recorded, read-only, and no star when none was recorded (implementation plan §4.5, NS-06).
+  // the declaration its scene recorded, read-only, and no star when none was recorded (implementation plan section 4.5, NS-06).
   const primary=(storedSpec?.primary_outcome??null) as PrimaryOutcome|null;
   const chosenOutcome=primaryOutcome(metric,target,nucleusPositivity(metric)?channelFilter?.channel_id??null:metricUsesChannel(metric)?actualChannel||null:null);
   const declaredNow=samePrimary(primary,{metric:chosenOutcome.metric,regionSet:chosenOutcome.region_set_id,channel:chosenOutcome.channel_id});

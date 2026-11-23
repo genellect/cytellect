@@ -273,7 +273,7 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   const metadata = panel.locator("details").filter({has: page.getByText("実験情報", {exact: true})});
   // With a declared experiment the table starts folded; the researcher opens it to check the record.
   if (!await metadata.evaluate(element => (element as HTMLDetailsElement).open)) await metadata.getByText("実験情報", {exact: true}).click();
-  await expect(metadata.getByText("群・試料・独立実験単位・撮影日・対応ペアは、実験デザインから決まります。")).toBeVisible();
+  await expect(metadata.getByText("群・試料・実験回・撮影日・対応ペアは、実験デザインから決まります。")).toBeVisible();
   const conditions = metadata.locator('input[aria-label$=" condition"]'), units = metadata.locator('input[aria-label$=" experimental_unit"]'), pairs = metadata.locator('input[aria-label$=" pair"]');
   await expect(conditions).toHaveCount(registeredFields.length);
   const entered: Record<string, number> = {};
