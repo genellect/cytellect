@@ -107,7 +107,7 @@ export function resultRequest(design: ResultDesign, fields: Record<string, Metad
   if (!design.unit.trim()) throw new Error("独立実験単位を入力してください。");
   if (compared.some(value=>!value.condition?.trim() || !value.sample?.trim() || !value.experimental_unit?.trim()
     || ((metricUsesChannel(design.metric) || design.metric.startsWith("positive_") || (design.operation === "association" && metricUsesChannel(design.xMetric))) && !value.acquisition_date?.trim())
-    || (design.operation === "comparison" && design.paired && !value.pair?.trim()))) throw new Error("視野の群・試料・独立実験単位と、必要な撮影日・対応ペアを入力してください。");
+    || (design.operation === "comparison" && design.paired && !value.pair?.trim()))) throw new Error("視野の群・試料・実験回と、必要な撮影日・対応ペアを入力してください。");
   if (design.operation === "comparison") {
     const choices: ComparisonChoices = {metric:design.metric as ComparisonMetric,channel:design.channel,regionSet:design.regionSet,
       design:design.paired?"paired":"independent",method:design.rank?"rank":"parametric",unitDefinition:design.unit,pairingBasis:design.pairing,

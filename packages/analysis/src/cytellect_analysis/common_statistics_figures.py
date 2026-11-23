@@ -252,7 +252,7 @@ def _unit_axis(spec, ja):
     if spec.get("test") == "none":
         # Short enough for every figure width; the legend states that independence is not confirmed.
         return "条件（n：記録した実験回）" if ja else "Condition (n: recorded runs)"
-    return "条件（n：独立実験単位）" if ja else "Condition (n: independent units)"
+    return "条件（n：実験回）" if ja else "Condition (n: independent units)"
 
 
 def _unit_interval(values):
@@ -395,7 +395,7 @@ def render_common_statistics(result, output: Path, *, methods_template=None, fig
                 ticks = MaxNLocator(integer=True, min_n_ticks=2).tick_values(0, max_count)
                 ax.set_yticks([value for value in ticks if 0 <= value <= max_count])
                 ax.set_xlabel(plot["x_label"] or _label(canonical, ja))
-                ax.set_ylabel(plot["y_label"] or ("独立実験単位数" if ja else "Independent-unit count"))
+                ax.set_ylabel(plot["y_label"] or ("実験回の数" if ja else "Independent-unit count"))
                 ax.legend(frameon=False)
                 note = "Histogram counts independent units using shared equal-width bins; rugs show every unit."
             elif plot["kind"] in ("superplot", "unit-mean-bar"):
