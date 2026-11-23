@@ -415,7 +415,7 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
     return tableHeading({colorBy:"outline",target,stain:stainName(actualChannel),corrected:shownRows.some(row=>row.mean_corrected!=null),nucleusTable});
   }
   // The one next step beside the table (MV-09), for a two-group design.
-  const nextStep=experiment?.layout==="pair"&&!historicResult&&!candidate?nextComparison({colorBy:colorShown,metric,target,channel:actualChannel,stain:stainName(actualChannel)}):null;
+  const nextStep=experiment?.layout==="pair"&&!historicResult&&!candidate?nextComparison({colorBy:colorShown,metric,target,channel:actualChannel,stain:stainName(actualChannel),corrected:rows.some(row=>row.mean_corrected!=null)}):null;
   /** The partition table of one field (MV-05): nucleoli and nucleoplasm of its adopted nuclei, in the stain chosen above the image. */
   function partitionFor(value:ReviewField){
     const nuclear=r.currentResult(value.id,"nuclei"),ch=value.channels.find(item=>item.id===actualChannel);

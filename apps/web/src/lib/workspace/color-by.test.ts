@@ -76,9 +76,10 @@ describe("next step (MV-09)", () => {
   it("compares groups by what the colour mode shows", () => {
     expect(nextComparison({...view, colorBy: "outline"})).toMatchObject({label: "核小体の平均輝度（5-EU）を群間で比較", metric: "mean", target: "nucleoli", channel: "eu5", reclassify: false});
     expect(nextComparison({...view, metric: "area_px", colorBy: "outline"})).toMatchObject({label: "核小体の面積（px²）を群間で比較", channel: null});
-    expect(nextComparison({...view, metric: "integrated_corrected", colorBy: "outline"})).toMatchObject({label: "核小体の積算輝度（背景補正、5-EU）を群間で比較", metric: "integrated_corrected"});
-    // #257 A-2 (TB-02): a measure chosen in 統計 that the table does not show gives way to the table's mean intensity.
-    for (const metric of ["nucleolar_eccentricity", "nucleus_count", "solidity", "median"])
+    expect(nextComparison({...view, metric: "integrated_corrected", corrected: true, colorBy: "outline"})).toMatchObject({label: "核小体の積算輝度（背景補正、5-EU）を群間で比較", metric: "integrated_corrected"});
+    // #257 A-2 (TB-02): a measure chosen in 統計 that the table does not show gives way to the table's mean intensity:
+    // the table's area is in px², and the corrected columns appear only with corrected values.
+    for (const metric of ["nucleolar_eccentricity", "nucleus_count", "solidity", "median", "area_um2", "mean_corrected"])
       expect(nextComparison({...view, metric, colorBy: "outline"}), metric).toMatchObject({label: "核小体の平均輝度（5-EU）を群間で比較", metric: "mean", target: "nucleoli", channel: "eu5"});
     // Positivity says that the compared fields are judged again by the same rule (M22).
     const positivity = nextComparison({...view, colorBy: "positivity"});

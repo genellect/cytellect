@@ -39,7 +39,7 @@
 | 項目 | 現状 | 根拠 |
 |---|---|---|
 | 最初の画面 | 画像を追加するとワークスペースができる。その前に設定は出さない（U01） | [要件](../../requirements.md) U01、[ワークスペースの再設計](../../workspace-redesign.md) |
-| 群と実験回の入力 | 群・試料・独立実験単位・撮影日・対応ペアは、統計タブの「実験情報」の表で、視野ごとに文字で入力する。この表は比較を選んだ後に初めて現れる | [ConnectedResults.tsx](../../../apps/web/src/components/workspace/review/ConnectedResults.tsx) |
+| 群と実験回の入力 | 群・試料・実験回・撮影日・対応ペアは、統計タブの「実験情報」の表で、視野ごとに文字で入力する。この表は比較を選んだ後に初めて現れる | [ConnectedResults.tsx](../../../apps/web/src/components/workspace/review/ConnectedResults.tsx) |
 | 集約の階層 | 視野の中央値 → 試料の平均 → 独立実験単位の平均（S02）。試料（カバーガラスなど）の階層がある | [要件](../../requirements.md) S02、[汎用の領域比較](../../region-comparisons.md) |
 | 群を並べた表示 | 視野の一覧は群で分かれていない。「画像を比較」で任意の視野とチャンネルを並べられるが、群単位の並置と、表示の変換の統一はない | [ConnectedWorkspace.tsx](../../../apps/web/src/components/workspace/review/ConnectedWorkspace.tsx) |
 | 統計の設定 | 左で「領域・指標・染色」を選び、「分布／群間比較／相関」「方法」「対応」「独立実験単位（自由記述）」「比較する群」と 2 つの確認の印を選んでから「計算」する | [ConnectedResults.tsx](../../../apps/web/src/components/workspace/review/ConnectedResults.tsx) |
