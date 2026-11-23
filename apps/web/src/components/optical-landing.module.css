@@ -73,10 +73,13 @@
 @media(prefers-reduced-motion:no-preference){@supports(animation-timeline:view()){
   .manifesto>span{animation:lpRise linear both;animation-timeline:view();animation-range:entry 18% cover 34%}
   .manifesto>span+span{animation-range:entry 34% cover 44%}
+  .award{animation:lpRise linear both;animation-timeline:view();animation-range:entry 18% cover 34%}
 }}
 
 /* Mission: the statement alone, in moving light. */
 .mission{position:relative;isolation:isolate;display:grid;align-items:center;min-height:min(68svh,720px);padding-block:clamp(96px,10vw,168px);overflow:hidden;background:radial-gradient(48% 60% at 82% 78%,#eebfab8c,#eebfab00 70%),radial-gradient(60% 50% at 30% 10%,#fff,#fff0 70%),linear-gradient(180deg,#eef0ec,#f3f4f1)}
+/* The award follows the statement on the same axis, one step down the type scale: the outside verdict on it. */
+.award{margin:calc(var(--t-h2) * 1.34) 0 0;font-size:var(--t-h3);font-weight:500;line-height:1.42;letter-spacing:-.01em;word-break:auto-phrase}
 .lightField{position:absolute;z-index:-1;inset:0;width:100%;height:100%;opacity:0;transition:opacity 1.2s}
 .lightField[data-state="ready"]{opacity:1}
 
