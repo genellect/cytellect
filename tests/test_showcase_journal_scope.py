@@ -25,9 +25,17 @@ def test_the_declared_primary_measure_is_a_planned_analysis():
     """scenario.primary_outcome names one planned analysis; its measure is declared (never its time, NS-06)."""
     from cytellect_showcase.build import primary_outcome
 
-    manifest = json.loads((DATASETS / "zenodo-6643470-nucleolar.json").read_text(encoding="utf-8"))
-    assert primary_outcome(manifest["scenario"]) == {"version": "1.0.0", "metric": "mean", "region_set_id": "nucleoli",
-                                                     "channel_id": "eu5"}
+    # Declared only where git shows the plan was written before any value of the scene existed (2026-11-23,
+    # genellect/cytellect#257): the platinum scenes' main metric is recorded in cd9c2a6f9 (2026-11-12 03:17 UTC, "Ox10 and
+    # Cis10 fields not yet imported"), before their values (fe3d0d5ca). The ActD and PLK1 plans first appear in the same
+    # commit as their values (b811c8530), so git cannot show their order.
+    declared = {"zenodo-6643470-oxaliplatin": {"version": "1.0.0", "metric": "nucleolar_eccentricity",
+                                               "region_set_id": "nucleoplasm", "channel_id": None},
+                "zenodo-6643470-cisplatin": {"version": "1.0.0", "metric": "nucleolar_eccentricity",
+                                             "region_set_id": "nucleoplasm", "channel_id": None}}
+    for scene in PUBLIC_SCENES:
+        manifest = json.loads((DATASETS / f"{scene}.json").read_text(encoding="utf-8"))
+        assert primary_outcome(manifest["scenario"]) == declared.get(scene), scene
     assert primary_outcome({"statistics": {}}) is None
     with pytest.raises(SystemExit, match="names no planned analysis"):
         primary_outcome({"primary_outcome": "association", "statistics": {}})

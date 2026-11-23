@@ -92,9 +92,11 @@ for (const scene of SCENES) test(`${scene.id}: every offered statistics conditio
 });
 
 /** The scenes whose recording declares a primary measure before any statistic (scenario.primary_outcome): their
- * planned opening comparison (implementation plan 4.5, NS-06). */
+ * planned opening comparison, where git shows the plan was written before measurement (implementation plan 4.5,
+ * NS-06; tests/test_showcase_journal_scope.py). */
 const DECLARED: Record<string, {subject: string; metric: string; channel: string | null}> = {
-  "zenodo-6643470-nucleolar": {subject: "nucleoli", metric: "mean", channel: "eu5"},
+  "zenodo-6643470-oxaliplatin": {subject: "nucleoli", metric: "nucleolar_eccentricity", channel: null},
+  "zenodo-6643470-cisplatin": {subject: "nucleoli", metric: "nucleolar_eccentricity", channel: null},
 };
 const role = (page: Page) => results(page).locator("[data-outcome-role]");
 for (const scene of SCENES.filter(item => DECLARED[item.id])) test(`${scene.id}: the recorded primary measure stays declared while exploratory measures are chosen (NS-06)`, async ({page}) => {

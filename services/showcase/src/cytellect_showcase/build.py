@@ -1870,6 +1870,11 @@ def main(argv: list[str] | None = None) -> None:
                         help="regular expression of journal walks kept from --journal-previous instead of recorded again")
     parser.add_argument("--journal-previous", type=Path, default=None,
                         help="snapshot directory holding the journal and files the kept walks come from")
+    parser.add_argument("--detections-from", type=Path, default=None,
+                        help="scenario, grid, proposals: replay the detections recorded in this seed.zip and never run a "
+                             "detector (an unrecorded detection fails the build)")
+    parser.add_argument("--nuclear-scale", choices=("nuclear-size/1.0.0", "nuclear-size/1.1.0"), default=None,
+                        help="the automatic nuclear detection scale of new runs (default: the API's current one)")
     parser.add_argument("--journal-hours", type=float, default=6,
                         help="journal: stop the walk after this many hours")
     parser.add_argument("--figures-reuse", action="store_true",
@@ -1889,6 +1894,13 @@ def main(argv: list[str] | None = None) -> None:
     if len({manifest["id"] for _, manifest in manifests}) != len(manifests):
         raise SystemExit("duplicate scene id")
     stages = set(args.stages.split(","))
+    if args.nuclear_scale:
+        # The demo keeps the scale its recorded detections were made with (2026-11-23, owner decision, #257): with the
+        # same crops, every detection is then answered by its recording and no measured value changes.
+        from cytellect_api import run_recipes
+
+        run_recipes.NUCLEAR_SCALE_PROTOCOL = args.nuclear_scale
+        log("nuclear detection scale", args.nuclear_scale)
     detector_stages = stages.intersection({"select", "scenario", "grid"}) or ("proposals" in stages and "reseed" not in stages)
     if detector_stages and any(uses_cellpose(manifest) for _, manifest in manifests):
         for name in ("CYTELLECT_CELLPOSE_PYTHON", "CYTELLECT_CELLPOSE_MODEL_DIR"):
@@ -1897,7 +1909,7 @@ def main(argv: list[str] | None = None) -> None:
     work.mkdir(parents=True, exist_ok=True)
     state_path = work / "state.json"
     origin = f"http://127.0.0.1:{args.web_port}"
-    from cytellect_showcase.detections import install_recorder, uninstall
+    from cytellect_showcase.detections import uninstall
 
     started = time.perf_counter()
     state: dict = json.loads(state_path.read_text()) if state_path.is_file() else {}
@@ -1925,7 +1937,9 @@ def main(argv: list[str] | None = None) -> None:
         for path in (seed_data, work / "grid-data"):
             if path.exists():
                 shutil.rmtree(path)
-        recorder = install_recorder(recordings, reuse=True)
+        if args.detections_from is not None:
+            restore_recordings(args.detections_from, recordings)
+        recorder = replay_or_record(recordings, args.detections_from)
         owner = None
         # The first scene is created last: with no workspace named, the demo opens the newest one.
         for _, manifest in reversed(manifests):
@@ -1936,14 +1950,14 @@ def main(argv: list[str] | None = None) -> None:
             scenes[manifest["id"]]["scenario"] = result
             api.client.close()
         uninstall()
-        state["recorded_calls"] = recorder.calls
+        state["recorded_calls"] = recorder.calls if recorder is not None else "replayed"
         save()
     if "grid" in stages:
         grid_data = work / "grid-data"
         if grid_data.exists():
             shutil.rmtree(grid_data)
         shutil.copytree(seed_data, grid_data, ignore=shutil.ignore_patterns("tmp"))
-        recorder = install_recorder(recordings, reuse=True)
+        replay_or_record(recordings, args.detections_from)
         for _, manifest in manifests:
             scenario_state = scenes[manifest["id"]]["scenario"]
             api = open_api(grid_data, origin, args.fiji, scenario_state["owner"])
@@ -1974,7 +1988,7 @@ def main(argv: list[str] | None = None) -> None:
             from cytellect_showcase.detections import install_replay
             install_replay(recordings)  # A presentation update must never launch a detector.
         else:
-            install_recorder(recordings, reuse=True)
+            replay_or_record(recordings, args.detections_from)
         fresh = True
         for _, manifest in manifests:
             if not manifest["scenario"].get("proposals"):
@@ -2028,6 +2042,34 @@ def main(argv: list[str] | None = None) -> None:
                                work / "qa" / manifest["id"], scenes[manifest["id"]]["scenario"]["fields"])
             log("qa overlays", manifest["id"], len(written))
     log("done", round(time.perf_counter() - started, 1), "s")
+
+
+def restore_recordings(seed: Path, recordings: Path) -> None:
+    """The detector recordings of a published seed (``recordings/`` in ``seed.zip``) become the working ones."""
+    if recordings.exists():
+        shutil.rmtree(recordings)
+    recordings.mkdir(parents=True)
+    with zipfile.ZipFile(seed) as archive:
+        for member in archive.infolist():
+            name = member.filename
+            if member.is_dir() or not name.startswith("recordings/") or name.startswith("/") or ".." in Path(name).parts:
+                continue
+            target = recordings / name.removeprefix("recordings/")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with archive.open(member) as source, target.open("wb") as destination:
+                shutil.copyfileobj(source, destination)
+    log("restored detector recordings", len(json.loads((recordings / "index.json").read_text())["entries"]))
+
+
+def replay_or_record(recordings: Path, detections_from: Path | None):
+    """With recorded detections only, every detector call is answered by its recording and an unrecorded one fails
+    (``showcase_detection_not_recorded``); otherwise calls run and are recorded (a recorded key is reused)."""
+    from cytellect_showcase.detections import install_recorder, install_replay
+
+    if detections_from is not None:
+        install_replay(recordings)
+        return None
+    return install_recorder(recordings, reuse=True)
 
 
 SNAPSHOT_EXTENSIONS = {"application/json": ".json", "image/png": ".png", "image/svg+xml": ".svg", "text/csv": ".csv",
