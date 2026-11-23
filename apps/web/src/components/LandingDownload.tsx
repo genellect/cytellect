@@ -27,6 +27,7 @@ export async function LandingDownload() {
           <h3>研究室のクラウドは応相談。</h3>
           <p>GPU推論とLLMで、高精度の検出も、解析の設定も、結果の考察も。大学内での試験導入は、基本無料です。</p>
           <a className={lp.secondary} data-lp-event="consult" href={CONTACT_URL} target="_blank" rel="noopener noreferrer">研究室で導入を相談 <Out /></a>
+          <p className={lp.meta}>東京AIハッカソン2026 最優秀賞</p>
         </li>
       </ol>
     </div>
