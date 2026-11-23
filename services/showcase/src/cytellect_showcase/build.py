@@ -1510,7 +1510,7 @@ def rank_examples(manifest: dict) -> list[int]:
 
 
 def journal(work: Path, origin_port: int, out: Path, scenes: list[dict], keep: str | None = None,
-            previous: Path | None = None, hours: float = 6) -> dict:
+            previous: Path | None = None, hours: float = 6, concurrency: int = 3) -> dict:
     """Record the tour on /demo (published seed, in-browser API) into ``snapshot/journal.json`` and its parts.
 
     ``keep`` (a regular expression of walk names) keeps those walks' entries from the journal in
@@ -1550,7 +1550,7 @@ def journal(work: Path, origin_port: int, out: Path, scenes: list[dict], keep: s
         if destination.exists():
             shutil.rmtree(destination)
         config = {"origin": origin, "out": str(destination), "web": str(web), "snapshot": str(out / "snapshot"), "scenes": scenes,
-                  **({"keep": keep} if keep else {}),
+                  **({"keep": keep} if keep else {}), "concurrency": concurrency,
                   "chromium": os.environ.get("CYTELLECT_CHROMIUM_EXECUTABLE", "/opt/pw-browsers/chromium")}
         # Each finished walk is logged as it completes (journal.mjs writes progress lines to stderr).
         walker = subprocess.Popen(["node", str(Path(__file__).with_name("journal.mjs"))], stdin=subprocess.PIPE,
@@ -1875,6 +1875,8 @@ def main(argv: list[str] | None = None) -> None:
                              "detector (an unrecorded detection fails the build)")
     parser.add_argument("--nuclear-scale", choices=("nuclear-size/1.0.0", "nuclear-size/1.1.0"), default=None,
                         help="the automatic nuclear detection scale of new runs (default: the API's current one)")
+    parser.add_argument("--journal-concurrency", type=int, default=3,
+                        help="journal: walks recorded at once (each page holds the in-browser API, about 3 GB)")
     parser.add_argument("--journal-hours", type=float, default=6,
                         help="journal: stop the walk after this many hours")
     parser.add_argument("--figures-reuse", action="store_true",
@@ -2025,7 +2027,8 @@ def main(argv: list[str] | None = None) -> None:
              "rank": rank_examples(manifest),
              "gateChannels": manifest["scenario"].get("gate_channels", []),
              "scope": journal_scope(manifest), "story": story_metrics(manifest)} for _, manifest in manifests],
-            keep=args.journal_keep, previous=args.journal_previous, hours=args.journal_hours)
+            keep=args.journal_keep, previous=args.journal_previous, hours=args.journal_hours,
+            concurrency=args.journal_concurrency)
         save()
         write_manifest(args, manifests, state)
     if "figures" in stages:
