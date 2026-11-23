@@ -249,7 +249,8 @@ def test_api_confirms_adopted_nucleoli_and_downloads_the_same_table(tmp_path, mo
     assert first["nucleoli"] == {
         "status": "measured", "reason": None, "count": 1, "union_area_px": 2,
         "union_area_um2": pytest.approx(2 * 0.1), "union_area_um2_missing_reason": None, "area_fraction": 0.5, "largest_object_area_px": 2,
-        "largest_object_fraction": 1.0, "eccentricity": 1.0, "eccentricity_missing_reason": None, "excluded_objects": 0}
+        "largest_object_fraction": 1.0, "eccentricity": 1.0, "eccentricity_missing_reason": None, "excluded_objects": 0,
+        "object_areas_px": [2]}
     # The retained review candidate is an adopted nucleolus: confirmed, as comparisons count it.
     assert (rows[19]["nucleoli"]["status"], rows[19]["nucleoli"]["reason"]) == ("measured", None)
 

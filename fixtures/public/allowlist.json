@@ -1766,5 +1766,10 @@
     "source": "https://github.com/broadinstitute/cellpainting-gallery ; https://zenodo.org/records/6643470",
     "license": "CC-BY-4.0 ; CC0-1.0",
     "note": "Cytellect showcase output derived from the public dataset; see apps/web/public/showcase/manifest.json"
+  },
+  "fixtures/public/nuclear-scale/ds6b-30min-cis100-294-nuclear-640.tif": {
+    "sha256": "68ab05b0efc42b14019f91af3fc0660a70928e6ed3bbce49abf104a85adfd3c5",
+    "source": "https://zenodo.org/records/6643490 ; DS6b 40x_NA1.4_30min_Cis100_20211115_01_294.tif, nuclear channel, top-left 640 x 640 crop, pixel values unchanged; attribution in adjacent manifest.json",
+    "license": "CC-BY-4.0"
   }
 }

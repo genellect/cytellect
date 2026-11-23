@@ -149,6 +149,7 @@ Inspect boundaries on representative fields before applying a scale to a batch.
 
 ## Automatic nuclear detection scale (recipe 1.7.0, nuclear-size/1.0.0, 2026-10-07)
 
+Since 2026-11-21 new runs use nuclear-size/1.1.0 ([below](#automatic-nuclear-detection-scale-nuclear-size110-2026-11-21)); saved 1.0.0 records replay as described here.
 Without an explicit size, the workspace now requests nuclear recipe 1.7.0. Per
 field, the typical nucleus diameter is estimated from the defining (nuclear)
 channel's measurement plane:
@@ -179,6 +180,31 @@ choose an explicit size (recipe 1.5.0) when that happens. A real-Fiji regression
 test (`tests/test_nuclear_scale.py`, BBBC013 enlarged six times) requires the
 automatic scale to reproduce the original count within 10% and confirms that the
 capacity-only path does not.
+
+## Automatic nuclear detection scale (nuclear-size/1.1.0, 2026-11-21)
+
+New workspace runs record `detection_scale: nuclear-size/1.1.0` in recipe 1.7.0. The estimate is that of
+1.0.0 with one added step: after the Gaussian smoothing, the large-scale background of the grid is
+subtracted (grey opening with a square whose side is a quarter of the grid's long side, rounded up to an odd
+number of grid pixels, `nearest` edges) before the Otsu threshold. The opening side is recorded with the
+estimate (`background_opening_side_grid_px`).
+
+Cause (public DS6b, [validation report](public-nucleolar-shape-validation.md#核の検出が壊れた視野の原因)):
+in fields whose nuclear channel carries a background brighter than the nuclear contrast over a large part
+of the field (out-of-focus or mounting-medium fluorescence, uneven illumination), the single Otsu threshold
+of 1.0.0 selected that background; the area-weighted median component spanned 35–73% of the field, the
+estimated diameter was 316–1,107 px instead of about 50–64 px, the detection copy shrank to 64–146 px and
+StarDist returned one nucleus for the field. On the 360 DS6b fields, 1.1.0 changed the other estimates by
+−3.6% to +0.2% (5th–95th percentile) and brought all 16 fields above 100 px to 61–89 px.
+
+Limits: structures wider than the opening are treated as background; on a synthetic check a single nucleus
+wider than about half the image's long side is underestimated (choose an explicit size, recipe 1.5.0).
+StarDist's own field-wide percentile normalization still misses nuclei inside the brightest background; 1.1.0
+fixes only the scale. The real-Fiji regression (`tests/test_nuclear_scale.py`) uses a registered public crop
+of one such field (`fixtures/public/nuclear-scale/`) and still requires the BBBC013 ×6 check. Saved 1.0.0
+recipes replay with the 1.0.0 estimate, and re-running saved automatically scaled nuclei keeps their protocol
+(API and browser); masks are reused only under the same scale protocol. The public demo runtime asks for the
+protocols its recordings were made with until the demo is recorded again.
 
 ## GFP-positive nuclei from negative controls (gfp-gate/2.0.0, 2026-10-06)
 
@@ -350,6 +376,40 @@ not rename saved scientific outputs.
 `cytellect-nucleolar-v2/2.0.0` marker detection continues to use Gaussian sigma 0.7 px, including historical recipes whose `smoothing_sigma_px` records another value. Those records are not rewritten or reinterpreted. Its DAPI-poor path continues to use the recorded sigma as before.
 
 Marker-only protocol `2.1.0` uses the recorded `smoothing_sigma_px` (0–20 px), with 0.7 px as the new-request default. Rolling-ball subtraction, threshold definition, rim exclusion, component filtering, coordinates and original measurement pixels are unchanged. Opening an old result or editing an unrelated setting does not upgrade it. An explicit marker sigma edit, a new marker configuration or adoption of a 2.1.0 proposal creates the new protocol configuration; accepted masks remain unchanged until the usual preview/adoption operation. Fiji NCL protocol 1.1.0 is unaffected. This is parameter-semantic compatibility, not a claim of biological validation.
+
+### Marker protocol 2.2.0: nuclei without marker contrast and the physical minimum (2026-11-21, not adopted)
+
+Owner decisions 20 and 22 of genellect/cytellect#257 ([plan](drafts/nucleolar-measurement/implementation.md#82-目的と統計の結果図の決定2026-11-21)).
+**2.2.0 failed its pre-registered acceptance criteria on public real images and is not the default; whether to
+adopt it awaits the owner's decision.** New marker definitions keep 2.1.0. 2.2.0 is kept as an explicit recipe
+(for reproducing the validation) and is not offered in the workspace; neither its form nor `k` is changed after
+the evaluation split was seen. Rolling ball, sigma, threshold, rim, solidity and coordinates are those of 2.1.0.
+It adds two rules:
+
+1. **Marker contrast against noise.** The statistic of `cellpose-sam-ncl-parent/4.2.0`, unchanged: the original
+   marker plane is smoothed with Gaussian sigma 0.9 px (`reflect` edges); the field noise is 1.4826 × MAD of
+   (original − smoothed) over nuclear pixels at or below the 75th percentile of the smoothed nuclear pixels, at
+   least 0.5 intensity code unit; a parent's signal is the 99th minus the 75th percentile of the smoothed values
+   inside it. A parent whose signal is below `minimum_contrast_snr` × noise is `indeterminate`
+   (`insufficient_marker_contrast`) before thresholding; its candidates are not adopted. The criterion is
+   against noise, never against the enrichment being measured; no object is removed for its brightness. Signal,
+   noise and their ratio are recorded per parent. Its `minimum_contrast_snr` is 5, the 4.2.0 value and the
+   pre-registered fallback: no value of the grid met every acceptance criterion on the tuning split of the public
+   validation, and the one evaluation run did not pass either
+   ([report](public-nucleolar-shape-validation.md#判定できない核の規則決定-20)).
+2. **Minimum area.** max(`minimum_area_px` (4), `minimum_area_um2` (0.3) converted with the field's confirmed
+   calibration, rounded half up); 4 px without a calibration. The applied value and its source are recorded
+   (`minimum_area`). An explicit pixel minimum set by the researcher removes the physical minimum. Rim exclusion
+   and the rolling-ball radius stay in pixels (not switched in this version).
+
+Under 2.2.0, an indeterminate parent has no nucleolar union or nucleoplasm. The nucleus table reports its nucleolar values
+missing with the reason `indeterminate`; compartment-summary statistics describe nuclei with at least one
+adopted nucleolus; under `unresolved-as-missing/1.0.0` it is kept in the ledger as missing. Its count, area
+and intensity are never 0. Adopted small nucleoli stay in the count, total area and per-nucleolus values; the
+nucleus table records each nucleus's object areas (`object_areas_px`) and the field's size breakdown
+(`nucleolar_sizes`, for any protocol), and the statistics basis lists indeterminate nuclei only when there are
+any. Saved 2.0.0 and 2.1.0 records replay unchanged and ignore the calibration. `dapi_poor` (2.0.0) is unchanged. Detection
+correctness is not established: no independent hand-drawn outlines exist (NS-03).
 
 ### Measured CSV distribution and SVG source navigation
 

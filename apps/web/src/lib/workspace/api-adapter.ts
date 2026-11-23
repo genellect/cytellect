@@ -68,10 +68,10 @@ export interface Recipe {
   source: "manual" | "stardist_nuclear" | "fiji_positive_regions" | "fiji_nuclear_compartment" | "cellpose_cell"; defining_channel_id: string;
   compartment?: "nucleoli" | "nucleoplasm"; nuclear_revision_id?: string; nuclear_channel_id?: string;
   detector?: AnyCellposeProcessingDetector | NclObjectProcessingDetector | NuclearProcessingDetector | SignalProcessingDetector | {engine?: "fiji-nucleolar-compartments"; protocol_version?: "1.0.0" | "1.1.0"; threshold_method?: "otsu" | "manual"; threshold?: number | null; smoothing_sigma_px: number; minimum_area_px: number; maximum_area_px?: number | null; split_touching: boolean}
-    | {engine: "cytellect-nucleolar-v2"; protocol_version: "2.0.0" | "2.1.0"; source: "dapi_poor" | "marker"; smoothing_sigma_px: number; rim_exclusion_px: number; relative_threshold: number; marker_fraction: number; background_radius_px: number; minimum_area_px: number; maximum_area_px: number | null; minimum_solidity: number};
+    | {engine: "cytellect-nucleolar-v2"; protocol_version: "2.0.0" | "2.1.0" | "2.2.0"; source: "dapi_poor" | "marker"; smoothing_sigma_px: number; rim_exclusion_px: number; relative_threshold: number; marker_fraction: number; background_radius_px: number; minimum_area_px: number; maximum_area_px: number | null; minimum_solidity: number; minimum_area_um2?: number | null; minimum_contrast_snr?: number};
   nucleolar_revision_id?: string;
   nuclear_role_source?: "recorded_stain" | "user_selected_role";
-  detection_max_side_px?: number; detection_scale?: "nuclear-size/1.0.0";
+  detection_max_side_px?: number; detection_scale?: "nuclear-size/1.0.0" | "nuclear-size/1.1.0";
 }
 export interface ProposalMetric {metric:string;channel:string|null;region?:string|null}
 export interface ProposalStatistics {kind:"descriptive"|"comparison"|"association";test:string|null;omnibus:string|null;association:string|null;x?:ProposalMetric|null;y?:ProposalMetric|null}
@@ -129,10 +129,10 @@ export function channelSpecification(channel: ChannelDefinition) {
 export function nuclearRecipe(channel: ChannelDefinition, detectionMaxSide?: number | null): Recipe {
   if (channel.role !== "nuclear") throw new Error("核検出に使うチャンネルを選択してください。");
   if (detectionMaxSide != null && (!Number.isInteger(detectionMaxSide) || detectionMaxSide < 64 || detectionMaxSide > 2048)) throw new Error("検出用画像の長辺は64〜2048pxで指定してください。");
-  // Without an explicit size the detection copy follows the estimated nucleus size (nuclear-size/1.0.0),
+  // Without an explicit size the detection copy follows the estimated nucleus size (nuclear-size/1.1.0),
   // so high-resolution images are not split into nuclear texture.
   return {id: "region-2d", version: detectionMaxSide == null ? "1.7.0" : "1.5.0", region_set_id: "nuclei", label: "核", source: "stardist_nuclear",
-    ...(detectionMaxSide == null ? {detection_scale: "nuclear-size/1.0.0" as const} : {detection_max_side_px: detectionMaxSide}),
+    ...(detectionMaxSide == null ? {detection_scale: "nuclear-size/1.1.0" as const} : {detection_max_side_px: detectionMaxSide}),
     defining_channel_id: channel.token, nuclear_role_source: channel.evidence === "user" ? "user_selected_role" : "recorded_stain"};
 }
 
