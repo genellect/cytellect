@@ -7,7 +7,6 @@ import { LandingExperience, type FeatureLinks } from "./LandingExperience";
 import { LandingHeaderTone } from "./LandingHeaderTone";
 import { LightField } from "./LightField";
 import { LandingHomeLink } from "./LandingHomeLink";
-import { LandingAward } from "./LandingAward";
 import { LandingImpact } from "./LandingImpact";
 import { LandingInvite } from "./LandingInvite";
 import { LandingDownload } from "./LandingDownload";
@@ -46,6 +45,7 @@ export default function PublicLanding() {
         <div className={lp.heroCopy}>
           <h1 id="hero-title" lang="en" aria-label="Get your microscopy publication-ready."><span>Get your</span>{" "}<span>microscopy</span>{" "}<span>publication-<br className={lp.mobileBreak} />ready.</span></h1>
           <div className={lp.heroActions}><Link data-lp-event="example" href="/demo" className={lp.primary}>デモを体験する <Forward /></Link><a data-lp-event="download_section" href="#download" className={lp.heroSecondary}>ダウンロード <span aria-hidden="true">↓</span></a></div>
+          <p className={lp.awardBadge}><svg viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M10 5h12v7.5c0 3.6-2.7 6.5-6 6.5s-6-2.9-6-6.5V5ZM10 7H6.5c0 4 1.4 6.2 4 6.9M22 7h3.5c0 4-1.4 6.2-4 6.9M16 19v4M12.5 27h7M13.5 23h5l1 4h-7l1-4Z" /></svg><span><small>東京AIハッカソン2026</small>最優秀賞</span></p>
         </div>
       </section>
 
@@ -55,8 +55,6 @@ export default function PublicLanding() {
           <h2 id="mission-title" className={lp.manifesto} aria-label="画像解析を、一部の専門家の技術から、すべての生命科学研究者が使える研究基盤に。"><span><span>画像解析を、</span><span>一部の専門家の技術から、</span></span><span><span>すべての生命科学研究者が</span><span>使える研究基盤に。</span></span></h2>
         </div>
       </section>
-
-      <LandingAward />
 
       <LandingExperience links={FEATURE_LINKS} />
 
