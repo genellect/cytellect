@@ -43,6 +43,7 @@ class Source:
             inputs = json.loads(info or "{}").get("inputs") or {}
             self.field_key[fid] = tuple(sorted(value["sha256"] for value in inputs.values()))
         self.revision_workspace = dict(db.execute("select id, workspace_id from revisions"))
+        self.field_names = {fid: "field:" + ",".join(item[:12] for item in key) for fid, key in self.field_key.items()}
         db.close()
 
     def read(self, name: str) -> bytes:
@@ -51,7 +52,7 @@ class Source:
     def names(self, pattern: str) -> list[str]:
         if self.files is not None:
             return [name for name in self.files if re.fullmatch(pattern, name)]
-        return [path.relative_to(self.root).as_posix() for path in self.root.glob("runs/*/output/*")  # type: ignore[union-attr]
+        return [path.relative_to(self.root).as_posix() for path in self.root.glob("runs/*/output/**/*")  # type: ignore[union-attr]
                 if re.fullmatch(pattern, path.relative_to(self.root).as_posix())]
 
     def scene_of_field(self, fid: str) -> str | None:
@@ -72,6 +73,16 @@ class Source:
                 found.setdefault(key, {}).update(rows)
         return found
 
+    def summaries(self) -> dict[tuple, list[dict]]:
+        """(scene, field pixels) -> the field's per-nucleus nucleolar summaries (compartment-summary.json)."""
+        found: dict[tuple, list[dict]] = {}
+        for name in self.names(r"runs/[^/]+/output/[0-9a-f-]{36}/compartment-summary\.json"):
+            fid = name.split("/")[3]
+            scene = self.scene_of_field(fid)
+            if scene is not None:
+                found.setdefault((scene, self.field_key[fid]), []).append(blank(json.loads(self.read(name)), self.field_names))
+        return found
+
     def results(self) -> dict[tuple, list[dict]]:
         """(scene, request) -> saved statistics results."""
         found: dict[tuple, list[dict]] = {}
@@ -86,15 +97,36 @@ class Source:
         return found
 
 
-def blank(value):
-    """Identifiers written as '*', volatile records removed."""
+def blank(value, names: dict[str, str] | None = None):
+    """Identifiers written as '*' (a field's as its input pixels, ``names``), volatile records removed."""
+    names = names or {}
+    text = lambda inner: UUID.sub(lambda found: names.get(found.group(0), "*"), inner)  # noqa: E731
     if isinstance(value, dict):
-        return {key: "*" if key in IDS else blank(inner) for key, inner in value.items() if key not in VOLATILE}
+        # A compartment summary file's hash covers the identifiers written in it (its nuclei's revision); its values
+        # are compared file by file (Source.summaries).
+        if "compartment_summary" in value and isinstance(value["compartment_summary"], dict):
+            value = {**value, "compartment_summary": {key: inner for key, inner in value["compartment_summary"].items()
+                                                      if key != "sha256"}}
+        return {text(key): "*" if key in IDS else blank(inner, names) for key, inner in value.items() if key not in VOLATILE}
     if isinstance(value, list):
-        return [blank(item) for item in value]
+        return [blank(item, names) for item in value]
     if isinstance(value, str):
-        return UUID.sub("*", value)
+        return text(value)
     return value
+
+
+def order(item) -> str:
+    """A row's place by its content: identifiers blanked, numbers to 6 significant digits (rows compared within a
+    tolerance still sort alike)."""
+    def rounded(value):
+        if isinstance(value, dict):
+            return {key: rounded(inner) for key, inner in value.items()}
+        if isinstance(value, list):
+            return [rounded(inner) for inner in value]
+        if isinstance(value, float):
+            return f"{value:.6g}"
+        return value
+    return json.dumps(rounded(blank(item)), sort_keys=True, ensure_ascii=False)
 
 
 def kept(old, new, path: str, problems: list[str], tolerance: float) -> None:
@@ -112,6 +144,10 @@ def kept(old, new, path: str, problems: list[str], tolerance: float) -> None:
         if not isinstance(new, list) or len(new) != len(old):
             problems.append(f"{path}: list of {len(old)} became {len(new) if isinstance(new, list) else type(new).__name__}")
             return
+        if any(isinstance(item, dict) for item in old) or (old and all(isinstance(item, str) and item.startswith("field:")
+                                                                       for item in old)):
+            # Rows and fields are listed in the order of their (new) identifiers: compare them by content.
+            old, new = sorted(old, key=order), sorted(new, key=order)
         for index, (left, right) in enumerate(zip(old, new, strict=True)):
             kept(left, right, f"{path}[{index}]", problems, tolerance)
     elif isinstance(old, float) and isinstance(new, (int, float)) and not isinstance(new, bool):
@@ -134,6 +170,19 @@ def compare(old: Source, new: Source) -> list[str]:
                 problems.append(f"{label} region {row_key}: missing")
             else:
                 kept(row, new_tables[key][row_key], f"{label} region {row_key}", problems, 0.0)
+    old_summaries, new_summaries = old.summaries(), new.summaries()
+    for key, summaries in sorted(old_summaries.items(), key=str):
+        label = f"{key[0]} field {key[1][0][:8]} nucleolar summary"
+        for summary in summaries:
+            attempts = []
+            for candidate in new_summaries.get(key, []):
+                found: list[str] = []
+                kept(summary, candidate, label, found, 0.0)
+                attempts.append(found)
+            if not attempts:
+                problems.append(f"{label}: missing")
+            elif all(attempts):
+                problems.extend(min(attempts, key=len))
     old_results, new_results = old.results(), new.results()
     for key, results in sorted(old_results.items()):
         label = f"{key[0]} {json.loads(key[1]).get('mode')} {json.dumps(json.loads(key[1]).get('selection'))}"
@@ -145,11 +194,12 @@ def compare(old: Source, new: Source) -> list[str]:
             attempts = []
             for candidate in candidates:
                 found: list[str] = []
-                kept(blank(result), blank(candidate), label, found, 1e-9)
+                kept(blank(result, old.field_names), blank(candidate, new.field_names), label, found, 1e-9)
                 attempts.append(found)
             if all(attempts):
-                problems.extend(min(attempts, key=len)[:5])
-    print(json.dumps({"measured_tables": len(old_tables), "new_tables": len(new_tables), "results": len(old_results),
+                problems.extend(min(attempts, key=len))
+    print(json.dumps({"measured_tables": len(old_tables), "new_tables": len(new_tables),
+                      "nucleolar_summaries": sum(map(len, old_summaries.values())), "results": len(old_results),
                       "new_results": len(new_results), "problems": len(problems)}))
     return problems
 
@@ -163,7 +213,8 @@ def main(argv=None) -> int:
     manifest = json.loads((args.old / "manifest.json").read_text(encoding="utf-8"))
     with zipfile.ZipFile(args.old / "seed.zip") as archive:
         files = {name: archive.read(name) for name in archive.namelist()
-                 if name == "cytellect.sqlite" or re.fullmatch(r"runs/[^/]+/output/(measurements|result)\.json", name)}
+                 if name == "cytellect.sqlite" or re.fullmatch(r"runs/[^/]+/output/(measurements|result)\.json", name)
+                 or re.fullmatch(r"runs/[^/]+/output/[0-9a-f-]{36}/compartment-summary\.json", name)}
     old = Source(files=files, scenes={scene["workspace_id"]: scene["id"] for scene in manifest["scenes"]})
     state = json.loads(args.new_state.read_text(encoding="utf-8"))
     new = Source(root=args.new_data, scenes={value["scenario"]["workspace_id"]: scene for scene, value in state["scenes"].items()
