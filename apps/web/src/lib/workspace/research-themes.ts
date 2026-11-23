@@ -1,7 +1,7 @@
 import {UNIT_LABELS, measureLabel, subjectEntry, type MetricSubject, type ObservationUnit} from "./metric-catalog";
 
 /** A research theme lists the measures that read it, with the stain each needs, the region it is measured on and what
- * one observation is (#257 NS-01). It chooses among the common measures only and computes nothing. */
+ * one observation is (#257 NS-01). It is an entry for choosing among the common measures (Issue E-7) and computes nothing. */
 export interface ThemeMeasure {metric: string; subject: MetricSubject;
   /** Stain names that can give the measure (whole words, any case); the first names the requirement. */
   stains: string[]; region: string}
@@ -28,7 +28,9 @@ export function themeStain(measure: ThemeMeasure, stains: Array<{id: string; nam
   return stains.find(stain => measure.stains.some(name => words(stain.name).includes(words(name)))) ?? null;
 }
 
-export interface ThemeRow {metric: string; label: string; stain: string; region: string; unit: string; available: boolean}
+export interface ThemeRow {metric: string; subject: MetricSubject; label: string; stain: string; region: string; unit: string; available: boolean;
+  /** The registered stain a reading measure (an intensity or a partition) is read in; null for the others. */
+  channel: string | null}
 /** One row per measure: its name as everywhere else, the stain it needs (the registered one when there is one), the
  * region and the observation unit, and whether the registered stains can give it. */
 export function themeRows(theme: ResearchTheme, stains: Array<{id: string; name: string}>): ThemeRow[] {
@@ -37,7 +39,8 @@ export function themeRows(theme: ResearchTheme, stains: Array<{id: string; name:
     const needsReading = measure.metric === "mean" || measure.metric === "log2_nucleoplasm_over_nucleolus";
     const unit: ObservationUnit | undefined = subjectEntry(measure.subject, measure.metric)?.unit;
     const required = measure.stains === MARKERS ? "核小体のマーカー（NPM1・NCL・FBL）" : measure.stains[0];
-    return {metric: measure.metric, label: measureLabel(measure.metric, measure.subject, needsReading ? stain?.name ?? measure.stains[0] : null),
-      stain: stain ? stain.name : required, region: measure.region, unit: unit ? UNIT_LABELS[unit] : "", available: !!stain};
+    return {metric: measure.metric, subject: measure.subject, label: measureLabel(measure.metric, measure.subject, needsReading ? stain?.name ?? measure.stains[0] : null),
+      stain: stain ? stain.name : required, region: measure.region, unit: unit ? UNIT_LABELS[unit] : "", available: !!stain,
+      channel: needsReading && stain ? stain.id : null};
   });
 }
