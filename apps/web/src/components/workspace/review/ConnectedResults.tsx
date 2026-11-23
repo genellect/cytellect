@@ -858,9 +858,11 @@ function MissingLead({summary}:{summary:MissingSummary}){
 
 /** Every group and unit's missing nuclei over all nuclei, always shown with the result (Q-05). */
 function MissingNucleoli({summary}:{summary:MissingSummary}){
+  // Indeterminate nuclei by group and unit, only when there are any (an always-zero column says nothing).
+  const indeterminate=summary.rows.some(row=>(row.reasons.indeterminate??0)>0);
   return <div className={styles.missing} role="group" aria-label="核小体を確定できない核の内訳">
     <p>核小体を確定できない核の内訳（分母：全核）</p>
-    <div className={styles.tableScroll} tabIndex={0}><table><thead><tr><th scope="col">群</th><th scope="col">実験単位</th><th scope="col">欠測 / 全核</th><th scope="col">除外</th></tr></thead>
-      <tbody>{summary.rows.map(row=><tr key={`${row.condition}:${row.experimental_unit}`}><th scope="row">{row.condition}</th><td>{row.experimental_unit}</td><td title={reasonText(row.reasons)}>{row.missing} / {row.nuclei}（{percent(row.missing,row.nuclei)}）</td><td>{row.excluded}</td></tr>)}</tbody></table></div>
+    <div className={styles.tableScroll} tabIndex={0}><table><thead><tr><th scope="col">群</th><th scope="col">実験単位</th><th scope="col">欠測 / 全核</th>{indeterminate&&<th scope="col">うち判定不能</th>}<th scope="col">除外</th></tr></thead>
+      <tbody>{summary.rows.map(row=><tr key={`${row.condition}:${row.experimental_unit}`}><th scope="row">{row.condition}</th><td>{row.experimental_unit}</td><td title={reasonText(row.reasons)}>{row.missing} / {row.nuclei}（{percent(row.missing,row.nuclei)}）</td>{indeterminate&&<td>{row.reasons.indeterminate??0}</td>}<td>{row.excluded}</td></tr>)}</tbody></table></div>
   </div>;
 }

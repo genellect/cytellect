@@ -4761,9 +4761,12 @@
           },
           "detection_scale": {
             "type": "string",
-            "const": "nuclear-size/1.0.0",
+            "enum": [
+              "nuclear-size/1.0.0",
+              "nuclear-size/1.1.0"
+            ],
             "title": "Detection Scale",
-            "default": "nuclear-size/1.0.0"
+            "default": "nuclear-size/1.1.0"
           },
           "detector": {
             "$ref": "#/components/schemas/NuclearDetectorSpec"
@@ -4778,7 +4781,7 @@
           "nuclear_role_source"
         ],
         "title": "AutoScaledNuclearRecipe",
-        "description": "Nuclei with a detection copy sized from the estimated nucleus diameter (nuclear-size/1.0.0)."
+        "description": "Nuclei with a detection copy sized from the estimated nucleus diameter (nuclear-size/1.1.0; 1.0.0 replays)."
       },
       "AutomaticBackgroundConstants": {
         "properties": {
@@ -10932,6 +10935,115 @@
         "title": "NucleolarDetectorV21",
         "description": "Marker-only revision: the recorded smoothing sigma is the effective value."
       },
+      "NucleolarDetectorV22": {
+        "properties": {
+          "engine": {
+            "type": "string",
+            "const": "cytellect-nucleolar-v2",
+            "title": "Engine",
+            "default": "cytellect-nucleolar-v2"
+          },
+          "protocol_version": {
+            "type": "string",
+            "const": "2.2.0",
+            "title": "Protocol Version",
+            "default": "2.2.0"
+          },
+          "source": {
+            "type": "string",
+            "const": "marker",
+            "title": "Source",
+            "default": "marker"
+          },
+          "smoothing_sigma_px": {
+            "type": "number",
+            "maximum": 20.0,
+            "minimum": 0.0,
+            "title": "Smoothing Sigma Px",
+            "default": 0.7
+          },
+          "rim_exclusion_px": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Rim Exclusion Px",
+            "default": 4
+          },
+          "relative_threshold": {
+            "type": "number",
+            "exclusiveMaximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Relative Threshold",
+            "default": 0.7
+          },
+          "marker_fraction": {
+            "type": "number",
+            "exclusiveMaximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Marker Fraction",
+            "default": 0.4
+          },
+          "background_radius_px": {
+            "type": "integer",
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Background Radius Px",
+            "default": 10
+          },
+          "minimum_area_px": {
+            "type": "integer",
+            "maximum": 100000.0,
+            "minimum": 1.0,
+            "title": "Minimum Area Px",
+            "default": 4
+          },
+          "maximum_area_px": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 16777216.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maximum Area Px"
+          },
+          "minimum_solidity": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Minimum Solidity",
+            "default": 0.6
+          },
+          "minimum_contrast_snr": {
+            "type": "number",
+            "maximum": 100.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Minimum Contrast Snr",
+            "default": 5.0
+          },
+          "minimum_area_um2": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 10000.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minimum Area Um2",
+            "default": 0.3
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "NucleolarDetectorV22",
+        "description": "Marker revision with a noise-based contrast rule per parent and a physical minimum area."
+      },
       "NucleolarMorphology": {
         "properties": {
           "status": {
@@ -11075,6 +11187,21 @@
             "type": "integer",
             "minimum": 0.0,
             "title": "Excluded Objects"
+          },
+          "object_areas_px": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer",
+                  "minimum": 1.0
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Areas Px"
           }
         },
         "additionalProperties": false,
@@ -11094,6 +11221,42 @@
           "excluded_objects"
         ],
         "title": "NucleolarMorphology"
+      },
+      "NucleolarSizes": {
+        "properties": {
+          "unit": {
+            "type": "string",
+            "enum": [
+              "um2",
+              "px2"
+            ],
+            "title": "Unit"
+          },
+          "small_limit": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Small Limit"
+          },
+          "small": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Small"
+          },
+          "other": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Other"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "unit",
+          "small_limit",
+          "small",
+          "other"
+        ],
+        "title": "NucleolarSizes"
       },
       "NucleolarSource": {
         "properties": {
@@ -11486,6 +11649,16 @@
             },
             "type": "array",
             "title": "Rows"
+          },
+          "nucleolar_sizes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NucleolarSizes"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -14519,6 +14692,9 @@
                 "$ref": "#/components/schemas/NucleolarDetectorV21"
               },
               {
+                "$ref": "#/components/schemas/NucleolarDetectorV22"
+              },
+              {
                 "$ref": "#/components/schemas/NclObjectDetector"
               },
               {
@@ -14539,6 +14715,7 @@
                 "1.1.0": "#/components/schemas/NucleolarDetectorV11",
                 "2.0.0": "#/components/schemas/NucleolarDetectorV20",
                 "2.1.0": "#/components/schemas/NucleolarDetectorV21",
+                "2.2.0": "#/components/schemas/NucleolarDetectorV22",
                 "3.0.0": "#/components/schemas/NclObjectDetector",
                 "4.0.0": "#/components/schemas/CellposeDetectorSpec",
                 "4.1.0": "#/components/schemas/NclCellposeDetectorSpec",

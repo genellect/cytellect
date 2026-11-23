@@ -94,6 +94,8 @@ function ledger(table:NucleusTableData,nucleoli:boolean,channels:Array<{id:strin
     for(const row of kept)if(row.nucleoli.status==="missing")counts.set(reasonText(row.nucleoli.reason),(counts.get(reasonText(row.nucleoli.reason))??0)+1);
     parts.push(`核小体を確定 ${measured}`);
     if(counts.size)parts.push(`欠測 ${[...counts.values()].reduce((a,b)=>a+b,0)}（${[...counts].map(([text,n])=>`${text} ${n}`).join("、")}）`);
+    const sizes=sizeBreakdown(table);
+    if(sizes)parts.push(sizes);
   }else{
     // Analysed nucleoli that could not be read for this field are named; they are not "not analysed yet".
     const unavailable=rows.some(row=>row.nucleoli.reason==="nucleolar_revision_unavailable");
@@ -108,4 +110,14 @@ function ledger(table:NucleusTableData,nucleoli:boolean,channels:Array<{id:strin
   const automatic=(table.backgrounds??[]).filter(value=>value.source==="automatic_candidate").map(value=>channels.find(item=>item.id===value.channel_id)?.name??value.channel_id);
   if(automatic.length)parts.push(`${automatic.join("、")}の補正値は自動推定の背景（未確認）`);
   return parts.join(" · ");
+}
+
+/** The confirmed nucleoli by size, as the API counted them (owner decisions 20, 22, 2026-11-21): small ones stay
+ * in every value, so their number is shown. Tables saved before the breakdown existed show nothing here. */
+export function sizeBreakdown(table:NucleusTableData){
+  const sizes=table.nucleolar_sizes;
+  if(!sizes)return "";
+  const limit=sizes.small_limit.toLocaleString("ja-JP");
+  return sizes.unit==="um2"?`核小体の大きさ：${limit} µm² 未満 ${sizes.small}、${limit} µm² 以上 ${sizes.other}`
+    :`核小体の大きさ：${limit} px² 以下 ${sizes.small}、それより大きい ${sizes.other}`;
 }

@@ -37,6 +37,7 @@
 | TR-01（診断・組織切片を範囲外にする 1 文） | genellect/cytellect#270 `docs/research-use-scope` | Draft |
 | 5 公開実画像の登録と検証 | genellect/cytellect#272 `test/nucleolar-public-validation` | Draft。核小体の形の 3 指標は決定 4 で不合格（核小体には出さない。核では出す、§5.4） |
 | 6 指標の計算・主要指標 | `feat/nucleolar-metrics`（`integration/257` へ） | 核の形 3 指標と最大の核小体の割合を追加。核ごとの CV と陽性面積率は検証で不合格（[記録](../../public-nuclear-signal-validation.md)）で出さない。主要指標の宣言と、元の統計の計算時刻での比較、NS-01 の一覧。ごく小さい検出（決定 22）は別の PR |
+| 6b ごく小さい検出（決定 20・22） | genellect/cytellect#277 `feat/nucleolar-indeterminate-nuclei`（`integration/257` へ） | 判定不能の規則（マーカー 2.2.0）は実装したが、事前に決めた受入基準で調整・評価とも不合格のため既定にしない（採否はオーナーの判断待ち。新しいマーカーの定義は 2.1.0 のまま）。核の大きさの推定の欠陥は nuclear-size/1.1.0 で直し、既定として採用（[報告](../../public-nucleolar-shape-validation.md#判定できない核の規則決定-20)） |
 | 7 デモの再記録 | なし | 2〜4・6 のマージの後 |
 
 - #258：開いたまま保留。マージしない。新しい PR に置き換わった時点で閉じる（決定 5）。コードは `claude/gifted-curie-2whvtd` にあり、[§7](#7-258-の変更の扱い) の仕分けに従って新しい PR へ移す。
