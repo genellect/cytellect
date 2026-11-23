@@ -58,12 +58,12 @@ export default function PublicLanding() {
       <section className={lp.award} aria-labelledby="award-title">
         <div className={lp.awardPlate}>
           <svg className={lp.trophy} viewBox="0 0 48 48" aria-hidden="true" focusable="false">
-            <defs><linearGradient id="award-gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#fbe3d8" /><stop offset=".5" stopColor="#e7b8a4" /><stop offset="1" stopColor="#b9765d" /></linearGradient></defs>
-            <path fill="url(#award-gold)" d="M14 6h20v11c0 5.8-4.5 10.5-10 10.5S14 22.8 14 17V6Zm-1 2v3H9.5c.3 4.6 2.1 7 4.6 7.8l-.6 2.3C9.8 20 7.2 16.6 7 9.6V8h6Zm22 0h6v1.6c-.2 7-2.8 10.4-6.5 11.5l-.6-2.3c2.5-.8 4.3-3.2 4.6-7.8H35V8ZM22.2 27.3h3.6V33h-3.6v-5.7ZM17 35h14l1.4 6H15.6L17 35Z" />
-            <path fill="#ffffff66" d="M17 8.5h2.2v8.2c0 2.6 1 4.8 2.7 6.3-3-.8-4.9-3.4-4.9-6.6V8.5Z" />
+            <path d="M14 6h20v11c0 5.8-4.5 10.5-10 10.5S14 22.8 14 17V6Zm-1 2v3H9.5c.3 4.6 2.1 7 4.6 7.8l-.6 2.3C9.8 20 7.2 16.6 7 9.6V8h6Zm22 0h6v1.6c-.2 7-2.8 10.4-6.5 11.5l-.6-2.3c2.5-.8 4.3-3.2 4.6-7.8H35V8ZM22.2 27.3h3.6V33h-3.6v-5.7ZM17 35h14l1.4 6H15.6L17 35Z" />
           </svg>
-          <p className={lp.awardEvent}>東京AIハッカソン2026</p>
-          <h2 id="award-title" className={lp.awardTitle}>最優秀賞 受賞</h2>
+          <div>
+            <p className={lp.awardEvent}>東京AIハッカソン2026</p>
+            <h2 id="award-title" className={lp.awardTitle}>最優秀賞 受賞</h2>
+          </div>
         </div>
       </section>
 
