@@ -87,6 +87,15 @@ def _source_document(result, layout, font_metadata, csv_hashes, methods_template
             "font_metadata": font_metadata, "point_layout": "deterministic side-by-side (display only)", "source_hashes": csv_hashes}
 
 
+def _legacy_source_document(document):
+    """The same document as written before 2026-11-20 (genellect/cytellect#247), whose saved pages placed points
+    with a fixed jitter seed: ``jitter_seed: 0`` instead of ``point_layout``. The saved page files are still bound
+    by their hashes; only the record of how the points were placed differs."""
+    legacy = {key: value for key, value in document.items() if key != "point_layout"}
+    legacy["jitter_seed"] = 0
+    return legacy
+
+
 def _output_caption(result, layout, status, methods_template=None):
     text = _caption(result, layout["labels"], methods_template, paged=True)
     count, pages = result["counts"]["observations"], len(layout["page_plan"])
@@ -185,7 +194,8 @@ def validate_descriptive_output(result, source_root: Path, *, require_index=Fals
             raise ValueError("descriptive_output_artifact_mismatch")
     source = json.loads((source_root / "figure-data.json").read_text(encoding="utf-8"))
     csv_hashes = {name: manifest.files[name].sha256 for name in TABLES if name in manifest.files}
-    if source != _source_document(result, layout, manifest.font_metadata, csv_hashes, manifest.methods_template):
+    expected = _source_document(result, layout, manifest.font_metadata, csv_hashes, manifest.methods_template)
+    if source != expected and source != _legacy_source_document(expected):
         raise ValueError("descriptive_output_source_mismatch")
     if manifest.methods_template is not None and (source_root / "methods.md").read_text(encoding="utf-8") != _methods_text(
             result, manifest.status, manifest.methods_template):
