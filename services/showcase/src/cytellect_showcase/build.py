@@ -900,6 +900,12 @@ def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
             # The researcher removed fragments from the nuclei; their compartments follow the edit.
             timed("nucleoli-after-review", lambda: space.run("nucleoli"))
         timed("nucleoplasm", lambda: space.run("nucleoplasm"))
+    declared = primary_outcome(plan)
+    if declared is not None:
+        # The measure planned before anything was measured is declared primary before any statistic is calculated
+        # (#257 RP-04, NS-06, implementation plan 4.5); the API records when (declared_at is never written here).
+        space.persist(space.spec["spec"]["target"], {"primary_outcome": declared})
+        log("primary outcome", declared["metric"], declared["region_set_id"], declared["channel_id"])
     saved = {}
     # The last calculation is what the statistics view restores on opening, as after a
     # researcher's own session: the manifest's opening analysis (by default the distribution).
@@ -948,6 +954,20 @@ def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
             "statistics": {name: {"job": value["job"], "revision": value["revision"]} for name, value in saved.items()},
             "direction_checks": directions, "discussion_example": example, "companion_examples": companion_examples,
             "renders": renders, "spec_version": space.spec["version"], "space": space}
+
+
+def primary_outcome(plan: dict) -> dict | None:
+    """The scene's declared primary measure (``scenario.primary_outcome``): the name of one of its planned analyses
+    (``scenario.statistics``, e.g. ``"comparison"``), whose region set, metric and stain are declared. None when the
+    scene declares none."""
+    name = plan.get("primary_outcome")
+    if not name:
+        return None
+    analysis = (plan.get("statistics") or {}).get(name)
+    if not isinstance(analysis, dict) or not analysis.get("metric") or not analysis.get("target"):
+        raise SystemExit(f"scenario.primary_outcome names no planned analysis: {name}")
+    return {"version": "1.0.0", "metric": analysis["metric"], "region_set_id": analysis["target"],
+            "channel_id": analysis.get("channel")}
 
 
 def example_discussion(api: Api, workspace: str, example: dict | None, comparison: dict | None) -> dict | None:

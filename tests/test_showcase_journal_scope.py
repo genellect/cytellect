@@ -21,6 +21,18 @@ def test_every_public_scene_records_every_operation():
         journal_scope({"scenario": {"journal": "some"}})
 
 
+def test_the_declared_primary_measure_is_a_planned_analysis():
+    """scenario.primary_outcome names one planned analysis; its measure is declared (never its time, NS-06)."""
+    from cytellect_showcase.build import primary_outcome
+
+    manifest = json.loads((DATASETS / "zenodo-6643470-nucleolar.json").read_text(encoding="utf-8"))
+    assert primary_outcome(manifest["scenario"]) == {"version": "1.0.0", "metric": "mean", "region_set_id": "nucleoli",
+                                                     "channel_id": "eu5"}
+    assert primary_outcome({"statistics": {}}) is None
+    with pytest.raises(SystemExit, match="names no planned analysis"):
+        primary_outcome({"primary_outcome": "association", "statistics": {}})
+
+
 def test_story_scenes_record_the_opening_analyses_and_companions_once():
     from cytellect_showcase.build import journal_scope, story_metrics
 

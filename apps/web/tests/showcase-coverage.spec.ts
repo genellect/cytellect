@@ -91,6 +91,43 @@ for (const scene of SCENES) test(`${scene.id}: every offered statistics conditio
   expect(errors).toEqual([]);
 });
 
+/** The scenes whose recording declares a primary measure before any statistic (scenario.primary_outcome): their
+ * planned opening comparison (implementation plan 4.5, NS-06). */
+const DECLARED: Record<string, {subject: string; metric: string; channel: string | null}> = {
+  "zenodo-6643470-nucleolar": {subject: "nucleoli", metric: "mean", channel: "eu5"},
+};
+const role = (page: Page) => results(page).locator("[data-outcome-role]");
+for (const scene of SCENES.filter(item => DECLARED[item.id])) test(`${scene.id}: the recorded primary measure stays declared while exploratory measures are chosen (NS-06)`, async ({page}) => {
+  test.setTimeout(600_000);
+  const declared = DECLARED[scene.id];
+  await page.goto(`/demo?id=${scene.workspaceId}&step=statistics`);
+  await expect(results(page).getByRole("region", {name: "結果のまとめ"}).first()).toBeVisible({timeout: live});
+  const star = side(page).getByRole("button", {name: "主要指標", exact: true});
+  // The declared condition: the star is filled and cannot be pressed (a visitor cannot declare after the results).
+  await side(page).getByRole("radiogroup", {name: "対象", exact: true}).getByRole("radio", {name: SUBJECTS[declared.subject], exact: true}).click();
+  await side(page).getByRole("combobox", {name: "指標", exact: true}).selectOption(declared.metric);
+  if (declared.channel) await side(page).getByRole("combobox", {name: "染色", exact: true}).selectOption(declared.channel);
+  await shows(page, `${scene.id} declared`);
+  await expect(star).toBeDisabled();
+  await expect(star).toHaveAttribute("aria-pressed", "true");
+  await expect(role(page)).toHaveText("主要");
+  // Any other measure is exploratory, and the declaration is kept.
+  await side(page).getByRole("radiogroup", {name: "対象", exact: true}).getByRole("radio", {name: "核", exact: true}).click();
+  await side(page).getByRole("combobox", {name: "指標", exact: true}).selectOption("area_px");
+  await shows(page, `${scene.id} exploratory`);
+  await expect(star).toBeDisabled();
+  await expect(star).toHaveAttribute("aria-pressed", "false");
+  await expect(role(page)).toHaveText("探索");
+});
+
+for (const scene of SCENES.filter(item => !DECLARED[item.id])) test(`${scene.id}: a scene without a recorded declaration shows no primary mark`, async ({page}) => {
+  test.setTimeout(600_000);
+  await page.goto(`/demo?id=${scene.workspaceId}&step=statistics`);
+  await expect(results(page).getByRole("region", {name: "結果のまとめ"}).first()).toBeVisible({timeout: live});
+  await expect(side(page).getByRole("button", {name: "主要指標", exact: true})).toHaveCount(0);
+  await expect(role(page)).toHaveCount(0);
+});
+
 for (const scene of SCENES) test(`${scene.id}: with independence unconfirmed, a comparison is the runs' description (NS-06)`, async ({page}) => {
   test.setTimeout(600_000);
   await page.goto(`/demo?id=${scene.workspaceId}&step=statistics`);
