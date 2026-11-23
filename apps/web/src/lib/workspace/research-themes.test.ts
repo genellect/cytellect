@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest";
 import {metricChoice} from "./metric-catalog";
-import {NUCLEOLAR_STRESS, themeRows} from "./research-themes";
+import {NUCLEOLAR_STRESS, rowVariants, themeRows} from "./research-themes";
 
 describe("nucleolar stress theme (NS-01)", () => {
   it("lists only measures that exist, with stain, region and observation", () => {
@@ -20,6 +20,11 @@ describe("nucleolar stress theme (NS-01)", () => {
     const rows = themeRows(NUCLEOLAR_STRESS, [{id: "c1", name: "Hoechst"}, {id: "c2", name: "5-EU"}]);
     expect(rows.filter(row => row.available).map(row => row.metric)).toEqual(["mean"]);
     expect(rows[0].stain).toBe("核小体のマーカー（NPM1・NCL・FBL）");
+    // The workspace's nucleolar marker gives the nucleolar measures whatever it is named, and is read before another match.
+    const defined = themeRows(NUCLEOLAR_STRESS, [{id: "c2", name: "NPM1"}, {id: "c3", name: "mTagRFP"}], "c3");
+    expect(defined.find(row => row.metric === "nucleolar_count")).toMatchObject({available: true, stain: "mTagRFP"});
+    expect(defined.find(row => row.metric === "log2_nucleoplasm_over_nucleolus")).toMatchObject({channel: "c3"});
+    expect(rowVariants({metric: "nucleolar_area_px", subject: "nucleoli"})).toEqual(["nucleolar_area_px", "nucleolar_area_um2"]);
     // Whole words only: "eu" inside another name is not 5-EU.
     expect(themeRows(NUCLEOLAR_STRESS, [{id: "c", name: "Neurofilament"}]).some(row => row.available)).toBe(false);
   });
