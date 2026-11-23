@@ -52,8 +52,17 @@ export default function PublicLanding() {
         <LightField />
         <div className={lp.column}>
           <h2 id="mission-title" className={lp.manifesto} aria-label="画像解析を、一部の専門家の技術から、すべての生命科学研究者が使える研究基盤に。"><span><span>画像解析を、</span><span>一部の専門家の技術から、</span></span><span><span>すべての生命科学研究者が</span><span>使える研究基盤に。</span></span></h2>
-          <p className={lp.award}>東京AIハッカソン2026 最優秀賞</p>
         </div>
+      </section>
+
+      <section className={lp.award} data-tone="dark" aria-labelledby="award-title">
+        <svg className={lp.trophy} viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+          <path d="M20 9h24v15c0 7.2-5.4 13-12 13s-12-5.8-12-13V9Z" />
+          <path d="M20 13h-6c0 8 2.6 12.4 7.4 13.8M44 13h6c0 8-2.6 12.4-7.4 13.8" />
+          <path d="M32 37v8M27 45h10l2.4 9H24.6L27 45ZM21 54h22" />
+        </svg>
+        <p>東京AIハッカソン2026</p>
+        <h2 id="award-title">最優秀賞</h2>
       </section>
 
       <LandingExperience links={FEATURE_LINKS} />
