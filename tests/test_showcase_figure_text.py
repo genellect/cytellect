@@ -23,7 +23,9 @@ def read(path):
 def published():
     document = read(SNAPSHOT / "figures.json")
     results = {}
-    for entry in read(SNAPSHOT / "journal.json")["entries"]:
+    from cytellect_showcase.journal_files import read_journal
+
+    for entry in read_journal(SNAPSHOT)["entries"]:
         parts = entry["path"].split("/")
         if entry["method"] == "GET" and len(parts) == 5 and parts[2] == "jobs" and parts[4] in ("result", "common-statistics"):
             source = document["sources"].get(parts[3])

@@ -15,7 +15,9 @@ import re
 import zipfile
 from pathlib import Path
 
-UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+from cytellect_showcase.journal_files import read_journal
+
+UUID =re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 VOLATILE = {"figure", "source_job_id", "source_fingerprint", "software", "versions", "scipy_version", "numpy_version"}
 PROSE = {"figure-legend.md", "figure-caption.md"}
 SCIENCE_FILES = {".tif", ".tiff", ".npy", ".npz", ".csv", ".svg", ".png", ".pdf"}
@@ -67,7 +69,7 @@ def results(root: Path, seed: zipfile.ZipFile, catalogue: dict, group_values: di
 
     entries = read(root / "snapshot/index.json")["entries"]
     responses = [(key.removeprefix("GET "), entry) for key, entry in entries.items() if key.startswith("GET ")]
-    responses.extend((entry["path"], entry) for entry in read(root / "snapshot/journal.json")["entries"]
+    responses.extend((entry["path"], entry) for entry in read_journal(root / "snapshot")["entries"]
                      if entry["method"] == "GET")
     for path, entry in responses:
         if entry.get("file") and (match := re.fullmatch(r"/v1/jobs/([^/]+)/(common-statistics|result)", path)):

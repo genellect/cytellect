@@ -26,7 +26,9 @@ SNAPSHOT = ROOT / "apps/web/public/showcase/snapshot"
 
 def demo_comparison():
     """The demo's saved NPM1 nuclear mean comparison (all nuclei, 3 runs, descriptive)."""
-    journal = json.loads((SNAPSHOT / "journal.json").read_text(encoding="utf-8"))["entries"]
+    from cytellect_showcase.journal_files import read_journal
+
+    journal = read_journal(SNAPSHOT)["entries"]
     for entry in journal:
         if entry["method"] != "GET" or not entry["path"].endswith("/common-statistics"):
             continue

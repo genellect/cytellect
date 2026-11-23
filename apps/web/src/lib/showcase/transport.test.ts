@@ -170,7 +170,7 @@ describe("showcase transport", () => {
 describe("recorded tour", () => {
   const entry = (method: string, path: string, body: string | null, file: string | null, status = 200) =>
     ({method, path, body, status, headers: [["content-type", "application/json"]] as Array<[string, string]>, file});
-  function tour(capable: boolean, engine = fakeEngine()) {
+  function tour(capable: boolean, engine = fakeEngine(), split = false) {
     const files: Record<string, unknown> = {
       "index.json": {version: 1, entries: {[snapshotKey("/v1/workspaces/w/jobs/j")]: {status: 200, headers: [], file: "s0.json"}}},
       "s0.json": {state: "snapshot"},
@@ -183,6 +183,13 @@ describe("recorded tour", () => {
       ]},
       "a.json": {job: "j"}, "b.json": {state: "running"}, "c.json": {state: "done"}, "d.json": {version: 2}, "e.json": {state: "after"},
     };
+    if (split) {
+      // The same tour in parts, as a tour of several scenes is published (one part per scene, docs/showcase.md).
+      const entries = (files["journal.json"] as {entries: unknown[]}).entries;
+      files["journal-first.json"] = {version: 1, entries: entries.slice(0, 2)};
+      files["journal-second.json"] = {version: 1, entries: entries.slice(2)};
+      files["journal.json"] = {version: 2, parts: ["journal-first.json", "journal-second.json"]};
+    }
     const fetchStatic = vi.fn(async (url: string) => {
       const name = url.replace("/showcase/snapshot/", "");
       return name in files ? new Response(JSON.stringify(files[name])) : new Response("missing", {status: 404});
@@ -203,6 +210,16 @@ describe("recorded tour", () => {
     expect(await (await subject.fetch("/v1/workspaces/w/jobs/j")).json()).toEqual({state: "done"});
     expect(await (await subject.fetch("/v1/workspaces/w/selection", {method: "PUT", body: "{}"})).json()).toEqual({version: 2});
     expect(await (await subject.fetch("/v1/workspaces/w/jobs/j")).json()).toEqual({state: "after"});
+    expect(engine.start).not.toHaveBeenCalled();
+  });
+
+  it("answers from a tour published in parts exactly as from one file", async () => {
+    const {subject, engine} = tour(false, fakeEngine(), true);
+    expect(await (await post(subject, "area")).json()).toEqual({job: "j"});
+    expect(await (await subject.fetch("/v1/workspaces/w/jobs/j")).json()).toEqual({state: "done"});
+    expect(await (await subject.fetch("/v1/workspaces/w/selection", {method: "PUT", body: "{}"})).json()).toEqual({version: 2});
+    expect(await (await subject.fetch("/v1/workspaces/w/jobs/j")).json()).toEqual({state: "after"});
+    expect(await (await post(subject, "intensity")).json()).toEqual({detail: "showcase_action_not_recorded"});
     expect(engine.start).not.toHaveBeenCalled();
   });
 

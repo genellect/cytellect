@@ -1,0 +1,43 @@
+"""The recorded tour split into one part per scene (GitHub refuses files above 100 MiB; docs/showcase.md)."""
+import json
+
+import pytest
+
+
+def entry(scene, path):
+    return {"scene": scene, "method": "GET", "path": path, "body": None, "status": 200, "headers": [], "file": None}
+
+
+def test_parts_read_back_as_the_same_tour_in_the_same_order(tmp_path):
+    from cytellect_showcase.journal_files import part_names, read_journal, write_journal
+
+    tour = {"version": 1, "entries": [entry("ox:tour", "/a"), entry("ox:walk", "/b"), entry("cis:tour", "/c"),
+                                      entry("plk1:tour", "/d"), entry("ox:kept", "/e")]}
+    written = write_journal(tmp_path, tour)
+    # A scene's walks kept from an earlier tour follow the recorded ones: their own part keeps the order.
+    assert written == ["journal.json", "journal-ox.json", "journal-cis.json", "journal-plk1.json", "journal-ox-2.json"]
+    assert json.loads((tmp_path / "journal.json").read_text()) == {"version": 2, "parts": written[1:]}
+    assert read_journal(tmp_path) == tour
+    assert part_names(tmp_path) == written
+
+
+def test_a_single_file_journal_and_a_single_scene_demo(tmp_path):
+    from cytellect_showcase.journal_files import part_names, read_journal, write_journal
+
+    single = {"version": 1, "entries": [entry("tour", "/a")]}
+    (tmp_path / "journal.json").write_text(json.dumps(single))
+    assert read_journal(tmp_path) == single and part_names(tmp_path) == ["journal.json"]
+    # A demo of one scene names no scene in its walks.
+    assert write_journal(tmp_path, single) == ["journal.json", "journal-demo.json"]
+    assert read_journal(tmp_path) == single
+
+
+def test_an_index_naming_other_files_or_a_part_over_the_limit_is_refused(tmp_path, monkeypatch):
+    import cytellect_showcase.journal_files as files
+
+    (tmp_path / "journal.json").write_text(json.dumps({"version": 2, "parts": ["../seed.zip"]}))
+    with pytest.raises(ValueError, match="showcase_journal_index_invalid"):
+        files.read_journal(tmp_path)
+    monkeypatch.setattr(files, "PART_LIMIT_BYTES", 100)
+    with pytest.raises(SystemExit, match="above 100"):
+        files.write_journal(tmp_path, {"version": 1, "entries": [entry("ox:tour", "/a" * 100)]})

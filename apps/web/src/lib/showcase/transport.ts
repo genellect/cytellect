@@ -13,7 +13,7 @@
  *
  * The transport only returns Responses; `lib/api.ts` keeps its own error handling.
  */
-import type {FigureCatalog, HeaderList, Journal, JournalEntry, ShowcaseNoticeCode, ShowcaseRequest, ShowcaseResponse, SnapshotIndex} from "./protocol";
+import type {FigureCatalog, HeaderList, Journal, JournalEntry, JournalIndex, ShowcaseNoticeCode, ShowcaseRequest, ShowcaseResponse, SnapshotIndex} from "./protocol";
 import {openingPair, type ExperimentDesign} from "../workspace/experiment-design";
 
 export type EngineState = "idle" | "preparing" | "active" | "unavailable";
@@ -332,12 +332,24 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
     try {result = await response.json();} catch {return null;}
     return jsonResponse({...result, figure: opening.figure, ...(result.spec ? {spec: {...result.spec, plot: opening.plot}} : {})}, response.status);
   }
+  /** One journal file: the whole tour (version 1), or its index of parts (version 2). */
+  async function journalFile(name: string): Promise<Journal | JournalIndex | null> {
+    const response = await dependencies.fetchStatic(`${dependencies.snapshotBase}${name}`);
+    if (!response.ok) {await response.text(); return null;}
+    const value = await response.json() as Journal | JournalIndex;
+    if (value?.version === 1 && Array.isArray(value.entries)) return value;
+    return value?.version === 2 && Array.isArray(value.parts) ? value : null;
+  }
+  /** The recorded tour. A tour split into parts (one per scene, docs/showcase.md) is read whole, in order, so it
+   *  answers exactly as the same tour in one file. */
   function loadJournal() {
-    journal ??= dependencies.fetchStatic(`${dependencies.snapshotBase}journal.json`)
-      .then(async response => {
-        if (!response.ok) {await response.text(); return null;}
-        const value = await response.json() as Journal;
-        return value?.version === 1 && Array.isArray(value.entries) ? value : null;
+    journal ??= journalFile("journal.json")
+      .then(async value => {
+        if (value?.version !== 2) return value;
+        if (!value.parts.every(part => /^journal-[a-z0-9-]+\.json$/.test(part))) return null;
+        const parts = await Promise.all(value.parts.map(journalFile));
+        if (!parts.every(part => part?.version === 1)) return null;
+        return {version: 1, entries: (parts as Journal[]).flatMap(part => part.entries)} as Journal;
       }).catch(() => null);
     return journal;
   }

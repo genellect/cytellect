@@ -17,6 +17,9 @@ export interface RuntimeConfig {
  *  `PUT .../analysis-spec` entries record the settings later runs of the scene were measured under. */
 export interface JournalEntry {scene?: string; method: string; path: string; pattern?: string; body: string | null; status: number; headers: HeaderList; file: string | null}
 export interface Journal {version: 1; entries: JournalEntry[]}
+/** `snapshot/journal.json` of a tour split into parts (one per scene, each a {@link Journal}), because the whole tour
+ *  is larger than a file may be on GitHub. Read in order, the parts are the tour (services/showcase journal_files.py). */
+export interface JournalIndex {version: 2; parts: string[]}
 
 /** `snapshot/figures.json`: the figures of the tour's results, drawn by the production renderer from the
  *  recorded results (services/showcase figure_catalog.py). A figure request is answered by the result it

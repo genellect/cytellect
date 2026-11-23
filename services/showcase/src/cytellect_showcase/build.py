@@ -45,6 +45,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .journal_files import part_names, read_journal, write_journal
+
 REPO = Path(__file__).resolve().parents[4]
 PUBLIC = REPO / "apps" / "web" / "public" / "showcase"
 HEADERS = {"x-cytellect-request": "1"}
@@ -1037,8 +1039,8 @@ def examples(seed_data: Path, recordings: Path, work: Path, out: Path, fiji: str
                                             {"job": job, "operation": "comparison", "result": result})
                 report["stored" if stored and stored["changed"] else "unchanged"] += 1
         target = out / "snapshot"
-        index_path, journal_path = target / "index.json", target / "journal.json"
-        index, recorded = json.loads(index_path.read_text()), json.loads(journal_path.read_text())
+        index_path = target / "index.json"
+        index, recorded = json.loads(index_path.read_text()), read_journal(target)
         # A figure drawn during a walk is not in the seed; its discussion is its source comparison's.
         sources = {}
         for entry in recorded["entries"]:
@@ -1069,7 +1071,7 @@ def examples(seed_data: Path, recordings: Path, work: Path, out: Path, fiji: str
             if entry["method"] == "GET" and entry["path"].startswith("/v1/jobs/") and entry["path"].endswith("/discussion"):
                 answer(entry["path"], entry)
         index_path.write_text(json.dumps(index, indent=1) + "\n", encoding="utf-8", newline="\n")
-        journal_path.write_text(json.dumps(recorded, indent=1, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
+        write_journal(target, recorded)
         named = {entry.get("file") for entry in [*index["entries"].values(), *recorded["entries"]]}
         for replaced_name in replaced - named:
             if replaced_name is not None:
@@ -1509,7 +1511,7 @@ def rank_examples(manifest: dict) -> list[int]:
 
 def journal(work: Path, origin_port: int, out: Path, scenes: list[dict], keep: str | None = None,
             previous: Path | None = None, hours: float = 6) -> dict:
-    """Record the tour on /demo (published seed, in-browser API) into ``snapshot/journal.json``.
+    """Record the tour on /demo (published seed, in-browser API) into ``snapshot/journal.json`` and its parts.
 
     ``keep`` (a regular expression of walk names) keeps those walks' entries from the journal in
     ``previous`` (a snapshot directory) instead of recording them again: for a change of figures only,
@@ -1595,7 +1597,7 @@ def journal(work: Path, origin_port: int, out: Path, scenes: list[dict], keep: s
 
         if previous is None:
             raise SystemExit("journal: keeping walks needs the previous snapshot directory")
-        earlier = json.loads((previous / "journal.json").read_text())["entries"]
+        earlier = read_journal(previous)["entries"]
         kept = [entry for entry in earlier if re.search(keep, entry.get("scene", ""))]
         for entry in kept:
             if entry.get("file") and not (target / entry["file"]).is_file():
@@ -1604,13 +1606,14 @@ def journal(work: Path, origin_port: int, out: Path, scenes: list[dict], keep: s
         report["entries"] = len(recorded["entries"])
         report["kept_scenes"] = sorted({entry["scene"] for entry in kept})
         report["reused_from_commit"] = reused_from_commit
-    (target / "journal.json").write_text(json.dumps(recorded, indent=1, ensure_ascii=False) + "\n")
+    # One part per scene (journal_files.py): the whole tour is larger than a file may be on GitHub.
+    written = set(write_journal(target, recorded))
     write_recorded_statistics(target)
     # The previous recording's answers that this one no longer names are not published.
     named = {entry["file"] for entry in json.loads((target / "index.json").read_text())["entries"].values() if entry.get("file")}
-    named |= {entry["file"] for entry in json.loads((target / "journal.json").read_text())["entries"] if entry.get("file")}
+    named |= {entry["file"] for entry in recorded["entries"] if entry.get("file")}
     for path in target.iterdir():
-        if path.name not in named and path.name not in SNAPSHOT_KEEP | {"journal.json"}:
+        if path.name not in named and path.name not in SNAPSHOT_KEEP | written:
             path.unlink()
     return {key: report[key] for key in ("entries", "scenes", "kept_scenes", "reused_from_commit") if key in report}
 
@@ -1678,7 +1681,7 @@ def seed_statistics(target: Path) -> list[tuple[str, dict]]:
 
 
 def write_recorded_statistics(target: Path) -> None:
-    entries = json.loads((target / "journal.json").read_text())["entries"]
+    entries = read_journal(target)["entries"]
     (target / "recorded-statistics.json").write_text(
         json.dumps(recorded_statistics(entries, seed_statistics(target)), ensure_ascii=False, separators=(",", ":")) + "\n")
 
@@ -2117,7 +2120,8 @@ def figures(seed_data: Path, work: Path, out: Path, fiji: str, owner: str, reuse
         api.client.close()
     target = out / "snapshot"
     named = {entry["file"] for entry in json.loads((target / "index.json").read_text())["entries"].values() if entry.get("file")}
-    named |= {entry["file"] for entry in json.loads((target / "journal.json").read_text())["entries"] if entry.get("file")}
+    named |= {entry["file"] for entry in read_journal(target)["entries"] if entry.get("file")}
+    named |= set(part_names(target))
     catalog = json.loads((target / "figures.json").read_text())
     for group in catalog["groups"].values():
         for item in [group["opening"], *group["figures"]]:
@@ -2126,7 +2130,7 @@ def figures(seed_data: Path, work: Path, out: Path, fiji: str, owner: str, reuse
     named |= {name for saved in catalog.get("saved", {}).values() for name in saved["files"].values()}
     removed = 0
     for path in target.iterdir():
-        if path.name not in named and path.name not in SNAPSHOT_KEEP | {"journal.json", "figures.json"}:
+        if path.name not in named and path.name not in SNAPSHOT_KEEP | {"figures.json"}:
             path.unlink()
             removed += 1
     log("figures", json.dumps(report), "unreferenced files removed", removed)
