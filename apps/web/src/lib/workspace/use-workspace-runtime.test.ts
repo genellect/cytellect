@@ -142,6 +142,23 @@ describe("functional workspace runtime",()=>{
     runtime.setSettings(value=>({...value,nuclearProbability:.8}));expect(runtime.candidateResult("f1","nuclei")).toBeUndefined();
     await expect(runtime.acceptCandidates("f1","nuclei")).rejects.toThrow("一致する候補");expect(adapter.selectRevision).not.toHaveBeenCalled();
   });
+  it("keeps a candidate when a save only declares the primary measure, and drops it on any other saved change",async()=>{
+    // #257 RP-04: the declaration leaves detection and measurement unchanged (as the server's same_detection_spec).
+    const {runtime,adapter}=fixture();await runtime.load("w");runtime.setSettings(value=>({...value,nuclearProbability:.7}));await runtime.preview("f1","nuclei");
+    await runtime.savePrimaryOutcome({version:"1.0.0",metric:"area_px",region_set_id:"nuclei",channel_id:null});
+    expect((runtime.specification().spec as {primary_outcome?:unknown}|null)?.primary_outcome).toMatchObject({metric:"area_px"});expect(runtime.candidateResult("f1","nuclei")?.revision).toBe("run1");
+    await runtime.savePrimaryOutcome(null);expect(runtime.candidateResult("f1","nuclei")?.revision).toBe("run1");
+    await runtime.saveResultDraft({figure:{metric:"area_px"}});expect(runtime.candidateResult("f1","nuclei")).toBeUndefined();
+    await expect(runtime.acceptCandidates("f1","nuclei")).rejects.toThrow("一致する候補");expect(adapter.selectRevision).not.toHaveBeenCalled();
+  });
+  it("recovers an earlier version's run after a reload only when the server reports its specification current",async()=>{
+    for(const [current,expected] of [[true,"server1"],[false,undefined]] as const){
+      const {runtime,adapter,recipe}=fixture(true,{version:2,spec:null});
+      const run:import("./api-adapter").WorkspaceRun={id:"earlier",workspace_id:"w",spec_version:1,spec_current:current,target:"nuclei",state:"succeeded",created:1,updated:1,steps:[{field_id:"f1",target:"nuclei",state:"succeeded",revision_id:"server1",job_id:"job",recipe,error:null}]};
+      Object.assign(adapter,{listWorkspaceRuns:vi.fn(async()=>[run]),waitWorkspaceRun:vi.fn(async()=>run),readResult:vi.fn(async()=>result("server1"))});
+      await runtime.load("w");expect(runtime.candidateResult("f1","nuclei")?.revision).toBe(expected);
+    }
+  });
   it("dismisses the last message without reloading the saved state",async()=>{
     const {runtime,adapter}=fixture();await runtime.load("w");adapter.draft.mockRejectedValueOnce(new Error("showcase_proposal_not_recorded"));
     await expect(runtime.requestProposal("free text","f1")).rejects.toThrow();expect(runtime.getSnapshot().error).not.toBe("");

@@ -223,7 +223,9 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     specification=await writeSpecification(workspace(),{version:specification.version,spec});specificationDirty=false;
   }
   function adopted(field:string,target:ReviewTarget,result:SavedResult,recipe:Recipe){const targets={...currentTargets.get(field)};if(target==="nuclei"){delete targets.nucleoli;delete targets.nucleoplasm;}if(target==="nucleoli")delete targets.nucleoplasm;targets[target]={result,recipe};currentTargets.set(field,targets);}
-  function candidateSignature(field:string){return fingerprint({settings:state.settings,processing:state.processing,specVersion:specification.version,assignments:state.assignments.version,adopted:Object.fromEntries(Object.entries(currentTargets.get(field)??{}).map(([target,value])=>[target,value?.result.revision]))});}
+  // A candidate answers the specification it was detected under, by content: a later save that only declares the primary
+  // measure (#257 RP-04) keeps it adoptable, as the server does (workspace_runs.same_detection_spec); any other change does not.
+  function candidateSignature(field:string){const detection:Record<string,unknown>={...specification.spec};delete detection.primary_outcome;return fingerprint({settings:state.settings,processing:state.processing,spec:detection,assignments:state.assignments.version,adopted:Object.fromEntries(Object.entries(currentTargets.get(field)??{}).map(([target,value])=>[target,value?.result.revision]))});}
   function candidate(field:string,target:ReviewTarget){const value=candidateStore.get(field)?.[target];return value?.settingsFingerprint===candidateSignature(field)?value:undefined;}
   async function acceptPrepared(field:string,target:ReviewTarget){
     if(!candidate(field,target))return false;
@@ -273,7 +275,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   async function recoverRun(){
     if(!state.data?.workspaceId||!("listWorkspaceRuns" in adapter))return;
     const runs=await adapter.listWorkspaceRuns(workspace());
-    const latest=runs.filter(run=>run.spec_version===specification.version&&["queued","running","succeeded","failed","cancelled"].includes(run.state)).sort((a,b)=>b.created-a.created)[0];
+    const latest=runs.filter(run=>(run.spec_version===specification.version||run.spec_current===true)&&["queued","running","succeeded","failed","cancelled"].includes(run.state)).sort((a,b)=>b.created-a.created)[0];
     if(!latest)return;
     activeRunId=latest.id;
     try{const run=!["queued","running"].includes(latest.state)?latest:await adapter.waitWorkspaceRun(workspace(),latest.id,value=>publish({operation:`保存した処理を再開中：${value.steps.filter(step=>step.state==="succeeded"||step.state==="reused").length}/${value.steps.length}`}));await readCandidates(run);}

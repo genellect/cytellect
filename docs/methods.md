@@ -856,6 +856,10 @@ only when it is the declared measure and `calculated_at > declared_at`; a result
 measure, is exploratory. When any result of the declared measure was calculated at or before `declared_at` (or has no
 recorded time), the declaration came after that result was seen, and every result of that measure is exploratory,
 also one calculated again after the declaration. Nothing is marked without a declaration. The declaration changes no value or test.
+It also changes no detection or measurement: a workspace run's candidates are adopted, reused by a later run, and
+recovered after a reload (`spec_current` in the run list) when the saved spec agrees with the run's snapshot in content
+apart from `primary_outcome`. A difference in any other item of the spec refuses them (`analysis_spec_changed`), as
+before; content decides, not the spec version.
 
 ### Nucleus table 1.0.0 (2026-11-09)
 

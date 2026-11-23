@@ -91,14 +91,16 @@ test("#257 RP-04: a declaration before the result marks it 主要, one after it 
   const area = declarations.at(-1)!;
   expect(area).toMatchObject({region_set_id: "nuclei", channel_id: null});
   expect(described).toEqual([]);
-  // 画像 is measured after the declaration; the area is described when 統計 is shown again. 測定 adopts the candidates
-  // when they are still current and detects again otherwise, so this order holds either way (the declaration writes
-  // the analysis specification, and a run of an earlier specification is not adopted).
+  // The declaration changes neither detection nor measurement, so the candidates detected before it stay and are adopted
+  // in 画像 as they are; the area is described when 統計 is shown again.
   await card.getByRole("button", {name: "画像：未測定 1 視野", exact: true}).click();
   await expect(modes.getByRole("button", {name: "画像", exact: true})).toHaveAttribute("aria-current", "page");
-  await page.getByRole("button", {name: "測定", exact: true}).click();
-  await expect(page.getByText(/^核 · (未測定|検出候補)$/)).toHaveCount(0, {timeout: 300_000});
-  await expect(page.getByRole("button", {name: "測定", exact: true})).toBeEnabled({timeout: 300_000});
+  await expect(page.getByText("核 · 検出候補", {exact: true})).toBeVisible();
+  const accepted = page.waitForResponse(response => /\/runs\/[^/]+\/accept$/.test(new URL(response.url()).pathname));
+  await page.getByRole("button", {name: "候補を採用", exact: true}).click();
+  expect((await accepted).status()).toBe(200);
+  await expect(page.getByText("核 · 検出候補", {exact: true})).toHaveCount(0);
+  await expect(page.getByRole("button", {name: "測定", exact: true})).toBeEnabled({timeout: 120_000});
   expect(described).toEqual([]);
   await modes.getByRole("button", {name: "統計", exact: true}).click();
   await expect.poll(() => described.filter(value => value.metric === "area_px" && value.job).length, {timeout: 240_000}).toBe(1);
