@@ -1618,7 +1618,7 @@ def journal(work: Path, origin_port: int, out: Path, scenes: list[dict], keep: s
     return {key: report[key] for key in ("entries", "scenes", "kept_scenes", "reused_from_commit") if key in report}
 
 
-def recorded_statistics(entries: list[dict], saved: list[tuple[str, dict]] = ()) -> dict:
+def recorded_statistics(entries: list[dict], saved: list[tuple[str, dict]] | None = None) -> dict:
     """The statistics the tour recorded, scene by scene (``snapshot/recorded-statistics.json``).
 
     The demo offers only these choices and shows their recorded results as soon as one is chosen
@@ -1636,7 +1636,7 @@ def recorded_statistics(entries: list[dict], saved: list[tuple[str, dict]] = ())
                 or not path.endswith(("/descriptive", "/common-statistics")) or not entry.get("body"):
             continue
         requests.append(((entry.get("scene") or "").split(":")[0], json.loads(entry["body"])))
-    for scene, body in [*requests, *saved]:
+    for scene, body in [*requests, *(saved or [])]:
         analysis = analyses.get(body.get("mode", ""))
         selection = body.get("y_selection") if analysis == "association" else body.get("selection")
         if not analysis or not isinstance(selection, dict):
