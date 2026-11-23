@@ -179,8 +179,11 @@ async function settle(page) {
       }
       continue;
     }
-    if (await card.getAttribute("aria-busy") !== "true" && (await card.innerText()).includes(NOT_RECORDED)) {
-      report.unanswered.push(`${walkOf.get(page) ?? "?"}: ${(await card.getByRole("heading").first().textContent())?.trim()}`);
+    // The card goes as soon as the result arrives: a read of it that finds none is not a failure, the next round decides.
+    const busy = await card.getAttribute("aria-busy", {timeout: 1000}).catch(() => null);
+    const text = busy === null ? "" : await card.innerText({timeout: 1000}).catch(() => "");
+    if (busy !== null && busy !== "true" && text.includes(NOT_RECORDED)) {
+      report.unanswered.push(`${walkOf.get(page) ?? "?"}: ${(await card.getByRole("heading").first().textContent({timeout: 1000}).catch(() => ""))?.trim()}`);
       return false;
     }
     await page.waitForTimeout(500);
