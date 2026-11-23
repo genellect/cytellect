@@ -7,6 +7,7 @@ import { LandingExperience, type FeatureLinks } from "./LandingExperience";
 import { LandingHeaderTone } from "./LandingHeaderTone";
 import { LightField } from "./LightField";
 import { LandingHomeLink } from "./LandingHomeLink";
+import { LandingAward } from "./LandingAward";
 import { LandingImpact } from "./LandingImpact";
 import { LandingInvite } from "./LandingInvite";
 import { LandingDownload } from "./LandingDownload";
@@ -55,15 +56,7 @@ export default function PublicLanding() {
         </div>
       </section>
 
-      <section className={lp.award} data-tone="dark" aria-labelledby="award-title">
-        <svg className={lp.trophy} viewBox="0 0 64 64" aria-hidden="true" focusable="false">
-          <path d="M20 9h24v15c0 7.2-5.4 13-12 13s-12-5.8-12-13V9Z" />
-          <path d="M20 13h-6c0 8 2.6 12.4 7.4 13.8M44 13h6c0 8-2.6 12.4-7.4 13.8" />
-          <path d="M32 37v8M27 45h10l2.4 9H24.6L27 45ZM21 54h22" />
-        </svg>
-        <p>東京AIハッカソン2026</p>
-        <h2 id="award-title">最優秀賞</h2>
-      </section>
+      <LandingAward />
 
       <LandingExperience links={FEATURE_LINKS} />
 
