@@ -99,6 +99,14 @@ test("nothing is marked without a declaration, and the star declares the chosen 
   const list=theme.getByRole("list",{name:"核小体ストレスの指標"});
   await expect(list.getByRole("listitem").filter({hasText:"最大の核小体の割合"})).toContainText("染色：NPM1");
   await expect(list.getByRole("listitem").filter({hasText:"核小体の平均輝度（5-EU）"})).toContainText("染色：5-EU（未登録）");
+  // Issue E-7: the theme is an entry for choosing these measures. A registered row chooses its measure in the selector
+  // above; an unregistered row is not a control.
+  const largest=list.getByRole("button",{name:/最大の核小体の割合/});
+  await expect(largest).toHaveAttribute("aria-pressed","false");
+  await largest.click();
+  await expect(largest).toHaveAttribute("aria-pressed","true");
+  await expect(page.getByRole("complementary",{name:"解析対象"}).getByRole("radio",{name:"核小体"})).toHaveAttribute("aria-checked","true");
+  await expect(list.getByRole("button",{name:/核小体の平均輝度（5-EU）/})).toHaveCount(0);
   await page.screenshot({path:test.info().outputPath("primary-outcome.png")});
   expect(fixture.unexpected).toEqual([]);
 });
