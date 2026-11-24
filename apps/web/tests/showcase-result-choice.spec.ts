@@ -46,8 +46,9 @@ const RECORDED: Recorded[] = (() => {
   try {return (JSON.parse(fs.readFileSync(path.resolve("public/showcase/snapshot/recorded-statistics.json"), "utf8")) as {scenes: Record<string, Recorded[]>}).scenes[OPENING?.id ?? ""] ?? [];}
   catch {return [];}
 })();
-/** The region set a metric of a subject reads (the per-nucleus nucleolar summaries come from the nucleoplasm set). */
-const regionOf = (metric: string, subject: string) => /^(nucleolar_|log2_)/.test(metric) ? "nucleoplasm" : /^(nucleus_|positive_)/.test(metric) ? "nuclei" : subject;
+/** The region set a metric of a subject reads (the per-nucleus nucleolar summaries, the largest nucleolus's fraction
+ * among them, come from the nucleoplasm set: metric-catalog.ts, docs/methods.md). */
+const regionOf = (metric: string, subject: string) => /^(nucleolar_|log2_|largest_nucleolus_fraction)/.test(metric) ? "nucleoplasm" : /^(nucleus_|positive_)/.test(metric) ? "nuclei" : subject;
 const pendingCard = (page: Page) => page.getByRole("region", {name: "選択中の条件"});
 
 test("two groups are compared: 分布 is not an analysis of the opening scene, and each condition opens its own result", async ({page}) => {
