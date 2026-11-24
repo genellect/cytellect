@@ -15,7 +15,7 @@ NAME = f"Cytellect-Store-{VERSION}-{COMMIT}.msix"
 EXISTING = {
     "fileName": "Cytellect-Store-1.0.3.0.msix", "version": "1.0.3.0",
     "architecture": "X64", "fileStatus": "Uploaded",
-    "minimumDirectXVersion": "None", "minimumSystemRam": "Memory4GB",
+    "minimumDirectXVersion": "DX11", "minimumSystemRam": "Memory4GB",
 }
 PUBLISHED = {
     "id": "100", "visibility": "Public", "pricing": {"priceId": "Free"},
@@ -27,10 +27,10 @@ APP = {
     "lastPublishedApplicationSubmission": {"id": "100"},
 }
 REPLACEMENTS = [
-    {**EXISTING, "fileStatus": "PendingDelete",
-     "minimumDirectXVersion": "None", "minimumSystemRam": "Memory4GB"},
+    {"fileName": EXISTING["fileName"], "fileStatus": "PendingDelete",
+     "minimumDirectXVersion": "DX11", "minimumSystemRam": "Memory4GB"},
     {"fileName": NAME, "fileStatus": "PendingUpload",
-     "minimumDirectXVersion": "None", "minimumSystemRam": "None"},
+     "minimumDirectXVersion": "DX11", "minimumSystemRam": "Memory4GB"},
 ]
 DRAFT = {**PUBLISHED, "id": "101", "status": "PendingCommit", "fileUploadUrl": "example"}
 PREPARED = {**DRAFT, "applicationPackages": REPLACEMENTS}
@@ -43,6 +43,10 @@ class StoreSubmissionTests(TestCase):
         for requested, draft, allowed in [
             ("101", DRAFT, True), ("", DRAFT, False),
             ("102", DRAFT, False), ("101", {**DRAFT, "pricing": {}}, False),
+            ("101", {**DRAFT, "visibility": "Private"}, False),
+            ("101", {**DRAFT, "status": "CommitFailed"}, False),
+            ("101", {**DRAFT, "applicationPackages": []}, False),
+            ("101", {**DRAFT, "listings": {}}, False),
         ]:
             with self.subTest(requested=requested, allowed=allowed):
                 store = Mock()
@@ -52,6 +56,10 @@ class StoreSubmissionTests(TestCase):
                 ]
                 if allowed:
                     self.assertTrue(release.submit(store, PACKAGE, VERSION, COMMIT, requested))
+                    self.assertEqual(store.call.call_args_list[3].kwargs["body"], {
+                        "visibility": "Public", "pricing": PUBLISHED["pricing"],
+                        "listings": PUBLISHED["listings"], "applicationPackages": REPLACEMENTS,
+                    })
                 else:
                     with self.assertRaises(release.StoreError):
                         release.submit(store, PACKAGE, VERSION, COMMIT, requested)

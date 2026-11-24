@@ -197,7 +197,8 @@ def submit(store: Store, package: Path, version: str, commit: str, recover_id: s
     pending_ref = app.get("pendingApplicationSubmission")
     replacement = {
         "fileName": name, "fileStatus": "PendingUpload",
-        "minimumDirectXVersion": "None", "minimumSystemRam": "None",
+        "minimumDirectXVersion": published_packages[0].get("minimumDirectXVersion", "None"),
+        "minimumSystemRam": published_packages[0].get("minimumSystemRam", "None"),
     }
     if pending_ref:
         path = submission_path(pending_ref)
@@ -206,12 +207,18 @@ def submit(store: Store, package: Path, version: str, commit: str, recover_id: s
         if draft.get("status") in IN_REVIEW:
             print(f"Waiting for Store submission {pending_ref['id']} to finish.")
             return any(item["fileName"].endswith(suffix) for item in packages)
-        same_release = all(draft.get(key) == published.get(key) for key in WRITABLE_FIELDS)
+        changed_fields = sorted(key for key in WRITABLE_FIELDS if draft.get(key) != published.get(key))
         recover_clone = (
-            pending_ref["id"] == recover_id and same_release and packages == published_packages
+            pending_ref["id"] == recover_id and not changed_fields and packages == published_packages
             and is_public(draft) and draft.get("status") == "PendingCommit"
         )
         if not has_candidate(draft, name) and not recover_clone:
+            if pending_ref["id"] == recover_id:
+                if packages != published_packages:
+                    changed_fields.append("applicationPackages")
+                if draft.get("status") != "PendingCommit":
+                    changed_fields.append("status")
+                raise StoreError(f"Recovery stopped for {recover_id}. Different fields: {', '.join(changed_fields)}.")
             raise StoreError(f"Store submission {pending_ref['id']} needs attention before continuing.")
     else:
         draft = store.call("POST", "/submissions")
@@ -222,7 +229,7 @@ def submit(store: Store, package: Path, version: str, commit: str, recover_id: s
             raise StoreError("The new submission did not inherit the published public release settings.")
         metadata = {key: value for key, value in draft.items() if key in WRITABLE_FIELDS}
         packages = [
-            {**item, "fileStatus": "PendingDelete",
+            {"fileName": item["fileName"], "fileStatus": "PendingDelete",
              "minimumDirectXVersion": item.get("minimumDirectXVersion", "None"),
              "minimumSystemRam": item.get("minimumSystemRam", "None")}
             for item in draft.get("applicationPackages", [])
