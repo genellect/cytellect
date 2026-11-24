@@ -40,6 +40,8 @@ Store 版の更新には Microsoft Store を使う。ソースの検証、ロー
 
 ### API が作成した下書きからの復旧
 
+パッケージの差し替えでは、下書きから読み取った旧パッケージの `id` があれば、その値と `PendingDelete` を一緒に送る。新しい MSIX は `PendingUpload` として追加し、旧版の ID は引き継がない。[Microsoft のパッケージ更新例](https://learn.microsoft.com/en-us/windows/uwp/monetize/csharp-code-examples-for-the-windows-store-submission-api)。
+
 通常は復旧対象を指定しない。パッケージ更新の前に実行が停止した場合、Actions の作成ログと Partner Center の提出IDを照合する。オーナーが復旧を決めたときだけ、GitHub の Settings → Environments → store-release → Environment variables に `STORE_RECOVERY_SUBMISSION_ID` を設定し、数値の提出IDを値にする。main の Windows Store release を実行し、環境承認時に対象コミットと提出IDを確認する。
 
 復旧は指定IDの公開下書きが PendingCommit で、パッケージと配布・掲載情報が公開版と一致する場合に限る。差異があればログに出た項目名を調べる。API で作成した下書きは API で更新する。受理記録と Microsoft の提出状態を確認したら、同じ Environment variables からこの変数を削除する。対象の提出を取りやめる場合も削除する。他の提出IDには適用されない。

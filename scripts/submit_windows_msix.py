@@ -50,7 +50,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 def validation_diagnostic(error: urllib.error.HTTPError) -> str:
     """Report only known schema terms and a Microsoft request ID, never raw error messages."""
     fields = WRITABLE_FIELDS | {
-        "applicationPackages", "fileName", "fileStatus", "minimumDirectXVersion", "minimumSystemRam",
+        "applicationPackages", "id", "fileName", "fileStatus", "minimumDirectXVersion", "minimumSystemRam",
         "baseListing", "images", "imageType", "description", "keywords", "priceId", "marketSpecificPricings",
         "packageRollout", "fallbackSubmissionId", "isMandatoryUpdate", "mandatoryUpdateEffectiveDate",
     }
@@ -79,10 +79,21 @@ def validation_diagnostic(error: urllib.error.HTTPError) -> str:
             text = json.dumps(detail)
             paths = re.findall(r"[A-Za-z][A-Za-z0-9]*(?:\[\d+\])?(?:\.[A-Za-z][A-Za-z0-9]*(?:\[\d+\])?)+"
                                r"|[A-Za-z][A-Za-z0-9]*\[\d+\]", text)
-            targets = [item.get("target") for item in [detail, *(
-                detail.get("details") if isinstance(detail.get("details"), list) else []
-            )] if isinstance(item, dict)]
-            paths += [target for target in targets if isinstance(target, str)]
+            children = detail.get("details")
+            records = [detail, *children] if isinstance(children, list) else [detail]
+            # A validator can name a single parameter in prose without supplying a JSON target.
+            # Emit only schema keys, never the rejected value or the original message.
+            for item in records:
+                if not isinstance(item, dict):
+                    continue
+                if isinstance(item.get("target"), str):
+                    paths.append(item["target"])
+                for message in (item.get("message"), item.get("details")):
+                    if isinstance(message, str):
+                        paths.extend(re.findall(
+                            r"\b(?:parameter|property|field|not a valid)\s+['\"]?([A-Za-z][A-Za-z0-9]*)\b",
+                            message, flags=re.IGNORECASE,
+                        ))
             terms = {term.casefold() for path in paths for term in re.findall(r"[A-Za-z][A-Za-z0-9]*", path)}
             mentioned = sorted(field for field in fields if field.casefold() in terms)
             if mentioned:
@@ -314,12 +325,16 @@ def submit(store: Store, package: Path, version: str, commit: str, recover_id: s
             raise StoreError("The draft pricing differs from the published submission.")
         metadata = {key: value for key, value in draft.items() if key in WRITABLE_FIELDS}
         metadata["pricing"] = pricing
-        packages = [
-            {"fileName": item["fileName"], "fileStatus": "PendingDelete",
-             "minimumDirectXVersion": item.get("minimumDirectXVersion", "None"),
-             "minimumSystemRam": item.get("minimumSystemRam", "None")}
-            for item in draft.get("applicationPackages", [])
-        ]
+        packages = []
+        for item in draft.get("applicationPackages", []):
+            previous = {
+                "fileName": item["fileName"], "fileStatus": "PendingDelete",
+                "minimumDirectXVersion": item.get("minimumDirectXVersion", "None"),
+                "minimumSystemRam": item.get("minimumSystemRam", "None"),
+            }
+            if item.get("id"):
+                previous["id"] = item["id"]
+            packages.append(previous)
         draft = store.call("PUT", path, body={
             **metadata, "applicationPackages": [*packages, replacement],
         })
