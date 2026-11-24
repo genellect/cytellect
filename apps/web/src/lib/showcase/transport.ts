@@ -365,14 +365,14 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
     return index.parts.filter((_, position) => index.workspaces[position].includes(workspace));
   }
   /** The recorded tour. A tour split into parts (one per scene, docs/showcase.md) is read whole, in order, so it
-   *  answers exactly as the same tour in one file. The parts of the open workspace's scene are read first; the
-   *  others follow together. */
+   *  answers exactly as the same tour in one file. Every part is requested at once, the open workspace's scene's
+   *  parts first, so that scene answers as soon as its parts arrive (sceneTour). */
   function loadJournal() {
     journal ??= indexFile()
       .then(async value => {
         if (value?.version !== 2) return value;
         if (!value.parts.every(part => PART_NAME.test(part))) return null;
-        await Promise.all(partsOf(value, openWorkspace).map(partFile));
+        partsOf(value, openWorkspace).forEach(partFile);
         const parts = await Promise.all(value.parts.map(partFile));
         if (!parts.every(part => part?.version === 1)) return null;
         // Changes answered from the open scene's parts counted positions by the index: parts that disagree with it
@@ -547,8 +547,9 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
         const pattern = analysisPattern(entry.path);
         return !!pattern && (scope === undefined || (workspaceOf(entries, entry) ?? scope) === scope) && matches(entry, position, pattern);
       };
-      // A pattern can match another scene's walk (its scope is not a path): the whole tour decides it.
-      if (index < 0 && partial) return WHOLE;
+      // A change naming the open workspace matches only that scene's walks (the index says so), and no pattern
+      // stands for a workspace path: what the scene does not hold, the whole tour does not hold either.
+      if (index < 0 && partial) return null;
       if (index < 0) index = entries.findIndex((entry, position) => position > cursor && patterned(entry, position));
       if (index < 0) index = entries.findIndex(patterned);
       if (index < 0) return null;

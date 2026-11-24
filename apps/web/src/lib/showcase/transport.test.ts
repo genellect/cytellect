@@ -536,6 +536,17 @@ describe("recorded tour across scenes", () => {
       release();
     });
 
+    it("explains at once a change of the open workspace that its scene did not record, while the other parts are on the way", async () => {
+      const {transport, release, fetchStatic} = held("journal-first.json");
+      await transport.fetch("/v1/workspaces/wb/selection");
+      const response = await transport.fetch("/v1/workspaces/wb/runs", {method: "POST", body: JSON.stringify({target: "nucleoli"})});
+      expect(await response.json()).toEqual({detail: "showcase_action_not_recorded"});
+      // Every part was asked for at once, the open scene's first.
+      const asked = fetchStatic.mock.calls.map(([url]) => url.replace("/showcase/snapshot/", "")).filter(name => name.startsWith("journal-"));
+      expect(asked).toEqual(["journal-second.json", "journal-first.json"]);
+      release();
+    });
+
     it("does not use a tour whose parts disagree with the counts of its index", async () => {
       const saved = files["journal.json"];
       files["journal.json"] = {version: 2, parts: ["journal-first.json", "journal-second.json"], counts: [2, 3], workspaces: [["wa"], ["wb"]]};
