@@ -30,17 +30,24 @@ export interface SavedResultLike {
   channel?: SavedChannelLike | null;
   estimates?: {metric: string} | null;
   stratum?: {label: string} | null;
-  selection?: {channel_gate?: {channel?: SavedChannelLike}} | null;
+  selection?: {channel_gate?: {channel?: SavedChannelLike}; records?: SavedObservationLike[]} | null;
+  /** Every observation the result read, with whether it was excluded (a comparison; an association per axis). */
+  observation_ledger?: SavedObservationLike[];
   spec?: {selection?: SavedSelectionLike; x_selection?: SavedSelectionLike; y_selection?: SavedSelectionLike;
     /** The comparison's test ("none" without inference), the association's method and the design, as requested. */
-    test?: string | null; method?: string | null; design?: {kind?: string | null} | null} | null;
-  x_source?: {metric?: string; channel?: SavedChannelLike | null; source_fields?: SavedResultLike["source_fields"]} | null;
-  y_source?: {metric?: string; channel?: SavedChannelLike | null; source_fields?: SavedResultLike["source_fields"]} | null;
+    test?: string | null; method?: string | null; design?: {kind?: string | null} | null;
+    /** The compared pairs of groups, as requested. */
+    comparison_family?: {contrasts?: string[][]} | null} | null;
+  x_source?: {metric?: string; channel?: SavedChannelLike | null; source_fields?: SavedResultLike["source_fields"]; observation_ledger?: SavedObservationLike[]} | null;
+  y_source?: {metric?: string; channel?: SavedChannelLike | null; source_fields?: SavedResultLike["source_fields"]; observation_ledger?: SavedObservationLike[]} | null;
   /** Each field's adopted regions (their mask revision), measurement and channels (with the background each was
-   * corrected by), as the result recorded them. */
+   * corrected by), its assignment and, for a per-field summary, its excluded regions, as the result recorded them. */
   source_fields?: Array<{field_id: string; region_set?: {region_set_id?: string; mask_revision_id?: string};
-    measurement_protocol?: string; measurement?: {mode?: string} | null; channel_provenance?: ChannelProvenanceLike[] | null}>;
+    measurement_protocol?: string; measurement?: {mode?: string} | null; channel_provenance?: ChannelProvenanceLike[] | null;
+    metadata?: SavedAssignmentLike | null; field_summary?: {excluded_region_count?: number} | null}>;
 }
+/** One observation a saved result read (`[field, region set, region]` identifiers). */
+export interface SavedObservationLike {observation_id?: string; field_id?: string; region_id?: number | null; excluded?: boolean}
 export type ChannelProvenanceLike = MeasuredChannelProvenance;
 
 const positive = nucleusPositivity;
@@ -102,8 +109,9 @@ export function conditionKey(condition: ResultCondition | null): string {
 }
 
 /** One chosen field's measurement as the result place compares it: its adopted regions, measurement and the
- * backgrounds its channels were corrected by (`backgroundFingerprint`, "" when the table records none). */
-export interface CurrentSource {field: string; mask: string; protocol?: string; mode?: string; background?: string}
+ * backgrounds its channels were corrected by (`backgroundFingerprint`, "" when the table records none), the regions
+ * excluded in its table (`excludedRegions`) and its assignment in 実験 (`fieldAssignment`). */
+export interface CurrentSource {field: string; mask: string; protocol?: string; mode?: string; background?: string; excluded?: number[]; assignment?: string}
 const canonical = (value: unknown): string => Array.isArray(value) ? `[${value.map(canonical).join(",")}]`
   : value && typeof value === "object" ? `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonical((value as Record<string, unknown>)[key])}`).join(",")}}`
   : JSON.stringify(value) ?? "null";
@@ -155,13 +163,83 @@ export function changedSources(saved: SavedResultLike["source_fields"], current:
 export const resultSourceFields = (result: SavedResultLike) => result.source_fields ?? result.y_source?.source_fields ?? result.x_source?.source_fields;
 
 /** The newest saved result for a condition (entries newest first): `current` when it was calculated from the
- * measurements now chosen, `older` when only an earlier measurement of the same condition was saved. */
+ * measurements, exclusions, assignment and compared pairs now chosen (`changedInputs`), `older` when only an earlier
+ * one of the same condition was saved. */
 export function savedFor<T extends {operation: ResultOperation; result: SavedResultLike}>(entries: T[], condition: ResultCondition | null,
-  sources: CurrentSource[]): {current?: T; older?: T} {
+  sources: CurrentSource[], contrasts: string[][] = []): {current?: T; older?: T} {
   const key = conditionKey(condition);
   if (!key) return {};
   const same = entries.filter(entry => conditionKey(savedCondition(entry.operation, entry.result)) === key);
-  return {current: same.find(entry => sameSources(resultSourceFields(entry.result), sources)), older: same[0]};
+  return {current: same.find(entry => sameSources(resultSourceFields(entry.result), sources) && !changedInputs(entry.operation, entry.result, sources, contrasts)), older: same[0]};
+}
+
+/** A field's assignment in 実験 as a cohort records it (group, run, sample, acquisition date and pair, spacing removed),
+ * "" when nothing is assigned yet. */
+export function fieldAssignment(metadata: SavedAssignmentLike | null | undefined): string {
+  const values = ASSIGNMENT.map(key => {const value: unknown = metadata?.[key]; return typeof value === "string" ? value.trim() || null : value ?? null;});
+  return values.some(value => value !== null) ? JSON.stringify(values) : "";
+}
+const ASSIGNMENT = ["condition", "experimental_unit", "sample", "acquisition_date", "pair"] as const;
+export type SavedAssignmentLike = Partial<Record<(typeof ASSIGNMENT)[number], string | null>>;
+/** The regions of a field excluded in its measured table, in ascending order. Undefined when the table is not loaded or
+ * the whole field is excluded (that is no evidence about its regions). */
+export function excludedRegions(exclusions: Array<{field_id: string; region_id: number | null; reason?: string}> | null | undefined, field: string): number[] | undefined {
+  if (!exclusions) return undefined;
+  const own = exclusions.filter(item => item.field_id === field);
+  if (own.some(item => item.region_id === null)) return undefined;
+  return [...new Set(own.map(item => item.region_id as number))].sort((a, b) => a - b);
+}
+/** The region an observation record describes: the last part of its identifier (`[field, region set, region]`), or its
+ * region ID; null for a record of a whole field. */
+function recordRegion(record: SavedObservationLike): number | null {
+  try {
+    const id = record.observation_id ? (JSON.parse(record.observation_id) as unknown[]).at(-1) : undefined;
+    if (typeof id === "number") return id;
+  } catch { /* an identifier of another form */ }
+  return typeof record.region_id === "number" ? record.region_id : null;
+}
+/** What a saved result recorded of each field's excluded regions: their IDs from its observation records (a
+ * comparison's ledger, an association's vertical axis, a distribution's selection), or their number for a per-field
+ * summary. A field without such a record is absent. */
+function savedExclusions(result: SavedResultLike): Map<string, number[] | number> {
+  const records = result.observation_ledger ?? result.y_source?.observation_ledger ?? result.selection?.records ?? [];
+  const recorded = new Map<string, number[] | number>();
+  for (const record of records) {
+    const region = recordRegion(record);
+    if (region === null || !record.field_id) continue;
+    const ids = recorded.get(record.field_id);
+    const list = Array.isArray(ids) ? ids : [];
+    if (record.excluded === true) list.push(region);
+    recorded.set(record.field_id, list);
+  }
+  for (const field of resultSourceFields(result) ?? []) {
+    const count = field.field_summary?.excluded_region_count;
+    if (!recorded.has(field.field_id) && typeof count === "number") recorded.set(field.field_id, count);
+  }
+  return recorded;
+}
+const pairKey = (pairs: string[][]) => JSON.stringify(pairs.map(pair => JSON.stringify(pair)).sort());
+/**
+ * Whether what a saved result was calculated from has changed since in what its measurement does not show
+ * (genellect/cytellect#257 NS-04): a nucleus excluded or included again in 画像 (the regions' mask revision is kept), a
+ * field assigned to another group, run or pair in 実験, or other pairs of groups compared. Only what both the result
+ * and the current choice record is compared: an older result without the record, a table or design not loaded yet, or
+ * pairs not chosen yet are no evidence of a change. A distribution does not read the assignment.
+ */
+export function changedInputs(operation: ResultOperation, result: SavedResultLike, current: CurrentSource[], contrasts: string[][]): boolean {
+  const chosen = new Map(current.map(source => [source.field, source]));
+  const excluded = savedExclusions(result);
+  for (const [field, saved] of excluded) {
+    const now = chosen.get(field)?.excluded;
+    if (!now) continue;
+    if (typeof saved === "number" ? saved !== now.length : JSON.stringify([...new Set(saved)].sort((a, b) => a - b)) !== JSON.stringify(now)) return true;
+  }
+  if (operation !== "distribution") for (const field of resultSourceFields(result) ?? []) {
+    const saved = fieldAssignment(field.metadata), now = chosen.get(field.field_id)?.assignment;
+    if (saved && now && saved !== now) return true;
+  }
+  const pairs = result.spec?.comparison_family?.contrasts;
+  return operation === "comparison" && !!pairs?.length && contrasts.length > 0 && pairKey(pairs) !== pairKey(contrasts);
 }
 
 export {measureLabel};
