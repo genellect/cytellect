@@ -74,6 +74,9 @@ def write_journal(snapshot: Path, journal: dict) -> list[str]:
     for scene, entries in runs:
         count[scene] = count.get(scene, 0) + 1
         name = f"journal-{scene}.json" if count[scene] == 1 else f"journal-{scene}-{count[scene]}.json"
+        if name in names:
+            # A later run of scene `x` (`journal-x-2.json`) and the first part of a scene named `x-2` would share a file.
+            raise SystemExit(f"journal part {name} would be written twice: rename the scene whose id ends in -{count[scene]}")
         text = json.dumps({"version": 1, "entries": entries}, indent=1, ensure_ascii=False) + "\n"
         if len(text.encode("utf-8")) > PART_LIMIT_BYTES:
             raise SystemExit(f"journal part {name} is {len(text.encode('utf-8')):,} bytes, above {PART_LIMIT_BYTES:,}: "

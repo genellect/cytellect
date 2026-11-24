@@ -38,6 +38,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.error
 import urllib.request
 import uuid
 import zipfile
@@ -1396,11 +1397,17 @@ def start_next(command: str, web: Path, env: dict, origin_port: int, ready_path:
     once to show a notice instead of serving; a server that exits before answering is started again."""
     url = f"http://127.0.0.1:{origin_port}{ready_path}"
     # A server left on the port (an interrupted build's) would answer for the new one and be recorded instead.
+    # Any answer counts, an error status included (urllib raises HTTPError, an OSError, for those).
     try:
-        urllib.request.urlopen(url, timeout=timeout)
+        with urllib.request.urlopen(url, timeout=timeout):
+            pass
+    except urllib.error.HTTPError:
+        answered = True
     except OSError:
-        pass
+        answered = False
     else:
+        answered = True
+    if answered:
         raise SystemExit(f"port {origin_port} already answers; stop the server there before building")
     for _attempt in range(4):
         process = subprocess.Popen(["pnpm", "exec", "next", command, "--hostname", "127.0.0.1", "--port", str(origin_port)],
@@ -1857,6 +1864,14 @@ def scene_regions(manifest: dict) -> list[str]:
     return ["nuclei", "nucleoli", "nucleoplasm"] if manifest["scenario"].get("nucleoli", True) else ["nuclei"]
 
 
+def positive_int(text: str) -> int:
+    """An argument that must be 1 or more (no walks would record an empty tour and remove the published one)."""
+    value = int(text)
+    if value < 1:
+        raise argparse.ArgumentTypeError("must be 1 or more")
+    return value
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("manifest", type=Path, nargs="+",
@@ -1875,7 +1890,7 @@ def main(argv: list[str] | None = None) -> None:
                              "detector (an unrecorded detection fails the build)")
     parser.add_argument("--nuclear-scale", choices=("nuclear-size/1.0.0", "nuclear-size/1.1.0"), default=None,
                         help="the automatic nuclear detection scale of new runs (default: the API's current one)")
-    parser.add_argument("--journal-concurrency", type=int, default=3,
+    parser.add_argument("--journal-concurrency", type=positive_int, default=3,
                         help="journal: walks recorded at once (each page holds the in-browser API, about 3 GB)")
     parser.add_argument("--journal-hours", type=float, default=6,
                         help="journal: stop the walk after this many hours")

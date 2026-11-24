@@ -117,7 +117,7 @@ async function scene(name, walk, workspace) {
     report.alerts.push(`${name}: ${String(error).split("\n")[0].slice(0, 300)}`);
     await page.screenshot({path: path.join(config.out, `failure-${name}.png`)}).catch(() => {});
   }
-  for (const text of await page.getByRole("alert").allTextContents().catch(() => [])) if (text.trim() && !expected.has(text.trim().slice(0, 300))) report.alerts.push(`${name}: ${text.trim().slice(0, 300)}`);
+  for (const text of await page.getByRole("alert").allTextContents().catch(() => [])) if (text.trim()) report.alerts.push(`${name}: ${text.trim().slice(0, 300)}`);
   recorded.set(name, settled(entries));
   report.scenes.push({name, entries: recorded.get(name).length, seconds: Math.round((Date.now() - started) / 100) / 10});
   // Progress on stderr, one line per walk, so a long recording can be followed while it runs.
@@ -142,8 +142,6 @@ const figure = page => page.getByRole("region", {name: "図の作成・保存"})
 // following 「使い方」 takes; the replay also finds a recorded change taken out of order.
 const tab = async (page, name) => {await header(page).getByRole("button", {name, exact: true}).click(); await idle(page);};
 const sidebar = page => page.getByRole("complementary", {name: "解析対象"});
-// Refusals the API gives every visitor for these images, recorded so a replay shows them too.
-const expected = new Set();
 // The walk each page records (scene()), for the report's lists of skipped and unanswered choices.
 const walkOf = new WeakMap();
 // The notice the demo shows where its recording holds no answer (apps/web/src/lib/showcase/index.ts).

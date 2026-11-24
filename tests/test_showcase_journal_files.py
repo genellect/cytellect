@@ -41,3 +41,12 @@ def test_an_index_naming_other_files_or_a_part_over_the_limit_is_refused(tmp_pat
     monkeypatch.setattr(files, "PART_LIMIT_BYTES", 100)
     with pytest.raises(SystemExit, match="above 100"):
         files.write_journal(tmp_path, {"version": 1, "entries": [entry("ox:tour", "/a" * 100)]})
+
+
+def test_two_parts_never_share_a_file(tmp_path):
+    from cytellect_showcase.journal_files import write_journal
+
+    # A later run of scene "ox" and the first part of a scene named "ox-2" would both be journal-ox-2.json.
+    tour = {"version": 1, "entries": [entry("ox:tour", "/a"), entry("ox-2:tour", "/b"), entry("ox:kept", "/c")]}
+    with pytest.raises(SystemExit, match="journal-ox-2.json would be written twice"):
+        write_journal(tmp_path, tour)
