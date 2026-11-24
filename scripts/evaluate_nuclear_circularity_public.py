@@ -66,32 +66,38 @@ FACTORS = (2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 20)
 BINS = (4, 8, 16, 24, 32, 48, 64, 96, 128, 256)
 TUNING, EVALUATION = "cpg0016-jump-source13-plk1", "zenodo-6643470"
 CROFTON_AGREEMENT = 1e-9
+# SHA-256 of the #258 seed (git show 3edab2001:apps/web/public/showcase/seed.zip).
+SEED_258_SHA256 = "f967ce59c7a274bffa962ce33010d16ef03366240075e86ee9e21c2cc1932693"
 REPRODUCTION = {"masks": {TUNING: 18, EVALUATION: 29}, "circularity_p90_96": {TUNING: 0.048, EVALUATION: 0.208}}
 
 
 def region_shapes(labels: np.ndarray) -> list[dict]:
-    """The #258 region-shape/1.0.0 values of every label (minimum area 1 px), without the pixel-value checks."""
+    """Shape values of every label (ascending, minimum area 1 px), as in the #258 region-shape/1.0.0 check.
+
+    Solidity, axis ratio, eccentricity and the border and degenerate rules are the shared implementation's
+    (``nuclear_features.nuclear_shapes``); only the Crofton perimeter and circularity are added here. A nucleus with a
+    zero or non-finite perimeter is ``degenerate``, as in #258.
+    """
+    from cytellect_analysis.nuclear_features import nuclear_shapes
     from skimage.measure import regionprops
 
-    border = np.zeros(labels.shape, dtype=bool)
-    border[0, :] = border[-1, :] = border[:, 0] = border[:, -1] = True
-    touching = {int(value) for value in np.unique(labels[border]) if value}
+    shared = nuclear_shapes(labels, minimum_area_px=1)
+    # regionprops makes one slot per label value: compact sparse saved IDs first, as the shared implementation does.
+    present = np.unique(labels[labels > 0])
+    compact = np.zeros(labels.shape, np.int64)
+    compact[labels > 0] = np.searchsorted(present, labels[labels > 0]) + 1
+    perimeters = {int(present[region.label - 1]): float(region.perimeter_crofton) for region in regionprops(compact)}
     rows = []
-    for region in regionprops(labels.astype(np.int64)):
-        rid, area = int(region.label), int(region.area)
-        row = {"region_id": rid, "area_px": area, "perimeter_px": None, "circularity": None, "solidity": None,
-               "axis_ratio": None, "eccentricity": None, "missing_reason": None}
-        if rid in touching:
-            row["missing_reason"] = "touches_border"
-        else:
-            perimeter = float(region.perimeter_crofton)
-            major, minor = float(region.axis_major_length), float(region.axis_minor_length)
-            if perimeter <= 0 or minor <= 0 or not math.isfinite(perimeter):
-                row["missing_reason"] = "degenerate"
+    for rid, values in sorted(shared.items()):
+        row = {"region_id": rid, "area_px": values["area_px"], "perimeter_px": None, "circularity": None,
+               "solidity": values["solidity"], "axis_ratio": values["axis_ratio"],
+               "eccentricity": values["eccentricity"], "missing_reason": values["missing_reason"]}
+        perimeter = perimeters[rid]
+        if row["missing_reason"] is None:
+            if not perimeter > 0 or not math.isfinite(perimeter):
+                row.update(missing_reason="degenerate", solidity=None, axis_ratio=None, eccentricity=None)
             else:
-                row.update(perimeter_px=perimeter, circularity=4 * math.pi * area / perimeter ** 2,
-                           solidity=area / float(region.area_convex), axis_ratio=major / minor,
-                           eccentricity=float(region.eccentricity))
+                row.update(perimeter_px=perimeter, circularity=4 * math.pi * row["area_px"] / perimeter ** 2)
         rows.append(row)
     return rows
 
@@ -110,9 +116,31 @@ def crossings_perimeter(mask: np.ndarray) -> float:
     return math.pi / 8 * (rows + columns + (diagonal + anti) / math.sqrt(2))
 
 
-def nuclear_masks(seed: Path, scenes_path: Path) -> dict[str, list[np.ndarray]]:
-    """Unique adopted nuclear label images per dataset (by content hash), as in #258."""
-    scenes = json.loads(scenes_path.read_text())["scenes"]
+def database_scenes(seed: Path, scenes_path: Path) -> dict[str, str]:
+    """Field ID -> scene ID from the seed's database (``fields.workspace_id``), for fields the archive paths miss."""
+    import sqlite3
+    import tempfile
+
+    scenes = json.loads(scenes_path.read_text(encoding="utf-8"))["scenes"]
+    by_workspace = {scene["workspaceId"]: scene["id"] for scene in scenes}
+    with tempfile.TemporaryDirectory() as folder, zipfile.ZipFile(seed) as archive:
+        path = Path(folder) / "cytellect.sqlite"
+        path.write_bytes(archive.read("cytellect.sqlite"))
+        connection = sqlite3.connect(path)
+        try:
+            rows = connection.execute("select id, workspace_id from fields").fetchall()
+        finally:
+            connection.close()
+    return {field: by_workspace.get(workspace, "") for field, workspace in rows}
+
+
+def nuclear_masks(seed: Path, scenes_path: Path, fallback: dict[str, str] | None = None) -> dict[str, list[np.ndarray]]:
+    """Unique adopted nuclear label images per dataset (by content hash), as in #258.
+
+    The dataset of a mask is the scene of the workspace whose archive path holds its field (#258). With ``fallback``
+    (reported only), a field no archive path holds takes its scene from the database instead.
+    """
+    scenes = json.loads(scenes_path.read_text(encoding="utf-8"))["scenes"]
     by_workspace = {scene["workspaceId"]: scene["id"] for scene in scenes}
     masks: dict[str, list[np.ndarray]] = {}
     seen: set[str] = set()
@@ -134,7 +162,7 @@ def nuclear_masks(seed: Path, scenes_path: Path) -> dict[str, list[np.ndarray]]:
                     continue
                 seen.add(digest)
                 field = labels_name.rsplit("/", 2)[-2]
-                scene = dataset.get(field, "")
+                scene = dataset.get(field) or (fallback or {}).get(field, "")
                 key = TUNING if scene == TUNING else EVALUATION if scene.startswith(EVALUATION) else "other"
                 masks.setdefault(key, []).append(np.load(io.BytesIO(data), allow_pickle=False))
     return masks
@@ -187,7 +215,7 @@ def minimum_area(rows: list[dict]) -> int | None:
     """The smallest bin edge from which this bin and every larger bin with objects are within tolerance."""
     for index, row in enumerate(rows):
         later = [value for value in rows[index:] if value["objects"]]
-        if later and all(value["within_tolerance"] for value in later):
+        if row["objects"] and all(value["within_tolerance"] for value in later):
             return row["area_from_px"]
     return None
 
@@ -243,14 +271,23 @@ def main() -> None:
         "masks": {key: counts.get(key) for key in REPRODUCTION["masks"]},
         "circularity_p90_96": {TUNING: at_96(tuning), EVALUATION: at_96(evaluation)},
     }
-    reproduced["matches_258"] = (reproduced["masks"] == REPRODUCTION["masks"]
-                                 and all(value is not None and round(value, 3) == REPRODUCTION["circularity_p90_96"][key]
-                                         for key, value in reproduced["circularity_p90_96"].items()))
+    seed_sha256 = hashlib.sha256(args.seed.read_bytes()).hexdigest()
+    # Rule 8 is read on the #258 seed only; on another seed the values are shown beside #258's without a verdict.
+    reproduced["is_258_seed"] = seed_sha256 == SEED_258_SHA256
+    reproduced["matches_258"] = None if not reproduced["is_258_seed"] else (
+        reproduced["masks"] == REPRODUCTION["masks"]
+        and all(value is not None and round(value, 3) == REPRODUCTION["circularity_p90_96"][key]
+                for key, value in reproduced["circularity_p90_96"].items()))
+    # Reported only: masks whose field no archive path holds, placed by the database (rule 2 leaves them out).
+    with_unmapped = nuclear_masks(args.seed, scenes, database_scenes(args.seed, scenes))
+    unmapped_bins = summary(errors(with_unmapped.get(EVALUATION, [])), TOLERANCE)
+    unmapped_held_out = [row for row in unmapped_bins
+                         if row["objects"] and chosen is not None and row["area_from_px"] >= chosen]
     result = {
         "protocol": "nuclear-circularity-check/1.0.0", "perimeter_estimator": PERIMETER_ESTIMATOR,
         "tolerance": TOLERANCE, "quantile": QUANTILE, "reference_minimum_area_px": REFERENCE_MINIMUM_AREA,
         "factors": FACTORS, "bins": BINS,
-        "seed_sha256": hashlib.sha256(args.seed.read_bytes()).hexdigest(), "masks": counts,
+        "seed_sha256": seed_sha256, "masks": counts,
         "tuning": {"dataset": TUNING, "bins": tuning, "circularity_minimum_area_px": found,
                    "minimum_area_used_px": chosen, "reference": reference_circularity(masks.get(TUNING, []))},
         "evaluation": {"dataset": EVALUATION, "bins": evaluation, "passed": passed,
@@ -262,6 +299,11 @@ def main() -> None:
                           "evaluation": joint_evaluation},
             "crofton_agreement": crofton_agreement([*masks.get(TUNING, []), *masks.get(EVALUATION, []), *bbbc039]),
             "reproduction_of_258": reproduced,
+            "evaluation_with_unmapped_masks": {
+                "masks": {key: len(value) for key, value in with_unmapped.items()}, "bins": unmapped_bins,
+                "within_tolerance_from_minimum": bool(unmapped_held_out)
+                and all(row["within_tolerance"] for row in unmapped_held_out),
+                "reference": reference_circularity(with_unmapped.get(EVALUATION, []))},
         },
     }
     text = json.dumps(result, indent=1, ensure_ascii=False)
