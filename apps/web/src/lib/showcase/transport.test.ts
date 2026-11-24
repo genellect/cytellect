@@ -553,7 +553,16 @@ describe("recorded tour across scenes", () => {
       // The edit names an analysis version of the open scene (the index lists it there), not the workspace.
       const response = await transport.fetch(`/v1/revisions/${B}/region-edits`, {method: "POST", body: JSON.stringify({operation: "delete"})});
       expect(await response.json()).toEqual({detail: "showcase_action_not_recorded"});
+      // An opening version no part names (the tour never edited it) is the open scene's too.
+      const opening = await transport.fetch("/v1/revisions/eeeeeeee-0000-4000-8000-000000000005/region-edits", {method: "POST", body: JSON.stringify({operation: "delete"})});
+      expect(await opening.json()).toEqual({detail: "showcase_action_not_recorded"});
+      // A version another scene's part names waits for the whole tour.
+      let answered = false;
+      const other = transport.fetch(`/v1/revisions/${A}/region-edits`, {method: "POST", body: JSON.stringify({operation: "delete"})}).then(value => {answered = true; return value;});
+      await new Promise(resolve => setTimeout(resolve, 50));
+      expect(answered).toBe(false);
       release();
+      expect(await (await other).json()).toEqual({detail: "showcase_action_not_recorded"});
     });
 
     it("does not use a tour whose parts disagree with the counts of its index", async () => {

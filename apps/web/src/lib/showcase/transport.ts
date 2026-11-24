@@ -337,8 +337,8 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
     return jsonResponse({...result, figure: opening.figure, ...(result.spec ? {spec: {...result.spec, plot: opening.plot}} : {})}, response.status);
   }
   /** One journal file: the whole tour (version 1), or its index of parts (version 2). */
-  async function journalFile(name: string): Promise<Journal | JournalIndex | null> {
-    const response = await dependencies.fetchStatic(`${dependencies.snapshotBase}${name}`);
+  async function journalFile(name: string, fetched?: Promise<Response>): Promise<Journal | JournalIndex | null> {
+    const response = await (fetched ?? dependencies.fetchStatic(`${dependencies.snapshotBase}${name}`));
     if (!response.ok) {await response.text(); return null;}
     const value = await response.json() as Journal | JournalIndex;
     if (value?.version === 1 && Array.isArray(value.entries)) return value;
@@ -346,9 +346,19 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
   }
   let tourIndex: Promise<Journal | JournalIndex | null> | null = null;
   const tourParts = new Map<string, Promise<Journal | JournalIndex | null>>();
+  const partResponses = new Map<string, Promise<Response>>();
   const indexFile = () => tourIndex ??= journalFile("journal.json").catch(() => null);
+  /** A part's download, started once; it is read (parsed) only when asked for with partFile. */
+  const partResponse = (name: string) => {
+    if (!partResponses.has(name)) {
+      const started = dependencies.fetchStatic(`${dependencies.snapshotBase}${name}`);
+      started.catch(() => undefined);
+      partResponses.set(name, started);
+    }
+    return partResponses.get(name)!;
+  };
   const partFile = (name: string) => {
-    if (!tourParts.has(name)) tourParts.set(name, journalFile(name).catch(() => null));
+    if (!tourParts.has(name)) tourParts.set(name, journalFile(name, partResponse(name)).catch(() => null));
     return tourParts.get(name)!;
   };
   /** The parts that hold the recorded scene of a workspace, by the index; none when the index does not say. */
@@ -374,7 +384,11 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       .then(async value => {
         if (value?.version !== 2) return value;
         if (!value.parts.every(part => PART_NAME.test(part))) return null;
-        partsOf(value, openWorkspace).forEach(partFile);
+        // Every part downloads at once; the open scene's parts are read first, so that scene can answer while the
+        // others are still being read (reading a large part holds the page for a moment).
+        const first = partsOf(value, openWorkspace);
+        [...first, ...value.parts].forEach(partResponse);
+        await Promise.all(first.map(partFile));
         const parts = await Promise.all(value.parts.map(partFile));
         if (!parts.every(part => part?.version === 1)) return null;
         // Changes answered from the open scene's parts counted positions by the index: parts that disagree with it
@@ -388,7 +402,8 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
   }
   // A position of the tour whose part has not arrived: it matches no request and belongs to no walk.
   const PENDING: JournalEntry = {scene: "\u0000", method: "", path: "", body: null, status: 0, headers: [], file: null};
-  interface SceneTour {entries: JournalEntry[]; holds: (position: number) => boolean; revisions: Set<string>}
+  /** `elsewhere`: the analysis versions other scenes' parts name, null when the index cannot say. */
+  interface SceneTour {entries: JournalEntry[]; holds: (position: number) => boolean; elsewhere: Set<string> | null}
   const sceneTours = new Map<string, Promise<SceneTour | null>>();
   /**
    * The tour with only the parts of a workspace's scene in place, every other position pending: the same positions
@@ -417,9 +432,8 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
         }
         offset += counts[position];
       }
-      // The analysis versions only this scene's parts name (none when the index cannot say).
-      const revisions = new Set(revisionData(index) ? index.parts.flatMap((name, position) => names.includes(name) ? index.revisions[position] : []) : []);
-      return {entries, holds: (position: number) => ranges.some(([start, end]) => position >= start && position < end), revisions};
+      const elsewhere = revisionData(index) ? new Set(index.parts.flatMap((name, position) => names.includes(name) ? [] : index.revisions[position])) : null;
+      return {entries, holds: (position: number) => ranges.some(([start, end]) => position >= start && position < end), elsewhere};
     })().catch(() => null));
     return sceneTours.get(workspace)!;
   }
@@ -435,10 +449,11 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
     if (!reading(method) && !path.startsWith(`/v1/workspaces/${opened}/`) && !revision) return null;
     const tour = await sceneTour(opened);
     if (!tour || (reading(method) && !(cursor >= 0 && tour.holds(cursor)))) return null;
-    // A version is the scene's when the request names it, and it stays so as the tour reads it (its recorded form).
+    // A version no other scene's part names, in the request and in its recorded form, can match only this scene's walks
+    // (an opening version the tour never named, too: the whole tour holds no path naming it).
     if (!reading(method) && revision && !path.startsWith(`/v1/workspaces/${opened}/`)) {
       const recorded = REVISION.exec(recordedPath(path))?.[1];
-      if (!tour.revisions.has(revision) || !recorded || !tour.revisions.has(recorded)) return null;
+      if (!tour.elsewhere || !recorded || tour.elsewhere.has(revision) || tour.elsewhere.has(recorded)) return null;
     }
     return tour.entries;
   }
