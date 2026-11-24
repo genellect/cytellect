@@ -20,6 +20,12 @@
 
 提出ジョブは、実行時点の `main` と受領書・MSIX 内のコミットを照合する。一般公開済みの提出から新しい提出を作り、掲載情報や価格などを引き継いだまま x64 パッケージを差し替える。既存の審査が進行中なら、そのまま待つ。6 時間ごとの実行でも最新のビルドを選び直す。途中で止まった場合は、Actions に記録された提出 ID を Partner Center で確認する。Store の審査と公開後、端末は Microsoft Store の自動更新で新しい版を受け取る。
 
+### Store が基本価格を `Base` と返した場合
+
+Microsoft の提出 API は、一部の公開版の基本価格を `Base` と返すが、更新時に同じ値を渡すと HTTP 400 を返す。[Microsoft Store CLI の価格指定](https://learn.microsoft.com/windows/apps/publish/msstore-dev-cli/publish-command)を参照。通常の無料・有料の価格 ID はそのまま引き継ぐ。
+
+Actions に `pricing.priceId=Base` が出た場合だけ、Partner Center で対象の**公開済み提出**の基本価格と全市場の価格を確認する。すべて無料で今後もその価格で提出する場合、GitHub の Settings → Environments → store-release で `STORE_CONFIRMED_FREE_SUBMISSION_ID` にその公開済み提出の数値 ID を登録して再実行する。下書きの ID とは異なる。この指定で書き換えるのは、その公開版から引き継いだ基本価格の API 表記だけで、地域別の設定はそのまま送る。API が無料と確認できない地域別価格を返した場合は停止する。API が地域別価格を返さない場合、スクリプトは市場ごとの価格を確かめられず、この指定だけで無料として送るため、登録の前に Partner Center で全市場を確認する。提出受理後は変数を削除する。次の公開版にはこの指定は適用されない。
+
 ## データと更新
 
 Windows 11 の [AppData 仮想化の除外](https://learn.microsoft.com/en-us/windows/msix/desktop/flexible-virtualization)を `%LOCALAPPDATA%\Cytellect` に限って指定する。このフォルダーで EXE 版が作った作業を Store 版から開ける。Store 版は更新と削除の際もフォルダーを保持する。保管期間は既存設定を引き継ぐ。新規導入の既定は利用者が削除するまで保持する。Store 版が新しく作るフォルダーには、EXE 版と同じ所有の印（`setup-root.json`）と保持の設定（`settings/retention.json`）を書くため、あとから EXE 版を入れても同じフォルダーを使える。EXE 版の削除時に作業データも削除する操作を選ぶと、共有している作業は削除される。
@@ -37,3 +43,5 @@ Store 版の更新には Microsoft Store を使う。ソースの検証、ロー
 通常は復旧対象を指定しない。パッケージ更新の前に実行が停止した場合、Actions の作成ログと Partner Center の提出IDを照合する。オーナーが復旧を決めたときだけ、GitHub の Settings → Environments → store-release → Environment variables に `STORE_RECOVERY_SUBMISSION_ID` を設定し、数値の提出IDを値にする。main の Windows Store release を実行し、環境承認時に対象コミットと提出IDを確認する。
 
 復旧は指定IDの公開下書きが PendingCommit で、パッケージと配布・掲載情報が公開版と一致する場合に限る。差異があればログに出た項目名を調べる。API で作成した下書きは API で更新する。受理記録と Microsoft の提出状態を確認したら、同じ Environment variables からこの変数を削除する。対象の提出を取りやめる場合も削除する。他の提出IDには適用されない。
+
+提出の更新で HTTP 400 が返ったときは、Actions の提出ジョブで操作名、Microsoft の要求 ID、応答に含まれる既知のエラーコードと項目名を確認する。表示された項目名は応答に言及があったことを示す。エラー本文や審査用メモ、署名付き URL はログに出さない。同じコミットがすでに審査中または公開済みの場合、再実行は重複提出を省略する。自動提出の動作確認には、新しい対象版で API が審査申請を受理した記録を使う。
