@@ -24,6 +24,8 @@ export interface JournalIndex {
   /** For each part, its number of entries and the workspaces its paths name (written only when no workspace is named
    *  by the parts of two scenes): the scene of the open workspace is read first and answers its own changes. */
   counts?: number[]; workspaces?: string[][];
+  /** For each part, the analysis versions its paths name (written only when none is named by two scenes' parts). */
+  revisions?: string[][];
 }
 
 /** `snapshot/figures.json`: the figures of the tour's results, drawn by the production renderer from the

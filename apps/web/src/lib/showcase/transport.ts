@@ -360,6 +360,8 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       && counts.every(count => Number.isInteger(count) && count >= 0)
       && workspaces.every(named => Array.isArray(named) && named.every(item => typeof item === "string"));
   };
+  const revisionData = (index: JournalIndex): index is JournalIndex & {revisions: string[][]} => Array.isArray(index.revisions)
+    && index.revisions.length === index.parts.length && index.revisions.every(named => Array.isArray(named) && named.every(item => typeof item === "string"));
   function partsOf(index: JournalIndex, workspace: string | null): string[] {
     if (!workspace || !index.parts.every(part => PART_NAME.test(part)) || !sceneData(index)) return [];
     return index.parts.filter((_, position) => index.workspaces[position].includes(workspace));
@@ -386,7 +388,8 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
   }
   // A position of the tour whose part has not arrived: it matches no request and belongs to no walk.
   const PENDING: JournalEntry = {scene: "\u0000", method: "", path: "", body: null, status: 0, headers: [], file: null};
-  const sceneTours = new Map<string, Promise<{entries: JournalEntry[]; holds: (position: number) => boolean} | null>>();
+  interface SceneTour {entries: JournalEntry[]; holds: (position: number) => boolean; revisions: Set<string>}
+  const sceneTours = new Map<string, Promise<SceneTour | null>>();
   /**
    * The tour with only the parts of a workspace's scene in place, every other position pending: the same positions
    * as the whole tour, so what it answers is what the whole tour answers when the answer lies in that scene.
@@ -414,19 +417,29 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
         }
         offset += counts[position];
       }
-      return {entries, holds: (position: number) => ranges.some(([start, end]) => position >= start && position < end)};
+      // The analysis versions only this scene's parts name (none when the index cannot say).
+      const revisions = new Set(revisionData(index) ? index.parts.flatMap((name, position) => names.includes(name) ? index.revisions[position] : []) : []);
+      return {entries, holds: (position: number) => ranges.some(([start, end]) => position >= start && position < end), revisions};
     })().catch(() => null));
     return sceneTours.get(workspace)!;
   }
+  const REVISION = /^\/v1\/revisions\/([^/?]+)\//;
   /**
-   * The open scene's tour, when it alone decides the answer: a change naming the open workspace (a recorded path names
-   * a workspace only in that workspace's scene, journal_files.py), or a read after a change answered in that scene.
+   * The open scene's tour, when it alone decides the answer: a change naming the open workspace or an analysis version
+   * of its scene (a recorded path names either only in that scene's parts, journal_files.py), or a read after a change
+   * answered in that scene.
    */
   async function earlyTour(method: string, path: string, opened: string | null): Promise<JournalEntry[] | null> {
     if (complete || !opened) return null;
-    if (!reading(method) && !path.startsWith(`/v1/workspaces/${opened}/`)) return null;
+    const revision = REVISION.exec(path)?.[1];
+    if (!reading(method) && !path.startsWith(`/v1/workspaces/${opened}/`) && !revision) return null;
     const tour = await sceneTour(opened);
     if (!tour || (reading(method) && !(cursor >= 0 && tour.holds(cursor)))) return null;
+    // A version is the scene's when the request names it, and it stays so as the tour reads it (its recorded form).
+    if (!reading(method) && revision && !path.startsWith(`/v1/workspaces/${opened}/`)) {
+      const recorded = REVISION.exec(recordedPath(path))?.[1];
+      if (!tour.revisions.has(revision) || !recorded || !tour.revisions.has(recorded)) return null;
+    }
     return tour.entries;
   }
   /** A decision the open scene's tour cannot take alone: it waits for the whole tour. */
@@ -547,9 +560,10 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
         const pattern = analysisPattern(entry.path);
         return !!pattern && (scope === undefined || (workspaceOf(entries, entry) ?? scope) === scope) && matches(entry, position, pattern);
       };
-      // A change naming the open workspace matches only that scene's walks (the index says so), and no pattern
-      // stands for a workspace path: what the scene does not hold, the whole tour does not hold either.
-      if (index < 0 && partial) return null;
+      // A change naming the open workspace or one of its scene's analysis versions matches only that scene's walks
+      // (the index says so): what the scene does not hold, the whole tour does not hold either. A statistic may still
+      // be found by its pattern, which the whole tour decides.
+      if (index < 0 && partial) return ANALYSIS.test(path) ? WHOLE : null;
       if (index < 0) index = entries.findIndex((entry, position) => position > cursor && patterned(entry, position));
       if (index < 0) index = entries.findIndex(patterned);
       if (index < 0) return null;

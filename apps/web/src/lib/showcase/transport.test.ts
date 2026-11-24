@@ -498,7 +498,7 @@ describe("recorded tour across scenes", () => {
     ];
     const files: Record<string, unknown> = {
       "index.json": {version: 1, entries: {}},
-      "journal.json": {version: 2, parts: ["journal-first.json", "journal-second.json"], counts: [3, 3], workspaces: [["wa"], ["wb"]]},
+      "journal.json": {version: 2, parts: ["journal-first.json", "journal-second.json"], counts: [3, 3], workspaces: [["wa"], ["wb"]], revisions: [[A], [B]]},
       "journal-first.json": {version: 1, entries: first}, "journal-second.json": {version: 1, entries: second},
       "run-a.json": {run: "a"}, "done-a.json": {state: "a"}, "first.json": {scene: "first"},
       "run-b.json": {run: "b"}, "done-b.json": {state: "b"}, "second.json": {scene: "second"},
@@ -544,6 +544,15 @@ describe("recorded tour across scenes", () => {
       // Every part was asked for at once, the open scene's first.
       const asked = fetchStatic.mock.calls.map(([url]) => url.replace("/showcase/snapshot/", "")).filter(name => name.startsWith("journal-"));
       expect(asked).toEqual(["journal-second.json", "journal-first.json"]);
+      release();
+    });
+
+    it("explains at once an edit of one of the open scene's analysis versions that its scene did not record", async () => {
+      const {transport, release} = held("journal-first.json");
+      await transport.fetch("/v1/workspaces/wb/selection");
+      // The edit names an analysis version of the open scene (the index lists it there), not the workspace.
+      const response = await transport.fetch(`/v1/revisions/${B}/region-edits`, {method: "POST", body: JSON.stringify({operation: "delete"})});
+      expect(await response.json()).toEqual({detail: "showcase_action_not_recorded"});
       release();
     });
 

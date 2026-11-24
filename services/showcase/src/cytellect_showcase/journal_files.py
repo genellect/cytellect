@@ -18,6 +18,7 @@ INDEX = "journal.json"
 PART_LIMIT_BYTES = 95 * 1024 * 1024
 PART = re.compile(r"journal-[a-z0-9-]+\.json\Z")
 WORKSPACE = re.compile(r"/v1/workspaces/([^/?]+)")
+REVISION = re.compile(r"/v1/revisions/([^/?]+)")
 
 
 def part_names(snapshot: Path) -> list[str]:
@@ -90,24 +91,33 @@ def write_journal(snapshot: Path, journal: dict) -> list[str]:
     return [INDEX, *names]
 
 
-def scene_index(runs: list[tuple[str, list[dict]]]) -> dict:
-    """Each part's number of entries and the workspaces its paths name, so the demo can read the open workspace's
-    scene first and answer its changes before the other parts arrive (transport.ts). Written only when that is
-    exact: no recorded path names a workspace by "*", and no workspace is named by the parts of two scenes (a change
-    naming a workspace can then match only that scene's walks, wherever the other parts are in the tour)."""
-    workspaces: list[list[str]] = []
-    scenes: dict[str, set[str]] = {}
+def _owned(runs: list[tuple[str, list[dict]]], pattern: re.Pattern) -> list[list[str]] | None:
+    """The identifiers each part's paths name by ``pattern``, or None when one is named by "*" or by the parts of two
+    scenes: a request naming such an identifier could then match another scene's walk."""
+    named: list[list[str]] = []
+    owners: dict[str, set[str]] = {}
     for scene, entries in runs:
-        named = set()
+        found = set()
         for entry in entries:
-            match = WORKSPACE.match(entry.get("path") or "")
+            match = pattern.match(entry.get("path") or "")
             if match:
                 if "*" in match.group(1):
-                    return {}
-                named.add(match.group(1))
-        for workspace in named:
-            scenes.setdefault(workspace, set()).add(scene)
-        workspaces.append(sorted(named))
-    if any(len(owners) > 1 for owners in scenes.values()):
+                    return None
+                found.add(match.group(1))
+        for identifier in found:
+            owners.setdefault(identifier, set()).add(scene)
+        named.append(sorted(found))
+    return None if any(len(scenes) > 1 for scenes in owners.values()) else named
+
+
+def scene_index(runs: list[tuple[str, list[dict]]]) -> dict:
+    """Each part's number of entries, and the workspaces and analysis versions its paths name, so the demo can read
+    the open workspace's scene first and answer its changes before the other parts arrive (transport.ts). Each list
+    is written only when that is exact: no recorded path names one by "*", and none is named by the parts of two
+    scenes (a change naming it can then match only that scene's walks, wherever the other parts are in the tour)."""
+    workspaces = _owned(runs, WORKSPACE)
+    if workspaces is None:
         return {}
-    return {"counts": [len(entries) for _, entries in runs], "workspaces": workspaces}
+    revisions = _owned(runs, REVISION)
+    return {"counts": [len(entries) for _, entries in runs], "workspaces": workspaces,
+            **({"revisions": revisions} if revisions is not None else {})}

@@ -17,7 +17,7 @@ def test_parts_read_back_as_the_same_tour_in_the_same_order(tmp_path):
     # A scene's walks kept from an earlier tour follow the recorded ones: their own part keeps the order.
     assert written == ["journal.json", "journal-ox.json", "journal-cis.json", "journal-plk1.json", "journal-ox-2.json"]
     assert json.loads((tmp_path / "journal.json").read_text()) == {"version": 2, "parts": written[1:], "counts": [2, 1, 1, 1],
-                                                                  "workspaces": [[], [], [], []]}
+                                                                  "workspaces": [[], [], [], []], "revisions": [[], [], [], []]}
     assert read_journal(tmp_path) == tour
     assert part_names(tmp_path) == written
 
@@ -66,3 +66,8 @@ def test_the_index_names_each_part_s_workspaces_only_when_a_change_can_match_one
     shared = [("ox", [entry("ox:a", "/v1/workspaces/w1/runs")]), ("cis", [entry("cis:a", "/v1/workspaces/w1/jobs")])]
     assert scene_index(shared) == {}
     assert scene_index([("ox", [entry("ox:a", "/v1/workspaces/*/runs")])]) == {}
+    # Analysis versions likewise: each listed in the parts of its scene, or none listed when one could match elsewhere.
+    own = [("ox", [entry("ox:a", "/v1/revisions/r1/region-edits")]), ("cis", [entry("cis:a", "/v1/revisions/r2/descriptive")])]
+    assert scene_index(own)["revisions"] == [["r1"], ["r2"]]
+    assert "revisions" not in scene_index([*own, ("plk", [entry("plk:a", "/v1/revisions/r1/review")])])
+    assert "revisions" not in scene_index([("ox", [entry("ox:a", "/v1/revisions/*/descriptive")])])
