@@ -172,43 +172,51 @@ for (const scene of SCENES.filter(item => item.gateChannels?.length)) for (const
     });
 
 /** The scenes whose recording declares a primary measure before any statistic (scenario.primary_outcome): their
- * planned opening comparison, where git shows the plan was written before measurement (implementation plan 4.5,
- * NS-06; tests/test_showcase_journal_scope.py). */
+ * planned opening comparison, where git shows the plan was written before measurement (implementation plan 4.5;
+ * tests/test_showcase_journal_scope.py). The demo keeps the declaration in its record but shows neither the star nor
+ * the 主要／探索 marks (2026-11-24, the owner's decision; implementation plan decision 26). Production shows both
+ * (workspace-primary-outcome-real.spec.ts, RP-04). */
 const DECLARED: Record<string, {subject: string; metric: string; channel: string | null}> = {
   "zenodo-6643470-oxaliplatin": {subject: "nucleoli", metric: "nucleolar_eccentricity", channel: null},
   "zenodo-6643470-cisplatin": {subject: "nucleoli", metric: "nucleolar_eccentricity", channel: null},
 };
-// The mark of the condition shown (the saved comparisons' buttons carry their own marks).
-const role = (page: Page) => results(page).locator(":not(button) > [data-outcome-role]");
-for (const scene of SCENES.filter(item => DECLARED[item.id])) test(`${scene.id}: the recorded primary measure stays declared while exploratory measures are chosen (NS-06)`, async ({page}) => {
+/** No star beside the metric and no 主要／探索 mark on the result or on any saved comparison's button. */
+async function noPrimaryMark(page: Page, what: string) {
+  await expect(side(page).getByRole("button", {name: "主要指標", exact: true}), what).toHaveCount(0);
+  await expect(page.locator("[data-outcome-role]"), what).toHaveCount(0);
+  await expect(results(page).getByText(/^(主要|探索)$/), what).toHaveCount(0);
+}
+for (const scene of SCENES) test(`${scene.id}: the demo shows no primary-measure star or 主要／探索 mark, also where the recording declares one (decision 26)`, async ({page}) => {
   test.setTimeout(600_000);
   const declared = DECLARED[scene.id];
   await page.goto(`/demo?id=${scene.workspaceId}&step=statistics`);
   await expect(results(page).getByRole("region", {name: "結果のまとめ"}).first()).toBeVisible({timeout: live});
-  const star = side(page).getByRole("button", {name: "主要指標", exact: true});
-  // The declared condition: the star is filled and cannot be pressed (a visitor cannot declare after the results).
-  await side(page).getByRole("radiogroup", {name: "対象", exact: true}).getByRole("radio", {name: SUBJECTS[declared.subject], exact: true}).click();
-  await side(page).getByRole("combobox", {name: "指標", exact: true}).selectOption(declared.metric);
-  if (declared.channel) await side(page).getByRole("combobox", {name: "染色", exact: true}).selectOption(declared.channel);
-  await shows(page, `${scene.id} declared`);
-  await expect(star).toBeDisabled();
-  await expect(star).toHaveAttribute("aria-pressed", "true");
-  await expect(role(page)).toHaveText("主要");
-  // Any other measure is exploratory, and the declaration is kept.
+  await noPrimaryMark(page, `${scene.id} opening`);
+  if (declared) {
+    // The declared condition, where production would fill the star and mark the result 主要. The saved comparisons
+    // are on screen (in production, each button carries 主要 or 探索).
+    await side(page).getByRole("radiogroup", {name: "対象", exact: true}).getByRole("radio", {name: SUBJECTS[declared.subject], exact: true}).click();
+    await side(page).getByRole("combobox", {name: "指標", exact: true}).selectOption(declared.metric);
+    if (declared.channel) await side(page).getByRole("combobox", {name: "染色", exact: true}).selectOption(declared.channel);
+    await shows(page, `${scene.id} declared`);
+    const saved = results(page).getByRole("group", {name: "保存した比較"}).getByRole("button");
+    await expect(saved.first(), `${scene.id} saved comparisons`).toBeVisible({timeout: live});
+    await noPrimaryMark(page, `${scene.id} declared`);
+  }
+  // Another measure (exploratory in production) shows no mark either.
   await side(page).getByRole("radiogroup", {name: "対象", exact: true}).getByRole("radio", {name: "核", exact: true}).click();
   await side(page).getByRole("combobox", {name: "指標", exact: true}).selectOption("area_px");
-  await shows(page, `${scene.id} exploratory`);
-  await expect(star).toBeDisabled();
-  await expect(star).toHaveAttribute("aria-pressed", "false");
-  await expect(role(page)).toHaveText("探索");
-});
-
-for (const scene of SCENES.filter(item => !DECLARED[item.id])) test(`${scene.id}: a scene without a recorded declaration shows no primary mark`, async ({page}) => {
-  test.setTimeout(600_000);
-  await page.goto(`/demo?id=${scene.workspaceId}&step=statistics`);
-  await expect(results(page).getByRole("region", {name: "結果のまとめ"}).first()).toBeVisible({timeout: live});
-  await expect(side(page).getByRole("button", {name: "主要指標", exact: true})).toHaveCount(0);
-  await expect(results(page).locator("[data-outcome-role]")).toHaveCount(0);
+  await shows(page, `${scene.id} other measure`);
+  await noPrimaryMark(page, `${scene.id} other measure`);
+  // グラフ names the saved result with the same mark in production; the demo shows none.
+  await page.locator("header").getByRole("button", {name: "グラフ", exact: true}).click();
+  const figure = page.getByRole("region", {name: "図の作成・保存"});
+  await expect(figure).toBeVisible({timeout: live});
+  // The saved result is shown (its 保存 appears only then), so its label is drawn where production puts the mark.
+  await expect(figure.getByRole("button", {name: "保存", exact: true})).toBeVisible({timeout: live});
+  await expect(figure.getByRole("status").filter({hasText: "図を更新中"})).toHaveCount(0, {timeout: live});
+  await expect(page.locator("[data-outcome-role]"), `${scene.id} figure`).toHaveCount(0);
+  await expect(side(page).getByRole("button", {name: "主要指標", exact: true}), `${scene.id} figure`).toHaveCount(0);
 });
 
 for (const scene of SCENES) test(`${scene.id}: with independence unconfirmed, a comparison is the runs' description (NS-06)`, async ({page}) => {

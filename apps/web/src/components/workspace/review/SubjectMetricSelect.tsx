@@ -47,9 +47,9 @@ function RadioGroup<T extends string>({radios, value, onChoose, className, label
 }
 
 /** The primary-measure mark beside the metric (#257 RP-04): an outline star, filled once this condition is declared. */
-function PrimaryStar({declared, disabled, readOnly, onToggle}: {declared: boolean; disabled?: boolean; readOnly?: boolean; onToggle: () => void}) {
-  return <button type="button" className={styles.primary} aria-pressed={declared} disabled={disabled || readOnly} onClick={onToggle}
-    aria-label="主要指標" title={declared ? "主要指標：宣言済み" : readOnly ? "探索的な指標" : "主要指標として宣言"}>
+function PrimaryStar({declared, disabled, onToggle}: {declared: boolean; disabled?: boolean; onToggle: () => void}) {
+  return <button type="button" className={styles.primary} aria-pressed={declared} disabled={disabled} onClick={onToggle}
+    aria-label="主要指標" title={declared ? "主要指標：宣言済み" : "主要指標として宣言"}>
     <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5l1.9 4.1 4.5.5-3.3 3.1.9 4.4L8 11.4l-4 2.2.9-4.4L1.6 6.1l4.5-.5z"
       fill={declared ? "#1757b6" : "none"} stroke="#1757b6" strokeWidth="1.2" strokeLinejoin="round"/></svg>
   </button>;
@@ -64,9 +64,9 @@ export function SubjectMetricSelect({metric, target, calibrated, offered, onSubj
   offered: (metric: string, subject: MetricSubject) => boolean;
   onSubject: (subject: MetricSubject) => void;
   onMetric: (metric: string, subject: MetricSubject) => void;
-  /** The primary-measure declaration of the chosen condition. The demo shows a recorded declaration read-only and
-   * omits the mark when none was recorded (implementation plan section 4.5). */
-  declaration?: {declared: boolean; disabled?: boolean; readOnly?: boolean; onToggle: () => void};
+  /** The primary-measure declaration of the chosen condition; omitted in the demo, which shows no star (implementation
+   * plan decision 26). */
+  declaration?: {declared: boolean; disabled?: boolean; onToggle: () => void};
 }) {
   const id = useId();
   const subject = metricSubject(metric, target), entry = subjectEntry(subject, metric);

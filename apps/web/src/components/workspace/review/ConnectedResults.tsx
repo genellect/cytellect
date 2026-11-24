@@ -68,7 +68,8 @@ export interface ConnectedResultsProps {
   stainName?:(channelId:string)=>string;
   /** In the demo, the statistics its tour recorded for the scene; null elsewhere (every choice can be calculated). */
   recorded?:RecordedStatistic[]|null;
-  /** The primary measure declared before results (#257 RP-04); results show 主要 or 探索 only when one exists. */
+  /** The primary measure declared before results (#257 RP-04); results show 主要 or 探索 only when one exists. The demo
+   * passes none, so it shows no mark (implementation plan decision 26). */
   primary?:PrimaryOutcome|null;
 }
 interface SavedSource {field_id:string;region_set?:{region_set_id:string};metadata?:{condition?:string}}
