@@ -14,8 +14,10 @@ SEED = Path(__file__).resolve().parents[1] / "apps/web/public/showcase/seed.zip"
 def seed_pair(tmp_path):
     with zipfile.ZipFile(SEED) as archive:
         names = archive.namelist()
+        # A saved comparison of the seed (a distribution has no per-unit summary to change).
         result = next(name for name in names if name.endswith("/output/result.json")
-                      and json.loads(archive.read(name)).get("source_kind") == "region-2d")
+                      and json.loads(archive.read(name)).get("source_kind") == "region-2d"
+                      and json.loads(archive.read(name)).get("unit_summary"))
         csv = next(name for name in names if name.startswith(result.removesuffix("result.json")) and name.endswith(".csv"))
         svg = next(name for name in names if name.startswith(result.removesuffix("result.json")) and name.endswith(".svg"))
         exports = [name for name in names if name.startswith(result.removesuffix("result.json"))

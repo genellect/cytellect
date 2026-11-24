@@ -1,7 +1,7 @@
 import {afterEach, describe, expect, it, vi} from "vitest";
 import {fetchVerified, IntegrityError, sha256Hex} from "./digest";
 import type {ShowcaseRequest, ShowcaseResponse, SnapshotIndex} from "./protocol";
-import {calculationBody, createShowcaseTransport, figureSettings, journalBodyMatches, journalPathMatches, snapshotKey, type ShowcaseEngine} from "./transport";
+import {calculationBody, createShowcaseTransport, figureSettings, journalBodyMatches, journalPathMatches, snapshotKey, type ShowcaseEngine, type ShowcaseTransport} from "./transport";
 import {bootPyodideRuntime} from "./worker-runtime";
 
 const encoder = new TextEncoder();
@@ -170,7 +170,7 @@ describe("showcase transport", () => {
 describe("recorded tour", () => {
   const entry = (method: string, path: string, body: string | null, file: string | null, status = 200) =>
     ({method, path, body, status, headers: [["content-type", "application/json"]] as Array<[string, string]>, file});
-  function tour(capable: boolean, engine = fakeEngine()) {
+  function tour(capable: boolean, engine = fakeEngine(), split = false) {
     const files: Record<string, unknown> = {
       "index.json": {version: 1, entries: {[snapshotKey("/v1/workspaces/w/jobs/j")]: {status: 200, headers: [], file: "s0.json"}}},
       "s0.json": {state: "snapshot"},
@@ -183,6 +183,13 @@ describe("recorded tour", () => {
       ]},
       "a.json": {job: "j"}, "b.json": {state: "running"}, "c.json": {state: "done"}, "d.json": {version: 2}, "e.json": {state: "after"},
     };
+    if (split) {
+      // The same tour in parts, as a tour of several scenes is published (one part per scene, docs/showcase.md).
+      const entries = (files["journal.json"] as {entries: unknown[]}).entries;
+      files["journal-first.json"] = {version: 1, entries: entries.slice(0, 2)};
+      files["journal-second.json"] = {version: 1, entries: entries.slice(2)};
+      files["journal.json"] = {version: 2, parts: ["journal-first.json", "journal-second.json"]};
+    }
     const fetchStatic = vi.fn(async (url: string) => {
       const name = url.replace("/showcase/snapshot/", "");
       return name in files ? new Response(JSON.stringify(files[name])) : new Response("missing", {status: 404});
@@ -203,6 +210,16 @@ describe("recorded tour", () => {
     expect(await (await subject.fetch("/v1/workspaces/w/jobs/j")).json()).toEqual({state: "done"});
     expect(await (await subject.fetch("/v1/workspaces/w/selection", {method: "PUT", body: "{}"})).json()).toEqual({version: 2});
     expect(await (await subject.fetch("/v1/workspaces/w/jobs/j")).json()).toEqual({state: "after"});
+    expect(engine.start).not.toHaveBeenCalled();
+  });
+
+  it("answers from a tour published in parts exactly as from one file", async () => {
+    const {subject, engine} = tour(false, fakeEngine(), true);
+    expect(await (await post(subject, "area")).json()).toEqual({job: "j"});
+    expect(await (await subject.fetch("/v1/workspaces/w/jobs/j")).json()).toEqual({state: "done"});
+    expect(await (await subject.fetch("/v1/workspaces/w/selection", {method: "PUT", body: "{}"})).json()).toEqual({version: 2});
+    expect(await (await subject.fetch("/v1/workspaces/w/jobs/j")).json()).toEqual({state: "after"});
+    expect(await (await post(subject, "intensity")).json()).toEqual({detail: "showcase_action_not_recorded"});
     expect(engine.start).not.toHaveBeenCalled();
   });
 
@@ -423,6 +440,173 @@ describe("recorded tour across scenes", () => {
     expect(await (await transport.fetch(`/v1/revisions/${A}/export`, {method: "POST"})).json()).toEqual({revision_id: A, job_id: "export"});
     // A figure or package names no content of its own: another job's recording never answers it.
     expect((await transport.fetch(`/v1/jobs/${JOB}/figure-render`, {method: "POST", body: JSON.stringify({width: 89})})).status).toBe(409);
+  });
+  it("answers a request by its pattern only from the open workspace's scene, whatever was answered before", async () => {
+    // Two demo scenes recorded the same request on their own cohorts: same content, only the revision differs.
+    const A = "aaaaaaaa-0000-4000-8000-000000000001", B = "bbbbbbbb-0000-4000-8000-000000000002";
+    const V = "dddddddd-0000-4000-8000-000000000004";
+    const body = JSON.stringify({metric: "mean"});
+    const files = {
+      "index.json": {version: 1, entries: {}},
+      "journal.json": {version: 1, entries: [
+        entry("POST", "/v1/workspaces/wa/region-cohorts", null, "cohort-a.json", "first:walk-1"),
+        entry("POST", `/v1/revisions/${A}/descriptive`, body, "first.json", "first:walk-1"),
+        entry("POST", "/v1/workspaces/wb/region-cohorts", null, "cohort-b.json", "second:walk-1"),
+        entry("POST", `/v1/revisions/${B}/descriptive`, body, "second.json", "second:walk-1"),
+      ]},
+      "cohort-a.json": {revision_id: A}, "cohort-b.json": {revision_id: B}, "first.json": {scene: "first"}, "second.json": {scene: "second"},
+    };
+    const ask = async (transport: ReturnType<typeof subject>) =>
+      (await (await transport.fetch(`/v1/revisions/${V}/descriptive`, {method: "POST", body})).json()) as {scene: string};
+    // The second scene's workspace is open after the first scene's change was answered: its own record answers.
+    const after = subject(files);
+    await after.fetch("/v1/workspaces/wa/region-cohorts", {method: "POST"});
+    await after.fetch("/v1/workspaces/wb/selection");
+    expect(await ask(after)).toEqual({scene: "second"});
+    // And the other way, with the first scene's workspace open after the second's change.
+    const before = subject(files);
+    await before.fetch("/v1/workspaces/wb/region-cohorts", {method: "POST"});
+    await before.fetch("/v1/workspaces/wa/selection");
+    expect(await ask(before)).toEqual({scene: "first"});
+    // A request is answered for the workspace open when it was made, even when the visitor has switched before its
+    // answer is decided (decisions follow request order).
+    const switched = subject(files);
+    await switched.fetch("/v1/workspaces/wa/selection");
+    const asked = ask(switched);
+    void switched.fetch("/v1/workspaces/wb/selection");
+    expect(await asked).toEqual({scene: "first"});
+    // Without a workspace named, the scene of the change last answered decides.
+    for (const [cohort, scene] of [[B, "second"], [A, "first"]]) {
+      const unnamed = subject(files);
+      await unnamed.fetch(`/v1/revisions/${cohort}/descriptive`, {method: "POST", body});
+      expect(await ask(unnamed)).toEqual({scene});
+    }
+  });
+  describe("the open scene's parts first", () => {
+    const A = "aaaaaaaa-0000-4000-8000-000000000001", B = "bbbbbbbb-0000-4000-8000-000000000002";
+    const body = JSON.stringify({metric: "mean"});
+    // The open scene ("second") comes after another scene's part in the tour, which records the same statistics request.
+    const first = [
+      entry("POST", "/v1/workspaces/wa/runs", JSON.stringify({target: "nuclei"}), "run-a.json", "first:walk"),
+      entry("GET", "/v1/workspaces/wa/runs/r", null, "done-a.json", "first:walk"),
+      entry("POST", `/v1/revisions/${A}/descriptive`, body, "first.json", "first:stats"),
+    ];
+    const second = [
+      entry("POST", "/v1/workspaces/wb/runs", JSON.stringify({target: "nuclei"}), "run-b.json", "second:walk"),
+      entry("GET", "/v1/workspaces/wb/runs/r", null, "done-b.json", "second:walk"),
+      entry("POST", `/v1/revisions/${B}/descriptive`, body, "second.json", "second:stats"),
+    ];
+    const files: Record<string, unknown> = {
+      "index.json": {version: 1, entries: {}},
+      "journal.json": {version: 2, parts: ["journal-first.json", "journal-second.json"], counts: [3, 3], workspaces: [["wa"], ["wb"]], revisions: [[A], [B]]},
+      "journal-first.json": {version: 1, entries: first}, "journal-second.json": {version: 1, entries: second},
+      "run-a.json": {run: "a"}, "done-a.json": {state: "a"}, "first.json": {scene: "first"},
+      "run-b.json": {run: "b"}, "done-b.json": {state: "b"}, "second.json": {scene: "second"},
+    };
+    /** A transport whose part `held` arrives only when released. */
+    function held(name: string | null) {
+      let release = () => {};
+      const arrived = new Promise<void>(resolve => {release = resolve;});
+      const fetchStatic = vi.fn(async (url: string) => {
+        const file = url.replace("/showcase/snapshot/", "");
+        if (file === name) await arrived;
+        return file in files ? new Response(JSON.stringify(files[file])) : new Response("missing", {status: 404});
+      });
+      return {release, fetchStatic, transport: createShowcaseTransport({fetchStatic, createEngine: () => null, capable: () => false, snapshotBase: "/showcase/snapshot/"})};
+    }
+    const json = async (response: Promise<Response>) => (await response).json();
+    // The visitor opens the second scene, measures, reads the run, then asks for a statistic by a cohort of its own.
+    async function walk(transport: ShowcaseTransport, release = () => {}) {
+      await transport.fetch("/v1/workspaces/wb/selection");
+      const measured = await json(transport.fetch("/v1/workspaces/wb/runs", {method: "POST", body: JSON.stringify({target: "nuclei"})}));
+      const read = await json(transport.fetch("/v1/workspaces/wb/runs/r"));
+      const statistic = transport.fetch(`/v1/revisions/${"cccccccc-0000-4000-8000-000000000003"}/descriptive`, {method: "POST", body});
+      release();
+      return [measured, read, await json(statistic)];
+    }
+
+    it("answers the first change of the open scene before the other parts arrive", async () => {
+      const {transport, fetchStatic, release} = held("journal-first.json");
+      await transport.fetch("/v1/workspaces/wb/selection");
+      expect(await json(transport.fetch("/v1/workspaces/wb/runs", {method: "POST", body: JSON.stringify({target: "nuclei"})}))).toEqual({run: "b"});
+      expect(await json(transport.fetch("/v1/workspaces/wb/runs/r"))).toEqual({state: "b"});
+      // The open scene's part was asked for first; the other one has not arrived.
+      const asked = fetchStatic.mock.calls.map(([url]) => url.replace("/showcase/snapshot/", "")).filter(name => name.startsWith("journal-"));
+      expect(asked[0]).toBe("journal-second.json");
+      release();
+    });
+
+    it("explains at once a change of the open workspace that its scene did not record, while the other parts are on the way", async () => {
+      const {transport, release, fetchStatic} = held("journal-first.json");
+      await transport.fetch("/v1/workspaces/wb/selection");
+      const response = await transport.fetch("/v1/workspaces/wb/runs", {method: "POST", body: JSON.stringify({target: "nucleoli"})});
+      expect(await response.json()).toEqual({detail: "showcase_action_not_recorded"});
+      // The open scene's part was asked for first, then every other part (the other part is still on the way).
+      const asked = fetchStatic.mock.calls.map(([url]) => url.replace("/showcase/snapshot/", "")).filter(name => name.startsWith("journal-"));
+      expect(asked).toEqual(["journal-second.json", "journal-first.json"]);
+      release();
+    });
+
+    it("asks for the other parts once the open scene's part has downloaded, all of them together", async () => {
+      // A third part, so that "all together" means more than one.
+      files["journal.json"] = {version: 2, parts: ["journal-first.json", "journal-second.json", "journal-third.json"], counts: [3, 3, 1],
+        workspaces: [["wa"], ["wb"], ["wc"]], revisions: [[A], [B], []]};
+      files["journal-third.json"] = {version: 1, entries: [entry("GET", "/v1/workspaces/wc/jobs", null, "done-a.json", "third:walk")]};
+      try {
+        const {transport, release, fetchStatic} = held("journal-second.json");
+        const parts = () => fetchStatic.mock.calls.map(([url]) => url.replace("/showcase/snapshot/", "")).filter(name => name.startsWith("journal-"));
+        await transport.fetch("/v1/workspaces/wb/selection");
+        const change = transport.fetch("/v1/workspaces/wb/runs", {method: "POST", body: JSON.stringify({target: "nuclei"})});
+        await new Promise(resolve => setTimeout(resolve, 50));
+        // While the open scene's part downloads, it has the connection to itself.
+        expect(parts()).toEqual(["journal-second.json"]);
+        release();
+        expect(await (await change).json()).toEqual({run: "b"});
+        await new Promise(resolve => setTimeout(resolve, 50));
+        expect(parts()).toEqual(["journal-second.json", "journal-first.json", "journal-third.json"]);
+      } finally {
+        files["journal.json"] = {version: 2, parts: ["journal-first.json", "journal-second.json"], counts: [3, 3], workspaces: [["wa"], ["wb"]], revisions: [[A], [B]]};
+        delete files["journal-third.json"];
+      }
+    });
+
+    it("explains at once an edit of one of the open scene's analysis versions that its scene did not record", async () => {
+      const {transport, release} = held("journal-first.json");
+      await transport.fetch("/v1/workspaces/wb/selection");
+      // The edit names an analysis version of the open scene (the index lists it there), not the workspace.
+      const response = await transport.fetch(`/v1/revisions/${B}/region-edits`, {method: "POST", body: JSON.stringify({operation: "delete"})});
+      expect(await response.json()).toEqual({detail: "showcase_action_not_recorded"});
+      // An opening version no part names (the tour never edited it) is the open scene's too.
+      const opening = await transport.fetch("/v1/revisions/eeeeeeee-0000-4000-8000-000000000005/region-edits", {method: "POST", body: JSON.stringify({operation: "delete"})});
+      expect(await opening.json()).toEqual({detail: "showcase_action_not_recorded"});
+      // A version another scene's part names waits for the whole tour.
+      let answered = false;
+      const other = transport.fetch(`/v1/revisions/${A}/region-edits`, {method: "POST", body: JSON.stringify({operation: "delete"})}).then(value => {answered = true; return value;});
+      await new Promise(resolve => setTimeout(resolve, 50));
+      expect(answered).toBe(false);
+      release();
+      expect(await (await other).json()).toEqual({detail: "showcase_action_not_recorded"});
+    });
+
+    it("does not use a tour whose parts disagree with the counts of its index", async () => {
+      const saved = files["journal.json"];
+      files["journal.json"] = {version: 2, parts: ["journal-first.json", "journal-second.json"], counts: [2, 3], workspaces: [["wa"], ["wb"]]};
+      try {
+        const {transport} = held(null);
+        await transport.fetch("/v1/workspaces/wb/selection");
+        // The open scene's part sits at another position than the index says: nothing is answered from the tour.
+        const statistic = await transport.fetch(`/v1/revisions/${B}/descriptive`, {method: "POST", body});
+        expect(await statistic.json()).toEqual({detail: "showcase_action_not_recorded"});
+      } finally {files["journal.json"] = saved;}
+    });
+
+    it("answers the same whether the other parts arrive late or at once", async () => {
+      const late = held("journal-first.json"), atOnce = held(null);
+      const answers = await walk(late.transport, late.release);
+      expect(answers).toEqual(await walk(atOnce.transport));
+      // A statistic by a pattern waits for the whole tour, and is answered by the open scene's walk.
+      expect(answers).toEqual([{run: "b"}, {state: "b"}, {scene: "second"}]);
+    });
   });
   it("keeps listing a job another scene gave this visitor, so a reused cohort is still found", async () => {
     const transport = subject({

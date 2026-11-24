@@ -17,6 +17,16 @@ export interface RuntimeConfig {
  *  `PUT .../analysis-spec` entries record the settings later runs of the scene were measured under. */
 export interface JournalEntry {scene?: string; method: string; path: string; pattern?: string; body: string | null; status: number; headers: HeaderList; file: string | null}
 export interface Journal {version: 1; entries: JournalEntry[]}
+/** `snapshot/journal.json` of a tour split into parts (one per scene, each a {@link Journal}), because the whole tour
+ *  is larger than a file may be on GitHub. Read in order, the parts are the tour (services/showcase journal_files.py). */
+export interface JournalIndex {
+  version: 2; parts: string[];
+  /** For each part, its number of entries and the workspaces its paths name (written only when no workspace is named
+   *  by the parts of two scenes): the scene of the open workspace is read first and answers its own changes. */
+  counts?: number[]; workspaces?: string[][];
+  /** For each part, the analysis versions its paths name (written only when none is named by two scenes' parts). */
+  revisions?: string[][];
+}
 
 /** `snapshot/figures.json`: the figures of the tour's results, drawn by the production renderer from the
  *  recorded results (services/showcase figure_catalog.py). A figure request is answered by the result it

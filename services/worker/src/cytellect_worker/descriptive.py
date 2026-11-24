@@ -64,7 +64,7 @@ def run_descriptive(store, job, output):
             assert_reviewed_compartments(config, report, read_json(store.safe_path(rev["result_dir"], "provenance.json")))
         summaries = load_compartment_summaries(store, rev, report)
         shapes = (load_nucleolar_shapes(store, rev, report, summaries)
-                  if request.selection.metric == "nucleolar_eccentricity" else None)
+                  if request.selection.metric in ("nucleolar_eccentricity", "largest_nucleolus_fraction") else None)
         result = describe_compartment_summary(report, snapshot, request, summaries,
                                               nuclear=_gfp_source(store, rev, report, request), shapes=shapes)
     elif request.selection.source == "field-summary":
@@ -77,7 +77,11 @@ def run_descriptive(store, job, output):
         if preview and gate_of(request.selection) is not None:
             prefix = "channel_gate" if getattr(request.selection, "channel_gate", None) is not None else "gfp_gate"
             raise ValueError(f"{prefix}_preview_unsupported")
-        result = describe_regions(report, snapshot, request, nuclear=_gfp_source(store, rev, report, request))
+        from .feature_sources import load_nuclear_features
+
+        features = load_nuclear_features(store, rev, report, (request,))
+        result = describe_regions(report, snapshot, request, nuclear=_gfp_source(store, rev, report, request),
+                                  **({} if features is None else {"features": features}))
     else:
         result = describe_legacy(report, snapshot, request)
     result["revision_id"] = rev["id"]

@@ -215,6 +215,31 @@ def _patch(restore: list, target: Any, name: str, value: Any) -> None:
     restore.append(lambda: setattr(target, name, original))
 
 
+def _pin_protocols(restore: list, store) -> None:
+    """New runs use the detection protocols the seed's saved revisions were recorded with.
+
+    The demo replays recorded detections keyed by their inputs; a newer default protocol (nuclear-size/1.1.0,
+    marker 2.2.0, 2026-11-21) would ask for detections that were never recorded and would change the demo
+    before it is recorded again. A protocol absent from the seed keeps the current default.
+    """
+    from cytellect_api import run_recipes
+    from cytellect_api.db import revisions
+
+    scales, markers = set(), set()
+    for row in store.rows(revisions):
+        recipe = (row["config"] or {}).get("recipe") or {}
+        detector = recipe.get("detector") or {}
+        if recipe.get("source") == "stardist_nuclear" and recipe.get("detection_scale"):
+            scales.add(recipe["detection_scale"])
+        if detector.get("engine") == "cytellect-nucleolar-v2" and detector.get("source") == "marker":
+            markers.add(detector.get("protocol_version"))
+    if len(scales) == 1 and next(iter(scales)) in ("nuclear-size/1.0.0", "nuclear-size/1.1.0"):
+        _patch(restore, run_recipes, "NUCLEAR_SCALE_PROTOCOL", next(iter(scales)))
+    # 2.0.0 marker records are already kept by run_recipes; 2.1.0 seeds pin new marker runs to 2.1.0.
+    if "2.1.0" in markers and "2.2.0" not in markers:
+        _patch(restore, run_recipes, "MARKER_PROTOCOL", "2.1.0")
+
+
 def _detections_unavailable(*_args, **_kwargs):
     raise ValueError(DETECTION_NOT_RECORDED)
 
@@ -300,6 +325,7 @@ async def boot(seed_zip: bytes, origin: str, *, root: str | Path | None = None,
         _patch(restore, proposals, "request_draft", recordings.request_draft)
         app = create_app(settings)
         store = app.state.store
+        _pin_protocols(restore, store)
         _refresh_expiry(store, settings)
         undo_weights = _compat.numeric_font_weights()
         if undo_weights is not None:

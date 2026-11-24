@@ -273,3 +273,29 @@ def test_the_legend_shows_the_colours_chosen_for_fields(tmp_path):
     assert "Treated (Field 2)" in svg and "Treated (Field 3)" in svg
     caption = (tmp_path / "figure-caption.md").read_text(encoding="utf-8")
     assert "their colours are named in the legend" in caption
+
+
+def test_pages_saved_before_the_point_layout_record_still_validate(tmp_path):
+    """Pages saved before 2026-11-20 (genellect/cytellect#247) record ``jitter_seed: 0`` instead of ``point_layout``.
+    They stay valid for export (an existing workspace's saved description); nothing else may differ."""
+    result, _, _ = description(3)
+    result["figure"] = render_descriptive_output(result, tmp_path)
+    data, index = tmp_path / "figure-data.json", tmp_path / "descriptive-output.json"
+    source = json.loads(data.read_text(encoding="utf-8"))
+
+    def saved_as(document):
+        # The file as an earlier version saved it, with the manifest that recorded its bytes then.
+        data.write_text(json.dumps(document), encoding="utf-8")
+        record = {"sha256": hashlib.sha256(data.read_bytes()).hexdigest(), "bytes": data.stat().st_size}
+        result["figure"]["files"]["figure-data.json"] = record
+        manifest = json.loads(index.read_text(encoding="utf-8"))
+        manifest["files"]["figure-data.json"] = record
+        index.write_text(json.dumps(manifest), encoding="utf-8")
+
+    legacy = {key: value for key, value in source.items() if key != "point_layout"} | {"jitter_seed": 0}
+    saved_as(legacy)
+    validate_descriptive_output(result, tmp_path)
+    for altered in (legacy | {"jitter_seed": 1}, legacy | {"point_layout": source["point_layout"]}):
+        saved_as(altered)
+        with pytest.raises(ValueError, match="descriptive_output_source_mismatch"):
+            validate_descriptive_output(result, tmp_path)

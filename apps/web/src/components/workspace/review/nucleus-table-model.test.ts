@@ -1,6 +1,6 @@
 import {describe,expect,it} from "vitest";
 import type {NucleusTableData} from "@/lib/workspace/api-adapter";
-import {nucleusTableKey,nucleusTableView} from "./nucleus-table-model";
+import {nucleusTableKey,nucleusTableView,sizeBreakdown} from "./nucleus-table-model";
 
 const values=(channel_id:string,role:"nuclear_stain"|"measure",mean:number,integrated:number,corrected:number|null,saturation=0)=>({
   channel_id,role,mean,integrated,mean_corrected:corrected,integrated_corrected:corrected===null?null:corrected*4,
@@ -85,5 +85,20 @@ describe("nucleus table view",()=>{
     expect(nucleusTableKey("f1","n","c","別の理由")).not.toBe(nucleusTableKey("f1","n","c","焦点外"));
     // Identifiers and reasons never run into one another.
     expect(nucleusTableKey("f1|n","","c")).not.toBe(nucleusTableKey("f1","n|","c"));
+  });
+});
+
+describe("nucleolar size breakdown",()=>{
+  // Decision 20 (2026-11-21): small adopted nucleoli stay in the values; the ledger shows how many there are.
+  it("shows the API's count of confirmed nucleoli by size, in µm² or px²",()=>{
+    const view=nucleusTableView({...table,rows:[row(1,measured),row(2,missing("indeterminate"))],
+      nucleolar_sizes:{unit:"um2",small_limit:1,small:2,other:1}},channels);
+    expect(view.ledger).toContain("欠測 1（核小体を判定不能 1）");
+    expect(view.ledger).toContain("核小体の大きさ：1 µm² 未満 2、1 µm² 以上 1");
+    expect(sizeBreakdown({...table,nucleolar_sizes:{unit:"px2",small_limit:8,small:2,other:1}}))
+      .toBe("核小体の大きさ：8 px² 以下 2、それより大きい 1");
+  });
+  it("shows nothing for tables saved before object areas were recorded",()=>{
+    expect(nucleusTableView(table,channels).ledger).not.toContain("核小体の大きさ");
   });
 });

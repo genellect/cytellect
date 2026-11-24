@@ -80,6 +80,9 @@ class JobView(BaseModel):
     attempts: int
     analysis_mode: Literal["experimental-unit", "exploratory", "descriptive", "region-experimental-unit", "region-association"] | None = None
     analysis_version: str | None = None
+    # When the statistics behind a result were calculated (server time): a statistics job's own creation, and for a
+    # figure re-render the creation of the statistics job it re-draws, never the re-render's (#257 RP-04).
+    calculated_at: float | None = None
 
 
 class ContourView(BaseModel):

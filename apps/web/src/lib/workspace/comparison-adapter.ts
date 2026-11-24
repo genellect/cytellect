@@ -17,9 +17,11 @@ type Selection = CommonComparisonRequest["selection"];
 export type RegionComparisonMetric = Extract<Selection, {source: "region"}>["metric"];
 /** Per-nucleus values from a nucleoplasm revision's compartment-summary.json (selection 1.0.0). */
 export type CompartmentComparisonMetric = Extract<Selection, {source: "compartment-summary"}>["metric"];
-export const COMPARTMENT_METRICS: readonly CompartmentComparisonMetric[] = ["log2_nucleoplasm_over_nucleolus", "nucleolar_area_fraction", "nucleolar_count", "nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity"];
+export const COMPARTMENT_METRICS: readonly CompartmentComparisonMetric[] = ["log2_nucleoplasm_over_nucleolus", "nucleolar_area_fraction", "nucleolar_count", "nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity", "largest_nucleolus_fraction"];
 /** Nucleolar total area and shape need compartment-summary selection 1.1.0; the others keep 1.0.0. */
-const NUCLEOLAR_V11: readonly string[] = ["nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity"];
+const NUCLEOLAR_V11: readonly string[] = ["nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity", "largest_nucleolus_fraction"];
+/** Nuclear shape (nuclear-features/1.0.0) changes with the pixel grid: compared only with confirmed spatial sampling. */
+const NUCLEAR_SHAPE: readonly string[] = ["solidity", "axis_ratio", "eccentricity"];
 /** The descriptive contract accepts the metrics exposed by this workspace. */
 export function descriptiveSupported(metric:string){void metric;return true;}
 const isCompartmentMetric = (metric: string): metric is CompartmentComparisonMetric => (COMPARTMENT_METRICS as readonly string[]).includes(metric);
@@ -95,7 +97,7 @@ export function comparisonRequest(choices: ComparisonChoices): CommonComparisonR
   const inference = choices.inference !== false;
   if ((inference && !choices.independence) || !choices.acquisition || !choices.missingness || !choices.unitDefinition.trim()) throw new Error("独立性・撮影条件・採否を確認してください。");
   if (conditions.length < 2 || choices.contrasts.some(pair => pair.length !== 2 || pair[0] === pair[1])) throw new Error("比較する群の組を指定してください。");
-  if ((choices.metric === "area_px" || choices.metric.includes("integrated") || choices.metric === "nucleolar_count" || choices.metric === "nucleolar_area_fraction" || NUCLEOLAR_V11.includes(choices.metric) || isFieldSummaryMetric(choices.metric)) && !choices.sampling) throw new Error("画素の大きさと空間サンプリングを確認してください。");
+  if ((choices.metric === "area_px" || choices.metric.includes("integrated") || choices.metric === "nucleolar_count" || choices.metric === "nucleolar_area_fraction" || NUCLEOLAR_V11.includes(choices.metric) || NUCLEAR_SHAPE.includes(choices.metric) || isFieldSummaryMetric(choices.metric)) && !choices.sampling) throw new Error("画素の大きさと空間サンプリングを確認してください。");
   if (choices.design === "paired" && !choices.pairingBasis.trim()) throw new Error("対応の根拠を指定してください。");
   const settings = inference ? comparisonMethod(choices.method, choices.design, conditions.length)! : {version: "2.0.0" as const, test: "none" as const, omnibus: null};
   return {mode: "region-experimental-unit", ...settings,

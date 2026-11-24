@@ -11,13 +11,41 @@
 .inline input{width:auto}
 .link{border:0;background:none;color:#2164cf;text-decoration:underline;padding:0;cursor:pointer}
 .setup{flex:1;overflow:auto;padding:20px 24px 32px;max-width:1200px;width:100%;margin:0 auto;box-sizing:border-box}
-.setupHeader{display:flex;align-items:center;gap:16px;justify-content:space-between}
+/* The purpose, the demo's 公開データ mark and the one next step on one line; the state and the summary below it. */
+.setupHeader{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
 .setupHeader h1{font-size:20px;margin:0}
-.lead{color:#4b5563;margin:6px 0 16px;font-size:15px}
+.headerActions{display:flex;gap:8px;margin-left:auto}
+.setup .next{background:#2164cf;color:white;border-color:#2164cf;font-weight:600;white-space:nowrap}
+.source{position:relative;font-size:12px}
+.setup .source summary{display:inline-block;list-style:none;cursor:pointer;margin:0;padding:1px 8px;min-height:0;line-height:18px;font-size:12px;font-weight:400;border:1px solid #d8dde5;border-radius:10px;color:#4b5563;background:white}
+.source summary::-webkit-details-marker{display:none}
+.source summary::after{content:" ▸"}
+.source[open] summary::after{content:" ▾"}
+.source dl{position:absolute;z-index:5;top:calc(100% + 6px);left:0;width:min(520px,80vw);margin:0;padding:10px 12px;border:1px solid #dfe3e8;border-radius:8px;background:white;box-shadow:0 6px 20px #20252b1f;font-size:13px;line-height:1.55;color:#20252b}
+.source dl div{display:grid;grid-template-columns:4em 1fr;gap:8px}
+.source dl div+div{margin-top:6px}
+.source dt{color:#65707d}
+.source dd{margin:0}
+.status{list-style:none;display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 6px;padding:0;font-size:13px}
+.status li{display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:12px;border:1px solid #bfe3cb;background:#f0faf3;color:#1f5f37}
+.status li[data-ok=false]{border-color:#f4bb58;background:#fff4e5;color:#7a4b00}
+.status .mark{width:12px;height:12px;flex:none}
+.summary{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;margin:0 0 14px;color:#4b5563;font-size:14px}
+.summary>span{display:inline-flex;align-items:center;gap:4px}
+.summary strong{font-size:17px;color:#20252b}
+.summary small{font-size:13px;color:#65707d}
+.summary svg{width:16px;height:16px;fill:currentColor;color:#3b4656}
+.summary svg.arrow{width:16px;height:10px;fill:none;color:#8a94a1}
 .grid{display:grid;border:1px solid #dfe3e8;border-radius:8px;background:white;overflow:hidden}
 .row{display:contents}
 .row>*{border-bottom:1px solid #dfe3e8;padding:12px;min-width:0}
 .corner{font-weight:600;color:#4b5563;align-self:end}
+.groupName{display:flex;align-items:center;gap:8px;margin:0;font-size:15px;color:#20252b}
+.tag{font-size:12px;font-weight:600;padding:0 6px;border-radius:4px;background:#e8f0fc;color:#1757b6}
+/* The demo's record as text: the run's name, and its dates small beside it (an empty date is not shown). */
+.runText{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 10px;background:#f8fafc}
+.runText strong{font-size:15px;color:#20252b}
+.runText small{font-size:12px;color:#65707d}
 .groupHead{display:flex;flex-direction:column;gap:6px;background:#f8fafc}
 .groupHead input{font-weight:600}
 /* Name on its own line, the two dates side by side: a run row stays about as tall as its field chips. */
@@ -40,7 +68,7 @@
 .addRun{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;margin:12px 0}
 .addRun label{display:flex;flex-direction:column;gap:2px;font-size:13px;color:#4b5563}
 .addRun small{color:#65707d}
-.independence{display:flex;gap:10px;align-items:flex-start;padding:12px;border:1px solid #dfe3e8;border-radius:8px;background:white;margin:12px 0;font-size:14px;line-height:1.5}
+.independence{display:flex;gap:8px;align-items:center;margin:12px 0;font-size:14px;font-weight:600}
 .unassigned{margin:12px 0}
 .unassigned h2{font-size:16px;margin:0 0 6px}
 .unassigned ul{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:6px}

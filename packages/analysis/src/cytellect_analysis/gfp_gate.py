@@ -68,6 +68,17 @@ def apply_control_gate(rows: list[dict], thresholds: dict) -> list[dict]:
     return gated
 
 
+def batch_otsu(values) -> float:
+    """Otsu's threshold of one acquisition date's pooled values (256 histogram bins, first maximum).
+
+    Shared by the exploratory nucleus gates and the per-nucleus positive-area fraction (nuclear-features/1.0.0).
+    The caller ensures at least two distinct finite values.
+    """
+    from skimage.filters import threshold_otsu
+
+    return float(threshold_otsu(np.asarray(values, dtype=np.float64), nbins=256))
+
+
 def exploratory_thresholds(rows: list[dict], method: str, threshold: float | None = None, *,
                            value_key="gfp_mean", protocol=EXPLORATORY_PROTOCOL,
                            invalid_reason="gfp_exploratory_threshold_invalid",
@@ -78,8 +89,6 @@ def exploratory_thresholds(rows: list[dict], method: str, threshold: float | Non
     Batch/date is required only for Otsu. Uniform or insufficient distributions
     remain unclassified. Missing corrected means never fall back to raw values.
     """
-    from skimage.filters import threshold_otsu
-
     if method not in ("manual", "batch_otsu") or ((method == "manual") != (threshold is not None)):
         raise ValueError(invalid_reason)
     if threshold is not None and not math.isfinite(threshold):
@@ -101,7 +110,7 @@ def exploratory_thresholds(rows: list[dict], method: str, threshold: float | Non
             reason = date_reason if not key else (
                 few_reason if len(values) < 2 else uniform_reason
                 if min(values) == max(values) else None)
-            dates[key] = {"threshold": None if reason else float(threshold_otsu(np.asarray(values), nbins=256)),
+            dates[key] = {"threshold": None if reason else batch_otsu(values),
                           "control_nuclei": 0, "measured_nuclei": len(values), "missing_reason": reason}
     return {"protocol": protocol, "method": method, "dates": dates,
             "exploratory": True, "threshold_population": "per-nucleus arithmetic means",

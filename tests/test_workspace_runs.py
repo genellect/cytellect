@@ -136,6 +136,66 @@ def test_changed_spec_or_adoption_refuses_candidate_adoption(tmp_path):
     assert client.get(f"/v1/workspaces/{wid}/selection").json()["entries"][0]["revision_id"] is None
 
 
+def test_declaring_only_the_primary_measure_keeps_candidate_adoption(tmp_path):
+    """genellect/cytellect#257 RP-04: a save that only declares (or withdraws) the primary measure leaves detection and
+    measurement unchanged, so the complete candidate stays adoptable; the version alone does not decide."""
+    client, app, settings, wid, fid, path, body = setup(tmp_path)
+    run = client.post(path, headers=HEADERS, json=body).json()
+    complete(app, settings)
+    saved = client.get(f"/v1/workspaces/{wid}/analysis-spec").json()
+    declared = {"metric": "area_px", "region_set_id": "cell", "channel_id": None}
+    saved["spec"]["primary_outcome"] = declared
+    response = client.put(f"/v1/workspaces/{wid}/analysis-spec", headers=HEADERS, json=saved)
+    assert response.status_code == 200, response.text
+    assert response.json()["version"] == 2 and response.json()["spec"]["primary_outcome"]["declared_at"]
+    accepted = client.post(f"{path}/{run['id']}/accept", headers=HEADERS)
+    assert accepted.status_code == 200, accepted.text
+    candidate = client.get(f"{path}/{run['id']}").json()["steps"][0]["revision_id"]
+    assert client.get(f"/v1/workspaces/{wid}/selection").json()["entries"][0]["target_revisions"]["cell"] == candidate
+
+
+def test_declaration_with_a_detection_change_refuses_candidate_adoption(tmp_path):
+    """The declaration exempts nothing else: a detection setting changed in the same save still refuses the run."""
+    client, app, settings, wid, fid, path, body = setup(tmp_path)
+    run = client.post(path, headers=HEADERS, json=body).json()
+    complete(app, settings)
+    saved = client.get(f"/v1/workspaces/{wid}/analysis-spec").json()
+    saved["spec"]["primary_outcome"] = {"metric": "area_px", "region_set_id": "cell", "channel_id": None}
+    assert client.put(f"/v1/workspaces/{wid}/analysis-spec", headers=HEADERS, json=saved).status_code == 200
+    saved = client.get(f"/v1/workspaces/{wid}/analysis-spec").json()
+    saved["spec"]["settings"]["nuclearProbability"] = 0.7
+    assert client.put(f"/v1/workspaces/{wid}/analysis-spec", headers=HEADERS, json=saved).status_code == 200
+    refused = client.post(f"{path}/{run['id']}/accept", headers=HEADERS)
+    assert refused.status_code == 409 and refused.json()["detail"] == "analysis_spec_changed"
+    assert client.get(f"/v1/workspaces/{wid}/selection").json()["entries"][0]["revision_id"] is None
+
+
+def test_declaration_keeps_a_preview_reusable_and_listed_current_but_a_detection_change_does_not(tmp_path):
+    """After a declaration-only save, a later run reuses the earlier preview instead of detecting again, and the run list
+    reports the preview current (recovered after a reload); after a detection change, neither."""
+    client, app, settings, wid, fid, path, body = setup(tmp_path)
+    preview = client.post(path, headers=HEADERS, json={**body, "purpose": "preview"}).json()
+    complete(app, settings)
+    candidate = client.get(f"{path}/{preview['id']}").json()["steps"][0]["revision_id"]
+    saved = client.get(f"/v1/workspaces/{wid}/analysis-spec").json()
+    saved["spec"]["primary_outcome"] = {"metric": "area_px", "region_set_id": "cell", "channel_id": None}
+    assert client.put(f"/v1/workspaces/{wid}/analysis-spec", headers=HEADERS, json=saved).status_code == 200
+    assert [run["spec_current"] for run in client.get(path).json()] == [True]
+    measured = client.post(path, headers=HEADERS, json={**body, "request_id": "declared", "spec_version": 2}).json()
+    advance_workspace_runs(app.state.store, settings)
+    steps = client.get(f"{path}/{measured['id']}").json()["steps"]
+    assert [(step["state"], step["revision_id"]) for step in steps] == [("reused", candidate)]
+
+    saved = client.get(f"/v1/workspaces/{wid}/analysis-spec").json()
+    saved["spec"]["settings"]["nuclearProbability"] = 0.7
+    assert client.put(f"/v1/workspaces/{wid}/analysis-spec", headers=HEADERS, json=saved).status_code == 200
+    assert {run["id"]: run["spec_current"] for run in client.get(path).json()} == {
+        preview["id"]: False, measured["id"]: False}
+    changed = client.post(path, headers=HEADERS, json={**body, "request_id": "changed", "spec_version": 3}).json()
+    advance_workspace_runs(app.state.store, settings)
+    assert client.get(f"{path}/{changed['id']}").json()["steps"][0]["state"] != "reused"
+
+
 def test_cancel_keeps_adopted_results_and_never_starts_pending_steps(tmp_path):
     client, app, settings, wid, fid, path, body = setup(tmp_path)
     run = client.post(path, headers=HEADERS, json=body).json()
