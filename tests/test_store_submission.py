@@ -15,6 +15,7 @@ NAME = f"Cytellect-Store-{VERSION}-{COMMIT}.msix"
 EXISTING = {
     "fileName": "Cytellect-Store-1.0.3.0.msix", "version": "1.0.3.0",
     "architecture": "X64", "fileStatus": "Uploaded",
+    "minimumDirectXVersion": "DX11", "minimumSystemRam": "Memory4GB",
 }
 PUBLISHED = {
     "id": "100", "visibility": "Public", "pricing": {"priceId": "Free"},
@@ -26,8 +27,10 @@ APP = {
     "lastPublishedApplicationSubmission": {"id": "100"},
 }
 REPLACEMENTS = [
-    {"fileName": EXISTING["fileName"], "fileStatus": "PendingDelete"},
-    {"fileName": NAME, "fileStatus": "PendingUpload"},
+    {"fileName": EXISTING["fileName"], "fileStatus": "PendingDelete",
+     "minimumDirectXVersion": "DX11", "minimumSystemRam": "Memory4GB"},
+    {"fileName": NAME, "fileStatus": "PendingUpload",
+     "minimumDirectXVersion": "DX11", "minimumSystemRam": "Memory4GB"},
 ]
 DRAFT = {**PUBLISHED, "id": "101", "status": "PendingCommit", "fileUploadUrl": "example"}
 PREPARED = {**DRAFT, "applicationPackages": REPLACEMENTS}
@@ -35,6 +38,32 @@ PACKAGE = Path("Cytellect-Store.msix")
 
 
 class StoreSubmissionTests(TestCase):
+    @patch.object(release, "upload_package")
+    def test_recover_only_the_named_unmodified_clone(self, upload):
+        for requested, draft, allowed in [
+            ("101", DRAFT, True), ("", DRAFT, False),
+            ("102", DRAFT, False), ("101", {**DRAFT, "pricing": {}}, False),
+            ("101", {**DRAFT, "visibility": "Private"}, False),
+            ("101", {**DRAFT, "status": "CommitFailed"}, False),
+            ("101", {**DRAFT, "applicationPackages": []}, False),
+            ("101", {**DRAFT, "listings": {}}, False),
+        ]:
+            store = Mock()
+            store.call.side_effect = [
+                {**APP, "pendingApplicationSubmission": {"id": "101"}}, PUBLISHED,
+                draft, PREPARED, PREPARED, {"status": "CommitStarted"},
+            ]
+            if allowed:
+                self.assertTrue(release.submit(store, PACKAGE, VERSION, COMMIT, requested))
+                self.assertEqual(store.call.call_args_list[3].kwargs["body"], {
+                    "visibility": "Public", "pricing": PUBLISHED["pricing"],
+                    "listings": PUBLISHED["listings"], "applicationPackages": REPLACEMENTS,
+                })
+            else:
+                with self.assertRaises(release.StoreError):
+                    release.submit(store, PACKAGE, VERSION, COMMIT, requested)
+                self.assertTrue(all(call.args[0] == "GET" for call in store.call.call_args_list))
+
     def test_waits_for_the_first_public_release(self):
         store = Mock()
         store.call.side_effect = [APP, {**PUBLISHED, "visibility": "Private"}]
