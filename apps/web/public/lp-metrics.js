@@ -14,7 +14,7 @@
       || parent.document.querySelector("[data-cytellect-public-page]")?.getAttribute("data-cytellect-public-page") !== path) return;
   } catch { return; }
   const names = {
-    download: "download_click", download_section: "download_section_click",
+    download: "download_click", store: "store_click", download_section: "download_section_click",
     launch: "launch_help_click", example: "example_click", planning: "planning_click", guide: "guide_click",
     quickstart: "guide_click", methods: "guide_click", setup: "guide_click", figures: "guide_click",
     workspace: "workspace_click",
