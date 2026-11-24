@@ -208,7 +208,24 @@ def has_candidate(submission: dict, name: str) -> bool:
     )
 
 
-def submit(store: Store, package: Path, version: str, commit: str, recover_id: str = "") -> bool:
+def package_update_pricing(published: dict, confirmed_free_id: str) -> dict:
+    pricing = published.get("pricing")
+    price_id = pricing.get("priceId") if isinstance(pricing, dict) else None
+    if not isinstance(price_id, str) or not price_id.strip():
+        raise StoreError("The published base price is missing. Verify pricing in Partner Center.")
+    if price_id != "Base":
+        return pricing
+    markets = pricing.get("marketSpecificPricings")
+    if markets is not None and (not isinstance(markets, dict) or any(tier != "Free" for tier in markets.values())):
+        raise StoreError("Store returned Base with market prices that cannot be verified as free.")
+    if not confirmed_free_id or published.get("id") != confirmed_free_id:
+        raise StoreError("Store returned pricing.priceId=Base, which the update API rejects. "
+                         "Verify all markets of the published submission before setting STORE_CONFIRMED_FREE_SUBMISSION_ID.")
+    return {**pricing, "priceId": "Free"}
+
+
+def submit(store: Store, package: Path, version: str, commit: str, recover_id: str = "",
+           *, confirmed_free_id: str = "") -> bool:
     app = store.call("GET")
     if app.get("packageIdentityName") != PACKAGE_IDENTITY:
         raise StoreError("The API resolved to a different Store package identity.")
@@ -256,14 +273,19 @@ def submit(store: Store, package: Path, version: str, commit: str, recover_id: s
                     changed_fields.append("status")
                 raise StoreError(f"Recovery stopped for {recover_id}. Different fields: {', '.join(changed_fields)}.")
             raise StoreError(f"Store submission {pending_ref['id']} needs attention before continuing.")
-    else:
+    # Validate before creating a draft. In-flight submissions above need no update request.
+    pricing = package_update_pricing(published, confirmed_free_id)
+    if not pending_ref:
         draft = store.call("POST", "/submissions")
         path = submission_path(draft)
         print(f"Created Store submission {draft['id']} for {version}.")
     if not has_candidate(draft, name):
         if not is_public(draft) or draft.get("status") != "PendingCommit":
             raise StoreError("The new submission did not inherit the published public release settings.")
+        if draft.get("pricing") != published.get("pricing"):
+            raise StoreError("The draft pricing differs from the published submission.")
         metadata = {key: value for key, value in draft.items() if key in WRITABLE_FIELDS}
+        metadata["pricing"] = pricing
         packages = [
             {"fileName": item["fileName"], "fileStatus": "PendingDelete",
              "minimumDirectXVersion": item.get("minimumDirectXVersion", "None"),
@@ -277,6 +299,8 @@ def submit(store: Store, package: Path, version: str, commit: str, recover_id: s
             raise StoreError("The Store changed release settings while attaching the package.")
         if not has_candidate(draft, name):
             raise StoreError("The Store did not attach the intended package.")
+    if draft.get("pricing") != pricing:
+        raise StoreError("The attached package has unexpected pricing.")
     upload_package(draft["fileUploadUrl"], package, name)
     current = store.call("GET", path)
     if not has_candidate(current, name) or any(
@@ -299,7 +323,8 @@ def main() -> None:
     try:
         version = verify_package(args.package, args.receipt, args.commit)
         accepted = submit(Store.authenticate(), args.package, version, args.commit,
-                          os.environ.get("STORE_RECOVERY_SUBMISSION_ID", ""))
+                          os.environ.get("STORE_RECOVERY_SUBMISSION_ID", ""),
+                          confirmed_free_id=os.environ.get("STORE_CONFIRMED_FREE_SUBMISSION_ID", ""))
         if accepted and (output := os.environ.get("GITHUB_OUTPUT")):
             with Path(output).open("a", encoding="utf-8") as stream:
                 stream.write("accepted=true\n")

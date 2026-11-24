@@ -20,6 +20,12 @@
 
 提出ジョブは、実行時点の `main` と受領書・MSIX 内のコミットを照合する。一般公開済みの提出から新しい提出を作り、掲載情報や価格などを引き継いだまま x64 パッケージを差し替える。既存の審査が進行中なら、そのまま待つ。6 時間ごとの実行でも最新のビルドを選び直す。途中で止まった場合は、Actions に記録された提出 ID を Partner Center で確認する。Store の審査と公開後、端末は Microsoft Store の自動更新で新しい版を受け取る。
 
+### Store が基本価格を `Base` と返した場合
+
+Microsoft の提出 API は、一部の公開版の基本価格を `Base` と返すが、更新時に同じ値を渡すと HTTP 400 を返す。[Microsoft Store CLI の価格指定](https://learn.microsoft.com/windows/apps/publish/msstore-dev-cli/publish-command)を参照。通常の無料・有料の価格 ID はそのまま引き継ぐ。
+
+Actions に `pricing.priceId=Base` が出た場合だけ、Partner Center で対象の**公開済み提出**の基本価格と全市場の価格を確認する。すべて無料で今後もその価格で提出する場合、GitHub の Settings → Environments → store-release で `STORE_CONFIRMED_FREE_SUBMISSION_ID` にその公開済み提出の数値 ID を登録して再実行する。下書きの ID とは異なる。この指定で書き換えるのは、その公開版から引き継いだ基本価格の API 表記だけで、地域別の設定はそのまま送る。API が無料と確認できない地域別価格を返した場合は停止する。提出受理後は変数を削除する。次の公開版にはこの指定は適用されない。
+
 ## データと更新
 
 Windows 11 の [AppData 仮想化の除外](https://learn.microsoft.com/en-us/windows/msix/desktop/flexible-virtualization)を `%LOCALAPPDATA%\Cytellect` に限って指定する。このフォルダーで EXE 版が作った作業を Store 版から開ける。Store 版は更新と削除の際もフォルダーを保持する。保管期間は既存設定を引き継ぐ。新規導入の既定は利用者が削除するまで保持する。Store 版が新しく作るフォルダーには、EXE 版と同じ所有の印（`setup-root.json`）と保持の設定（`settings/retention.json`）を書くため、あとから EXE 版を入れても同じフォルダーを使える。EXE 版の削除時に作業データも削除する操作を選ぶと、共有している作業は削除される。

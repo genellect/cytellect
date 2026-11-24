@@ -41,6 +41,45 @@ PACKAGE = Path("Cytellect-Store.msix")
 
 
 class StoreSubmissionTests(TestCase):
+    @patch.object(release, "upload_package")
+    def test_base_price_uses_free_only_for_confirmed_published_submission(self, upload):
+        pricing = {"priceId": "Base", "marketSpecificPricings": {"JP": "Free"}, "trialPeriod": "NoTrial"}
+        wire = {**pricing, "priceId": "Free"}
+        prepared = {**PREPARED, "pricing": wire}
+        store = Mock()
+        store.call.side_effect = [APP, {**PUBLISHED, "pricing": pricing}, {**DRAFT, "pricing": pricing},
+                                  prepared, prepared, {"status": "CommitStarted"}]
+        self.assertTrue(release.submit(store, PACKAGE, VERSION, COMMIT, confirmed_free_id="100"))
+        self.assertEqual(store.call.call_args_list[3].kwargs["body"]["pricing"], wire)
+        self.assertEqual(pricing["priceId"], "Base")
+        upload.assert_called_once()
+
+    def test_ambiguous_or_unconfirmed_price_stops_before_creating_a_draft(self):
+        for pricing, confirmation in [
+            ({"priceId": "Base"}, ""), ({"priceId": "Base"}, "99"),
+            ({"priceId": "Base", "marketSpecificPricings": {"JP": "Tier1012"}}, "100"),
+            ({"priceId": ""}, "100"), (None, "100"),
+        ]:
+            with self.subTest(pricing=pricing, confirmation=confirmation):
+                store = Mock()
+                store.call.side_effect = [APP, {**PUBLISHED, "pricing": pricing}]
+                with self.assertRaisesRegex(release.StoreError, "pric"):
+                    release.submit(store, PACKAGE, VERSION, COMMIT, confirmed_free_id=confirmation)
+                self.assertEqual([call.args[0] for call in store.call.call_args_list], ["GET", "GET"])
+
+    def test_existing_paid_price_is_preserved_even_when_free_confirmation_is_set(self):
+        pricing = {"priceId": "Tier1012", "marketSpecificPricings": {"JP": "Tier96"}}
+        self.assertEqual(release.package_update_pricing({**PUBLISHED, "pricing": pricing}, "100"), pricing)
+
+    @patch.object(release, "upload_package")
+    def test_resume_with_modified_price_stops_before_upload(self, upload):
+        store = Mock()
+        store.call.side_effect = [{**APP, "pendingApplicationSubmission": {"id": "101"}},
+                                  PUBLISHED, {**PREPARED, "pricing": {"priceId": "Tier1012"}}]
+        with self.assertRaisesRegex(release.StoreError, "pricing"):
+            release.submit(store, PACKAGE, VERSION, COMMIT)
+        upload.assert_not_called()
+
     @patch.object(release.urllib.request, "build_opener")
     def test_invalid_request_exposes_schema_terms_without_echoing_values(self, opener):
         headers = Message()
