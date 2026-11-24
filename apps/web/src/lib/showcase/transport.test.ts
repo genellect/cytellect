@@ -468,6 +468,13 @@ describe("recorded tour across scenes", () => {
     await before.fetch("/v1/workspaces/wb/region-cohorts", {method: "POST"});
     await before.fetch("/v1/workspaces/wa/selection");
     expect(await ask(before)).toEqual({scene: "first"});
+    // A request is answered for the workspace open when it was made, even when the visitor has switched before its
+    // answer is decided (decisions follow request order).
+    const switched = subject(files);
+    await switched.fetch("/v1/workspaces/wa/selection");
+    const asked = ask(switched);
+    void switched.fetch("/v1/workspaces/wb/selection");
+    expect(await asked).toEqual({scene: "first"});
     // Without a workspace named, the scene of the change last answered decides.
     for (const [cohort, scene] of [[B, "second"], [A, "first"]]) {
       const unnamed = subject(files);

@@ -161,7 +161,8 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
   let live = false, active = false;
   // Recorded tour: `cursor` is the last change it answered.
   let journal: Promise<Journal | null> | null = null, journaled = false, cursor = -1;
-  // The workspace the visitor has open: the last one a request named, in request order.
+  // The workspace the visitor has open: the last one a request named, in request order. Each request keeps the one
+  // open when it was made, since its answer is decided after the requests before it.
   let openWorkspace: string | null = null;
   let gate: Promise<unknown> = Promise.resolve();
   // The saved analysis settings, kept on the device while the tour answers (they hold no result).
@@ -419,7 +420,7 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
     return seedSpec;
   }
   /** The recorded tour's answer, or null when the tour holds none for this request. */
-  async function fromJournal(method: string, path: string, body: string | null): Promise<Response | null> {
+  async function fromJournal(method: string, path: string, body: string | null, opened: string | null = null): Promise<Response | null> {
     if (SETTINGS.test(path) && (method === "PUT" || (method === "GET" && settings))) {
       if (method === "PUT") {
         let written: {version?: unknown; spec?: unknown} | null = null;
@@ -456,7 +457,7 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       // walks of the open workspace's scene answer: another scene's cohort of the same request holds
       // other images. Without a workspace named yet, the scene of the change last answered stands for it;
       // a scene that named no workspace is not told apart.
-      const scope = openWorkspace ?? (cursor >= 0 ? workspaceOf(entries, entries[cursor]) : undefined);
+      const scope = opened ?? (cursor >= 0 ? workspaceOf(entries, entries[cursor]) : undefined);
       const patterned = (entry: JournalEntry, position: number) => {
         const pattern = analysisPattern(entry.path);
         return !!pattern && (scope === undefined || (workspaceOf(entries, entry) ?? scope) === scope) && matches(entry, position, pattern);
@@ -601,13 +602,13 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
         // alongside the next requests instead of holding them (the two opening images load together).
         const workspace = SETTINGS.exec(path)?.[1];
         if (isRead && workspace) void openingFields(workspace);
-        openWorkspace = WORKSPACE.exec(path)?.[1] ?? openWorkspace;
+        const opened = openWorkspace = WORKSPACE.exec(path)?.[1] ?? openWorkspace;
         const decided = gate.then(async (): Promise<Response | null | (() => Promise<Response | null>)> => {
           const body = await text();
           // Figures are drawn from the recorded results (figures.json), not recorded with the tour.
           const figured = await fromFigures(method, path, body);
           if (figured !== undefined) return figured;
-          const journaled = await fromJournal(method, path, body);
+          const journaled = await fromJournal(method, path, body, opened);
           if (journaled || !isRead) return isRead ? withFigure(path, await withKnownJobs(path, journaled)) : journaled;
           if (JOBS.test(path)) return withKnownJobs(path, await fromSnapshot(path));
           if (RESULT.test(path)) return withFigure(path, await fromSnapshot(path));
