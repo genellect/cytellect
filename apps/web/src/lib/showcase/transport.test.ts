@@ -541,10 +541,33 @@ describe("recorded tour across scenes", () => {
       await transport.fetch("/v1/workspaces/wb/selection");
       const response = await transport.fetch("/v1/workspaces/wb/runs", {method: "POST", body: JSON.stringify({target: "nucleoli"})});
       expect(await response.json()).toEqual({detail: "showcase_action_not_recorded"});
-      // Every part was asked for at once, the open scene's first.
+      // The open scene's part was asked for first, then every other part (the other part is still on the way).
       const asked = fetchStatic.mock.calls.map(([url]) => url.replace("/showcase/snapshot/", "")).filter(name => name.startsWith("journal-"));
       expect(asked).toEqual(["journal-second.json", "journal-first.json"]);
       release();
+    });
+
+    it("asks for the other parts once the open scene's part has downloaded, all of them together", async () => {
+      // A third part, so that "all together" means more than one.
+      files["journal.json"] = {version: 2, parts: ["journal-first.json", "journal-second.json", "journal-third.json"], counts: [3, 3, 1],
+        workspaces: [["wa"], ["wb"], ["wc"]], revisions: [[A], [B], []]};
+      files["journal-third.json"] = {version: 1, entries: [entry("GET", "/v1/workspaces/wc/jobs", null, "done-a.json", "third:walk")]};
+      try {
+        const {transport, release, fetchStatic} = held("journal-second.json");
+        const parts = () => fetchStatic.mock.calls.map(([url]) => url.replace("/showcase/snapshot/", "")).filter(name => name.startsWith("journal-"));
+        await transport.fetch("/v1/workspaces/wb/selection");
+        const change = transport.fetch("/v1/workspaces/wb/runs", {method: "POST", body: JSON.stringify({target: "nuclei"})});
+        await new Promise(resolve => setTimeout(resolve, 50));
+        // While the open scene's part downloads, it has the connection to itself.
+        expect(parts()).toEqual(["journal-second.json"]);
+        release();
+        expect(await (await change).json()).toEqual({run: "b"});
+        await new Promise(resolve => setTimeout(resolve, 50));
+        expect(parts()).toEqual(["journal-second.json", "journal-first.json", "journal-third.json"]);
+      } finally {
+        files["journal.json"] = {version: 2, parts: ["journal-first.json", "journal-second.json"], counts: [3, 3], workspaces: [["wa"], ["wb"]], revisions: [[A], [B]]};
+        delete files["journal-third.json"];
+      }
     });
 
     it("explains at once an edit of one of the open scene's analysis versions that its scene did not record", async () => {
