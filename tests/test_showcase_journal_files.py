@@ -16,7 +16,8 @@ def test_parts_read_back_as_the_same_tour_in_the_same_order(tmp_path):
     written = write_journal(tmp_path, tour)
     # A scene's walks kept from an earlier tour follow the recorded ones: their own part keeps the order.
     assert written == ["journal.json", "journal-ox.json", "journal-cis.json", "journal-plk1.json", "journal-ox-2.json"]
-    assert json.loads((tmp_path / "journal.json").read_text()) == {"version": 2, "parts": written[1:]}
+    assert json.loads((tmp_path / "journal.json").read_text()) == {"version": 2, "parts": written[1:], "counts": [2, 1, 1, 1],
+                                                                  "workspaces": [[], [], [], []]}
     assert read_journal(tmp_path) == tour
     assert part_names(tmp_path) == written
 
@@ -50,3 +51,18 @@ def test_two_parts_never_share_a_file(tmp_path):
     tour = {"version": 1, "entries": [entry("ox:tour", "/a"), entry("ox-2:tour", "/b"), entry("ox:kept", "/c")]}
     with pytest.raises(SystemExit, match="journal-ox-2.json would be written twice"):
         write_journal(tmp_path, tour)
+
+
+def test_the_index_names_each_part_s_workspaces_only_when_a_change_can_match_one_scene_only(tmp_path):
+    """The demo reads the open workspace's scene first and answers a change naming that workspace from it alone
+    (transport.ts): exact only when no other scene's part names the workspace, and no path names one by "*"."""
+    from cytellect_showcase.journal_files import scene_index, write_journal
+
+    tour = {"version": 1, "entries": [entry("ox:tour", "/v1/workspaces/w1/runs"), entry("ox:tour", "/v1/session"),
+                                      entry("cis:tour", "/v1/workspaces/w2/jobs"), entry("ox:kept", "/v1/workspaces/w1/jobs")]}
+    write_journal(tmp_path, tour)
+    index = json.loads((tmp_path / "journal.json").read_text())
+    assert index["counts"] == [2, 1, 1] and index["workspaces"] == [["w1"], ["w2"], ["w1"]]
+    shared = [("ox", [entry("ox:a", "/v1/workspaces/w1/runs")]), ("cis", [entry("cis:a", "/v1/workspaces/w1/jobs")])]
+    assert scene_index(shared) == {}
+    assert scene_index([("ox", [entry("ox:a", "/v1/workspaces/*/runs")])]) == {}

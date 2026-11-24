@@ -4,7 +4,8 @@ A tour of every scene in full is larger than the 100 MB a file may have on GitHu
 one per demo scene, in the order the tour recorded them (``{"version": 2, "parts": ["journal-<scene>.json", ...]}``),
 and each part is a journal of its own (``{"version": 1, "entries": [...]}``). Read in order, the parts are the one
 tour the demo replays (apps/web/src/lib/showcase/transport.ts). A journal written as one file (version 1) is read as
-it is.
+it is. The index also gives each part's number of entries and the workspaces its paths name (``counts``,
+``workspaces``; scene_index), so the demo reads the open workspace's scene first.
 """
 from __future__ import annotations
 
@@ -16,6 +17,7 @@ INDEX = "journal.json"
 # GitHub refuses a file above 100 MiB; a part is kept clearly below it.
 PART_LIMIT_BYTES = 95 * 1024 * 1024
 PART = re.compile(r"journal-[a-z0-9-]+\.json\Z")
+WORKSPACE = re.compile(r"/v1/workspaces/([^/?]+)")
 
 
 def part_names(snapshot: Path) -> list[str]:
@@ -83,5 +85,29 @@ def write_journal(snapshot: Path, journal: dict) -> list[str]:
                              "split it before publishing (GitHub refuses files above 100 MiB)")
         (snapshot / name).write_text(text, encoding="utf-8", newline="\n")
         names.append(name)
-    (snapshot / INDEX).write_text(json.dumps({"version": 2, "parts": names}, indent=1) + "\n", encoding="utf-8", newline="\n")
+    index: dict = {"version": 2, "parts": names, **scene_index(runs)}
+    (snapshot / INDEX).write_text(json.dumps(index, indent=1) + "\n", encoding="utf-8", newline="\n")
     return [INDEX, *names]
+
+
+def scene_index(runs: list[tuple[str, list[dict]]]) -> dict:
+    """Each part's number of entries and the workspaces its paths name, so the demo can read the open workspace's
+    scene first and answer its changes before the other parts arrive (transport.ts). Written only when that is
+    exact: no recorded path names a workspace by "*", and no workspace is named by the parts of two scenes (a change
+    naming a workspace can then match only that scene's walks, wherever the other parts are in the tour)."""
+    workspaces: list[list[str]] = []
+    scenes: dict[str, set[str]] = {}
+    for scene, entries in runs:
+        named = set()
+        for entry in entries:
+            match = WORKSPACE.match(entry.get("path") or "")
+            if match:
+                if "*" in match.group(1):
+                    return {}
+                named.add(match.group(1))
+        for workspace in named:
+            scenes.setdefault(workspace, set()).add(scene)
+        workspaces.append(sorted(named))
+    if any(len(owners) > 1 for owners in scenes.values()):
+        return {}
+    return {"counts": [len(entries) for _, entries in runs], "workspaces": workspaces}

@@ -19,7 +19,12 @@ export interface JournalEntry {scene?: string; method: string; path: string; pat
 export interface Journal {version: 1; entries: JournalEntry[]}
 /** `snapshot/journal.json` of a tour split into parts (one per scene, each a {@link Journal}), because the whole tour
  *  is larger than a file may be on GitHub. Read in order, the parts are the tour (services/showcase journal_files.py). */
-export interface JournalIndex {version: 2; parts: string[]}
+export interface JournalIndex {
+  version: 2; parts: string[];
+  /** For each part, its number of entries and the workspaces its paths name (written only when no workspace is named
+   *  by the parts of two scenes): the scene of the open workspace is read first and answers its own changes. */
+  counts?: number[]; workspaces?: string[][];
+}
 
 /** `snapshot/figures.json`: the figures of the tour's results, drawn by the production renderer from the
  *  recorded results (services/showcase figure_catalog.py). A figure request is answered by the result it

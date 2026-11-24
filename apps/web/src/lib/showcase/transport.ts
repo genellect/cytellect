@@ -160,7 +160,7 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
   let engine: Promise<ShowcaseEngine> | null = null;
   let live = false, active = false;
   // Recorded tour: `cursor` is the last change it answered.
-  let journal: Promise<Journal | null> | null = null, journaled = false, cursor = -1;
+  let journal: Promise<Journal | null> | null = null, journaled = false, cursor = -1, complete = false;
   // The workspace the visitor has open: the last one a request named, in request order. Each request keeps the one
   // open when it was made, since its answer is decided after the requests before it.
   let openWorkspace: string | null = null;
@@ -344,19 +344,82 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
     if (value?.version === 1 && Array.isArray(value.entries)) return value;
     return value?.version === 2 && Array.isArray(value.parts) ? value : null;
   }
+  let tourIndex: Promise<Journal | JournalIndex | null> | null = null;
+  const tourParts = new Map<string, Promise<Journal | JournalIndex | null>>();
+  const indexFile = () => tourIndex ??= journalFile("journal.json").catch(() => null);
+  const partFile = (name: string) => {
+    if (!tourParts.has(name)) tourParts.set(name, journalFile(name).catch(() => null));
+    return tourParts.get(name)!;
+  };
+  /** The parts that hold the recorded scene of a workspace, by the index; none when the index does not say. */
+  function partsOf(index: JournalIndex, workspace: string | null): string[] {
+    const {parts, counts, workspaces} = index;
+    if (!workspace || !counts || !workspaces || counts.length !== parts.length || workspaces.length !== parts.length) return [];
+    return parts.filter((_, position) => workspaces[position]?.includes(workspace));
+  }
   /** The recorded tour. A tour split into parts (one per scene, docs/showcase.md) is read whole, in order, so it
-   *  answers exactly as the same tour in one file. */
+   *  answers exactly as the same tour in one file. The parts of the open workspace's scene are read first; the
+   *  others follow together. */
   function loadJournal() {
-    journal ??= journalFile("journal.json")
+    journal ??= indexFile()
       .then(async value => {
         if (value?.version !== 2) return value;
         if (!value.parts.every(part => /^journal-[a-z0-9-]+\.json$/.test(part))) return null;
-        const parts = await Promise.all(value.parts.map(journalFile));
+        await Promise.all(partsOf(value, openWorkspace).map(partFile));
+        const parts = await Promise.all(value.parts.map(partFile));
         if (!parts.every(part => part?.version === 1)) return null;
         return {version: 1, entries: (parts as Journal[]).flatMap(part => part.entries)} as Journal;
-      }).catch(() => null);
+      })
+      .then(value => {complete = !!value; return value;})
+      .catch(() => null);
     return journal;
   }
+  // A position of the tour whose part has not arrived: it matches no request and belongs to no walk.
+  const PENDING: JournalEntry = {scene: "\u0000", method: "", path: "", body: null, status: 0, headers: [], file: null};
+  const sceneTours = new Map<string, Promise<{entries: JournalEntry[]; holds: (position: number) => boolean} | null>>();
+  /**
+   * The tour with only the parts of a workspace's scene in place, every other position pending: the same positions
+   * as the whole tour, so what it answers is what the whole tour answers when the answer lies in that scene.
+   */
+  function sceneTour(workspace: string) {
+    if (!sceneTours.has(workspace)) sceneTours.set(workspace, (async () => {
+      const index = await indexFile();
+      if (index?.version !== 2) return null;
+      const names = partsOf(index, workspace);
+      if (!names.length) return null;
+      void loadJournal();
+      const parts = await Promise.all(names.map(partFile));
+      const counts = index.counts!;
+      const entries: JournalEntry[] = new Array(counts.reduce((total, count) => total + count, 0)).fill(PENDING);
+      const ranges: Array<[number, number]> = [];
+      let offset = 0;
+      for (const [position, name] of index.parts.entries()) {
+        const at = names.indexOf(name);
+        if (at >= 0) {
+          const part = parts[at];
+          if (part?.version !== 1 || part.entries.length !== counts[position]) return null;
+          part.entries.forEach((entry, item) => {entries[offset + item] = entry;});
+          ranges.push([offset, offset + counts[position]]);
+        }
+        offset += counts[position];
+      }
+      return {entries, holds: (position: number) => ranges.some(([start, end]) => position >= start && position < end)};
+    })().catch(() => null));
+    return sceneTours.get(workspace)!;
+  }
+  /**
+   * The open scene's tour, when it alone decides the answer: a change naming the open workspace (a recorded path names
+   * a workspace only in that workspace's scene, journal_files.py), or a read after a change answered in that scene.
+   */
+  async function earlyTour(method: string, path: string, opened: string | null): Promise<JournalEntry[] | null> {
+    if (complete || !opened) return null;
+    if (!reading(method) && !path.startsWith(`/v1/workspaces/${opened}/`)) return null;
+    const tour = await sceneTour(opened);
+    if (!tour || (reading(method) && !(cursor >= 0 && tour.holds(cursor)))) return null;
+    return tour.entries;
+  }
+  /** A decision the open scene's tour cannot take alone: it waits for the whole tour. */
+  const WHOLE = Symbol("whole tour");
   // Identifiers another scene's recording generated for what this visitor already has (its cohort,
   // its job): recorded -> visitor, and back. Answers from that scene read with the visitor's ones.
   const aliases = new Map<string, string>(), reverse = new Map<string, string>();
@@ -432,8 +495,19 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
     }
     // Until a change has been answered, reads come from the opening snapshot without the tour.
     if (reading(method) && !journaled) {const held = seen.get(path); return held && typeof held === "object" && "device" in held ? heldRead(path) : null;}
+    const early = await earlyTour(method, path, opened);
+    if (early) {
+      const decided = await decide(early, method, path, body, opened, true);
+      if (decided !== WHOLE) return decided;
+    }
     const entries = (await loadJournal())?.entries;
     if (!entries) return null;
+    const decided = await decide(entries, method, path, body, opened, false);
+    return decided === WHOLE ? null : decided;
+  }
+  /** The answer from the tour (`partial`: only the open scene's parts are in place). */
+  async function decide(entries: JournalEntry[], method: string, path: string, body: string | null, opened: string | null,
+    partial: boolean): Promise<Response | null | typeof WHOLE> {
     if (!reading(method)) {
       // Switching which adopted revision a field shows is answered by the device first: a recorded
       // adoption matches any revision the recording generated, and would bring that scene's state.
@@ -462,6 +536,8 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
         const pattern = analysisPattern(entry.path);
         return !!pattern && (scope === undefined || (workspaceOf(entries, entry) ?? scope) === scope) && matches(entry, position, pattern);
       };
+      // A pattern can match another scene's walk (its scope is not a path): the whole tour decides it.
+      if (index < 0 && partial) return WHOLE;
       if (index < 0) index = entries.findIndex((entry, position) => position > cursor && patterned(entry, position));
       if (index < 0) index = entries.findIndex(patterned);
       if (index < 0) return null;
@@ -502,6 +578,7 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
     // Else the scene's next read of it (what the change wrote), else the latest recorded read before,
     // else one recorded later (a resource another scene created).
     for (let index = end; index < entries.length && entries[index].scene === entries[cursor].scene; index++) if (read(index)) return remember(path, entries[index]);
+    if (partial) return WHOLE;
     for (let index = end - 1; index >= 0; index--) if (read(index)) return remember(path, entries[index]);
     for (let index = end; index < entries.length; index++) if (read(index)) return remember(path, entries[index]);
     return null;

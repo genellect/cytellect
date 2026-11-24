@@ -1,7 +1,7 @@
 import {afterEach, describe, expect, it, vi} from "vitest";
 import {fetchVerified, IntegrityError, sha256Hex} from "./digest";
 import type {ShowcaseRequest, ShowcaseResponse, SnapshotIndex} from "./protocol";
-import {calculationBody, createShowcaseTransport, figureSettings, journalBodyMatches, journalPathMatches, snapshotKey, type ShowcaseEngine} from "./transport";
+import {calculationBody, createShowcaseTransport, figureSettings, journalBodyMatches, journalPathMatches, snapshotKey, type ShowcaseEngine, type ShowcaseTransport} from "./transport";
 import {bootPyodideRuntime} from "./worker-runtime";
 
 const encoder = new TextEncoder();
@@ -481,6 +481,68 @@ describe("recorded tour across scenes", () => {
       await unnamed.fetch(`/v1/revisions/${cohort}/descriptive`, {method: "POST", body});
       expect(await ask(unnamed)).toEqual({scene});
     }
+  });
+  describe("the open scene's parts first", () => {
+    const A = "aaaaaaaa-0000-4000-8000-000000000001", B = "bbbbbbbb-0000-4000-8000-000000000002";
+    const body = JSON.stringify({metric: "mean"});
+    // The open scene ("second") comes after another scene's part in the tour, which records the same statistics request.
+    const first = [
+      entry("POST", "/v1/workspaces/wa/runs", JSON.stringify({target: "nuclei"}), "run-a.json", "first:walk"),
+      entry("GET", "/v1/workspaces/wa/runs/r", null, "done-a.json", "first:walk"),
+      entry("POST", `/v1/revisions/${A}/descriptive`, body, "first.json", "first:stats"),
+    ];
+    const second = [
+      entry("POST", "/v1/workspaces/wb/runs", JSON.stringify({target: "nuclei"}), "run-b.json", "second:walk"),
+      entry("GET", "/v1/workspaces/wb/runs/r", null, "done-b.json", "second:walk"),
+      entry("POST", `/v1/revisions/${B}/descriptive`, body, "second.json", "second:stats"),
+    ];
+    const files: Record<string, unknown> = {
+      "index.json": {version: 1, entries: {}},
+      "journal.json": {version: 2, parts: ["journal-first.json", "journal-second.json"], counts: [3, 3], workspaces: [["wa"], ["wb"]]},
+      "journal-first.json": {version: 1, entries: first}, "journal-second.json": {version: 1, entries: second},
+      "run-a.json": {run: "a"}, "done-a.json": {state: "a"}, "first.json": {scene: "first"},
+      "run-b.json": {run: "b"}, "done-b.json": {state: "b"}, "second.json": {scene: "second"},
+    };
+    /** A transport whose part `held` arrives only when released. */
+    function held(name: string | null) {
+      let release = () => {};
+      const arrived = new Promise<void>(resolve => {release = resolve;});
+      const fetchStatic = vi.fn(async (url: string) => {
+        const file = url.replace("/showcase/snapshot/", "");
+        if (file === name) await arrived;
+        return file in files ? new Response(JSON.stringify(files[file])) : new Response("missing", {status: 404});
+      });
+      return {release, fetchStatic, transport: createShowcaseTransport({fetchStatic, createEngine: () => null, capable: () => false, snapshotBase: "/showcase/snapshot/"})};
+    }
+    const json = async (response: Promise<Response>) => (await response).json();
+    // The visitor opens the second scene, measures, reads the run, then asks for a statistic by a cohort of its own.
+    async function walk(transport: ShowcaseTransport, release = () => {}) {
+      await transport.fetch("/v1/workspaces/wb/selection");
+      const measured = await json(transport.fetch("/v1/workspaces/wb/runs", {method: "POST", body: JSON.stringify({target: "nuclei"})}));
+      const read = await json(transport.fetch("/v1/workspaces/wb/runs/r"));
+      const statistic = transport.fetch(`/v1/revisions/${"cccccccc-0000-4000-8000-000000000003"}/descriptive`, {method: "POST", body});
+      release();
+      return [measured, read, await json(statistic)];
+    }
+
+    it("answers the first change of the open scene before the other parts arrive", async () => {
+      const {transport, fetchStatic, release} = held("journal-first.json");
+      await transport.fetch("/v1/workspaces/wb/selection");
+      expect(await json(transport.fetch("/v1/workspaces/wb/runs", {method: "POST", body: JSON.stringify({target: "nuclei"})}))).toEqual({run: "b"});
+      expect(await json(transport.fetch("/v1/workspaces/wb/runs/r"))).toEqual({state: "b"});
+      // The open scene's part was asked for first; the other one has not arrived.
+      const asked = fetchStatic.mock.calls.map(([url]) => url.replace("/showcase/snapshot/", "")).filter(name => name.startsWith("journal-"));
+      expect(asked[0]).toBe("journal-second.json");
+      release();
+    });
+
+    it("answers the same whether the other parts arrive late or at once", async () => {
+      const late = held("journal-first.json"), atOnce = held(null);
+      const answers = await walk(late.transport, late.release);
+      expect(answers).toEqual(await walk(atOnce.transport));
+      // A statistic by a pattern waits for the whole tour, and is answered by the open scene's walk.
+      expect(answers).toEqual([{run: "b"}, {state: "b"}, {scene: "second"}]);
+    });
   });
   it("keeps listing a job another scene gave this visitor, so a reused cohort is still found", async () => {
     const transport = subject({
