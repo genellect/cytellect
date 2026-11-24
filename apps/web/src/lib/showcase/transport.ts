@@ -337,28 +337,32 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
     return jsonResponse({...result, figure: opening.figure, ...(result.spec ? {spec: {...result.spec, plot: opening.plot}} : {})}, response.status);
   }
   /** One journal file: the whole tour (version 1), or its index of parts (version 2). */
-  async function journalFile(name: string, fetched?: Promise<Response>): Promise<Journal | JournalIndex | null> {
-    const response = await (fetched ?? dependencies.fetchStatic(`${dependencies.snapshotBase}${name}`));
-    if (!response.ok) {await response.text(); return null;}
-    const value = await response.json() as Journal | JournalIndex;
+  async function journalFile(name: string, downloaded?: Promise<string | null>): Promise<Journal | JournalIndex | null> {
+    let value: Journal | JournalIndex;
+    if (downloaded) {
+      const text = await downloaded;
+      if (text === null) return null;
+      value = JSON.parse(text) as Journal | JournalIndex;
+    } else {
+      const response = await dependencies.fetchStatic(`${dependencies.snapshotBase}${name}`);
+      if (!response.ok) {await response.text(); return null;}
+      value = await response.json() as Journal | JournalIndex;
+    }
     if (value?.version === 1 && Array.isArray(value.entries)) return value;
     return value?.version === 2 && Array.isArray(value.parts) ? value : null;
   }
   let tourIndex: Promise<Journal | JournalIndex | null> | null = null;
   const tourParts = new Map<string, Promise<Journal | JournalIndex | null>>();
-  const partResponses = new Map<string, Promise<Response>>();
+  const partBodies = new Map<string, Promise<string | null>>();
   const indexFile = () => tourIndex ??= journalFile("journal.json").catch(() => null);
   /** A part's download, started once; it is read (parsed) only when asked for with partFile. */
-  const partResponse = (name: string) => {
-    if (!partResponses.has(name)) {
-      const started = dependencies.fetchStatic(`${dependencies.snapshotBase}${name}`);
-      started.catch(() => undefined);
-      partResponses.set(name, started);
-    }
-    return partResponses.get(name)!;
+  const partBody = (name: string) => {
+    if (!partBodies.has(name)) partBodies.set(name, dependencies.fetchStatic(`${dependencies.snapshotBase}${name}`)
+      .then(async response => response.ok ? response.text() : (await response.text(), null)).catch(() => null));
+    return partBodies.get(name)!;
   };
   const partFile = (name: string) => {
-    if (!tourParts.has(name)) tourParts.set(name, journalFile(name, partResponse(name)).catch(() => null));
+    if (!tourParts.has(name)) tourParts.set(name, journalFile(name, partBody(name)).catch(() => null));
     return tourParts.get(name)!;
   };
   /** The parts that hold the recorded scene of a workspace, by the index; none when the index does not say. */
@@ -386,8 +390,11 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
         if (!value.parts.every(part => PART_NAME.test(part))) return null;
         // Every part downloads at once; the open scene's parts are read first, so that scene can answer while the
         // others are still being read (reading a large part holds the page for a moment).
+        // The open scene's parts download first, with the whole connection, and are read first; the others then
+        // download together. A change the open scene's parts cannot answer waits for them (sceneTour, earlyTour).
         const first = partsOf(value, openWorkspace);
-        [...first, ...value.parts].forEach(partResponse);
+        await Promise.all(first.map(partBody));
+        value.parts.forEach(partBody);
         await Promise.all(first.map(partFile));
         const parts = await Promise.all(value.parts.map(partFile));
         if (!parts.every(part => part?.version === 1)) return null;
