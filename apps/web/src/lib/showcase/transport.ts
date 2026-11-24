@@ -352,10 +352,17 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
     return tourParts.get(name)!;
   };
   /** The parts that hold the recorded scene of a workspace, by the index; none when the index does not say. */
-  function partsOf(index: JournalIndex, workspace: string | null): string[] {
+  const PART_NAME = /^journal-[a-z0-9-]+\.json$/;
+  /** Whether the index gives every part's number of entries and the workspaces it names, in the expected form. */
+  const sceneData = (index: JournalIndex): index is JournalIndex & {counts: number[]; workspaces: string[][]} => {
     const {parts, counts, workspaces} = index;
-    if (!workspace || !counts || !workspaces || counts.length !== parts.length || workspaces.length !== parts.length) return [];
-    return parts.filter((_, position) => workspaces[position]?.includes(workspace));
+    return Array.isArray(counts) && Array.isArray(workspaces) && counts.length === parts.length && workspaces.length === parts.length
+      && counts.every(count => Number.isInteger(count) && count >= 0)
+      && workspaces.every(named => Array.isArray(named) && named.every(item => typeof item === "string"));
+  };
+  function partsOf(index: JournalIndex, workspace: string | null): string[] {
+    if (!workspace || !index.parts.every(part => PART_NAME.test(part)) || !sceneData(index)) return [];
+    return index.parts.filter((_, position) => index.workspaces[position].includes(workspace));
   }
   /** The recorded tour. A tour split into parts (one per scene, docs/showcase.md) is read whole, in order, so it
    *  answers exactly as the same tour in one file. The parts of the open workspace's scene are read first; the
@@ -364,10 +371,13 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
     journal ??= indexFile()
       .then(async value => {
         if (value?.version !== 2) return value;
-        if (!value.parts.every(part => /^journal-[a-z0-9-]+\.json$/.test(part))) return null;
+        if (!value.parts.every(part => PART_NAME.test(part))) return null;
         await Promise.all(partsOf(value, openWorkspace).map(partFile));
         const parts = await Promise.all(value.parts.map(partFile));
         if (!parts.every(part => part?.version === 1)) return null;
+        // Changes answered from the open scene's parts counted positions by the index: parts that disagree with it
+        // (published apart) would put those positions elsewhere in the whole tour.
+        if (sceneData(value) && (parts as Journal[]).some((part, position) => part.entries.length !== value.counts[position])) return null;
         return {version: 1, entries: (parts as Journal[]).flatMap(part => part.entries)} as Journal;
       })
       .then(value => {complete = !!value; return value;})
@@ -389,7 +399,8 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       if (!names.length) return null;
       void loadJournal();
       const parts = await Promise.all(names.map(partFile));
-      const counts = index.counts!;
+      if (!sceneData(index)) return null;
+      const counts = index.counts;
       const entries: JournalEntry[] = new Array(counts.reduce((total, count) => total + count, 0)).fill(PENDING);
       const ranges: Array<[number, number]> = [];
       let offset = 0;

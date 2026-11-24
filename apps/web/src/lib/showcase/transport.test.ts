@@ -536,6 +536,18 @@ describe("recorded tour across scenes", () => {
       release();
     });
 
+    it("does not use a tour whose parts disagree with the counts of its index", async () => {
+      const saved = files["journal.json"];
+      files["journal.json"] = {version: 2, parts: ["journal-first.json", "journal-second.json"], counts: [2, 3], workspaces: [["wa"], ["wb"]]};
+      try {
+        const {transport} = held(null);
+        await transport.fetch("/v1/workspaces/wb/selection");
+        // The open scene's part sits at another position than the index says: nothing is answered from the tour.
+        const statistic = await transport.fetch(`/v1/revisions/${B}/descriptive`, {method: "POST", body});
+        expect(await statistic.json()).toEqual({detail: "showcase_action_not_recorded"});
+      } finally {files["journal.json"] = saved;}
+    });
+
     it("answers the same whether the other parts arrive late or at once", async () => {
       const late = held("journal-first.json"), atOnce = held(null);
       const answers = await walk(late.transport, late.release);
