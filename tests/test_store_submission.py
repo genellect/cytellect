@@ -54,6 +54,57 @@ class StoreSubmissionTests(TestCase):
         self.assertEqual(pricing["priceId"], "Base")
         upload.assert_called_once()
 
+    @patch.object(release, "upload_package")
+    def test_confirmed_base_price_survives_store_reading_it_back_as_base(self, upload):
+        pricing = {"priceId": "Base", "marketSpecificPricings": {"JP": "Free"}}
+        echoed = {**PREPARED, "pricing": pricing}
+        cases = {
+            "fresh draft, PUT echoes Base": ([APP, {**PUBLISHED, "pricing": pricing}, {**DRAFT, "pricing": pricing},
+                                              echoed, echoed, {"status": "CommitStarted"}], ""),
+            "resume the attached candidate": ([{**APP, "pendingApplicationSubmission": {"id": "101"}},
+                                               {**PUBLISHED, "pricing": pricing}, echoed, echoed,
+                                               {"status": "CommitStarted"}], ""),
+            "recover a Base clone": ([{**APP, "pendingApplicationSubmission": {"id": "101"}},
+                                      {**PUBLISHED, "pricing": pricing}, {**DRAFT, "pricing": pricing},
+                                      echoed, echoed, {"status": "CommitStarted"}], "101"),
+        }
+        for label, (responses, recover) in cases.items():
+            with self.subTest(label):
+                store = Mock()
+                store.call.side_effect = responses
+                self.assertTrue(release.submit(store, PACKAGE, VERSION, COMMIT, recover, confirmed_free_id="100"))
+                store.call.assert_called_with("POST", "/submissions/101/commit")
+        # Without the confirmation, a Base echo is never treated as free.
+        store = Mock()
+        store.call.side_effect = [{**APP, "pendingApplicationSubmission": {"id": "101"}},
+                                  {**PUBLISHED, "pricing": pricing}, echoed]
+        with self.assertRaisesRegex(release.StoreError, "Base"):
+            release.submit(store, PACKAGE, VERSION, COMMIT)
+
+    @patch.object(release, "upload_package")
+    def test_price_comparison_ignores_keys_that_do_not_set_the_price(self, upload):
+        clone = {**DRAFT, "pricing": {"priceId": "Free", "sales": [], "trialPeriod": "NoFreeTrial"}}
+        store = Mock()
+        store.call.side_effect = [APP, PUBLISHED, clone, PREPARED, PREPARED, {"status": "CommitStarted"}]
+        self.assertTrue(release.submit(store, PACKAGE, VERSION, COMMIT))
+        store = Mock()
+        store.call.side_effect = [APP, PUBLISHED, {**DRAFT, "pricing": {"priceId": "Tier1012"}}]
+        with self.assertRaisesRegex(release.StoreError, "pricing differs"):
+            release.submit(store, PACKAGE, VERSION, COMMIT)
+
+    @patch.object(release.urllib.request, "build_opener")
+    def test_plain_words_and_broken_errors_do_not_become_diagnostics(self, opener):
+        url = release.APP + "/submissions/101"
+        body = b'{"error":{"code":"InvalidRequest","message":"Body does not match the expected description."}}'
+        opener.return_value.open.side_effect = HTTPError(url, 400, "bad", Message(), io.BytesIO(body))
+        with self.assertRaisesRegex(release.StoreError, r"^Update failed \(HTTP 400\)\. Code: InvalidRequest$"):
+            release.request_json(url, "PUT", "Update", {})
+        for error in [HTTPError(url, 400, "bad", None, io.BytesIO(body)), HTTPError(url, 400, "bad", Message(), None)]:
+            with self.subTest(headers=error.headers, fp=error.fp):
+                opener.return_value.open.side_effect = error
+                with self.assertRaisesRegex(release.StoreError, r"^Update failed \(HTTP 400\)"):
+                    release.request_json(url, "PUT", "Update", {})
+
     def test_ambiguous_or_unconfirmed_price_stops_before_creating_a_draft(self):
         for pricing, confirmation in [
             ({"priceId": "Base"}, ""), ({"priceId": "Base"}, "99"),

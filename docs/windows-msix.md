@@ -24,7 +24,7 @@
 
 Microsoft の提出 API は、一部の公開版の基本価格を `Base` と返すが、更新時に同じ値を渡すと HTTP 400 を返す。[Microsoft Store CLI の価格指定](https://learn.microsoft.com/windows/apps/publish/msstore-dev-cli/publish-command)を参照。通常の無料・有料の価格 ID はそのまま引き継ぐ。
 
-Actions に `pricing.priceId=Base` が出た場合だけ、Partner Center で対象の**公開済み提出**の基本価格と全市場の価格を確認する。すべて無料で今後もその価格で提出する場合、GitHub の Settings → Environments → store-release で `STORE_CONFIRMED_FREE_SUBMISSION_ID` にその公開済み提出の数値 ID を登録して再実行する。下書きの ID とは異なる。この指定で書き換えるのは、その公開版から引き継いだ基本価格の API 表記だけで、地域別の設定はそのまま送る。API が無料と確認できない地域別価格を返した場合は停止する。提出受理後は変数を削除する。次の公開版にはこの指定は適用されない。
+Actions に `pricing.priceId=Base` が出た場合だけ、Partner Center で対象の**公開済み提出**の基本価格と全市場の価格を確認する。すべて無料で今後もその価格で提出する場合、GitHub の Settings → Environments → store-release で `STORE_CONFIRMED_FREE_SUBMISSION_ID` にその公開済み提出の数値 ID を登録して再実行する。下書きの ID とは異なる。この指定で書き換えるのは、その公開版から引き継いだ基本価格の API 表記だけで、地域別の設定はそのまま送る。API が無料と確認できない地域別価格を返した場合は停止する。API が地域別価格を返さない場合、スクリプトは市場ごとの価格を確かめられず、この指定だけで無料として送るため、登録の前に Partner Center で全市場を確認する。提出受理後は変数を削除する。次の公開版にはこの指定は適用されない。
 
 ## データと更新
 

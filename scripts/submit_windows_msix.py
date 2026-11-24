@@ -58,9 +58,10 @@ def validation_diagnostic(error: urllib.error.HTTPError) -> str:
              "InvalidState", "BadRequest", "InvalidRequestBody", "InvalidSubmission", "InvalidArgument",
              "ValidationError", "ResourceNotFound", "ServiceError", "PackageValidationFailed"}
     parts = []
-    request_id = next((error.headers.get(key) for key in (
+    headers = error.headers or {}
+    request_id = next((headers.get(key) for key in (
         "MS-CorrelationId", "x-ms-correlation-request-id", "x-ms-request-id", "request-id",
-    ) if error.headers.get(key)), None)
+    ) if headers.get(key)), None)
     if request_id and re.fullmatch(r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}", request_id):
         parts.append(f"Request ID: {request_id}")
     try:
@@ -74,7 +75,15 @@ def validation_diagnostic(error: urllib.error.HTTPError) -> str:
             code = detail.get("code")
             if isinstance(code, str) and code in codes:
                 parts.append(f"Code: {code}")
-            terms = {term.casefold() for term in re.findall(r"[A-Za-z][A-Za-z0-9]*", json.dumps(detail))}
+            # Only field paths (a.b, a[0]) and explicit targets count; plain words in a message do not.
+            text = json.dumps(detail)
+            paths = re.findall(r"[A-Za-z][A-Za-z0-9]*(?:\[\d+\])?(?:\.[A-Za-z][A-Za-z0-9]*(?:\[\d+\])?)+"
+                               r"|[A-Za-z][A-Za-z0-9]*\[\d+\]", text)
+            targets = [item.get("target") for item in [detail, *(
+                detail.get("details") if isinstance(detail.get("details"), list) else []
+            )] if isinstance(item, dict)]
+            paths += [target for target in targets if isinstance(target, str)]
+            terms = {term.casefold() for path in paths for term in re.findall(r"[A-Za-z][A-Za-z0-9]*", path)}
             mentioned = sorted(field for field in fields if field.casefold() in terms)
             if mentioned:
                 parts.append("Fields mentioned: " + ", ".join(mentioned))
@@ -87,8 +96,14 @@ def request_json(url: str, method: str, operation: str, headers: dict, data=None
         with urllib.request.build_opener(NoRedirect()).open(request, timeout=90) as response:
             result = json.load(response)
     except urllib.error.HTTPError as error:
-        with error:
-            detail = validation_diagnostic(error) if url.startswith(APP + "/") and error.code == 400 else ""
+        detail = ""
+        try:
+            with error:
+                if url.startswith(APP + "/") and error.code == 400:
+                    detail = validation_diagnostic(error)
+        except Exception:
+            # The diagnostic is optional; never let it hide the HTTP status.
+            detail = ""
         raise StoreError(f"{operation} failed (HTTP {error.code}). {detail}".rstrip()) from None
     except (OSError, ValueError):
         raise StoreError(f"{operation} did not return a readable API response.") from None
@@ -224,6 +239,17 @@ def package_update_pricing(published: dict, confirmed_free_id: str) -> dict:
     return {**pricing, "priceId": "Free"}
 
 
+def price_terms(pricing, confirmed_base: bool = False):
+    """The parts of a price that decide what buyers pay; other keys may differ in shape between reads."""
+    if not isinstance(pricing, dict):
+        return None
+    price_id = pricing.get("priceId")
+    # The API may read a confirmed free Base price back as Base after Free was written.
+    if confirmed_base and price_id == "Base":
+        price_id = "Free"
+    return price_id, pricing.get("marketSpecificPricings") or {}
+
+
 def submit(store: Store, package: Path, version: str, commit: str, recover_id: str = "",
            *, confirmed_free_id: str = "") -> bool:
     app = store.call("GET")
@@ -275,6 +301,8 @@ def submit(store: Store, package: Path, version: str, commit: str, recover_id: s
             raise StoreError(f"Store submission {pending_ref['id']} needs attention before continuing.")
     # Validate before creating a draft. In-flight submissions above need no update request.
     pricing = package_update_pricing(published, confirmed_free_id)
+    # package_update_pricing only lets Base through when the owner confirmed it as free.
+    confirmed_base = published["pricing"]["priceId"] == "Base"
     if not pending_ref:
         draft = store.call("POST", "/submissions")
         path = submission_path(draft)
@@ -282,7 +310,7 @@ def submit(store: Store, package: Path, version: str, commit: str, recover_id: s
     if not has_candidate(draft, name):
         if not is_public(draft) or draft.get("status") != "PendingCommit":
             raise StoreError("The new submission did not inherit the published public release settings.")
-        if draft.get("pricing") != published.get("pricing"):
+        if price_terms(draft.get("pricing")) != price_terms(published.get("pricing")):
             raise StoreError("The draft pricing differs from the published submission.")
         metadata = {key: value for key, value in draft.items() if key in WRITABLE_FIELDS}
         metadata["pricing"] = pricing
@@ -295,11 +323,11 @@ def submit(store: Store, package: Path, version: str, commit: str, recover_id: s
         draft = store.call("PUT", path, body={
             **metadata, "applicationPackages": [*packages, replacement],
         })
-        if any(draft.get(key) != value for key, value in metadata.items()):
+        if any(draft.get(key) != value for key, value in metadata.items() if key != "pricing"):
             raise StoreError("The Store changed release settings while attaching the package.")
         if not has_candidate(draft, name):
             raise StoreError("The Store did not attach the intended package.")
-    if draft.get("pricing") != pricing:
+    if price_terms(draft.get("pricing"), confirmed_base) != price_terms(pricing):
         raise StoreError("The attached package has unexpected pricing.")
     upload_package(draft["fileUploadUrl"], package, name)
     current = store.call("GET", path)
