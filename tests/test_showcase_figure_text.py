@@ -25,7 +25,10 @@ def published():
     results = {}
     from cytellect_showcase.journal_files import read_journal
 
-    for entry in read_journal(SNAPSHOT)["entries"]:
+    # The opening snapshot answers the seed's saved results; the tour, the results its changes made.
+    snapshot = [{"method": key.split(" ", 1)[0], "path": key.split(" ", 1)[1], "file": value.get("file")}
+                for key, value in read(SNAPSHOT / "index.json")["entries"].items()]
+    for entry in [*read_journal(SNAPSHOT)["entries"], *snapshot]:
         parts = entry["path"].split("/")
         if entry["method"] == "GET" and len(parts) == 5 and parts[2] == "jobs" and parts[4] in ("result", "common-statistics"):
             source = document["sources"].get(parts[3])

@@ -25,12 +25,15 @@ SNAPSHOT = ROOT / "apps/web/public/showcase/snapshot"
 
 
 def demo_comparison():
-    """The demo's saved NPM1 nuclear mean comparison (all nuclei, 3 runs, descriptive)."""
+    """The opening scene's saved NPM1 nuclear mean comparison (all nuclei, 3 runs, descriptive). The tour's parts
+    are in no fixed scene order, so the opening scene (the first of scenes.json) is named."""
     from cytellect_showcase.journal_files import read_journal
 
     journal = read_journal(SNAPSHOT)["entries"]
+    opening = json.loads((SNAPSHOT / "scenes.json").read_text(encoding="utf-8"))["scenes"][0]["id"]
     for entry in journal:
-        if entry["method"] != "GET" or not entry["path"].endswith("/common-statistics"):
+        if (entry["method"] != "GET" or not entry["path"].endswith("/common-statistics")
+                or (entry.get("scene") or "").split(":")[0] != opening):
             continue
         result = json.loads((SNAPSHOT / entry["file"]).read_text(encoding="utf-8"))
         if (result.get("metric") == "mean" and (result.get("channel") or {}).get("channel_id") == "npm1"
@@ -80,6 +83,8 @@ def test_a_request_naming_no_presentation_keeps_its_size(tmp_path):
     # An earlier client (the region workspace's figure settings) or a figure saved before the
     # publication figure: the width and height it asked for, not the panel.
     result = demo_comparison()
+    # The recording's client names a presentation; this request is the earlier one, which did not.
+    result["spec"]["plot"].pop("presentation", None)
     result["spec"]["plot"].update(kind="superplot", preset="custom", width_inches=120 / 25.4, height_inches=70 / 25.4)
     manifest = render_common_statistics(result, tmp_path)
     assert manifest["style"]["width_mm"] == pytest.approx(120) and manifest["style"]["height_mm"] == pytest.approx(70)
