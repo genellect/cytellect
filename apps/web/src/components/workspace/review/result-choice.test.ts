@@ -1,5 +1,5 @@
 import {describe,expect,it} from "vitest";
-import {automaticOperation,backgroundFingerprint,changedSources,sameMethod,savedMethod,choiceFilter,conditionChannel,conditionKey,gateKey,measureLabel,recordedGateMatches,savedCondition,savedFor,savedMeasureLabel,sameSources,type ResultCondition,type SavedResultLike} from "./result-choice";
+import {automaticOperation,backgroundFingerprint,changedInputs,changedSources,excludedRegions,fieldAssignment,sameMethod,savedMethod,choiceFilter,conditionChannel,conditionKey,gateKey,measureLabel,recordedGateMatches,savedCondition,savedFor,savedMeasureLabel,sameSources,type ResultCondition,type SavedResultLike} from "./result-choice";
 
 const npm1={channel_id:"npm1",label:"NPM1",stain:"NPM1"};
 const sources=[{field:"f1",mask:"m1",protocol:"4.0.0",mode:"automatic_background"},{field:"f2",mask:"m2",protocol:"4.0.0",mode:"automatic_background"}];
@@ -128,6 +128,77 @@ describe("saved result for the chosen condition (#257 D-1)",()=>{
   it("finds nothing for a condition without a result",()=>{
     expect(savedFor(entries,choice({operation:"distribution"}),sources)).toEqual({current:undefined,older:undefined});
     expect(savedFor(entries,null,sources)).toEqual({});
+  });
+});
+
+// genellect/cytellect#257 NS-04 (integration review of #291): excluding a nucleus in 画像 keeps the regions' mask
+// revision, and the assignment in 実験 and the compared pairs are not in the measurement at all. A result saved before
+// the workspace was reopened is compared with them by what it recorded.
+describe("a saved result answers only the exclusions, assignment and pairs now chosen (#257 NS-04)",()=>{
+  const assigned=(condition:string,unit:string)=>({condition,experimental_unit:unit,sample:`${unit} · ${condition}`,acquisition_date:"2021-12-01",pair:unit});
+  const assignment={f1:assigned("Untreated","Rep1"),f2:assigned("Oxaliplatin","Rep1")};
+  const observation=(field:string,region:number,excluded:boolean)=>({observation_id:JSON.stringify([field,"nucleoli",region]),field_id:field,region_id:region,excluded});
+  const ledger=(excluded:Array<[string,number]>)=>["f1","f2"].flatMap(field=>[1,2,3].map(region=>observation(field,region,excluded.some(([f,r])=>f===field&&r===region))));
+  const recordedFields=(values:Record<string,ReturnType<typeof assigned>>=assignment)=>fieldsOf().map(field=>({...field,metadata:values[field.field_id]}));
+  const comparison=(excluded:Array<[string,number]>=[[ "f1",2]],contrasts=[["Oxaliplatin","Untreated"]],values=assignment):SavedResultLike=>({...meanNucleoli,
+    spec:{...meanNucleoli.spec,comparison_family:{contrasts}},source_fields:recordedFields(values),observation_ledger:ledger(excluded)});
+  const now=(excluded:Record<string,number[]>={f1:[2],f2:[]},values:Record<string,ReturnType<typeof assigned>|undefined>=assignment)=>sources.map(source=>({...source,excluded:excluded[source.field],assignment:fieldAssignment(values[source.field])}));
+  const pairs=[["Oxaliplatin","Untreated"]];
+  const entry=(result:SavedResultLike,operation:"comparison"|"distribution"|"association"="comparison")=>({job:"saved",operation,result});
+  it("keeps a result current when the same nuclei, assignment and pairs are chosen",()=>{
+    expect(savedFor([entry(comparison())],choice({}),now(),pairs).current).toBeDefined();
+    expect(changedInputs("comparison",comparison(),now(),pairs)).toBe(false);
+  });
+  it("does not open a result as current once another nucleus is excluded or one is included again",()=>{
+    const saved=entry(comparison());
+    expect(savedFor([saved],choice({}),now({f1:[2,3],f2:[]}),pairs)).toEqual({current:undefined,older:saved});
+    expect(savedFor([saved],choice({}),now({f1:[],f2:[]}),pairs)).toEqual({current:undefined,older:saved});
+    expect(changedInputs("comparison",saved.result,now({f1:[2],f2:[1]}),pairs)).toBe(true);
+  });
+  it("reads a distribution's exclusions from its selection records and an association's from its axes",()=>{
+    const distribution:SavedResultLike={...meanNucleoli,spec:{selection:meanNucleoli.spec!.selection},selection:{records:ledger([["f2",1]]).map(({observation_id,field_id,excluded})=>({observation_id,field_id,excluded}))}};
+    expect(savedFor([entry(distribution,"distribution")],choice({operation:"distribution"}),now({f1:[],f2:[1]})).current).toBeDefined();
+    expect(savedFor([entry(distribution,"distribution")],choice({operation:"distribution"}),now({f1:[],f2:[]})).current).toBeUndefined();
+    const association:SavedResultLike={spec:{x_selection:{region_set_id:"nucleoli",metric:"area_px",channel_id:null},y_selection:{region_set_id:"nucleoli",metric:"mean",channel_id:"npm1"}},
+      x_source:{source_fields:recordedFields(),observation_ledger:ledger([["f1",2]])},y_source:{source_fields:recordedFields(),observation_ledger:ledger([["f1",2]])}};
+    const axes=choice({operation:"association",x:{metric:"area_px",channel:null}});
+    expect(savedFor([entry(association,"association")],axes,now()).current).toBeDefined();
+    expect(savedFor([entry(association,"association")],axes,now({f1:[],f2:[]})).current).toBeUndefined();
+  });
+  it("compares a per-field summary by the number of excluded nuclei it recorded",()=>{
+    const perField:SavedResultLike={...meanNucleoli,source_fields:recordedFields().map((field,index)=>({...field,field_summary:{excluded_region_count:index===0?1:0}})),
+      observation_ledger:["f1","f2"].map(field=>({observation_id:JSON.stringify([field,"nuclei","field"]),field_id:field,region_id:null,excluded:false}))};
+    expect(changedInputs("comparison",perField,now({f1:[4],f2:[]}),pairs)).toBe(false);
+    expect(changedInputs("comparison",perField,now({f1:[4,5],f2:[]}),pairs)).toBe(true);
+  });
+  it("does not open a comparison as current once a field's group, run or pair is assigned differently",()=>{
+    const saved=entry(comparison());
+    expect(savedFor([saved],choice({}),now(undefined,{f1:assigned("Oxaliplatin","Rep1"),f2:assigned("Untreated","Rep1")}),pairs)).toEqual({current:undefined,older:saved});
+    expect(changedInputs("comparison",saved.result,now(undefined,{...assignment,f2:assigned("Oxaliplatin","Rep2")}),pairs)).toBe(true);
+    expect(changedInputs("comparison",saved.result,now(undefined,{...assignment,f2:{...assignment.f2,pair:"Rep9"}}),pairs)).toBe(true);
+    // Spacing and an empty entry are recorded as the cohort stores them.
+    expect(changedInputs("comparison",saved.result,now(undefined,{...assignment,f1:{...assignment.f1,condition:" Untreated ",pair:"Rep1"}}),pairs)).toBe(false);
+  });
+  it("does not open a comparison as current once other pairs of groups are compared",()=>{
+    const saved=entry(comparison());
+    expect(savedFor([saved],choice({}),now(),[["Untreated","Oxaliplatin"]])).toEqual({current:undefined,older:saved});
+    expect(changedInputs("comparison",saved.result,now(),[["Oxaliplatin","Untreated"],["Cisplatin","Untreated"]])).toBe(true);
+    // The order the pairs are listed in does not change a result.
+    const two=comparison(undefined,[["A","C"],["B","C"]]);
+    expect(changedInputs("comparison",two,now(),[["B","C"],["A","C"]])).toBe(false);
+  });
+  it("takes a result that records none of them, or a choice not known yet, as it was",()=>{
+    // An older result without observation records, metadata or pairs.
+    expect(savedFor([entry(meanNucleoli)],choice({}),now({f1:[1,2,3],f2:[]},{f1:assigned("X","Rep7"),f2:assigned("Y","Rep8")}),[["X","Y"]]).current).toBeDefined();
+    // The fields' tables, the design or the pairs not loaded yet.
+    expect(changedInputs("comparison",comparison(),sources,[])).toBe(false);
+    expect(changedInputs("comparison",comparison(),now(undefined,{f1:undefined,f2:undefined}),[])).toBe(false);
+    // A distribution does not read the assignment (a single field is described from its own revision's record).
+    expect(changedInputs("distribution",{...comparison(),observation_ledger:undefined},now(undefined,{f1:assigned("X","Rep7"),f2:assigned("Y","Rep8")}),[])).toBe(false);
+    // A whole field excluded in the current table is no evidence about its nuclei.
+    expect(excludedRegions([{field_id:"f1",region_id:null,reason:"r"},{field_id:"f1",region_id:3,reason:"r"}],"f1")).toBeUndefined();
+    expect(excludedRegions([{field_id:"f1",region_id:3,reason:"r"},{field_id:"f2",region_id:1,reason:"r"},{field_id:"f1",region_id:1,reason:"r"}],"f1")).toEqual([1,3]);
+    expect(excludedRegions(undefined,"f1")).toBeUndefined();
   });
 });
 

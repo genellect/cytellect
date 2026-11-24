@@ -92,5 +92,5 @@ def test_size_and_content_findings_are_both_reported(tmp_path, monkeypatch):
 
 
 def test_the_limit_is_the_one_decided_from_the_measured_full_recording():
-    """DM-10 (2026-11-24): 1,300 MiB, from the 1,173.8 MiB of the demo with every scene recorded in full."""
+    """DM-10 (2026-11-24): 1,300 MiB, from the 1,173.9 MiB of the demo with every scene recorded in full."""
     assert cpt.SHOWCASE_LIMIT_BYTES == 1300 * 1024 * 1024

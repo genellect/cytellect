@@ -19,7 +19,7 @@ import {ErrorText,useShowcaseUi} from "./showcase-ui";
 import {METRIC_HINTS} from "../../../lib/showcase/terms";
 import {DiscussionPanel} from "./DiscussionPanel";
 import {showcaseNotices,type RecordedStatistic,type ShowcaseDataset} from "@/lib/showcase";
-import {automaticOperation,backgroundFingerprint,changedSources,resultSourceFields,sameMethod,savedMethod,choiceFilter,conditionChannel,conditionKey,recordedGateMatches,savedCondition,savedFor,savedMeasureLabel,type ResultCondition,type SavedResultLike} from "./result-choice";
+import {automaticOperation,backgroundFingerprint,changedInputs,changedSources,excludedRegions,fieldAssignment,resultSourceFields,sameMethod,savedMethod,choiceFilter,conditionChannel,conditionKey,recordedGateMatches,savedCondition,savedFor,savedMeasureLabel,type ResultCondition,type SavedResultLike} from "./result-choice";
 import {declarations as statisticsDeclarations,remainingWork,type RemainingWork} from "./statistics-readiness";
 import {AxisControls,axisPlotOptions,emptyAxis,type AxisState} from "./AxisControls";
 import {ConnectedCsvResults} from "./ConnectedCsvResults";
@@ -520,10 +520,13 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   // The saved result opened with the view does not answer the choice once a field it was calculated from has been
   // measured again with other outlines or another background (genellect/cytellect#257 NS-04): the condition is described
   // again instead of showing the earlier values as the current ones. A saved result the researcher picks stays shown.
-  const outdatedOpening=!!saved?.historical&&openedLatest.current===saved.job&&changedSources(resultSourceFields(saved.result),currentSources);
+  // Nor once a nucleus has been excluded in 画像 (the mask revision is kept), a field assigned again in 実験 or other
+  // pairs of groups chosen, as far as the result recorded them (genellect/cytellect#257 NS-04, #291 review).
+  const currentInputs=currentSources.map((source,index)=>({...source,excluded:excludedRegions(sources[index].result.exclusions,source.field),assignment:fieldAssignment(sources[index].metadata)}));
+  const outdatedOpening=!!saved?.historical&&openedLatest.current===saved.job&&(changedSources(resultSourceFields(saved.result),currentSources)||changedInputs(saved.operation,saved.result,currentInputs,contrasts));
   const pending=resultMode&&(!saved||stale||outdatedOpening||(!!saved.historical&&!sameMethod(saved.operation,saved.result.spec,chosenMethod))||(!!shownCondition&&conditionKey(shownCondition)!==choiceKey));
   const answers=(entry:Saved)=>entry.historical?sameMethod(entry.operation,entry.result.spec,chosenMethod):(entry.identity===identity&&entry.requestIdentity===requestIdentity&&!(design.inference===false&&tested(entry)));
-  const available=savedFor(history.filter(answers),condition,currentSources);
+  const available=savedFor(history.filter(answers),condition,currentInputs,contrasts);
   const stainOf=(id:string|null)=>id?stainName(id):null;
   const choiceLabel=measureLabel(metric,regionSet,stainOf(condition.channel));
   // In the demo, only what the tour recorded can be shown; elsewhere anything can be calculated.
