@@ -90,6 +90,7 @@ Cytellect の文書の一覧。利用者は「利用ガイド」から、開発�
 - [公開画像での検証：GFP](public-gfp-validation.md)（英語）
 - [公開画像での検証：DAPI と NCL](public-nucleolar-validation.md)（英語）
 - [公開画像での検証：核小体の形と信号の指標](public-nucleolar-shape-validation.md)
+- [公開画像での検証：核の円形度](public-nuclear-circularity-validation.md)
 
 ## 使いやすさの評価
 

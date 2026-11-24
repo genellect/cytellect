@@ -9,7 +9,9 @@ The features describe nuclei only (StarDist nuclear region sets). Nucleolar shap
 (docs/public-nucleolar-shape-validation.md) and is read through the per-nucleus nucleolar summaries instead.
 
 - Shape (any measurement mode): solidity, axis ratio and eccentricity of each nucleus. A nucleus below
-  ``MINIMUM_AREA_PX``, touching the image border, or with a zero minor axis has no value.
+  ``MINIMUM_AREA_PX``, touching the image border, or with a zero minor axis has no value. Circularity 4πA/P²
+  (4-direction Crofton perimeter) failed the same public decimation check on DS6a nuclei and is not a feature
+  (docs/public-nuclear-circularity-validation.md).
 - Signal (automatic-background measurement only), on the background-corrected pixels ``I - b`` of one channel, where
   ``b`` is the field's automatic background median of that channel:
   - pixel CV: population standard deviation / mean of the nucleus's corrected pixels, no smoothing, epsilon or

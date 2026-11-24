@@ -832,6 +832,10 @@ region identity and pixel area; nothing is stored in the measurement table.
   digitisation error of public nucleus masks in genellect/cytellect#258) or with a zero minor axis (`degenerate`) has
   no value and keeps its reason; it still counts in nucleus numbers and areas. Shape is compared as a difference,
   needs the spatial-sampling review and one calibration, and is 2D, not a volume or sphericity.
+- Circularity `4πA/P²` (perimeter by the 4-direction Crofton estimate, scikit-image `perimeter_crofton`) is **not
+  offered**, for nuclei or nucleoli, and neither is the perimeter: on the same decimation check that set the 96 px
+  minimum (tuning JUMP, held-out DS6a, 90th percentile |Δ circularity| ≤ 0.05), every DS6a area bin exceeded the
+  tolerance (0.18–0.38; [record](public-nuclear-circularity-validation.md), 2026-11-24).
 - Signal (computed by the shared implementation; **not offered as statistics metrics**): on the corrected pixels
   `I − b` of one channel (`b` = the field's automatic background candidate median, measurement protocol 4.0.0), the
   pixel CV (population SD / mean, no smoothing, epsilon or clipping; the raw CV, corrected mean and SD kept beside
