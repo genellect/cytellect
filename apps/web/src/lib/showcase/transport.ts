@@ -13,7 +13,7 @@
  *
  * The transport only returns Responses; `lib/api.ts` keeps its own error handling.
  */
-import type {FigureCatalog, HeaderList, Journal, JournalEntry, ShowcaseNoticeCode, ShowcaseRequest, ShowcaseResponse, SnapshotIndex} from "./protocol";
+import type {FigureCatalog, HeaderList, Journal, JournalEntry, JournalIndex, ShowcaseNoticeCode, ShowcaseRequest, ShowcaseResponse, SnapshotIndex} from "./protocol";
 import {openingPair, type ExperimentDesign} from "../workspace/experiment-design";
 
 export type EngineState = "idle" | "preparing" | "active" | "unavailable";
@@ -119,6 +119,7 @@ const SETTINGS = /^\/v1\/workspaces\/([^/?]+)\/analysis-spec$/;
 const RUNS = /^\/v1\/workspaces\/[^/?]+\/runs$/;
 const SELECTION = /^\/v1\/workspaces\/[^/?]+\/selection$/;
 const JOBS = /^\/v1\/workspaces\/[^/?]+\/jobs$/;
+const WORKSPACE = /^\/v1\/workspaces\/([^/?]+)/;
 const FIGURE_RENDER = /^\/v1\/jobs\/([^/?]+)\/figure-render$/;
 const JOB_FILE = /^\/v1\/jobs\/([^/?]+)\/files\/([^/?]+)$/;
 const PACKAGE = /^\/v1\/jobs\/([^/?]+)\/publication-package$/;
@@ -159,7 +160,10 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
   let engine: Promise<ShowcaseEngine> | null = null;
   let live = false, active = false;
   // Recorded tour: `cursor` is the last change it answered.
-  let journal: Promise<Journal | null> | null = null, journaled = false, cursor = -1;
+  let journal: Promise<Journal | null> | null = null, journaled = false, cursor = -1, complete = false;
+  // The workspace the visitor has open: the last one a request named, in request order. Each request keeps the one
+  // open when it was made, since its answer is decided after the requests before it.
+  let openWorkspace: string | null = null;
   let gate: Promise<unknown> = Promise.resolve();
   // The saved analysis settings, kept on the device while the tour answers (they hold no result).
   let settings: {version: number; spec: unknown} | null = null;
@@ -332,15 +336,136 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
     try {result = await response.json();} catch {return null;}
     return jsonResponse({...result, figure: opening.figure, ...(result.spec ? {spec: {...result.spec, plot: opening.plot}} : {})}, response.status);
   }
+  /** One journal file: the whole tour (version 1), or its index of parts (version 2). */
+  async function journalFile(name: string, downloaded?: Promise<string | null>): Promise<Journal | JournalIndex | null> {
+    let value: Journal | JournalIndex;
+    if (downloaded) {
+      const text = await downloaded;
+      if (text === null) return null;
+      value = JSON.parse(text) as Journal | JournalIndex;
+    } else {
+      const response = await dependencies.fetchStatic(`${dependencies.snapshotBase}${name}`);
+      if (!response.ok) {await response.text(); return null;}
+      value = await response.json() as Journal | JournalIndex;
+    }
+    if (value?.version === 1 && Array.isArray(value.entries)) return value;
+    return value?.version === 2 && Array.isArray(value.parts) ? value : null;
+  }
+  let tourIndex: Promise<Journal | JournalIndex | null> | null = null;
+  const tourParts = new Map<string, Promise<Journal | JournalIndex | null>>();
+  const partBodies = new Map<string, Promise<string | null>>();
+  const indexFile = () => tourIndex ??= journalFile("journal.json").catch(() => null);
+  /** A part's download, started once; it is read (parsed) only when asked for with partFile. */
+  const partBody = (name: string) => {
+    if (!partBodies.has(name)) partBodies.set(name, dependencies.fetchStatic(`${dependencies.snapshotBase}${name}`)
+      .then(async response => response.ok ? response.text() : (await response.text(), null)).catch(() => null));
+    return partBodies.get(name)!;
+  };
+  const partFile = (name: string) => {
+    if (!tourParts.has(name)) tourParts.set(name, journalFile(name, partBody(name)).catch(() => null));
+    return tourParts.get(name)!;
+  };
+  /** The parts that hold the recorded scene of a workspace, by the index; none when the index does not say. */
+  const PART_NAME = /^journal-[a-z0-9-]+\.json$/;
+  /** Whether the index gives every part's number of entries and the workspaces it names, in the expected form. */
+  const sceneData = (index: JournalIndex): index is JournalIndex & {counts: number[]; workspaces: string[][]} => {
+    const {parts, counts, workspaces} = index;
+    return Array.isArray(counts) && Array.isArray(workspaces) && counts.length === parts.length && workspaces.length === parts.length
+      && counts.every(count => Number.isInteger(count) && count >= 0)
+      && workspaces.every(named => Array.isArray(named) && named.every(item => typeof item === "string"));
+  };
+  const revisionData = (index: JournalIndex): index is JournalIndex & {revisions: string[][]} => Array.isArray(index.revisions)
+    && index.revisions.length === index.parts.length && index.revisions.every(named => Array.isArray(named) && named.every(item => typeof item === "string"));
+  function partsOf(index: JournalIndex, workspace: string | null): string[] {
+    if (!workspace || !index.parts.every(part => PART_NAME.test(part)) || !sceneData(index)) return [];
+    return index.parts.filter((_, position) => index.workspaces[position].includes(workspace));
+  }
+  /** The recorded tour. A tour split into parts (one per scene, docs/showcase.md) is read whole, in order, so it
+   *  answers exactly as the same tour in one file. Every part is requested at once, the open workspace's scene's
+   *  parts first, so that scene answers as soon as its parts arrive (sceneTour). */
   function loadJournal() {
-    journal ??= dependencies.fetchStatic(`${dependencies.snapshotBase}journal.json`)
-      .then(async response => {
-        if (!response.ok) {await response.text(); return null;}
-        const value = await response.json() as Journal;
-        return value?.version === 1 && Array.isArray(value.entries) ? value : null;
-      }).catch(() => null);
+    journal ??= indexFile()
+      .then(async value => {
+        if (value?.version !== 2) return value;
+        if (!value.parts.every(part => PART_NAME.test(part))) return null;
+        // Every part downloads at once; the open scene's parts are read first, so that scene can answer while the
+        // others are still being read (reading a large part holds the page for a moment).
+        // The open scene's parts download first, with the whole connection, and are read first; the others then
+        // download together. A change the open scene's parts cannot answer waits for them (sceneTour, earlyTour).
+        const first = partsOf(value, openWorkspace);
+        await Promise.all(first.map(partBody));
+        value.parts.forEach(partBody);
+        await Promise.all(first.map(partFile));
+        const parts = await Promise.all(value.parts.map(partFile));
+        if (!parts.every(part => part?.version === 1)) return null;
+        // Changes answered from the open scene's parts counted positions by the index: parts that disagree with it
+        // (published apart) would put those positions elsewhere in the whole tour.
+        if (sceneData(value) && (parts as Journal[]).some((part, position) => part.entries.length !== value.counts[position])) return null;
+        return {version: 1, entries: (parts as Journal[]).flatMap(part => part.entries)} as Journal;
+      })
+      .then(value => {complete = !!value; return value;})
+      .catch(() => null);
     return journal;
   }
+  // A position of the tour whose part has not arrived: it matches no request and belongs to no walk.
+  const PENDING: JournalEntry = {scene: "\u0000", method: "", path: "", body: null, status: 0, headers: [], file: null};
+  /** `elsewhere`: the analysis versions other scenes' parts name, null when the index cannot say. */
+  interface SceneTour {entries: JournalEntry[]; holds: (position: number) => boolean; elsewhere: Set<string> | null}
+  const sceneTours = new Map<string, Promise<SceneTour | null>>();
+  /**
+   * The tour with only the parts of a workspace's scene in place, every other position pending: the same positions
+   * as the whole tour, so what it answers is what the whole tour answers when the answer lies in that scene.
+   */
+  function sceneTour(workspace: string) {
+    if (!sceneTours.has(workspace)) sceneTours.set(workspace, (async () => {
+      const index = await indexFile();
+      if (index?.version !== 2) return null;
+      const names = partsOf(index, workspace);
+      if (!names.length) return null;
+      void loadJournal();
+      const parts = await Promise.all(names.map(partFile));
+      if (!sceneData(index)) return null;
+      const counts = index.counts;
+      const entries: JournalEntry[] = new Array(counts.reduce((total, count) => total + count, 0)).fill(PENDING);
+      const ranges: Array<[number, number]> = [];
+      let offset = 0;
+      for (const [position, name] of index.parts.entries()) {
+        const at = names.indexOf(name);
+        if (at >= 0) {
+          const part = parts[at];
+          if (part?.version !== 1 || part.entries.length !== counts[position]) return null;
+          part.entries.forEach((entry, item) => {entries[offset + item] = entry;});
+          ranges.push([offset, offset + counts[position]]);
+        }
+        offset += counts[position];
+      }
+      const elsewhere = revisionData(index) ? new Set(index.parts.flatMap((name, position) => names.includes(name) ? [] : index.revisions[position])) : null;
+      return {entries, holds: (position: number) => ranges.some(([start, end]) => position >= start && position < end), elsewhere};
+    })().catch(() => null));
+    return sceneTours.get(workspace)!;
+  }
+  const REVISION = /^\/v1\/revisions\/([^/?]+)\//;
+  /**
+   * The open scene's tour, when it alone decides the answer: a change naming the open workspace or an analysis version
+   * of its scene (a recorded path names either only in that scene's parts, journal_files.py), or a read after a change
+   * answered in that scene.
+   */
+  async function earlyTour(method: string, path: string, opened: string | null): Promise<JournalEntry[] | null> {
+    if (complete || !opened) return null;
+    const revision = REVISION.exec(path)?.[1];
+    if (!reading(method) && !path.startsWith(`/v1/workspaces/${opened}/`) && !revision) return null;
+    const tour = await sceneTour(opened);
+    if (!tour || (reading(method) && !(cursor >= 0 && tour.holds(cursor)))) return null;
+    // A version no other scene's part names, in the request and in its recorded form, can match only this scene's walks
+    // (an opening version the tour never named, too: the whole tour holds no path naming it).
+    if (!reading(method) && revision && !path.startsWith(`/v1/workspaces/${opened}/`)) {
+      const recorded = REVISION.exec(recordedPath(path))?.[1];
+      if (!tour.elsewhere || !recorded || tour.elsewhere.has(revision) || tour.elsewhere.has(recorded)) return null;
+    }
+    return tour.entries;
+  }
+  /** A decision the open scene's tour cannot take alone: it waits for the whole tour. */
+  const WHOLE = Symbol("whole tour");
   // Identifiers another scene's recording generated for what this visitor already has (its cohort,
   // its job): recorded -> visitor, and back. Answers from that scene read with the visitor's ones.
   const aliases = new Map<string, string>(), reverse = new Map<string, string>();
@@ -362,6 +487,22 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
         aliases.set(segment, right[index]); reverse.set(right[index], segment);
       }
     });
+  }
+  /** The demo scene an entry belongs to: its scene's name before the walk (`<scene>:<walk>`, docs/showcase.md). */
+  const demoScene = (entry: JournalEntry) => (entry.scene ?? "").split(":")[0];
+  // The workspace each demo scene of the tour was recorded in, from the workspace paths it requested.
+  const sceneWorkspaces = new WeakMap<JournalEntry[], Map<string, string>>();
+  function workspaceOf(entries: JournalEntry[], entry: JournalEntry) {
+    let workspaces = sceneWorkspaces.get(entries);
+    if (!workspaces) {
+      workspaces = new Map();
+      for (const item of entries) {
+        const named = WORKSPACE.exec(item.path)?.[1], scene = demoScene(item);
+        if (named && !workspaces.has(scene)) workspaces.set(scene, named);
+      }
+      sceneWorkspaces.set(entries, workspaces);
+    }
+    return workspaces.get(demoScene(entry));
   }
   async function answer(entry: JournalEntry): Promise<Response | null> {
     let body: ArrayBuffer | null = null;
@@ -388,7 +529,7 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
     return seedSpec;
   }
   /** The recorded tour's answer, or null when the tour holds none for this request. */
-  async function fromJournal(method: string, path: string, body: string | null): Promise<Response | null> {
+  async function fromJournal(method: string, path: string, body: string | null, opened: string | null = null): Promise<Response | null> {
     if (SETTINGS.test(path) && (method === "PUT" || (method === "GET" && settings))) {
       if (method === "PUT") {
         let written: {version?: unknown; spec?: unknown} | null = null;
@@ -400,8 +541,19 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
     }
     // Until a change has been answered, reads come from the opening snapshot without the tour.
     if (reading(method) && !journaled) {const held = seen.get(path); return held && typeof held === "object" && "device" in held ? heldRead(path) : null;}
+    const early = await earlyTour(method, path, opened);
+    if (early) {
+      const decided = await decide(early, method, path, body, opened, true);
+      if (decided !== WHOLE) return decided;
+    }
     const entries = (await loadJournal())?.entries;
     if (!entries) return null;
+    const decided = await decide(entries, method, path, body, opened, false);
+    return decided === WHOLE ? null : decided;
+  }
+  /** The answer from the tour (`partial`: only the open scene's parts are in place). */
+  async function decide(entries: JournalEntry[], method: string, path: string, body: string | null, opened: string | null,
+    partial: boolean): Promise<Response | null | typeof WHOLE> {
     if (!reading(method)) {
       // Switching which adopted revision a field shows is answered by the device first: a recorded
       // adoption matches any revision the recording generated, and would bring that scene's state.
@@ -421,11 +573,19 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       if (index < 0 && translated !== path) index = entries.findIndex((entry, position) => position > cursor && matches(entry, position, entry.path, translated));
       if (index < 0 && translated !== path) index = entries.findIndex((entry, position) => matches(entry, position, entry.path, translated));
       // Identifiers the API generated while recording (a cohort, a job) differ between scenes: the
-      // same request recorded in another scene is found by its pattern, only when no path matches.
+      // same request recorded in another walk is found by its pattern, only when no path matches. Only
+      // walks of the open workspace's scene answer: another scene's cohort of the same request holds
+      // other images. Without a workspace named yet, the scene of the change last answered stands for it;
+      // a scene that named no workspace is not told apart.
+      const scope = opened ?? (cursor >= 0 ? workspaceOf(entries, entries[cursor]) : undefined);
       const patterned = (entry: JournalEntry, position: number) => {
         const pattern = analysisPattern(entry.path);
-        return !!pattern && matches(entry, position, pattern);
+        return !!pattern && (scope === undefined || (workspaceOf(entries, entry) ?? scope) === scope) && matches(entry, position, pattern);
       };
+      // A change naming the open workspace or one of its scene's analysis versions matches only that scene's walks
+      // (the index says so): what the scene does not hold, the whole tour does not hold either. A statistic may still
+      // be found by its pattern, which the whole tour decides.
+      if (index < 0 && partial) return ANALYSIS.test(path) ? WHOLE : null;
       if (index < 0) index = entries.findIndex((entry, position) => position > cursor && patterned(entry, position));
       if (index < 0) index = entries.findIndex(patterned);
       if (index < 0) return null;
@@ -466,6 +626,7 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
     // Else the scene's next read of it (what the change wrote), else the latest recorded read before,
     // else one recorded later (a resource another scene created).
     for (let index = end; index < entries.length && entries[index].scene === entries[cursor].scene; index++) if (read(index)) return remember(path, entries[index]);
+    if (partial) return WHOLE;
     for (let index = end - 1; index >= 0; index--) if (read(index)) return remember(path, entries[index]);
     for (let index = end; index < entries.length; index++) if (read(index)) return remember(path, entries[index]);
     return null;
@@ -566,12 +727,13 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
         // alongside the next requests instead of holding them (the two opening images load together).
         const workspace = SETTINGS.exec(path)?.[1];
         if (isRead && workspace) void openingFields(workspace);
+        const opened = openWorkspace = WORKSPACE.exec(path)?.[1] ?? openWorkspace;
         const decided = gate.then(async (): Promise<Response | null | (() => Promise<Response | null>)> => {
           const body = await text();
           // Figures are drawn from the recorded results (figures.json), not recorded with the tour.
           const figured = await fromFigures(method, path, body);
           if (figured !== undefined) return figured;
-          const journaled = await fromJournal(method, path, body);
+          const journaled = await fromJournal(method, path, body, opened);
           if (journaled || !isRead) return isRead ? withFigure(path, await withKnownJobs(path, journaled)) : journaled;
           if (JOBS.test(path)) return withKnownJobs(path, await fromSnapshot(path));
           if (RESULT.test(path)) return withFigure(path, await fromSnapshot(path));

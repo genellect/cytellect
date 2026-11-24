@@ -118,7 +118,9 @@ class PublishedDrawings:
                 self.by_value.setdefault(scientific_key(json.loads(body)), set()).add(source["group"])
 
         index = json.loads((snapshot / "index.json").read_text(encoding="utf-8"))["entries"]
-        journal = json.loads((snapshot / "journal.json").read_text(encoding="utf-8"))["entries"]
+        from .journal_files import read_journal
+
+        journal = read_journal(snapshot)["entries"]
         responses = [(key.removeprefix("GET "), entry) for key, entry in index.items() if key.startswith("GET ")]
         responses += [(entry["path"], entry) for entry in journal if entry["method"] == "GET"]
         for path, entry in responses:

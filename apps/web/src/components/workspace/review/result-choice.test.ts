@@ -1,5 +1,5 @@
 import {describe,expect,it} from "vitest";
-import {automaticOperation,sameMethod,savedMethod,choiceFilter,conditionChannel,conditionKey,measureLabel,savedCondition,savedFor,savedMeasureLabel,sameSources,type ResultCondition,type SavedResultLike} from "./result-choice";
+import {automaticOperation,sameMethod,savedMethod,choiceFilter,conditionChannel,conditionKey,gateKey,measureLabel,recordedGateMatches,savedCondition,savedFor,savedMeasureLabel,sameSources,type ResultCondition,type SavedResultLike} from "./result-choice";
 
 const npm1={channel_id:"npm1",label:"NPM1",stain:"NPM1"};
 const sources=[{field:"f1",mask:"m1",protocol:"4.0.0",mode:"automatic_background"},{field:"f2",mask:"m2",protocol:"4.0.0",mode:"automatic_background"}];
@@ -40,6 +40,32 @@ describe("result conditions (#257 D-1, D-2)",()=>{
   });
   it("does not invent a condition for a result that saved none",()=>{
     expect(savedCondition("comparison",{})).toBeNull();
+  });
+  it("tells a classification by raw values from one by background-corrected values",()=>{
+    const raw={channel_id:"eu5",values:"raw",keep:"positive"},corrected={...raw,values:"corrected"};
+    expect(gateKey(raw)).toBe("eu5:raw:positive");
+    expect(choiceFilter("area_px",null,raw)).not.toBe(choiceFilter("area_px",null,corrected));
+    const saved:SavedResultLike={spec:{selection:{source:"region",region_set_id:"nuclei",metric:"area_px",channel_gate:raw}}};
+    expect(savedCondition("comparison",saved)?.filter).toBe(choiceFilter("area_px",null,raw));
+  });
+});
+
+describe("the demo's recorded nucleus filter (#257 SR-05)",()=>{
+  const raw=choiceFilter("area_px",null,{channel_id:"eu5",values:"raw",keep:"positive"});
+  const corrected=choiceFilter("area_px",null,{channel_id:"eu5",values:"corrected",keep:"positive"});
+  it("offers a classified measure only for the classification the tour recorded it under",()=>{
+    expect(recordedGateMatches("eu5:corrected:positive",corrected)).toBe(true);
+    expect(recordedGateMatches("eu5:corrected:positive",raw)).toBe(false);
+    expect(recordedGateMatches("eu5:corrected:negative",corrected)).toBe(false);
+    expect(recordedGateMatches(null,"")).toBe(true);
+    expect(recordedGateMatches(null,raw)).toBe(false);
+    expect(recordedGateMatches("eu5:raw:positive","")).toBe(false);
+  });
+  it("reads an index written before the measured value was part of the key as naming any value",()=>{
+    expect(recordedGateMatches("eu5:positive",raw)).toBe(true);
+    expect(recordedGateMatches("eu5:positive",corrected)).toBe(true);
+    expect(recordedGateMatches("eu5:negative",raw)).toBe(false);
+    expect(recordedGateMatches("gfp:positive",raw)).toBe(false);
   });
 });
 
