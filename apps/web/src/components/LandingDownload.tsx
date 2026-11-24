@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PUBLIC_SHOWCASE } from "@/lib/api";
 import { releaseSize, windowsReleaseAsset } from "@/lib/release";
 import { publicWindowsRelease } from "@/lib/public-windows-release";
 import { CONTACT_URL } from "@/lib/site";
@@ -19,9 +20,9 @@ export async function LandingDownload() {
         <li className={lp.stop}>
           <h3>Windows版は無料。</h3>
           <p>検出と測定から、統計、結論と考察、論文の図まで。画像はPCの外に出ません。</p>
-          {url ? <DownloadStart url={url} installer={installer} />
+          {PUBLIC_SHOWCASE ? <DownloadStart url={url} installer={installer} />
             : <Link data-lp-event="example" href="/demo" className={lp.primary}>デモを体験する <span aria-hidden="true">→</span></Link>}
-          {url && <p className={lp.meta}>{installer ? "インストーラー" : "ZIP"}{release ? ` ${releaseSize(release.size_bytes)}（v${release.version}）` : ""}<br />Windows 10／11（64ビット）<br /><Link data-lp-event="install_guide" href="/download">インストールの流れ</Link></p>}
+          {PUBLIC_SHOWCASE && <p className={lp.meta}>{url && <>{installer ? "インストーラー" : "ZIP"}{release ? ` ${releaseSize(release.size_bytes)}（v${release.version}）` : ""}<br />Windows 10／11（64ビット）<br /></>}<Link data-lp-event="install_guide" href="/download">インストールの流れ</Link></p>}
         </li>
         <li className={lp.stop}>
           <h3>研究室のクラウドは応相談。</h3>

@@ -41,13 +41,20 @@ test("unconfigured public build makes no analysis connection",async({page})=>{
   await page.getByText("画像はPCの外に出ますか？",{exact:true}).click();
   await expect(page.getByText(/検出に使う画像だけを送り、クラウドには残しません。/)).toBeVisible();
  }else{
-  await expect(page.locator("#download").getByRole("link",{name:"デモを体験する",exact:true})).toBeVisible();
+  await expect(page.locator("#download").getByRole("link",{name:/Microsoft Store で入手/})).toBeVisible();
   await expect(page.getByLabel("招待コード",{exact:true})).toHaveCount(0);
   await expect(page.getByRole("link",{name:/Windows版をダウンロード/})).toHaveCount(0);
  }
- for(const width of [1440,390]){
+ for(const width of [1440,390,375,320]){
   await page.setViewportSize({width,height:900});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
+  for(const link of await page.locator('#download a[data-lp-event="store"], #download a[data-lp-event="download"]').all()){
+   const bounds=await link.boundingBox();
+   expect(bounds).not.toBeNull();
+   expect(bounds!.x).toBeGreaterThanOrEqual(0);
+   expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(width);
+   expect(await link.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
+  }
   if(process.env.CYTELLECT_SCREENSHOT_DIR)await page.screenshot({path:path.join(process.env.CYTELLECT_SCREENSHOT_DIR,`public-download-${width}.png`),fullPage:true});
  }
  const hero=page.getByRole("region",{name:"Get your microscopy publication-ready.",exact:true});
@@ -89,7 +96,7 @@ test("the install guide page shows what happens before and after the download",a
  await download.evaluate(a=>a.addEventListener("click",e=>e.preventDefault()));
  await download.click();
  await expect(page.getByRole("dialog")).toHaveCount(0);
- for(const width of [1440,390]){
+ for(const width of [1440,390,375,320]){
   await page.setViewportSize({width,height:900});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
  }

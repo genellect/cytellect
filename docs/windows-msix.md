@@ -1,6 +1,6 @@
 # Windows 11 の Microsoft Store 版
 
-[Issue #215](https://github.com/genellect/cytellect/issues/215) の第1段階で、現行の Windows 配布 ZIP から MSIX を作る。初回の Store 申請と配布は第2段階で行う。
+[Issue #215](https://github.com/genellect/cytellect/issues/215) の第1段階で、現行の Windows 配布 ZIP から MSIX を作る。限定配布後、2026-11-24 に提出3が一般公開された。Windows 11 x64 は [Microsoft Store](https://apps.microsoft.com/detail/9PGKTQGV7X5C)、Windows 10 x64 などでは EXE を利用できる。
 
 ## 作成
 

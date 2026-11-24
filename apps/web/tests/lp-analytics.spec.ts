@@ -75,19 +75,22 @@ test("the demo's experiment tab and guide button send fixed events without the s
   expect(JSON.stringify(events)).not.toContain(id);
 });
 
-test("download click uses a fixed event without sending the asset URL", async ({page, baseURL}) => {
-  await isolatedSite(page, baseURL!);
-  await page.goto(origin + "/");
-  await expect.poll(async () => JSON.stringify(await commands(page))).toContain('"page_view"');
-  // A normal Ctrl-click preserves browser behavior and leaves the LP available for inspection.
-  await page.getByRole("link", { name: /Microsoft Store で入手/ }).evaluate((anchor: HTMLAnchorElement) => {
-    anchor.addEventListener("click", event => event.preventDefault());
-    anchor.dispatchEvent(new MouseEvent("click", { bubbles:true, ctrlKey:true }));
+for (const [event, selector] of [["download_click", "download"], ["store_click", "store"]]) {
+  test(`${selector} click records only the fixed event`, async ({page, baseURL}) => {
+    await isolatedSite(page, baseURL!);
+    await page.goto(origin + "/");
+    await expect.poll(async () => JSON.stringify(await commands(page))).toContain('"page_view"');
+    // A normal Ctrl-click preserves browser behavior and leaves the LP available for inspection.
+    await page.locator(`[data-lp-event="${selector}"]`).evaluate((anchor: HTMLAnchorElement) => {
+      anchor.addEventListener("click", event => event.preventDefault());
+      anchor.dispatchEvent(new MouseEvent("click", { bubbles:true, ctrlKey:true }));
+    });
+    await expect.poll(async () => JSON.stringify(await commands(page))).toContain(JSON.stringify(event));
+    const events = await commands(page);
+    expect(JSON.stringify(events)).not.toContain("releases/download");
+    expect(JSON.stringify(events)).not.toContain("apps.microsoft.com");
   });
-  await expect.poll(async () => JSON.stringify(await commands(page))).toContain('"download_click"');
-  const events = await commands(page);
-  expect(JSON.stringify(events)).not.toContain("releases/download");
-});
+}
 
 test("a plain download click is measured and still opens the next-steps guide", async ({page, baseURL}) => {
   await isolatedSite(page, baseURL!);
