@@ -646,7 +646,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
         {/* A condition without a result keeps the result's card and figure frame in place: its name and 計算 (plan 4.1). */}
         <div className={styles.resultGrid} data-columns={2}>
           <section className={`${styles.summary} ${styles.pendingCard}`} aria-label="選択中の条件" aria-busy={!!busy}><h3>{choiceLabel}</h3>
-            {busy?<p role="status">{busy}</p>:demo?(unrecorded===choiceKey||!recordedChoice(condition))&&<p role="status">{showcaseNotices.showcase_action_not_recorded}</p>:remaining?<RemainingLine work={remaining} onOpen={openRemaining}/>:mode==="statistics"||ready?
+            {busy?<p role="status">{busy}</p>:demo?(unrecorded===choiceKey||(!recordedChoice(condition)&&!positivityMissing))&&<p role="status">{showcaseNotices.showcase_action_not_recorded}</p>:remaining?<RemainingLine work={remaining} onOpen={openRemaining}/>:mode==="statistics"||ready?
               // 計算 saves the settings itself. Pressing it leaves the settings without the save on leaving them, which
               // would hold the workspace busy (and the button disabled) while the click lands.
               <button className={styles.primary} data-calculate="" disabled={!ready} onMouseDown={event=>event.preventDefault()} onClick={()=>void calculate()}>計算</button>:onStatistics&&<button type="button" onClick={onStatistics}>統計で計算</button>}</section>

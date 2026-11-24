@@ -30,11 +30,12 @@ const values = (page: Page, name: string | RegExp, root = side(page)) =>
   root.getByRole("combobox", {name, exact: typeof name === "string"}).locator("option:not([disabled])")
     .evaluateAll(options => options.map(option => (option as HTMLOptionElement).value).filter(Boolean));
 
-/** The product's list of a subject (metric-catalog.ts), each entry by its first variant, without the positive count
- * and fraction (offered once nuclei are classified) and the cell ROI (no cell outlines in the demo's images). */
-function expectedEntries(subject: string): string[] {
+/** The product's list of a subject (metric-catalog.ts), each entry by its first variant. The positive count and fraction
+ * are listed only in a scene that classifies nuclei by a stain (scene.gateChannels); the cell ROI is not a subject of the
+ * demo's images. */
+function expectedEntries(subject: string, classifies: boolean): string[] {
   return SUBJECT_METRICS[subject as keyof typeof SUBJECT_METRICS].flatMap(group => group.metrics.map(metric => metric.variants[0].id))
-    .filter(id => !id.startsWith("positive_"));
+    .filter(id => classifies || !id.startsWith("positive_"));
 }
 
 /** Waits until the chosen condition shows a result; fails when the demo answers with its notice instead. */
@@ -42,7 +43,9 @@ async function shows(page: Page, what: string) {
   const card = results(page).getByRole("region", {name: "選択中の条件"});
   await expect(card, `${what}: no result`).toHaveCount(0, {timeout: live});
   await expect(results(page).getByText(NOT_RECORDED), what).toHaveCount(0);
-  await expect(results(page).getByRole("region", {name: "結果のまとめ"}).first(), what).toBeVisible({timeout: live});
+  // A comparison opens on its summary; a distribution (a stain with saturated pixels offers no comparison, Q-04) on the
+  // values of each run and group.
+  await expect(results(page).getByRole("region", {name: /^(結果のまとめ|実験回と群ごとの値)$/}).first(), what).toBeVisible({timeout: live});
 }
 
 for (const scene of SCENES) test(`${scene.id}: every offered statistics condition opens its recorded result (SR-05)`, async ({page}) => {
@@ -63,9 +66,16 @@ for (const scene of SCENES) test(`${scene.id}: every offered statistics conditio
     // Every entry the product lists for the subject is offered (the nuclear shape in every scene, the largest
     // nucleolus in the nucleolar ones): the recording holds them all, independently of what it chose to record.
     const metrics = await values(page, "指標");
-    expect(metrics.sort(), `${scene.id} ${subject}`).toEqual(expectedEntries(subject).sort());
+    expect(metrics.sort(), `${scene.id} ${subject}`).toEqual(expectedEntries(subject, !!scene.gateChannels?.length).sort());
     for (const metric of metrics) {
       await side(page).getByRole("combobox", {name: "指標", exact: true}).selectOption(metric);
+      if (metric.startsWith("positive_")) {
+        // Before nuclei are classified, the panel says how to classify them in 画像, as in production; the classified
+        // results are offered once a classification is in effect (showcase-result-choice.spec.ts).
+        await expect(results(page).getByText(/陽性率には核の分類が必要です/)).toBeVisible({timeout: live});
+        await expect(results(page).getByText(NOT_RECORDED)).toHaveCount(0);
+        continue;
+      }
       const variants = side(page).getByRole("radiogroup", {name: /^(補正|単位)$/}).getByRole("radio");
       const variantCount = await variants.count();
       for (let variant = 0; variant < Math.max(1, variantCount); variant++) {
