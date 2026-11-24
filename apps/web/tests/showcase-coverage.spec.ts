@@ -112,7 +112,8 @@ const DECLARED: Record<string, {subject: string; metric: string; channel: string
   "zenodo-6643470-oxaliplatin": {subject: "nucleoli", metric: "nucleolar_eccentricity", channel: null},
   "zenodo-6643470-cisplatin": {subject: "nucleoli", metric: "nucleolar_eccentricity", channel: null},
 };
-const role = (page: Page) => results(page).locator("[data-outcome-role]");
+// The mark of the condition shown (the saved comparisons' buttons carry their own marks).
+const role = (page: Page) => results(page).locator(":not(button) > [data-outcome-role]");
 for (const scene of SCENES.filter(item => DECLARED[item.id])) test(`${scene.id}: the recorded primary measure stays declared while exploratory measures are chosen (NS-06)`, async ({page}) => {
   test.setTimeout(600_000);
   const declared = DECLARED[scene.id];
@@ -141,7 +142,7 @@ for (const scene of SCENES.filter(item => !DECLARED[item.id])) test(`${scene.id}
   await page.goto(`/demo?id=${scene.workspaceId}&step=statistics`);
   await expect(results(page).getByRole("region", {name: "結果のまとめ"}).first()).toBeVisible({timeout: live});
   await expect(side(page).getByRole("button", {name: "主要指標", exact: true})).toHaveCount(0);
-  await expect(role(page)).toHaveCount(0);
+  await expect(results(page).locator("[data-outcome-role]")).toHaveCount(0);
 });
 
 for (const scene of SCENES) test(`${scene.id}: with independence unconfirmed, a comparison is the runs' description (NS-06)`, async ({page}) => {
