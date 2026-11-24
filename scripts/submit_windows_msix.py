@@ -47,13 +47,49 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+def validation_diagnostic(error: urllib.error.HTTPError) -> str:
+    """Report only known schema terms and a Microsoft request ID, never raw error messages."""
+    fields = WRITABLE_FIELDS | {
+        "applicationPackages", "fileName", "fileStatus", "minimumDirectXVersion", "minimumSystemRam",
+        "baseListing", "images", "imageType", "description", "keywords", "priceId", "marketSpecificPricings",
+        "packageRollout", "fallbackSubmissionId", "isMandatoryUpdate", "mandatoryUpdateEffectiveDate",
+    }
+    codes = {"InvalidRequest", "InvalidParameter", "InvalidParameterValue", "InvalidValue", "InvalidOperation",
+             "InvalidState", "BadRequest", "InvalidRequestBody", "InvalidSubmission", "InvalidArgument",
+             "ValidationError", "ResourceNotFound", "ServiceError", "PackageValidationFailed"}
+    parts = []
+    request_id = next((error.headers.get(key) for key in (
+        "MS-CorrelationId", "x-ms-correlation-request-id", "x-ms-request-id", "request-id",
+    ) if error.headers.get(key)), None)
+    if request_id and re.fullmatch(r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}", request_id):
+        parts.append(f"Request ID: {request_id}")
+    try:
+        payload = json.loads(error.read(65536))
+    except (OSError, ValueError, RecursionError, http.client.HTTPException):
+        payload = None
+    if isinstance(payload, dict):
+        # Some endpoints use an error envelope; others put code and message at the root.
+        detail = payload.get("error", payload)
+        if isinstance(detail, dict):
+            code = detail.get("code")
+            if isinstance(code, str) and code in codes:
+                parts.append(f"Code: {code}")
+            terms = {term.casefold() for term in re.findall(r"[A-Za-z][A-Za-z0-9]*", json.dumps(detail))}
+            mentioned = sorted(field for field in fields if field.casefold() in terms)
+            if mentioned:
+                parts.append("Fields mentioned: " + ", ".join(mentioned))
+    return " ".join(parts)
+
+
 def request_json(url: str, method: str, operation: str, headers: dict, data=None) -> dict:
     request = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
         with urllib.request.build_opener(NoRedirect()).open(request, timeout=90) as response:
             result = json.load(response)
     except urllib.error.HTTPError as error:
-        raise StoreError(f"{operation} failed (HTTP {error.code}).") from None
+        with error:
+            detail = validation_diagnostic(error) if url.startswith(APP + "/") and error.code == 400 else ""
+        raise StoreError(f"{operation} failed (HTTP {error.code}). {detail}".rstrip()) from None
     except (OSError, ValueError):
         raise StoreError(f"{operation} did not return a readable API response.") from None
     if not isinstance(result, dict):

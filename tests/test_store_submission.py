@@ -1,7 +1,10 @@
 import importlib.util
+import io
+from email.message import Message
 from pathlib import Path
 from unittest import TestCase
 from unittest.mock import Mock, patch
+from urllib.error import HTTPError
 
 source = Path(__file__).resolve().parents[1] / "scripts" / "submit_windows_msix.py"
 spec = importlib.util.spec_from_file_location("submit_windows_msix", source)
@@ -15,11 +18,11 @@ NAME = f"Cytellect-Store-{VERSION}-{COMMIT}.msix"
 EXISTING = {
     "fileName": "Cytellect-Store-1.0.3.0.msix", "version": "1.0.3.0",
     "architecture": "X64", "fileStatus": "Uploaded",
-    "minimumDirectXVersion": "DX11", "minimumSystemRam": "Memory4GB",
+    "minimumDirectXVersion": "DirectX100", "minimumSystemRam": "Memory2GB",
 }
 PUBLISHED = {
     "id": "100", "visibility": "Public", "pricing": {"priceId": "Free"},
-    "listings": {"ja-jp": {"description": "Cytellect"}},
+    "listings": {"ja-jp": {"baseListing": {"description": "Cytellect"}, "platformOverrides": {}}},
     "applicationPackages": [EXISTING],
 }
 APP = {
@@ -28,9 +31,9 @@ APP = {
 }
 REPLACEMENTS = [
     {"fileName": EXISTING["fileName"], "fileStatus": "PendingDelete",
-     "minimumDirectXVersion": "DX11", "minimumSystemRam": "Memory4GB"},
+     "minimumDirectXVersion": "DirectX100", "minimumSystemRam": "Memory2GB"},
     {"fileName": NAME, "fileStatus": "PendingUpload",
-     "minimumDirectXVersion": "DX11", "minimumSystemRam": "Memory4GB"},
+     "minimumDirectXVersion": "DirectX100", "minimumSystemRam": "Memory2GB"},
 ]
 DRAFT = {**PUBLISHED, "id": "101", "status": "PendingCommit", "fileUploadUrl": "example"}
 PREPARED = {**DRAFT, "applicationPackages": REPLACEMENTS}
@@ -38,6 +41,26 @@ PACKAGE = Path("Cytellect-Store.msix")
 
 
 class StoreSubmissionTests(TestCase):
+    @patch.object(release.urllib.request, "build_opener")
+    def test_invalid_request_exposes_schema_terms_without_echoing_values(self, opener):
+        headers = Message()
+        headers["MS-CorrelationId"] = "11111111-1111-4111-8111-111111111111"
+        url = release.APP + "/submissions/101"
+        body = b'{"error":{"code":"InvalidRequest","message":"Invalid applicationPackages[0].fileName: secret"}}'
+        opener.return_value.open.side_effect = HTTPError(url, 400, "bad", headers, io.BytesIO(body))
+        with self.assertRaises(release.StoreError) as raised:
+            release.request_json(url, "PUT", "Update", {})
+        self.assertEqual(str(raised.exception), "Update failed (HTTP 400). "
+                         "Request ID: 11111111-1111-4111-8111-111111111111 "
+                         "Code: InvalidRequest Fields mentioned: applicationPackages, fileName")
+
+    @patch.object(release.urllib.request, "build_opener")
+    def test_invalid_response_body_preserves_http_error(self, opener):
+        url = release.APP + "/submissions/101"
+        opener.return_value.open.side_effect = HTTPError(url, 400, "bad", Message(), io.BytesIO(b"private"))
+        with self.assertRaisesRegex(release.StoreError, r"^Update failed \(HTTP 400\)\.$"):
+            release.request_json(url, "PUT", "Update", {})
+
     @patch.object(release, "upload_package")
     def test_recover_only_the_named_unmodified_clone(self, upload):
         for requested, draft, allowed in [
