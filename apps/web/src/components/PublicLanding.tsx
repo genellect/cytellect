@@ -53,14 +53,13 @@ export default function PublicLanding() {
         <div className={lp.column}>
           <h2 id="mission-title" className={lp.manifesto} aria-label="画像解析を、一部の専門家の技術から、すべての生命科学研究者が使える研究基盤に。"><span><span>画像解析を、</span><span>一部の専門家の技術から、</span></span><span><span>すべての生命科学研究者が</span><span>使える研究基盤に。</span></span></h2>
         </div>
-      </section>
-
-      <section className={lp.award} aria-labelledby="award-title">
-        <div className={lp.awardPlate}>
-          <svg className={lp.trophy} viewBox="0 0 48 48" aria-hidden="true" focusable="false">
-            <path d="M14 6h20v11c0 5.8-4.5 10.5-10 10.5S14 22.8 14 17V6Zm-1 2v3H9.5c.3 4.6 2.1 7 4.6 7.8l-.6 2.3C9.8 20 7.2 16.6 7 9.6V8h6Zm22 0h6v1.6c-.2 7-2.8 10.4-6.5 11.5l-.6-2.3c2.5-.8 4.3-3.2 4.6-7.8H35V8ZM22.2 27.3h3.6V33h-3.6v-5.7ZM17 35h14l1.4 6H15.6L17 35Z" />
-          </svg>
-          <h2 id="award-title" className={lp.awardTitle}><span>東京AIハッカソン2026</span>{" "}<span>最優秀賞受賞</span></h2>
+        <div className={lp.award}>
+          <div className={lp.awardPlate}>
+            <svg className={lp.trophy} viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+              <path d="M14 6h20v11c0 5.8-4.5 10.5-10 10.5S14 22.8 14 17V6Zm-1 2v3H9.5c.3 4.6 2.1 7 4.6 7.8l-.6 2.3C9.8 20 7.2 16.6 7 9.6V8h6Zm22 0h6v1.6c-.2 7-2.8 10.4-6.5 11.5l-.6-2.3c2.5-.8 4.3-3.2 4.6-7.8H35V8ZM22.2 27.3h3.6V33h-3.6v-5.7ZM17 35h14l1.4 6H15.6L17 35Z" />
+            </svg>
+            <h2 id="award-title" className={lp.awardTitle}><span>東京AIハッカソン2026</span>{" "}<span>最優秀賞受賞</span></h2>
+          </div>
         </div>
       </section>
 
