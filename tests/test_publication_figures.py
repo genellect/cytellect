@@ -220,8 +220,19 @@ def demo_images(result):
     import tifffile
     from cytellect_analysis.figure_images import representative_fields
 
-    seed = zipfile.ZipFile(ROOT / "apps/web/public/showcase/seed.zip")
-    names = seed.namelist()
+    archive = zipfile.ZipFile(ROOT / "apps/web/public/showcase/seed.zip")
+    # The seed stores one copy of identical files; the others are copied from it on boot (showcase.json "regenerate").
+    # Which copy is stored follows the order of the generated identifiers, so a field's labels may be such a copy.
+    copies = {item["path"]: item["copy_of"] for item in json.loads(archive.read("showcase.json"))["regenerate"]
+              if item.get("copy_of")}
+
+    class Seed:
+        @staticmethod
+        def read(name):
+            return archive.read(copies.get(name, name))
+
+    seed = Seed()
+    names = [*archive.namelist(), *copies]
     loaded = {}
     order = result["spec"]["conditions"]
     sources = {s["field_id"]: s for s in result["source_fields"]}
