@@ -119,6 +119,7 @@ const SETTINGS = /^\/v1\/workspaces\/([^/?]+)\/analysis-spec$/;
 const RUNS = /^\/v1\/workspaces\/[^/?]+\/runs$/;
 const SELECTION = /^\/v1\/workspaces\/[^/?]+\/selection$/;
 const JOBS = /^\/v1\/workspaces\/[^/?]+\/jobs$/;
+const WORKSPACE = /^\/v1\/workspaces\/([^/?]+)/;
 const FIGURE_RENDER = /^\/v1\/jobs\/([^/?]+)\/figure-render$/;
 const JOB_FILE = /^\/v1\/jobs\/([^/?]+)\/files\/([^/?]+)$/;
 const PACKAGE = /^\/v1\/jobs\/([^/?]+)\/publication-package$/;
@@ -160,6 +161,8 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
   let live = false, active = false;
   // Recorded tour: `cursor` is the last change it answered.
   let journal: Promise<Journal | null> | null = null, journaled = false, cursor = -1;
+  // The workspace the visitor has open: the last one a request named, in request order.
+  let openWorkspace: string | null = null;
   let gate: Promise<unknown> = Promise.resolve();
   // The saved analysis settings, kept on the device while the tour answers (they hold no result).
   let settings: {version: number; spec: unknown} | null = null;
@@ -375,6 +378,22 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       }
     });
   }
+  /** The demo scene an entry belongs to: its scene's name before the walk (`<scene>:<walk>`, docs/showcase.md). */
+  const demoScene = (entry: JournalEntry) => (entry.scene ?? "").split(":")[0];
+  // The workspace each demo scene of the tour was recorded in, from the workspace paths it requested.
+  const sceneWorkspaces = new WeakMap<JournalEntry[], Map<string, string>>();
+  function workspaceOf(entries: JournalEntry[], entry: JournalEntry) {
+    let workspaces = sceneWorkspaces.get(entries);
+    if (!workspaces) {
+      workspaces = new Map();
+      for (const item of entries) {
+        const named = WORKSPACE.exec(item.path)?.[1], scene = demoScene(item);
+        if (named && !workspaces.has(scene)) workspaces.set(scene, named);
+      }
+      sceneWorkspaces.set(entries, workspaces);
+    }
+    return workspaces.get(demoScene(entry));
+  }
   async function answer(entry: JournalEntry): Promise<Response | null> {
     let body: ArrayBuffer | null = null;
     if (entry.file !== null && !nullBody(entry.status)) {
@@ -433,10 +452,14 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       if (index < 0 && translated !== path) index = entries.findIndex((entry, position) => position > cursor && matches(entry, position, entry.path, translated));
       if (index < 0 && translated !== path) index = entries.findIndex((entry, position) => matches(entry, position, entry.path, translated));
       // Identifiers the API generated while recording (a cohort, a job) differ between scenes: the
-      // same request recorded in another scene is found by its pattern, only when no path matches.
+      // same request recorded in another walk is found by its pattern, only when no path matches. Only
+      // walks of the open workspace's scene answer: another scene's cohort of the same request holds
+      // other images. Without a workspace named yet, the scene of the change last answered stands for it;
+      // a scene that named no workspace is not told apart.
+      const scope = openWorkspace ?? (cursor >= 0 ? workspaceOf(entries, entries[cursor]) : undefined);
       const patterned = (entry: JournalEntry, position: number) => {
         const pattern = analysisPattern(entry.path);
-        return !!pattern && matches(entry, position, pattern);
+        return !!pattern && (scope === undefined || (workspaceOf(entries, entry) ?? scope) === scope) && matches(entry, position, pattern);
       };
       if (index < 0) index = entries.findIndex((entry, position) => position > cursor && patterned(entry, position));
       if (index < 0) index = entries.findIndex(patterned);
@@ -578,6 +601,7 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
         // alongside the next requests instead of holding them (the two opening images load together).
         const workspace = SETTINGS.exec(path)?.[1];
         if (isRead && workspace) void openingFields(workspace);
+        openWorkspace = WORKSPACE.exec(path)?.[1] ?? openWorkspace;
         const decided = gate.then(async (): Promise<Response | null | (() => Promise<Response | null>)> => {
           const body = await text();
           // Figures are drawn from the recorded results (figures.json), not recorded with the tour.

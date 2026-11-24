@@ -441,6 +441,40 @@ describe("recorded tour across scenes", () => {
     // A figure or package names no content of its own: another job's recording never answers it.
     expect((await transport.fetch(`/v1/jobs/${JOB}/figure-render`, {method: "POST", body: JSON.stringify({width: 89})})).status).toBe(409);
   });
+  it("answers a request by its pattern only from the open workspace's scene, whatever was answered before", async () => {
+    // Two demo scenes recorded the same request on their own cohorts: same content, only the revision differs.
+    const A = "aaaaaaaa-0000-4000-8000-000000000001", B = "bbbbbbbb-0000-4000-8000-000000000002";
+    const V = "dddddddd-0000-4000-8000-000000000004";
+    const body = JSON.stringify({metric: "mean"});
+    const files = {
+      "index.json": {version: 1, entries: {}},
+      "journal.json": {version: 1, entries: [
+        entry("POST", "/v1/workspaces/wa/region-cohorts", null, "cohort-a.json", "first:walk-1"),
+        entry("POST", `/v1/revisions/${A}/descriptive`, body, "first.json", "first:walk-1"),
+        entry("POST", "/v1/workspaces/wb/region-cohorts", null, "cohort-b.json", "second:walk-1"),
+        entry("POST", `/v1/revisions/${B}/descriptive`, body, "second.json", "second:walk-1"),
+      ]},
+      "cohort-a.json": {revision_id: A}, "cohort-b.json": {revision_id: B}, "first.json": {scene: "first"}, "second.json": {scene: "second"},
+    };
+    const ask = async (transport: ReturnType<typeof subject>) =>
+      (await (await transport.fetch(`/v1/revisions/${V}/descriptive`, {method: "POST", body})).json()) as {scene: string};
+    // The second scene's workspace is open after the first scene's change was answered: its own record answers.
+    const after = subject(files);
+    await after.fetch("/v1/workspaces/wa/region-cohorts", {method: "POST"});
+    await after.fetch("/v1/workspaces/wb/selection");
+    expect(await ask(after)).toEqual({scene: "second"});
+    // And the other way, with the first scene's workspace open after the second's change.
+    const before = subject(files);
+    await before.fetch("/v1/workspaces/wb/region-cohorts", {method: "POST"});
+    await before.fetch("/v1/workspaces/wa/selection");
+    expect(await ask(before)).toEqual({scene: "first"});
+    // Without a workspace named, the scene of the change last answered decides.
+    for (const [cohort, scene] of [[B, "second"], [A, "first"]]) {
+      const unnamed = subject(files);
+      await unnamed.fetch(`/v1/revisions/${cohort}/descriptive`, {method: "POST", body});
+      expect(await ask(unnamed)).toEqual({scene});
+    }
+  });
   it("keeps listing a job another scene gave this visitor, so a reused cohort is still found", async () => {
     const transport = subject({
       "index.json": {version: 1, entries: {[snapshotKey("/v1/workspaces/w/jobs")]: {status: 200, headers: [], file: "seed.json"}}},
