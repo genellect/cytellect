@@ -37,6 +37,7 @@
 | TR-01（診断・組織切片を範囲外にする 1 文） | genellect/cytellect#270 | `integration/257` にマージ済み |
 | 5 公開実画像の登録と検証 | genellect/cytellect#272 | `integration/257` にマージ済み。核小体の形の 3 指標は決定 4 で不合格（核小体には出さない。核では出す、§5.4） |
 | 6 指標の計算・主要指標 | genellect/cytellect#276 | `integration/257` にマージ済み。核の形 3 指標と最大の核小体の割合を追加。核ごとの CV と陽性面積率は検証で不合格（[記録](../../public-nuclear-signal-validation.md)）で出さない。主要指標の宣言と、元の統計の計算時刻での比較、NS-01 の一覧 |
+| 2 の修正：背景ROIを描き直して測定し直した後、古い背景で補正した保存済みの結果が今の結果として開く（NS-04） | `fix/257-stale-corrected-result`（`integration/257` へ） | 修正中。保存した結果の背景の記録（`channel_provenance`）を今の測定と比べ、開いたときの結果も今の測定と照らす |
 | 6c デモで記録した主要指標の宣言を読み取り専用で出す（NS-06） | genellect/cytellect#279 | `integration/257` にマージ済み |
 | 6d 表の下の次の一手と、呼び名「実験回」（A-2・ED-04） | genellect/cytellect#280 | `integration/257` にマージ済み |
 | 6e ★で宣言すると採用前の検出の候補が捨てられる不具合 | genellect/cytellect#281 | 修正中。記録に入る応答は変えない方針で、マージ後に公開デモの実行環境のホイールだけ作り直す |
