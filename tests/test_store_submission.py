@@ -16,6 +16,7 @@ COMMIT = "b" * 40
 VERSION = "1.0.4.0"
 NAME = f"Cytellect-Store-{VERSION}-{COMMIT}.msix"
 EXISTING = {
+    "id": "2000000000000000001",
     "fileName": "Cytellect-Store-1.0.3.0.msix", "version": "1.0.3.0",
     "architecture": "X64", "fileStatus": "Uploaded",
     "minimumDirectXVersion": "DirectX100", "minimumSystemRam": "Memory2GB",
@@ -30,7 +31,7 @@ APP = {
     "lastPublishedApplicationSubmission": {"id": "100"},
 }
 REPLACEMENTS = [
-    {"fileName": EXISTING["fileName"], "fileStatus": "PendingDelete",
+    {"id": EXISTING["id"], "fileName": EXISTING["fileName"], "fileStatus": "PendingDelete",
      "minimumDirectXVersion": "DirectX100", "minimumSystemRam": "Memory2GB"},
     {"fileName": NAME, "fileStatus": "PendingUpload",
      "minimumDirectXVersion": "DirectX100", "minimumSystemRam": "Memory2GB"},
@@ -142,6 +143,16 @@ class StoreSubmissionTests(TestCase):
                          "Code: InvalidRequest Fields mentioned: applicationPackages, fileName")
 
     @patch.object(release.urllib.request, "build_opener")
+    def test_invalid_parameter_in_message_reports_field_without_value(self, opener):
+        url = release.APP + "/submissions/101"
+        body = b'{"code":"InvalidParameterValue","message":"Parameter fileStatus was specified with invalid value: private."}'
+        opener.return_value.open.side_effect = HTTPError(url, 400, "bad", Message(), io.BytesIO(body))
+        with self.assertRaises(release.StoreError) as raised:
+            release.request_json(url, "PUT", "Update", {})
+        self.assertEqual(str(raised.exception), "Update failed (HTTP 400). Code: InvalidParameterValue "
+                         "Fields mentioned: fileStatus")
+
+    @patch.object(release.urllib.request, "build_opener")
     def test_invalid_response_body_preserves_http_error(self, opener):
         url = release.APP + "/submissions/101"
         opener.return_value.open.side_effect = HTTPError(url, 400, "bad", Message(), io.BytesIO(b"private"))
@@ -202,6 +213,19 @@ class StoreSubmissionTests(TestCase):
         self.assertEqual(request["applicationPackages"], REPLACEMENTS)
         upload.assert_called_once_with("example", PACKAGE, NAME)
         store.call.assert_called_with("POST", "/submissions/101/commit")
+
+    @patch.object(release, "upload_package")
+    def test_package_without_a_store_id_does_not_acquire_one(self, upload):
+        old = {key: value for key, value in EXISTING.items() if key != "id"}
+        removed = {key: value for key, value in REPLACEMENTS[0].items() if key != "id"}
+        prepared = {**PREPARED, "applicationPackages": [removed, REPLACEMENTS[1]]}
+        store = Mock()
+        store.call.side_effect = [APP, {**PUBLISHED, "applicationPackages": [old]},
+                                  {**DRAFT, "applicationPackages": [old]}, prepared, prepared,
+                                  {"status": "CommitStarted"}]
+        self.assertTrue(release.submit(store, PACKAGE, VERSION, COMMIT))
+        self.assertEqual(store.call.call_args_list[3].kwargs["body"]["applicationPackages"],
+                         prepared["applicationPackages"])
 
     @patch.object(release, "upload_package")
     def test_does_not_commit_a_submission_changed_during_upload(self, upload):
