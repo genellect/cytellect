@@ -176,7 +176,7 @@ export function savedFor<T extends {operation: ResultOperation; result: SavedRes
 /** A field's assignment in 実験 as a cohort records it (group, run, sample, acquisition date and pair, spacing removed),
  * "" when nothing is assigned yet. */
 export function fieldAssignment(metadata: SavedAssignmentLike | null | undefined): string {
-  const values = ASSIGNMENT.map(key => metadata?.[key]?.trim() || null);
+  const values = ASSIGNMENT.map(key => {const value: unknown = metadata?.[key]; return typeof value === "string" ? value.trim() || null : value ?? null;});
   return values.some(value => value !== null) ? JSON.stringify(values) : "";
 }
 const ASSIGNMENT = ["condition", "experimental_unit", "sample", "acquisition_date", "pair"] as const;
@@ -232,7 +232,7 @@ export function changedInputs(operation: ResultOperation, result: SavedResultLik
   for (const [field, saved] of excluded) {
     const now = chosen.get(field)?.excluded;
     if (!now) continue;
-    if (typeof saved === "number" ? saved !== now.length : JSON.stringify([...saved].sort((a, b) => a - b)) !== JSON.stringify(now)) return true;
+    if (typeof saved === "number" ? saved !== now.length : JSON.stringify([...new Set(saved)].sort((a, b) => a - b)) !== JSON.stringify(now)) return true;
   }
   if (operation !== "distribution") for (const field of resultSourceFields(result) ?? []) {
     const saved = fieldAssignment(field.metadata), now = chosen.get(field.field_id)?.assignment;

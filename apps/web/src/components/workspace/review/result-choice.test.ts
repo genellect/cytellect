@@ -199,6 +199,9 @@ describe("a saved result answers only the exclusions, assignment and pairs now c
     expect(excludedRegions([{field_id:"f1",region_id:null,reason:"r"},{field_id:"f1",region_id:3,reason:"r"}],"f1")).toBeUndefined();
     expect(excludedRegions([{field_id:"f1",region_id:3,reason:"r"},{field_id:"f2",region_id:1,reason:"r"},{field_id:"f1",region_id:1,reason:"r"}],"f1")).toEqual([1,3]);
     expect(excludedRegions(undefined,"f1")).toBeUndefined();
+    // A region recorded twice (one record per axis or channel) is one excluded region; a value that is not text is kept as it is.
+    expect(changedInputs("comparison",{...comparison(),observation_ledger:[...ledger([["f1",2]]),observation("f1",2,true)]},now(),pairs)).toBe(false);
+    expect(fieldAssignment({condition:"A",acquisition_date:20211201 as unknown as string})).toBe(JSON.stringify(["A",null,null,20211201,null]));
   });
 });
 
