@@ -104,7 +104,10 @@ function savedRegion(result:ResultPayload):ReviewTarget|undefined{const id=resul
 function resultMetricLabel(result:ResultPayload,metric:string,stain:(id:string)=>string=id=>id){
   const operation=result.analysis_kind==="region-association"?"association":"comparison";
   const named=(channel:SavedChannel|null|undefined)=>channel&&!channel.stain?{...channel,stain:stain(channel.channel_id)}:channel;
-  const value={...result,channel:named(result.channel),y_source:result.y_source&&{...result.y_source,channel:named(result.y_source.channel)}} as SavedResultLike;
+  // A distribution records its stain only in its request (its result has no channel record): named by that stain too.
+  const requested=result.spec?.selection?.channel_id;
+  const own=result.channel??(requested?{channel_id:requested}:null);
+  const value={...result,channel:named(own),y_source:result.y_source&&{...result.y_source,channel:named(result.y_source.channel)}} as SavedResultLike;
   return savedCondition(operation,value)?savedMeasureLabel(operation,value):metricLabels[metric]||metric;
 }
 const analysisNames:Record<ResultOperation,string>={comparison:"群間比較",association:"相関",distribution:"分布"};

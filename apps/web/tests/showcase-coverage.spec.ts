@@ -45,7 +45,11 @@ async function shows(page: Page, what: string) {
   await expect(results(page).getByText(NOT_RECORDED), what).toHaveCount(0);
   // A comparison opens on its summary; a distribution (a stain with saturated pixels offers no comparison, Q-04) on the
   // values of each run and group.
-  await expect(results(page).getByRole("region", {name: /^(結果のまとめ|実験回と群ごとの値)$/}).first(), what).toBeVisible({timeout: live});
+  const result = results(page).getByRole("region", {name: /^(結果のまとめ|実験回と群ごとの値)$/}).first();
+  await expect(result, what).toBeVisible({timeout: live});
+  // The measure is named by its stain, never by a channel identifier (SL-02; the demo's identifiers are lower case:
+  // hoechst, npm1, eu5, dna, and its stains are not: Hoechst, NPM1, 5-EU).
+  await expect(result.getByRole("heading", {level: 3}).first(), what).not.toHaveText(/（[a-z][a-z0-9_]*[）、]/);
 }
 
 for (const scene of SCENES) test(`${scene.id}: every offered statistics condition opens its recorded result (SR-05)`, async ({page}) => {
