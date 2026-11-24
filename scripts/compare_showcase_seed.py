@@ -144,9 +144,10 @@ def kept(old, new, path: str, problems: list[str], tolerance: float) -> None:
         if not isinstance(new, list) or len(new) != len(old):
             problems.append(f"{path}: list of {len(old)} became {len(new) if isinstance(new, list) else type(new).__name__}")
             return
-        if any(isinstance(item, dict) for item in old) or (old and all(isinstance(item, str) and item.startswith("field:")
-                                                                       for item in old)):
-            # Rows and fields are listed in the order of their (new) identifiers: compare them by content.
+        if any(isinstance(item, dict) and (IDS | {"field_ids"}) & item.keys() for item in old) or (
+                old and all(isinstance(item, str) and item.startswith("field:") for item in old)):
+            # Rows, fields and experimental units (ordered by their first field) are listed in the order of their (new)
+            # identifiers: compare them by content. Other lists (groups, comparisons, pages) keep their order.
             old, new = sorted(old, key=order), sorted(new, key=order)
         for index, (left, right) in enumerate(zip(old, new, strict=True)):
             kept(left, right, f"{path}[{index}]", problems, tolerance)
