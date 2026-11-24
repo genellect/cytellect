@@ -69,11 +69,10 @@ class StoreSubmissionTests(TestCase):
                                       echoed, echoed, {"status": "CommitStarted"}], "101"),
         }
         for label, (responses, recover) in cases.items():
-            with self.subTest(label):
-                store = Mock()
-                store.call.side_effect = responses
-                self.assertTrue(release.submit(store, PACKAGE, VERSION, COMMIT, recover, confirmed_free_id="100"))
-                store.call.assert_called_with("POST", "/submissions/101/commit")
+            store = Mock()
+            store.call.side_effect = responses
+            self.assertTrue(release.submit(store, PACKAGE, VERSION, COMMIT, recover, confirmed_free_id="100"), label)
+            store.call.assert_called_with("POST", "/submissions/101/commit")
         # Without the confirmation, a Base echo is never treated as free.
         store = Mock()
         store.call.side_effect = [{**APP, "pendingApplicationSubmission": {"id": "101"}},
@@ -100,10 +99,9 @@ class StoreSubmissionTests(TestCase):
         with self.assertRaisesRegex(release.StoreError, r"^Update failed \(HTTP 400\)\. Code: InvalidRequest$"):
             release.request_json(url, "PUT", "Update", {})
         for error in [HTTPError(url, 400, "bad", None, io.BytesIO(body)), HTTPError(url, 400, "bad", Message(), None)]:
-            with self.subTest(headers=error.headers, fp=error.fp):
-                opener.return_value.open.side_effect = error
-                with self.assertRaisesRegex(release.StoreError, r"^Update failed \(HTTP 400\)"):
-                    release.request_json(url, "PUT", "Update", {})
+            opener.return_value.open.side_effect = error
+            with self.assertRaisesRegex(release.StoreError, r"^Update failed \(HTTP 400\)"):
+                release.request_json(url, "PUT", "Update", {})
 
     def test_ambiguous_or_unconfirmed_price_stops_before_creating_a_draft(self):
         for pricing, confirmation in [
@@ -111,12 +109,11 @@ class StoreSubmissionTests(TestCase):
             ({"priceId": "Base", "marketSpecificPricings": {"JP": "Tier1012"}}, "100"),
             ({"priceId": ""}, "100"), (None, "100"),
         ]:
-            with self.subTest(pricing=pricing, confirmation=confirmation):
-                store = Mock()
-                store.call.side_effect = [APP, {**PUBLISHED, "pricing": pricing}]
-                with self.assertRaisesRegex(release.StoreError, "pric"):
-                    release.submit(store, PACKAGE, VERSION, COMMIT, confirmed_free_id=confirmation)
-                self.assertEqual([call.args[0] for call in store.call.call_args_list], ["GET", "GET"])
+            store = Mock()
+            store.call.side_effect = [APP, {**PUBLISHED, "pricing": pricing}]
+            with self.assertRaisesRegex(release.StoreError, "pric", msg=(pricing, confirmation)):
+                release.submit(store, PACKAGE, VERSION, COMMIT, confirmed_free_id=confirmation)
+            self.assertEqual([call.args[0] for call in store.call.call_args_list], ["GET", "GET"])
 
     def test_existing_paid_price_is_preserved_even_when_free_confirmation_is_set(self):
         pricing = {"priceId": "Tier1012", "marketSpecificPricings": {"JP": "Tier96"}}
