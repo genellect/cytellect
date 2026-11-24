@@ -373,6 +373,10 @@ def build(api, target: Path, scratch: Path, shard: tuple[int, int] | None = None
         group = written[source["group"]]
         figure = group["figures"][0]
         result = calculated[package["source"]]["result"] if package["source"] in calculated else None
+        if result is None and package["source"] in seed:
+            # The tour saves the opening result as it opens it, from the seed: no calculation is recorded for it.
+            result = json.loads((catalog.store.safe_path(seed[package["source"]]["result_dir"]) / "result.json")
+                                .read_text(encoding="utf-8"))
         if result is None:
             continue
         if previous is not None and drawings is not None:
