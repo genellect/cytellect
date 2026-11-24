@@ -213,7 +213,7 @@ def crofton_agreement(masks: list[np.ndarray]) -> dict:
             independent = crossings_perimeter(region.image)
             worst = max(worst, abs(estimate - independent) / max(independent, 1e-300))
             objects += 1
-    return {"objects": objects, "max_relative_difference": worst, "agree": worst <= CROFTON_AGREEMENT}
+    return {"objects": objects, "max_relative_difference": float(worst), "agree": bool(worst <= CROFTON_AGREEMENT)}
 
 
 def at_96(rows: list[dict]) -> float | None:
