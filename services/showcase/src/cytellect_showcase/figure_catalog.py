@@ -214,7 +214,9 @@ def build(api, target: Path, scratch: Path, shard: tuple[int, int] | None = None
         from .figure_text import PublishedDrawings
 
         published = PublishedDrawings(drawings, previous)
-    journal = json.loads((target / "journal.json").read_text(encoding="utf-8"))
+    from .journal_files import read_journal, write_journal
+
+    journal = read_journal(target)
     entries = journal["entries"]
     read = lambda entry: json.loads((target / entry["file"]).read_text(encoding="utf-8"))  # noqa: E731
 
@@ -371,6 +373,10 @@ def build(api, target: Path, scratch: Path, shard: tuple[int, int] | None = None
         group = written[source["group"]]
         figure = group["figures"][0]
         result = calculated[package["source"]]["result"] if package["source"] in calculated else None
+        if result is None and package["source"] in seed:
+            # The tour saves the opening result as it opens it, from the seed: no calculation is recorded for it.
+            result = json.loads((catalog.store.safe_path(seed[package["source"]]["result_dir"]) / "result.json")
+                                .read_text(encoding="utf-8"))
         if result is None:
             continue
         if previous is not None and drawings is not None:
@@ -468,8 +474,7 @@ def build(api, target: Path, scratch: Path, shard: tuple[int, int] | None = None
         else:
             kept.append(entry)
     journal["entries"] = kept
-    (target / "journal.json").write_text(json.dumps(journal, indent=1, ensure_ascii=False) + "\n",
-                                       encoding="utf-8", newline="\n")
+    write_journal(target, journal)
     return {"groups": len(written), "sources": len(sources), "figures": sum(len(value["figures"]) for value in written.values()),
             "saved": len(saved_figures), "packages": len(package_entries), "journal_entries_removed": removed,
             "files_written": catalog.files_written}

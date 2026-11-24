@@ -82,3 +82,21 @@ def test_background_confirmation_is_scoped_to_each_field_images():
     assert request.confirmed_channel_ids == ["marker"]
     assert set(request.backgrounds) == {"field"}
     assert request.measurement is None
+
+
+def test_new_runs_use_nuclear_scale_1_1_0_and_marker_2_1_0_saved_scales_are_kept():
+    """2026-11-21: nuclear-size/1.1.0 is the default and saved 1.0.0 nuclei keep it; marker 2.2.0 failed its
+    pre-registered acceptance criteria and is not the default (explicit 2.2.0 recipes still validate)."""
+    draft = spec(nucleolarDefinition={"source": "marker", "marker": "marker", "pixelUm": None, "relative": 0.7})
+    fresh = nucleus(draft)
+    assert fresh["config"]["recipe"]["detection_scale"] == "nuclear-size/1.1.0"
+    old = {"id": "old", "config": {"recipe": {**fresh["config"]["recipe"], "detection_scale": "nuclear-size/1.0.0"}}}
+    rerun = build_run_request(draft, "nuclei", "field", {"nuclei": old}, ASSIGNMENTS)
+    assert rerun.recipe.detection_scale == "nuclear-size/1.0.0"
+    child = build_run_request(draft, "nucleoli", "field", {"nuclei": fresh}, ASSIGNMENTS)
+    assert child.recipe.detector.protocol_version == "2.1.0"
+    assert not hasattr(child.recipe.detector, "minimum_contrast_snr")
+    explicit = build_run_request(spec(nucleolarDefinition=draft["settings"]["nucleolarDefinition"], nucleolarMinimumArea=9),
+                                 "nucleoli", "field", {"nuclei": fresh}, ASSIGNMENTS)
+    assert explicit.recipe.detector.minimum_area_px == 9
+

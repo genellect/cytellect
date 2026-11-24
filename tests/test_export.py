@@ -263,7 +263,7 @@ def test_japanese_figure_font_is_explicit(tmp_path):
         pytest.skip("Japanese font must be installed in Linux runtime; local environment lacks it")
     metadata = render_figures(statistical_result(language="ja"), tmp_path)
     assert metadata["font"] == font
-    assert "独立実験単位" in (tmp_path / "figure.svg").read_text(encoding="utf-8")
+    assert "独立した実験回" in (tmp_path / "figure.svg").read_text(encoding="utf-8")
 
 
 def test_methods_describe_real_field_engine_chain_and_complete_legacy_parameters():

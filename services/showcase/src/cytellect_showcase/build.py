@@ -38,12 +38,15 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.error
 import urllib.request
 import uuid
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+from .journal_files import part_names, read_journal, write_journal
 
 REPO = Path(__file__).resolve().parents[4]
 PUBLIC = REPO / "apps" / "web" / "public" / "showcase"
@@ -198,8 +201,8 @@ def centre_crop(shape: tuple[int, int], size: list[int]) -> list[int]:
 
 
 def count_whole_nuclei(image, fiji: str, scratch: Path) -> dict:
-    """Default nuclear recipe (1.7.0, nuclear-size/1.0.0, StarDist defaults) on one plane;
-    nuclei touching the image border are not counted."""
+    """Nuclear recipe 1.7.0 with nuclear-size/1.0.0 (the registered selection rules counted with it) and StarDist
+    defaults on one plane; nuclei touching the image border are not counted."""
     import numpy as np
     from cytellect_analysis.engine import detect_nuclei
     from cytellect_analysis.nuclear_scale import automatic_detection_max_side, estimate_nuclear_diameter
@@ -208,7 +211,7 @@ def count_whole_nuclei(image, fiji: str, scratch: Path) -> dict:
     detector = NuclearDetectorSpec.model_validate({"engine": "fiji-stardist-2d", "model": "Versatile (fluorescent nuclei)",
                                                    "percentile_low": 1, "percentile_high": 99.8,
                                                    "probability": 0.5, "nms": 0.3})
-    scale = estimate_nuclear_diameter(image)
+    scale = estimate_nuclear_diameter(image, "nuclear-size/1.0.0")
     side = automatic_detection_max_side(image.shape, scale["diameter_px"])
     if scratch.exists():
         shutil.rmtree(scratch)
@@ -529,15 +532,18 @@ def plot(operation: str, kind: str = "distribution") -> dict:
 
 
 COMPARTMENT_METRICS = ("log2_nucleoplasm_over_nucleolus", "nucleolar_area_fraction", "nucleolar_count",
-                       "nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity")
+                       "nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity", "largest_nucleolus_fraction")
 # Nucleolar total area and shape need compartment-summary selection 1.1.0 (comparison-adapter.ts NUCLEOLAR_V11).
-NUCLEOLAR_V11 = ("nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity")
+NUCLEOLAR_V11 = ("nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity", "largest_nucleolus_fraction")
+# Nuclear shape (nuclear-features/1.0.0) reads no stain (metric-catalog.ts).
+NUCLEAR_SHAPE = ("solidity", "axis_ratio", "eccentricity")
 FIELD_SUMMARY_METRICS = ("nucleus_count", "nucleus_density_per_mm2")
 
 
 def channel_neutral(metric: str) -> bool:
     """metricUsesChannel() negated (metric-catalog.ts)."""
-    return metric.startswith("area_") or metric in ("nucleolar_count", "nucleolar_area_fraction", *NUCLEOLAR_V11, *FIELD_SUMMARY_METRICS)
+    return metric.startswith("area_") or metric in ("nucleolar_count", "nucleolar_area_fraction", *NUCLEOLAR_V11, *NUCLEAR_SHAPE,
+                                                    *FIELD_SUMMARY_METRICS)
 
 
 def selection_for(region_set: str, metric: str, channel: str | None) -> dict:
@@ -548,7 +554,7 @@ def selection_for(region_set: str, metric: str, channel: str | None) -> dict:
         return {"source": "compartment-summary", "version": "1.1.0" if metric in NUCLEOLAR_V11 else "1.0.0",
                 "region_set_id": region_set, "metric": metric,
                 "channel_id": channel if metric == "log2_nucleoplasm_over_nucleolus" else None}
-    neutral = metric.startswith("area_") or metric in ("nucleolar_count", "nucleolar_area_fraction")
+    neutral = metric.startswith("area_") or metric in ("nucleolar_count", "nucleolar_area_fraction", *NUCLEAR_SHAPE)
     return {"source": "region", "region_set_id": region_set, "metric": metric, "channel_id": None if neutral else channel}
 
 
@@ -897,6 +903,12 @@ def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
             # The researcher removed fragments from the nuclei; their compartments follow the edit.
             timed("nucleoli-after-review", lambda: space.run("nucleoli"))
         timed("nucleoplasm", lambda: space.run("nucleoplasm"))
+    declared = primary_outcome(plan)
+    if declared is not None:
+        # The measure planned before anything was measured is declared primary before any statistic is calculated
+        # (#257 RP-04, NS-06, implementation plan 4.5); the API records when (declared_at is never written here).
+        space.persist(space.spec["spec"]["target"], {"primary_outcome": declared})
+        log("primary outcome", declared["metric"], declared["region_set_id"], declared["channel_id"])
     saved = {}
     # The last calculation is what the statistics view restores on opening, as after a
     # researcher's own session: the manifest's opening analysis (by default the distribution).
@@ -945,6 +957,20 @@ def scenario(api: Api, manifest: dict, prepared: list[dict]) -> dict:
             "statistics": {name: {"job": value["job"], "revision": value["revision"]} for name, value in saved.items()},
             "direction_checks": directions, "discussion_example": example, "companion_examples": companion_examples,
             "renders": renders, "spec_version": space.spec["version"], "space": space}
+
+
+def primary_outcome(plan: dict) -> dict | None:
+    """The scene's declared primary measure (``scenario.primary_outcome``): the name of one of its planned analyses
+    (``scenario.statistics``, e.g. ``"comparison"``), whose region set, metric and stain are declared. None when the
+    scene declares none."""
+    name = plan.get("primary_outcome")
+    if not name:
+        return None
+    analysis = (plan.get("statistics") or {}).get(name)
+    if not isinstance(analysis, dict) or not analysis.get("metric") or not analysis.get("target"):
+        raise SystemExit(f"scenario.primary_outcome names no planned analysis: {name}")
+    return {"version": "1.0.0", "metric": analysis["metric"], "region_set_id": analysis["target"],
+            "channel_id": analysis.get("channel")}
 
 
 def example_discussion(api: Api, workspace: str, example: dict | None, comparison: dict | None) -> dict | None:
@@ -1014,8 +1040,8 @@ def examples(seed_data: Path, recordings: Path, work: Path, out: Path, fiji: str
                                             {"job": job, "operation": "comparison", "result": result})
                 report["stored" if stored and stored["changed"] else "unchanged"] += 1
         target = out / "snapshot"
-        index_path, journal_path = target / "index.json", target / "journal.json"
-        index, recorded = json.loads(index_path.read_text()), json.loads(journal_path.read_text())
+        index_path = target / "index.json"
+        index, recorded = json.loads(index_path.read_text()), read_journal(target)
         # A figure drawn during a walk is not in the seed; its discussion is its source comparison's.
         sources = {}
         for entry in recorded["entries"]:
@@ -1046,7 +1072,7 @@ def examples(seed_data: Path, recordings: Path, work: Path, out: Path, fiji: str
             if entry["method"] == "GET" and entry["path"].startswith("/v1/jobs/") and entry["path"].endswith("/discussion"):
                 answer(entry["path"], entry)
         index_path.write_text(json.dumps(index, indent=1) + "\n", encoding="utf-8", newline="\n")
-        journal_path.write_text(json.dumps(recorded, indent=1, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
+        write_journal(target, recorded)
         named = {entry.get("file") for entry in [*index["entries"].values(), *recorded["entries"]]}
         for replaced_name in replaced - named:
             if replaced_name is not None:
@@ -1370,6 +1396,19 @@ def start_next(command: str, web: Path, env: dict, origin_port: int, ready_path:
     """Start ``next dev`` or ``next start`` and wait until it answers. The Next.js CLI sometimes stops
     once to show a notice instead of serving; a server that exits before answering is started again."""
     url = f"http://127.0.0.1:{origin_port}{ready_path}"
+    # A server left on the port (an interrupted build's) would answer for the new one and be recorded instead.
+    # Any answer counts, an error status included (urllib raises HTTPError, an OSError, for those).
+    try:
+        with urllib.request.urlopen(url, timeout=timeout):
+            pass
+    except urllib.error.HTTPError:
+        answered = True
+    except OSError:
+        answered = False
+    else:
+        answered = True
+    if answered:
+        raise SystemExit(f"port {origin_port} already answers; stop the server there before building")
     for _attempt in range(4):
         process = subprocess.Popen(["pnpm", "exec", "next", command, "--hostname", "127.0.0.1", "--port", str(origin_port)],
                                    cwd=web, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
@@ -1462,7 +1501,7 @@ def snapshot(seed_data: Path, work: Path, origin_port: int, api_port: int, fiji:
 
 
 # Files of the snapshot directory that no index or journal entry names.
-SNAPSHOT_KEEP = {"index.json", "recorded-options.json", "proposal-examples.json", "dataset.json", "scenes.json"}
+SNAPSHOT_KEEP = {"index.json", "recorded-options.json", "proposal-examples.json", "dataset.json", "scenes.json", "recorded-statistics.json"}
 
 
 RANK_TESTS = {"mann-whitney-u", "wilcoxon", "kruskal-wallis"}
@@ -1478,8 +1517,8 @@ def rank_examples(manifest: dict) -> list[int]:
 
 
 def journal(work: Path, origin_port: int, out: Path, scenes: list[dict], keep: str | None = None,
-            previous: Path | None = None) -> dict:
-    """Record the tour on /demo (published seed, in-browser API) into ``snapshot/journal.json``.
+            previous: Path | None = None, hours: float = 6, concurrency: int = 3) -> dict:
+    """Record the tour on /demo (published seed, in-browser API) into ``snapshot/journal.json`` and its parts.
 
     ``keep`` (a regular expression of walk names) keeps those walks' entries from the journal in
     ``previous`` (a snapshot directory) instead of recording them again: for a change of figures only,
@@ -1518,7 +1557,7 @@ def journal(work: Path, origin_port: int, out: Path, scenes: list[dict], keep: s
         if destination.exists():
             shutil.rmtree(destination)
         config = {"origin": origin, "out": str(destination), "web": str(web), "snapshot": str(out / "snapshot"), "scenes": scenes,
-                  **({"keep": keep} if keep else {}),
+                  **({"keep": keep} if keep else {}), "concurrency": concurrency,
                   "chromium": os.environ.get("CYTELLECT_CHROMIUM_EXECUTABLE", "/opt/pw-browsers/chromium")}
         # Each finished walk is logged as it completes (journal.mjs writes progress lines to stderr).
         walker = subprocess.Popen(["node", str(Path(__file__).with_name("journal.mjs"))], stdin=subprocess.PIPE,
@@ -1527,7 +1566,8 @@ def journal(work: Path, origin_port: int, out: Path, scenes: list[dict], keep: s
         walker.stdin.write(json.dumps(config))
         walker.stdin.close()
         errors: list[str] = []
-        deadline = time.monotonic() + 21600
+        # Recording every scene in full (the public demo since 2026-11-21) takes longer than one with story scenes.
+        deadline = time.monotonic() + hours * 3600
         for line in walker.stderr:
             if line.startswith('{"progress"'):
                 log("journal", line.strip())
@@ -1543,6 +1583,10 @@ def journal(work: Path, origin_port: int, out: Path, scenes: list[dict], keep: s
             sys.stderr.write("".join(errors)[-4000:])
             raise SystemExit("journal walk failed")
         report = json.loads((destination / "journal-report.json").read_text())
+        # Choices the walk left out (a scene without the region) or the shared analysis refused: not offered by the demo.
+        for key in ("skipped", "unanswered"):
+            if report.get(key):
+                log(f"journal {key}", len(report[key]), json.dumps(report[key], ensure_ascii=False)[:4000])
         if report["alerts"] or report["consoleErrors"]:
             raise SystemExit(f"journal walk reported problems: {json.dumps(report, ensure_ascii=False)[:2000]}")
     finally:
@@ -1560,7 +1604,7 @@ def journal(work: Path, origin_port: int, out: Path, scenes: list[dict], keep: s
 
         if previous is None:
             raise SystemExit("journal: keeping walks needs the previous snapshot directory")
-        earlier = json.loads((previous / "journal.json").read_text())["entries"]
+        earlier = read_journal(previous)["entries"]
         kept = [entry for entry in earlier if re.search(keep, entry.get("scene", ""))]
         for entry in kept:
             if entry.get("file") and not (target / entry["file"]).is_file():
@@ -1569,14 +1613,116 @@ def journal(work: Path, origin_port: int, out: Path, scenes: list[dict], keep: s
         report["entries"] = len(recorded["entries"])
         report["kept_scenes"] = sorted({entry["scene"] for entry in kept})
         report["reused_from_commit"] = reused_from_commit
-    (target / "journal.json").write_text(json.dumps(recorded, indent=1, ensure_ascii=False) + "\n")
+    # One part per scene (journal_files.py): the whole tour is larger than a file may be on GitHub.
+    written = set(write_journal(target, recorded))
+    write_recorded_statistics(target)
     # The previous recording's answers that this one no longer names are not published.
     named = {entry["file"] for entry in json.loads((target / "index.json").read_text())["entries"].values() if entry.get("file")}
-    named |= {entry["file"] for entry in json.loads((target / "journal.json").read_text())["entries"] if entry.get("file")}
+    named |= {entry["file"] for entry in recorded["entries"] if entry.get("file")}
     for path in target.iterdir():
-        if path.name not in named and path.name not in SNAPSHOT_KEEP | {"journal.json"}:
+        if path.name not in named and path.name not in SNAPSHOT_KEEP | written:
             path.unlink()
     return {key: report[key] for key in ("entries", "scenes", "kept_scenes", "reused_from_commit") if key in report}
+
+
+def recorded_statistics(entries: list[dict], saved: list[tuple[str, dict]] | None = None,
+                        failed: set[int] | None = None) -> dict:
+    """The statistics the tour recorded, scene by scene (``snapshot/recorded-statistics.json``).
+
+    The demo offers only these choices and shows their recorded results as soon as one is chosen
+    (genellect/cytellect#257 D-1, owner decision 2026-11-21): a choice the tour did not record would
+    end without a result. Each item is what the side panel chooses: the analysis, the region set,
+    the metric, the measured stain and the classified stain of a nucleus filter or positivity.
+    ``saved``: the seed's saved results (scene, request spec). The demo opens those without calculating
+    them again, so the tour records no request for them (seed_statistics). ``failed``: the positions of requests
+    whose job the shared analysis then refused (failed_statistics): a run without a nucleus of the kept class, a
+    saturated stain. Such a choice has no result to show, so it is not offered.
+
+    A nucleus filter is named by its stain, the measured value it classified by and the nuclei kept
+    (``eu5:raw:positive``): the same stain classified by another value keeps other nuclei, and may hold a result
+    where this one has none."""
+    analyses = {"descriptive": "distribution", "region-experimental-unit": "comparison", "region-association": "association"}
+    scenes: dict[str, dict[str, dict]] = {}
+    requests = []
+    for position, entry in enumerate(entries):
+        path = entry.get("path", "").split("?")[0]
+        if entry.get("method") != "POST" or not 200 <= int(entry.get("status") or 0) < 300 \
+                or not path.endswith(("/descriptive", "/common-statistics")) or not entry.get("body") \
+                or position in (failed or set()):
+            continue
+        requests.append(((entry.get("scene") or "").split(":")[0], json.loads(entry["body"])))
+    for scene, body in [*requests, *(saved or [])]:
+        analysis = analyses.get(body.get("mode", ""))
+        selection = body.get("y_selection") if analysis == "association" else body.get("selection")
+        if not analysis or not isinstance(selection, dict):
+            continue
+        gate = selection.get("channel_gate") or {}
+        item = {"analysis": analysis, "region": selection.get("region_set_id"), "metric": selection.get("metric"),
+                "channel": selection.get("channel_id"),
+                "positivity": (selection.get("positivity") or {}).get("channel_id"),
+                "gate": ":".join(str(part) for part in (gate.get("channel_id"), gate.get("values"), gate.get("keep"))
+                                 if part is not None) if gate else None}
+        if analysis == "association":
+            x = body.get("x_selection") or {}
+            item["x"] = {"metric": x.get("metric"), "channel": x.get("channel_id")}
+        scenes.setdefault(scene, {})[json.dumps(item, sort_keys=True)] = item
+    return {"version": 1, "scenes": {scene: [items[key] for key in sorted(items)] for scene, items in sorted(scenes.items())}}
+
+
+def seed_statistics(target: Path) -> list[tuple[str, dict]]:
+    """The saved statistics of the opening state (``snapshot/index.json``) with their scene: each result's request
+    spec, found through the scene workspace's job list."""
+    import re
+
+    index = json.loads((target / "index.json").read_text())["entries"]
+    scenes_path = target / "scenes.json"
+    scenes = ({item["workspaceId"]: item["id"] for item in json.loads(scenes_path.read_text())["scenes"]}
+              if scenes_path.is_file() else {})
+    workspace_of: dict[str, str] = {}
+    for key, entry in index.items():
+        listed = re.fullmatch(r"GET /v1/workspaces/([^/?]+)/jobs", key)
+        if listed and entry.get("file") and entry.get("status") == 200:
+            for job in json.loads((target / entry["file"]).read_text()):
+                workspace_of[job["id"]] = listed.group(1)
+    saved = []
+    for key, entry in sorted(index.items()):
+        result = re.fullmatch(r"GET /v1/jobs/([^/?]+)/(result|common-statistics)", key)
+        if not result or not entry.get("file") or entry.get("status") != 200:
+            continue
+        spec = json.loads((target / entry["file"]).read_text()).get("spec")
+        workspace = workspace_of.get(result.group(1))
+        if isinstance(spec, dict) and workspace is not None:
+            saved.append((scenes.get(workspace, ""), spec))
+    return saved
+
+
+def failed_statistics(entries: list[dict], target: Path) -> set[int]:
+    """Positions of the recorded statistics requests whose job ended failed in its walk: the job the request was
+    given (its recorded answer) is failed in the walk's last job list that names it."""
+    final: dict[tuple[str, str], str] = {}
+    jobs: dict[int, tuple[str, str]] = {}
+    for position, entry in enumerate(entries):
+        path, scene, name = entry.get("path", "").split("?")[0], entry.get("scene") or "", entry.get("file")
+        if not name or not name.endswith(".json") or not 200 <= int(entry.get("status") or 0) < 300:
+            continue
+        if entry.get("method") == "GET" and path.endswith("/jobs"):
+            listed = json.loads((target / name).read_text(encoding="utf-8"))
+            for job in listed if isinstance(listed, list) else []:
+                if isinstance(job, dict) and job.get("id"):
+                    final[(scene, job["id"])] = job.get("state") or ""
+        elif entry.get("method") == "POST" and path.endswith(("/descriptive", "/common-statistics")):
+            answer = json.loads((target / name).read_text(encoding="utf-8"))
+            job = (answer.get("job_id") or answer.get("id")) if isinstance(answer, dict) else None
+            if job:
+                jobs[position] = (scene, job)
+    return {position for position, key in jobs.items() if final.get(key) == "failed"}
+
+
+def write_recorded_statistics(target: Path) -> None:
+    entries = read_journal(target)["entries"]
+    (target / "recorded-statistics.json").write_text(
+        json.dumps(recorded_statistics(entries, seed_statistics(target), failed_statistics(entries, target)),
+                   ensure_ascii=False, separators=(",", ":")) + "\n")
 
 
 def _owner_session(app, workspace_id: str) -> str:
@@ -1750,6 +1896,14 @@ def scene_regions(manifest: dict) -> list[str]:
     return ["nuclei", "nucleoli", "nucleoplasm"] if manifest["scenario"].get("nucleoli", True) else ["nuclei"]
 
 
+def positive_int(text: str) -> int:
+    """An argument that must be 1 or more (no walks would record an empty tour and remove the published one)."""
+    value = int(text)
+    if value < 1:
+        raise argparse.ArgumentTypeError("must be 1 or more")
+    return value
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("manifest", type=Path, nargs="+",
@@ -1763,6 +1917,15 @@ def main(argv: list[str] | None = None) -> None:
                         help="regular expression of journal walks kept from --journal-previous instead of recorded again")
     parser.add_argument("--journal-previous", type=Path, default=None,
                         help="snapshot directory holding the journal and files the kept walks come from")
+    parser.add_argument("--detections-from", type=Path, default=None,
+                        help="scenario, grid, proposals: replay the detections recorded in this seed.zip and never run a "
+                             "detector (an unrecorded detection fails the build)")
+    parser.add_argument("--nuclear-scale", choices=("nuclear-size/1.0.0", "nuclear-size/1.1.0"), default=None,
+                        help="the automatic nuclear detection scale of new runs (default: the API's current one)")
+    parser.add_argument("--journal-concurrency", type=positive_int, default=3,
+                        help="journal: walks recorded at once (each page holds the in-browser API, about 3 GB)")
+    parser.add_argument("--journal-hours", type=float, default=6,
+                        help="journal: stop the walk after this many hours")
     parser.add_argument("--figures-reuse", action="store_true",
                         help="figures: keep the groups the previous run drew and draw only the rest")
     parser.add_argument("--figure-drawings", type=Path,
@@ -1780,6 +1943,13 @@ def main(argv: list[str] | None = None) -> None:
     if len({manifest["id"] for _, manifest in manifests}) != len(manifests):
         raise SystemExit("duplicate scene id")
     stages = set(args.stages.split(","))
+    if args.nuclear_scale:
+        # The demo keeps the scale its recorded detections were made with (2026-11-23, owner decision, #257): with the
+        # same crops, every detection is then answered by its recording and no measured value changes.
+        from cytellect_api import run_recipes
+
+        run_recipes.NUCLEAR_SCALE_PROTOCOL = args.nuclear_scale
+        log("nuclear detection scale", args.nuclear_scale)
     detector_stages = stages.intersection({"select", "scenario", "grid"}) or ("proposals" in stages and "reseed" not in stages)
     if detector_stages and any(uses_cellpose(manifest) for _, manifest in manifests):
         for name in ("CYTELLECT_CELLPOSE_PYTHON", "CYTELLECT_CELLPOSE_MODEL_DIR"):
@@ -1788,7 +1958,7 @@ def main(argv: list[str] | None = None) -> None:
     work.mkdir(parents=True, exist_ok=True)
     state_path = work / "state.json"
     origin = f"http://127.0.0.1:{args.web_port}"
-    from cytellect_showcase.detections import install_recorder, uninstall
+    from cytellect_showcase.detections import uninstall
 
     started = time.perf_counter()
     state: dict = json.loads(state_path.read_text()) if state_path.is_file() else {}
@@ -1816,7 +1986,9 @@ def main(argv: list[str] | None = None) -> None:
         for path in (seed_data, work / "grid-data"):
             if path.exists():
                 shutil.rmtree(path)
-        recorder = install_recorder(recordings, reuse=True)
+        if args.detections_from is not None:
+            restore_recordings(args.detections_from, recordings)
+        recorder = replay_or_record(recordings, args.detections_from)
         owner = None
         # The first scene is created last: with no workspace named, the demo opens the newest one.
         for _, manifest in reversed(manifests):
@@ -1827,14 +1999,14 @@ def main(argv: list[str] | None = None) -> None:
             scenes[manifest["id"]]["scenario"] = result
             api.client.close()
         uninstall()
-        state["recorded_calls"] = recorder.calls
+        state["recorded_calls"] = recorder.calls if recorder is not None else "replayed"
         save()
     if "grid" in stages:
         grid_data = work / "grid-data"
         if grid_data.exists():
             shutil.rmtree(grid_data)
         shutil.copytree(seed_data, grid_data, ignore=shutil.ignore_patterns("tmp"))
-        recorder = install_recorder(recordings, reuse=True)
+        replay_or_record(recordings, args.detections_from)
         for _, manifest in manifests:
             scenario_state = scenes[manifest["id"]]["scenario"]
             api = open_api(grid_data, origin, args.fiji, scenario_state["owner"])
@@ -1865,7 +2037,7 @@ def main(argv: list[str] | None = None) -> None:
             from cytellect_showcase.detections import install_replay
             install_replay(recordings)  # A presentation update must never launch a detector.
         else:
-            install_recorder(recordings, reuse=True)
+            replay_or_record(recordings, args.detections_from)
         fresh = True
         for _, manifest in manifests:
             if not manifest["scenario"].get("proposals"):
@@ -1902,7 +2074,8 @@ def main(argv: list[str] | None = None) -> None:
              "rank": rank_examples(manifest),
              "gateChannels": manifest["scenario"].get("gate_channels", []),
              "scope": journal_scope(manifest), "story": story_metrics(manifest)} for _, manifest in manifests],
-            keep=args.journal_keep, previous=args.journal_previous)
+            keep=args.journal_keep, previous=args.journal_previous, hours=args.journal_hours,
+            concurrency=args.journal_concurrency)
         save()
         write_manifest(args, manifests, state)
     if "figures" in stages:
@@ -1919,6 +2092,34 @@ def main(argv: list[str] | None = None) -> None:
                                work / "qa" / manifest["id"], scenes[manifest["id"]]["scenario"]["fields"])
             log("qa overlays", manifest["id"], len(written))
     log("done", round(time.perf_counter() - started, 1), "s")
+
+
+def restore_recordings(seed: Path, recordings: Path) -> None:
+    """The detector recordings of a published seed (``recordings/`` in ``seed.zip``) become the working ones."""
+    if recordings.exists():
+        shutil.rmtree(recordings)
+    recordings.mkdir(parents=True)
+    with zipfile.ZipFile(seed) as archive:
+        for member in archive.infolist():
+            name = member.filename
+            if member.is_dir() or not name.startswith("recordings/") or name.startswith("/") or ".." in Path(name).parts:
+                continue
+            target = recordings / name.removeprefix("recordings/")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with archive.open(member) as source, target.open("wb") as destination:
+                shutil.copyfileobj(source, destination)
+    log("restored detector recordings", len(json.loads((recordings / "index.json").read_text())["entries"]))
+
+
+def replay_or_record(recordings: Path, detections_from: Path | None):
+    """With recorded detections only, every detector call is answered by its recording and an unrecorded one fails
+    (``showcase_detection_not_recorded``); otherwise calls run and are recorded (a recorded key is reused)."""
+    from cytellect_showcase.detections import install_recorder, install_replay
+
+    if detections_from is not None:
+        install_replay(recordings)
+        return None
+    return install_recorder(recordings, reuse=True)
 
 
 SNAPSHOT_EXTENSIONS = {"application/json": ".json", "image/png": ".png", "image/svg+xml": ".svg", "text/csv": ".csv",
@@ -2011,7 +2212,8 @@ def figures(seed_data: Path, work: Path, out: Path, fiji: str, owner: str, reuse
         api.client.close()
     target = out / "snapshot"
     named = {entry["file"] for entry in json.loads((target / "index.json").read_text())["entries"].values() if entry.get("file")}
-    named |= {entry["file"] for entry in json.loads((target / "journal.json").read_text())["entries"] if entry.get("file")}
+    named |= {entry["file"] for entry in read_journal(target)["entries"] if entry.get("file")}
+    named |= set(part_names(target))
     catalog = json.loads((target / "figures.json").read_text())
     for group in catalog["groups"].values():
         for item in [group["opening"], *group["figures"]]:
@@ -2020,7 +2222,7 @@ def figures(seed_data: Path, work: Path, out: Path, fiji: str, owner: str, reuse
     named |= {name for saved in catalog.get("saved", {}).values() for name in saved["files"].values()}
     removed = 0
     for path in target.iterdir():
-        if path.name not in named and path.name not in SNAPSHOT_KEEP | {"journal.json", "figures.json"}:
+        if path.name not in named and path.name not in SNAPSHOT_KEEP | {"figures.json"}:
             path.unlink()
             removed += 1
     log("figures", json.dumps(report), "unreferenced files removed", removed)

@@ -49,6 +49,13 @@ describe("result summary", () => {
     expect(JSON.stringify(summary)).not.toContain("p ");
   });
 
+  it("says a described comparison of a testable design waits for 計算, not for independence (genellect/cytellect#257 decision 11)", () => {
+    const summary = summarize(descriptive(), {}, "核の面積", "µm²", {testable: true});
+    expect(summary.basis).toEqual({label: "記述統計 · n = 3 回", reason: "検定は「計算」で行います。", action: null});
+    // An exploratory threshold still limits the comparison to a description, whatever the design.
+    expect(summarize(descriptive(), {}, "陽性率", "", {testable: true, exploratory: true}).basis.reason).toContain("陰性対照");
+  });
+
   it("names an exploratory threshold in the basis and offers no experiment edit for it", () => {
     const summary = summarize(descriptive({metric: "positive_fraction", scale: "fraction",
       runs: base().runs.map((run, index) => ({...run, difference: 10 + index, ratio: null}))}), {}, "陽性率", "", {exploratory: true});

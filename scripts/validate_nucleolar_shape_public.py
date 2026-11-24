@@ -386,12 +386,16 @@ def product_detectors() -> dict[str, dict[str, Any]]:
     return {"nuclear": nuclear, "nucleolar": nucleolar}
 
 
-def detect_nuclei_auto(image: np.ndarray, detector: dict, work: Path, fiji: str) -> tuple[np.ndarray, dict]:
-    """AutoScaledNuclearRecipe in services/worker/src/cytellect_worker/regions.py."""
+def detect_nuclei_auto(image: np.ndarray, detector: dict, work: Path, fiji: str,
+                       protocol: str = "nuclear-size/1.0.0") -> tuple[np.ndarray, dict]:
+    """AutoScaledNuclearRecipe in services/worker/src/cytellect_worker/regions.py.
+
+    This validation's nuclei were detected with nuclear-size/1.0.0 (its report); 1.1.0 came later.
+    """
     from cytellect_analysis.engine import detect_nuclei
     from cytellect_analysis.nuclear_scale import automatic_detection_max_side, estimate_nuclear_diameter
 
-    scale = estimate_nuclear_diameter(image)
+    scale = estimate_nuclear_diameter(image, protocol)
     side = automatic_detection_max_side(image.shape, scale["diameter_px"])
     labels, _ = detect_nuclei(image, detector, work / "engine", fiji, scratch_root=work, detection_max_side=side)
     return labels, {"diameter_px": scale.get("diameter_px"), "detection_max_side_px": side}

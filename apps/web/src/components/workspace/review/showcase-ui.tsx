@@ -2,7 +2,7 @@
 /** Additions of the public demo (/demo). Production renders none of these: the context defaults to disabled. */
 import {createContext, useContext, useEffect, useRef, useState, useSyncExternalStore} from "react";
 import {ApiError} from "../../../lib/api";
-import {isShowcaseNotice, isShowcaseNoticeCode, showcaseTransport, type ProposalExample, type ShowcaseDataset, type ShowcaseScene} from "../../../lib/showcase";
+import {isShowcaseNotice, isShowcaseNoticeCode, showcaseTransport, type ProposalExample, type RecordedStatistic, type ShowcaseDataset, type ShowcaseScene} from "../../../lib/showcase";
 import {TERMS} from "../../../lib/showcase/terms";
 import type {ShowcaseState} from "../../../lib/showcase/transport";
 import styles from "./showcase.module.css";
@@ -15,9 +15,11 @@ export interface ShowcaseUi {
   /** Demo scenes (one workspace each) and the one shown; empty for a single-scene demo. */
   scenes: ShowcaseScene[];
   scene: ShowcaseScene | null;
+  /** The statistics the tour recorded for the shown scene; null when every choice is offered (not the demo, or no index). */
+  statistics: RecordedStatistic[] | null;
   requestUpload: (kind: "image" | "csv") => void;
 }
-export const ShowcaseContext = createContext<ShowcaseUi>({enabled: false, examples: [], dataset: null, scenes: [], scene: null, requestUpload: () => undefined});
+export const ShowcaseContext = createContext<ShowcaseUi>({enabled: false, examples: [], dataset: null, scenes: [], scene: null, statistics: null, requestUpload: () => undefined});
 /** Switches the demo to another scene (its own workspace); a fresh page keeps the scenes apart. */
 export function SceneSwitcher({scenes, scene}: {scenes: ShowcaseScene[]; scene: ShowcaseScene | null}) {
   if (scenes.length < 2) return null;

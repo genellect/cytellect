@@ -44,7 +44,7 @@ function wildcard(value) {
   if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, inner]) => [key, PER_VISIT.has(key) || generated(inner) ? "*" : wildcard(inner)]));
   return generated(value) ? "*" : value;
 }
-const bodies = new Map(), report = {scenes: [], alerts: [], consoleErrors: []}, recorded = new Map();
+const bodies = new Map(), report = {scenes: [], alerts: [], consoleErrors: [], skipped: [], unanswered: []}, recorded = new Map();
 // The client reads only these fields of a rendered figure; the rest repeats the statistics result.
 const FIGURE_RENDER = /^\/v1\/jobs\/[^/?]+\/figure-render$/;
 function keep(entries, scene, exchange) {
@@ -103,6 +103,7 @@ async function scene(name, walk, workspace) {
   // 「PNG をコピー」 writes the drawn figure to the clipboard, as a visitor's browser allows it.
   await context.grantPermissions(["clipboard-read", "clipboard-write"], {origin: config.origin});
   const page = await context.newPage();
+  walkOf.set(page, name);
   const started = Date.now();
   await page.exposeFunction("__cytellectShowcaseRecord", exchange => keep(entries, name, exchange));
   page.on("console", message => {if (message.type() === "error") report.consoleErrors.push(`${name}: ${message.text().slice(0, 300)}`);});
@@ -116,7 +117,7 @@ async function scene(name, walk, workspace) {
     report.alerts.push(`${name}: ${String(error).split("\n")[0].slice(0, 300)}`);
     await page.screenshot({path: path.join(config.out, `failure-${name}.png`)}).catch(() => {});
   }
-  for (const text of await page.getByRole("alert").allTextContents().catch(() => [])) if (text.trim() && !expected.has(text.trim().slice(0, 300))) report.alerts.push(`${name}: ${text.trim().slice(0, 300)}`);
+  for (const text of await page.getByRole("alert").allTextContents().catch(() => [])) if (text.trim()) report.alerts.push(`${name}: ${text.trim().slice(0, 300)}`);
   recorded.set(name, settled(entries));
   report.scenes.push({name, entries: recorded.get(name).length, seconds: Math.round((Date.now() - started) / 100) / 10});
   // Progress on stderr, one line per walk, so a long recording can be followed while it runs.
@@ -141,38 +142,54 @@ const figure = page => page.getByRole("region", {name: "図の作成・保存"})
 // following 「使い方」 takes; the replay also finds a recorded change taken out of order.
 const tab = async (page, name) => {await header(page).getByRole("button", {name, exact: true}).click(); await idle(page);};
 const sidebar = page => page.getByRole("complementary", {name: "解析対象"});
-// Refusals the API gives every visitor for these images, recorded so a replay shows them too.
-const expected = new Set();
-async function calculate(page, refusal = null) {
+// The walk each page records (scene()), for the report's lists of skipped and unanswered choices.
+const walkOf = new WeakMap();
+// The notice the demo shows where its recording holds no answer (apps/web/src/lib/showcase/index.ts).
+const NOT_RECORDED = "この操作の結果は公開デモに記録していません。";
+/**
+ * Waits until the statistics view shows the result of the condition chosen in the side panel. The demo has no
+ * confirmation and no 計算 (genellect/cytellect#257 D-1, D-5, decisions 2 and 11): a chosen condition without a
+ * saved result is calculated on its own once the choice has settled, and a saved one opens at once.
+ * Returns false when the shared analysis refused the condition (its card then shows the demo's notice): such a
+ * choice is not in the recorded statistics, and the demo does not offer it. The refusal is listed in the report.
+ */
+async function settle(page) {
   const results = statistics(page);
-  for (const label of ["独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み", "測定領域と採用する視野を確認済み"]) {
-    const box = results.getByLabel(label);
-    if (await box.count() && !await box.isChecked()) await box.check();
-  }
-  // Nuclei without an established nucleolus are listed once their ledger is read (Q-05); the
-  // visitor confirms the list, and they stay as missing.
-  // A positivity metric is calculated from a classification record that matches the current
-  // experiment information; the panel offers to classify again with it, as a visitor does.
+  const card = results.getByRole("region", {name: "選択中の条件"});
+  // A positive count or fraction is calculated from a classification record that matches the current experiment
+  // information; the panel asks to classify again with it, as a visitor does.
   const reclassify = results.getByRole("button", {name: "現在の実験情報で再分類", exact: true});
-  if (await reclassify.count() && await reclassify.isEnabled()) {
-    await reclassify.click();
-    await page.waitForFunction(() => ![...document.querySelectorAll("button")].some(button => /分類中/.test(button.textContent ?? "")), null, {timeout: LIVE});
-    await idle(page);
+  // The choice settles (300 ms) before its calculation starts.
+  await page.waitForTimeout(600);
+  for (let index = 0; index < LIVE / 500; index++) {
+    if (await results.getByText("分類記録の確認が必要です").count() && await reclassify.count() && await reclassify.isEnabled()) {
+      await reclassify.click();
+      await page.waitForFunction(() => ![...document.querySelectorAll("button")].some(button => /分類中/.test(button.textContent ?? "")), null, {timeout: LIVE});
+      await idle(page);
+      continue;
+    }
+    if (!await card.count()) {
+      await idle(page);
+      if (!await card.count()) {
+        const refused = (await results.getByRole("alert").allTextContents()).filter(text => text.trim());
+        if (refused.length) throw new Error(`calculation refused: ${refused.join(" / ")}`);
+        return true;
+      }
+      continue;
+    }
+    // The card goes as soon as the result arrives: a read of it that finds none is not a failure, the next round decides.
+    const busy = await card.getAttribute("aria-busy", {timeout: 1000}).catch(() => null);
+    const text = busy === null ? "" : await card.innerText({timeout: 1000}).catch(() => "");
+    if (busy !== null && busy !== "true" && text.includes(NOT_RECORDED)) {
+      report.unanswered.push(`${walkOf.get(page) ?? "?"}: ${(await card.getByRole("heading").first().textContent({timeout: 1000}).catch(() => ""))?.trim()}`);
+      return false;
+    }
+    await page.waitForTimeout(500);
   }
-  const keep = "この一覧を確認し、欠測として残して計算する";
-  await page.waitForFunction(text => document.body.innerText.includes(text) || [...document.querySelectorAll("button")].some(button => button.textContent === "計算" && !button.disabled), keep, {timeout: LIVE});
-  const listed = results.getByLabel(keep, {exact: true});
-  if (await listed.count() && !await listed.isChecked()) await listed.check();
-  const button = results.getByRole("button", {name: "計算", exact: true});
-  await button.click();
-  await page.waitForFunction(() => [...document.querySelectorAll("button")].some(button => button.textContent === "計算" && !button.disabled), null, {timeout: LIVE});
-  await idle(page);
-  const refused = (await results.getByRole("alert").allTextContents()).filter(text => text.trim());
-  const allowed = [refusal ?? []].flat();
-  if (allowed.length && refused.length && refused.every(text => allowed.some(reason => text.includes(reason)))) {expected.add(refused[0].trim().slice(0, 300)); return false;}
-  if (refused.length) throw new Error(`calculation refused: ${refused.join(" / ")}`);
-  return true;
+  throw new Error(`no result for ${(await card.getByRole("heading").first().textContent().catch(() => ""))?.trim()}`);
 }
+/** A choice the scene does not offer is listed, never silently left out (the demo would then not offer it either). */
+function skip(page, what) {report.skipped.push(`${walkOf.get(page) ?? "?"}: ${what}`);}
 // A changed figure setting redraws on its own (FU-04): wait for the drawing to finish.
 async function render(page) {
   await page.waitForTimeout(600);
@@ -203,44 +220,57 @@ async function figures(page, _comparison, images = false) {
   }
   await tab(page, "統計");
 }
-// Every metric of the catalog (metric-catalog.ts); a scene skips a metric the panel does not offer
-// for its region (the demo's recorded regions, a missing calibration).
-const METRICS = ["area_px", "area_um2", "nucleus_count", "nucleus_density_per_mm2", "mean", "median", "integrated",
-  "mean_corrected", "integrated_corrected", "nucleolar_area_px", "nucleolar_area_um2", "nucleolar_eccentricity",
-  "nucleolar_count", "nucleolar_area_fraction", "log2_nucleoplasm_over_nucleolus"];
-// Metrics whose values come from a fixed region set; the panel then shows no region choice.
-const FIXED = {nucleus_count: "nuclei", nucleus_density_per_mm2: "nuclei", nucleolar_area_px: "nucleoplasm",
-  nucleolar_area_um2: "nucleoplasm", nucleolar_eccentricity: "nucleoplasm", nucleolar_count: "nucleoplasm",
-  nucleolar_area_fraction: "nucleoplasm", log2_nucleoplasm_over_nucleolus: "nucleoplasm"};
-const offered = (region, metric) => !FIXED[metric] || FIXED[metric] === region;
+// The statistics side panel lists metrics by subject (metric-catalog.ts SUBJECT_METRICS, #257 B-1): each entry by its
+// first variant, with px² / µm² and 原値 / 背景補正 as a switch under it. A scene records every entry the panel offers
+// for each subject; an entry it does not offer (a region the scene lacks, a missing calibration) is listed in the
+// report. The positive count and fraction need a classification and are recorded after one (positivity-*).
+const SUBJECT_METRICS = {
+  nuclei: ["area_px", "mean", "median", "integrated", "solidity", "axis_ratio", "eccentricity", "nucleus_count", "nucleus_density_per_mm2"],
+  nucleoli: ["area_px", "mean", "median", "integrated", "nucleolar_count", "nucleolar_area_px", "nucleolar_area_fraction",
+    "nucleolar_eccentricity", "largest_nucleolus_fraction"],
+  nucleoplasm: ["area_px", "mean", "median", "integrated", "log2_nucleoplasm_over_nucleolus"],
+};
+const SUBJECT_LABELS = {nuclei: "核", nucleoli: "核小体", nucleoplasm: "核質"};
+const subjectRadio = (page, subject) => sidebar(page).getByRole("radiogroup", {name: "対象", exact: true})
+  .getByRole("radio", {name: SUBJECT_LABELS[subject], exact: true});
 const choices = select => select.locator("option:not([disabled])").evaluateAll(options => options.map(option => option.value).filter(Boolean));
-// Every statistic the panel offers for one region and metric, from the seed: each stain, each
-// analysis it allows and, for an association, each horizontal axis, with their figures.
-// `refusal`: a refusal (or several) the shared analysis gives on purpose (e.g. saturated pixels in an intensity comparison);
-// it is recorded as the visitor would see it, and the walk goes on without a figure.
-function statisticsScene(region, metric, kinds = null, refusal = null) {
+// Every statistic the panel offers for one subject and metric entry, from the seed: each variant of the entry, each
+// stain, each analysis it allows and, for an association, each horizontal axis, with their figures. A choice the shared
+// analysis refuses (no nucleus of the kept class in a run, say) is listed in the report and not offered by the demo.
+function statisticsScene(subject, metric, kinds = null) {
   return async page => {
     await tab(page, "統計");
     await statistics(page).waitFor({timeout: LIVE});
+    const radio = subjectRadio(page, subject);
+    await radio.waitFor({timeout: LIVE}).catch(() => {});
+    if (!await radio.count() || await radio.isDisabled()) {skip(page, `subject ${subject}`); return;}
+    if (await radio.getAttribute("aria-checked") !== "true") {await radio.click(); await idle(page);}
     const metrics = sidebar(page).getByRole("combobox", {name: "指標", exact: true});
-    if (!(await choices(metrics)).includes(metric)) return;
-    // The metric first: after a metric of a fixed region (a positive count, a nucleolar measure) the panel shows
-    // no region choice, so a region chosen before the metric would be skipped and the previous region kept.
-    await metrics.selectOption(metric); await idle(page);
-    const regions = sidebar(page).getByRole("combobox", {name: "領域", exact: true});
-    if (await regions.count() && await regions.inputValue() !== region) {await regions.selectOption(region); await idle(page);}
-    const stain = sidebar(page).getByRole("combobox", {name: "染色", exact: true});
-    const stains = await stain.count() && await stain.isEnabled() ? await choices(stain) : [null];
-    for (const channel of stains) {
-      if (channel) {await stain.selectOption(channel); await idle(page);}
-      const operation = statistics(page).getByRole("combobox", {name: "解析", exact: true});
-      for (const kind of await choices(operation)) {
-        if (kinds && !kinds.includes(kind)) continue;
-        await operation.selectOption(kind); await idle(page);
-        const axis = statistics(page).getByRole("combobox", {name: "横軸", exact: true});
-        for (const x of kind === "association" ? await choices(axis) : [null]) {
-          if (x) {await axis.selectOption(x); await idle(page);}
-          if (await calculate(page, refusal)) await figures(page, kind === "comparison");
+    if (!(await choices(metrics)).includes(metric)) {skip(page, `${subject} ${metric}`); return;}
+    if (await metrics.inputValue() !== metric) {await metrics.selectOption(metric); await idle(page);}
+    // Entries the panel lists that this walker does not know would go unrecorded: listed in the report.
+    for (const listed of await choices(metrics)) if (!SUBJECT_METRICS[subject].includes(listed) && !/^positive_/.test(listed)) skip(page, `unknown entry ${subject} ${listed}`);
+    const variants = sidebar(page).getByRole("radiogroup", {name: /^(補正|単位)$/}).getByRole("radio");
+    const variantCount = await variants.count();
+    for (let variant = 0; variant < Math.max(1, variantCount); variant++) {
+      if (variantCount) {
+        const choice = variants.nth(variant);
+        if (await choice.isDisabled()) {skip(page, `${subject} ${metric} variant ${await choice.textContent()}`); continue;}
+        if (await choice.getAttribute("aria-checked") !== "true") {await choice.click(); await idle(page);}
+      }
+      const stain = sidebar(page).getByRole("combobox", {name: "染色", exact: true});
+      const stains = await stain.count() && await stain.isEnabled() ? await choices(stain) : [null];
+      for (const channel of stains) {
+        if (channel && await stain.inputValue() !== channel) {await stain.selectOption(channel); await idle(page);}
+        const operation = statistics(page).getByRole("combobox", {name: "解析", exact: true});
+        for (const kind of await choices(operation)) {
+          if (kinds && !kinds.includes(kind)) continue;
+          if (await operation.inputValue() !== kind) {await operation.selectOption(kind); await idle(page);}
+          const axis = statistics(page).getByRole("combobox", {name: "横軸", exact: true});
+          for (const x of kind === "association" ? await choices(axis) : [null]) {
+            if (x && await axis.inputValue() !== x) {await axis.selectOption(x); await idle(page);}
+            if (await settle(page)) await figures(page, kind === "comparison");
+          }
         }
       }
     }
@@ -283,8 +313,8 @@ function measureScene(target) {
     // group comparison of its intensity (Q-04), as for a visitor.
     const offered = await choices(operation);
     for (const kind of ["distribution", "comparison"].filter(kind => offered.includes(kind))) {
-      await operation.selectOption(kind);
-      if (await calculate(page)) await figures(page, kind === "comparison");
+      if (await operation.inputValue() !== kind) await operation.selectOption(kind);
+      if (await settle(page)) await figures(page, kind === "comparison");
     }
     await tab(page, "画像");
   };
@@ -300,9 +330,8 @@ async function statisticsAfter(page) {
   await tab(page, "統計");
   const operation = statistics(page).getByRole("combobox", {name: "解析", exact: true});
   for (const kind of await choices(operation)) {
-    await operation.selectOption(kind); await idle(page);
-    await calculate(page);
-    await figures(page, kind === "comparison");
+    if (await operation.inputValue() !== kind) {await operation.selectOption(kind); await idle(page);}
+    if (await settle(page)) await figures(page, kind === "comparison");
   }
 }
 
@@ -332,7 +361,7 @@ async function nextStep(page, name) {
   await page.getByRole("button", {name}).first().click();
   await idle(page);
   await statistics(page).waitFor({timeout: LIVE});
-  if (await calculate(page)) await figures(page, true);
+  if (await settle(page)) await figures(page, true);
 }
 async function closePanel(page) {
   const close = page.getByRole("button", {name: "パネルを閉じる"});
@@ -349,7 +378,7 @@ function walksOf(demo) {
   // 「使い方」 in order: the opening result, its figure and the publication package.
   async tour(page) {
     await tab(page, "統計");
-    await calculate(page);
+    await settle(page);
     await tab(page, "グラフ");
     await render(page);
     const download = page.waitForEvent("download", {timeout: LIVE});
@@ -360,7 +389,9 @@ function walksOf(demo) {
   "saved-figures": savedFigures,
   ...Object.fromEntries(REGIONS.map(region => [`measure-${region}`, measureScene(region)])),
   };
-  for (const region of REGIONS) for (const metric of METRICS) if (offered(region, metric)) scenes[`statistics-${region}-${metric}`] = statisticsScene(region, metric);
+  // Subjects follow the scene's regions: the nucleolar entries need both nucleoli and nucleoplasm.
+  const SUBJECTS = Object.keys(SUBJECT_METRICS).filter(subject => REGIONS.includes(subject));
+  for (const subject of SUBJECTS) for (const metric of SUBJECT_METRICS[subject]) scenes[`statistics-${subject}-${metric}`] = statisticsScene(subject, metric);
   for (let index = 0; index < EXAMPLES; index++) scenes[`ai-${index + 1}`] = async page => {
     await page.getByLabel("AIへの指示").click();
     await example(page, index);
@@ -386,11 +417,11 @@ function walksOf(demo) {
     await closePanel(page);
     await measureScene(target)(page);
   };
-  if (RANK.length) for (const region of REGIONS) for (const metric of METRICS) if (offered(region, metric)) scenes[`rank-${region}-${metric}`] = async page => {
+  if (RANK.length) for (const subject of SUBJECTS) for (const metric of SUBJECT_METRICS[subject]) scenes[`rank-${subject}-${metric}`] = async page => {
     await page.getByLabel("AIへの指示").click();
     await example(page, RANK[0]);
     await closePanel(page);
-    await statisticsScene(region, metric, ["comparison", "association"])(page);
+    await statisticsScene(subject, metric, ["comparison", "association"])(page);
   };
   // Positivity by each channel the scene classifies by (gate_channels: stains whose positive and negative
   // nuclei mean something) and each measured value: the classification keeping the positive nuclei, the
@@ -401,11 +432,11 @@ function walksOf(demo) {
       await classify(page, channel, values, kept);
       await closePanel(page);
       // A run whose fields hold no nucleus of the kept class (all positive, say) has nothing to measure: the shared
-      // analysis refuses the comparison, and the refusal is recorded as the visitor would see it.
-      const empty = "選別後に測定できる核がない実験単位";
-      for (const metric of ["positive_fraction", "positive_count"]) await statisticsScene("nuclei", metric, null, empty)(page);
-      // Among the positive nuclei a stain may hold saturated pixels; comparing their intensity is then refused (Q-04).
-      for (const metric of ["area_px", "area_um2", "mean", "mean_corrected"]) await statisticsScene("nuclei", metric, ["distribution", "comparison"], ["上限値または飽和した画素", empty])(page);
+      // analysis refuses the comparison; the choice is listed in the report and the demo does not offer it.
+      for (const metric of ["positive_fraction", "positive_count"]) await statisticsScene("nuclei", metric)(page);
+      // The kept nuclei's area (px², µm²) and mean intensity (原値, 背景補正). Among them a stain may hold saturated
+      // pixels; the panel then offers no comparison of its intensity (Q-04).
+      for (const metric of ["area_px", "mean"]) await statisticsScene("nuclei", metric, ["distribution", "comparison"])(page);
     };
     // The image's next step: the positive fraction, after the compared fields are judged again by the same rule.
     if (values === "raw" && kept === "positive") scenes[`positivity-${channel}-next`] = async page => {
@@ -429,17 +460,12 @@ function walksOf(demo) {
     await background.selectOption(mode); await idle(page);
     for (const region of REGIONS) await measureScene(region)(page);
   };
-  // The opening comparison as a paired design (each run's control and treatment), with its figures.
-  scenes["statistics-paired"] = async page => {
-    await tab(page, "統計");
-    await statistics(page).getByRole("combobox", {name: "解析", exact: true}).selectOption("comparison"); await idle(page);
-    await statistics(page).getByRole("combobox", {name: "対応", exact: true}).selectOption("paired"); await idle(page);
-    if (await calculate(page)) await figures(page, true);
-  };
+  // The pairing of the opening comparison comes from the declared design (実験); the demo fixes 対応 (#257 D-6), so no
+  // walk changes it.
   // The opening result's figure without its legend, and its publication package with the original images.
   scenes["tour-options"] = async page => {
     await tab(page, "統計");
-    await calculate(page);
+    await settle(page);
     await tab(page, "グラフ");
     await figure(page).getByLabel("凡例を表示", {exact: true}).uncheck();
     await render(page);
@@ -477,12 +503,14 @@ function walksOf(demo) {
     await section.getByRole("button", {name: "元に戻す", exact: true}).click(); await idle(page);
   };
   // A scene recorded for its story (scenario.journal "story", build.py) keeps what tells it: the guided tour and
-  // its options, the saved figures, the paired opening comparison, every statistic of the story's metrics
-  // (the opening comparison and its companions), measuring each region, the AI examples and the image's next
-  // steps. Everything else the screen offers is answered with the demo's notice (DM-10: the published files'
-  // limit). The full exploration is recorded on the scenes kept "full" (the demo's first scene).
-  const story = new Set((demo.story ?? []).map(item => `statistics-${item.region}-${item.metric}`));
-  const told = name => ["tour", "tour-options", "saved-figures", "statistics-paired", "compartments-next"].includes(name)
+  // its options, the saved figures, every statistic of the story's metrics (the opening comparison and its
+  // companions), measuring each region, the AI examples and the image's next steps. Everything else the screen
+  // offers is answered with the demo's notice. The public demo records every scene "full" (2026-11-21, owner
+  // decision, genellect/cytellect#257): the side panel then offers every choice of each scene.
+  // A story item names the region set its values come from; its walk is named by the subject that lists it.
+  const subjectOf = item => /^(nucleolar_|largest_)/.test(item.metric) ? "nucleoli" : item.region;
+  const story = new Set((demo.story ?? []).map(item => `statistics-${subjectOf(item)}-${item.metric}`));
+  const told = name => ["tour", "tour-options", "saved-figures", "compartments-next"].includes(name)
     || story.has(name) || /^measure-/.test(name) || /^ai-(\d+|in-order|fields)$/.test(name) || /^positivity-.+-next$/.test(name);
   return Object.entries(scenes).filter(([name]) => demo.scope !== "story" || told(name))
     .map(([name, walk]) => ({name: demo.id ? `${demo.id}:${name}` : name, walk, workspace: demo.workspace}));

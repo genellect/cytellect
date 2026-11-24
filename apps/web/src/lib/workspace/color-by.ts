@@ -1,5 +1,5 @@
 import type {ChannelGateFilter, ChannelGateResult} from "./channel-gate";
-import {metricChoice} from "./metric-catalog";
+import {measureLabel, metricChoice, metricTarget} from "./metric-catalog";
 import type {ReviewTarget} from "./review-preview";
 
 /** How the image colours its regions (requirements MV-01). The colour mode is the entry to a measurement:
@@ -100,12 +100,32 @@ export function tableHeading(view:
 
 /** The one next step beside the table (MV-09): the comparison of groups that the colour mode leads to. */
 export interface NextComparison {label: string; metric: string; target: ReviewTarget; channel: string | null; reclassify: boolean; note?: string}
-export function nextComparison(view: {colorBy: ColorBy; metric: string; target: ReviewTarget; channel: string; stain: string}): NextComparison {
+export function nextComparison(view: {colorBy: ColorBy; metric: string; target: ReviewTarget; channel: string; stain: string; corrected?: boolean;
+  /** The per-nucleus table is shown (nucleus-table-model): its own columns, not the region table's. */
+  nucleusTable?: {nuclearStain: boolean; calibrated: boolean; nucleoli: boolean}}): NextComparison {
   if (view.colorBy === "positivity") return {label: "陽性率を群間で比較", metric: "positive_fraction", target: "nuclei", channel: null, reclassify: true,
     note: "比較する視野を同じ規則で再判定してから計算します。"};
   if (view.colorBy === "compartments") return {label: "核質／核小体の比を群間で比較", metric: "log2_nucleoplasm_over_nucleolus", target: "nucleoplasm", channel: view.channel, reclassify: false};
-  const choice = metricChoice(view.metric);
-  const channel = choice?.channel ? view.channel : null;
-  const target = choice?.target ?? view.target;
-  return {label: `${choice?.label ?? view.metric}${channel ? `（${view.stain}）` : ""}を群間で比較`, metric: view.metric, target, channel, reclassify: false};
+  // The outline table lists each region's area and intensities in the stain above the image (#257 A-2, TB-02): the
+  // step compares the chosen measure when the table shows it, and otherwise the table's mean intensity, never a
+  // measure from 統計 that the table does not show.
+  const {fallback, listed} = shownMetrics(view);
+  const metric = listed.has(view.metric) ? view.metric : fallback;
+  const channel = metricChoice(metric)?.channel ? view.channel : null;
+  const target = metricTarget(metric, view.target);
+  return {label: `${measureLabel(metric, target, channel ? view.stain : null)}を群間で比較`, metric, target, channel, reclassify: false};
+}
+
+/** The measures the table under an image shows, and the one it is read by. The region table (MeasurementTable) lists
+ * area in px² and the raw intensities, with the background-corrected columns only when the rows carry them. The
+ * per-nucleus table lists the nucleus area (µm² when calibrated), the nuclear stain's integrated signal and the other
+ * stains' means, and the nucleolar summaries when nucleoli are measured. */
+function shownMetrics(view: {corrected?: boolean; nucleusTable?: {nuclearStain: boolean; calibrated: boolean; nucleoli: boolean}}) {
+  const nucleus = view.nucleusTable;
+  const intensity = nucleus?.nuclearStain ? "integrated" : "mean";
+  const listed = new Set(nucleus ? [nucleus.calibrated ? "area_um2" : "area_px", intensity] : ["area_px", "mean", "integrated"]);
+  if (view.corrected) for (const value of nucleus ? [`${intensity}_corrected`] : ["mean_corrected", "integrated_corrected"]) listed.add(value);
+  if (nucleus?.nucleoli) for (const value of ["nucleolar_count", nucleus.calibrated ? "nucleolar_area_um2" : "nucleolar_area_px", "nucleolar_area_fraction",
+    "largest_nucleolus_fraction", "nucleolar_eccentricity"]) listed.add(value);
+  return {fallback: intensity, listed};
 }
