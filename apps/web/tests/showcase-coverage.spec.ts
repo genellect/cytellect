@@ -105,6 +105,72 @@ for (const scene of SCENES) test(`${scene.id}: every offered statistics conditio
   expect(errors).toEqual([]);
 });
 
+/** Classifies the nuclei by a stain in 画像 as the recording did (Otsu per imaging date), keeping one class. */
+async function classify(page: Page, channel: string, values: string, keep: string) {
+  const color = page.getByRole("toolbar", {name: "画像の表示"}).getByRole("combobox", {name: "色分け", exact: true});
+  await expect(color).toBeVisible({timeout: live});
+  await color.selectOption("positivity");
+  const inspector = page.getByRole("complementary", {name: "画像解析"});
+  if (!await inspector.count()) await page.locator("header").getByRole("button", {name: "設定パネル"}).click();
+  const gate = inspector.getByRole("region", {name: "チャンネルによる核の分類"});
+  await gate.getByRole("combobox", {name: "判定するチャンネル", exact: true}).selectOption(channel);
+  await gate.getByRole("combobox", {name: "測定値", exact: true}).selectOption(values);
+  await gate.getByRole("combobox", {name: "測定値の集計対象", exact: true}).selectOption(keep);
+  await gate.getByRole("button", {name: "チャンネルで分類", exact: true}).click();
+  await expect(gate.locator("output")).toContainText("陽性", {timeout: live});
+  await expect(gate.getByRole("alert")).toHaveCount(0);
+}
+
+// With nuclei classified, every measure the panel offers for the classified nuclei opens its recorded result (SR-05):
+// the choices the recording could not answer (a run without a nucleus of the kept class, a saturated stain) are not
+// offered.
+for (const scene of SCENES.filter(item => item.gateChannels?.length)) for (const channel of scene.gateChannels ?? [])
+  for (const reading of ["raw", "corrected"]) for (const keep of ["positive", "negative"])
+    test(`${scene.id}: nuclei classified by ${channel} (${reading}, ${keep} kept) open recorded results (SR-05)`, async ({page}) => {
+      test.setTimeout(1_800_000);
+      const errors: string[] = [];
+      page.on("pageerror", error => errors.push(error.message));
+      await page.goto(`/demo?id=${scene.workspaceId}&step=image`);
+      await classify(page, channel, reading, keep);
+      await page.locator("header").getByRole("button", {name: "統計", exact: true}).click();
+      const radio = side(page).getByRole("radiogroup", {name: "対象", exact: true}).getByRole("radio", {name: "核", exact: true});
+      await expect(radio).toBeVisible({timeout: live});
+      await radio.click();
+      let conditions = 0;
+      for (const metric of await values(page, "指標")) {
+        await side(page).getByRole("combobox", {name: "指標", exact: true}).selectOption(metric);
+        const variants = side(page).getByRole("radiogroup", {name: /^(補正|単位)$/}).getByRole("radio");
+        const variantCount = await variants.count();
+        for (let variant = 0; variant < Math.max(1, variantCount); variant++) {
+          if (variantCount) {
+            if (!await variants.nth(variant).isEnabled()) continue;
+            await variants.nth(variant).click();
+          }
+          const stain = side(page).getByRole("combobox", {name: "染色", exact: true});
+          const stains = await stain.count() && await stain.isEnabled() ? await values(page, "染色") : [null];
+          for (const measured of stains) {
+            if (measured) await stain.selectOption(measured);
+            const operation = results(page).getByRole("combobox", {name: "解析", exact: true});
+            for (const kind of await values(page, "解析", results(page))) {
+              await operation.selectOption(kind);
+              // A classified measure asks, as in production, to classify again under the current experiment
+              // information; the visitor does so, as the recording did.
+              const again = results(page).getByRole("button", {name: "現在の実験情報で再分類", exact: true});
+              await page.waitForTimeout(600);
+              if (await again.count() && await again.isEnabled()) {
+                await again.click();
+                await expect(page.getByRole("button", {name: "分類中…"})).toHaveCount(0, {timeout: live});
+              }
+              await shows(page, `${scene.id} ${channel} ${reading} ${keep} ${metric} variant ${variant + 1} ${measured ?? "-"} ${kind}`);
+              conditions++;
+            }
+          }
+        }
+      }
+      expect(conditions).toBeGreaterThan(0);
+      expect(errors).toEqual([]);
+    });
+
 /** The scenes whose recording declares a primary measure before any statistic (scenario.primary_outcome): their
  * planned opening comparison, where git shows the plan was written before measurement (implementation plan 4.5,
  * NS-06; tests/test_showcase_journal_scope.py). */

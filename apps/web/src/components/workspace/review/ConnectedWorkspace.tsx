@@ -47,6 +47,7 @@ import {AccountIndicator,AI_SCOPE,CloudNotices,CloudPhase,GpuStatus,useCloudAcco
 import {AiProvider,AiSettings,AiAvailabilityHint,useAi} from "../AiSettings";
 import {markProposalScopeSeen,proposalScopeSeen,setIncludePreviews} from "@/lib/workspace/ai-settings";
 import {GeneratedContentReportLink} from "./GeneratedContentReportLink";
+import {gateKey,recordedGateMatches} from "./result-choice";
 
 type Mode="experiment"|"image"|"statistics"|"figure";
 const targets:Record<ReviewTarget,string>={nuclei:"核",nucleoli:"核小体",nucleoplasm:"核質",cell:"細胞ROI"};
@@ -366,8 +367,10 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
   const recordedStats=demo?showcase.statistics:null;
   // A nucleus filter in effect (positive or negative nuclei of a stain) is part of what was recorded: a measure recorded
   // only for all nuclei is not offered for the filtered ones (genellect/cytellect#257 review, 2026-11-21).
-  const recordedGate=channelFilter?`${channelFilter.channel_id}:${channelFilter.keep}`:null;
-  const sameGate=(item:{gate?:string|null},id:string)=>id.startsWith("positive_")||(item.gate??null)===recordedGate;
+  // The classification's measured value (raw or background-corrected) is part of it: the same stain classified by
+  // another value keeps other nuclei, and the tour may hold a result for one and not the other.
+  const recordedGate=channelFilter?`cg:${gateKey(channelFilter)}`:"";
+  const sameGate=(item:{gate?:string|null},id:string)=>id.startsWith("positive_")||recordedGateMatches(item.gate,recordedGate);
   /** Whether a metric was recorded for a region set (and the nucleus filter in effect); outside the demo every pair is. */
   const recordedPair=(id:string,region:ReviewTarget)=>!recordedStats||recordedStats.some(item=>item.metric===id&&sameGate(item,id)&&item.region===region);
   /** A metric of a subject is offered for the region set that subject gives it (M-01). */

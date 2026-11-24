@@ -10,7 +10,7 @@ export interface ResultCondition {
   metric: string;
   /** The measured stain's channel; for positive counts and fractions, the classified channel. Null when the metric reads no stain. */
   channel: string | null;
-  /** A nucleus filter applied before measuring (`cg:<channel>:<keep>` or `gfp:<channel>`), "" without one. */
+  /** A nucleus filter applied before measuring (`cg:<channel>:<measured value>:<keep>`, see gateKey, or `gfp:<channel>`), "" without one. */
   filter: string;
   x: {metric: string; channel: string | null} | null;
   stratum: string | null;
@@ -19,7 +19,7 @@ export interface ResultCondition {
 /** The saved request and payload parts this module reads; every field is optional in old results. */
 export interface SavedSelectionLike {
   source?: string; region_set_id?: string; metric?: string; channel_id?: string | null;
-  channel_gate?: {channel_id?: string; keep?: string} | null;
+  channel_gate?: {channel_id?: string; values?: string; keep?: string} | null;
   gfp_gate?: {gfp_channel_id?: string} | null;
   positivity?: {channel_id?: string; gfp_channel_id?: string} | null;
 }
@@ -45,18 +45,36 @@ const positive = nucleusPositivity;
 export function conditionChannel(metric: string, channel: string | null, gateChannel: string | null): string | null {
   return positive(metric) ? gateChannel : metricUsesChannel(metric) ? channel : null;
 }
+/** A classification by a stain: its stain, the measured value it classified by (raw or background-corrected) and
+ * the nuclei kept, `eu5:raw:positive`. The same stain classified by another value keeps other nuclei. */
+export function gateKey(gate: {channel_id?: string; values?: string; keep?: string}): string {
+  return [gate.channel_id ?? "", ...(gate.values ? [gate.values] : []), gate.keep ?? ""].join(":");
+}
 function filterKey(selection: SavedSelectionLike | undefined): string {
   if (!selection || positive(selection.metric ?? "")) return "";
-  if (selection.channel_gate) return `cg:${selection.channel_gate.channel_id ?? ""}:${selection.channel_gate.keep ?? ""}`;
+  if (selection.channel_gate) return `cg:${gateKey(selection.channel_gate)}`;
   if (selection.gfp_gate) return `gfp:${selection.gfp_gate.gfp_channel_id ?? ""}`;
   return "";
 }
 /** The nucleus filter of the side panel's choice, in the same form as a saved one. */
-export function choiceFilter(metric: string, gfp: {channel?: string} | {gfp_channel_id?: string} | null, channelGate: {channel_id: string; keep: string} | null): string {
+export function choiceFilter(metric: string, gfp: {channel?: string} | {gfp_channel_id?: string} | null, channelGate: {channel_id: string; values?: string; keep: string} | null): string {
   if (positive(metric)) return "";
   if (gfp) return `gfp:${"gfp_channel_id" in gfp ? gfp.gfp_channel_id ?? "" : "channel" in gfp ? gfp.channel ?? "" : ""}`;
-  if (channelGate) return `cg:${channelGate.channel_id}:${channelGate.keep}`;
+  if (channelGate) return `cg:${gateKey(channelGate)}`;
   return "";
+}
+/**
+ * Whether a recorded statistic of the public demo (`recorded-statistics.json`, its `gate`) holds the nucleus filter of a
+ * choice (`choiceFilter`). An index written before the measured value was part of the key (`eu5:positive`) names any
+ * value: it is read as it was then, so a demo published with it offers what it offered.
+ */
+export function recordedGateMatches(recorded: string | null | undefined, filter: string): boolean {
+  if (!recorded) return filter === "";
+  if (`cg:${recorded}` === filter) return true;
+  const parts = recorded.split(":");
+  if (parts.length !== 2) return false;
+  const chosen = filter.split(":");
+  return chosen.length === 4 && chosen[0] === "cg" && chosen[1] === parts[0] && chosen[3] === parts[1];
 }
 
 /** The condition a saved result answers, from the request it saved; null when the result does not record one. */

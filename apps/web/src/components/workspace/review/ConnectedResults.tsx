@@ -19,7 +19,7 @@ import {ErrorText,useShowcaseUi} from "./showcase-ui";
 import {METRIC_HINTS} from "../../../lib/showcase/terms";
 import {DiscussionPanel} from "./DiscussionPanel";
 import {showcaseNotices,type RecordedStatistic,type ShowcaseDataset} from "@/lib/showcase";
-import {automaticOperation,sameMethod,savedMethod,choiceFilter,conditionChannel,conditionKey,savedCondition,savedFor,savedMeasureLabel,type ResultCondition,type SavedResultLike} from "./result-choice";
+import {automaticOperation,sameMethod,savedMethod,choiceFilter,conditionChannel,conditionKey,recordedGateMatches,savedCondition,savedFor,savedMeasureLabel,type ResultCondition,type SavedResultLike} from "./result-choice";
 import {declarations as statisticsDeclarations,remainingWork,type RemainingWork} from "./statistics-readiness";
 import {AxisControls,axisPlotOptions,emptyAxis,type AxisState} from "./AxisControls";
 import {ConnectedCsvResults} from "./ConnectedCsvResults";
@@ -525,7 +525,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
     return !(comparable&&entry.operation==="distribution")&&(!answered||answered.filter===condition.filter);});
   const recordedChoice=(value:ResultCondition)=>!recordedStatistics||recordedStatistics.some(item=>item.analysis===value.operation&&item.region===value.regionSet&&item.metric===value.metric
     &&(nucleusPositivity(value.metric)?item.positivity===value.channel:!metricUsesChannel(value.metric)||item.channel===value.channel)
-    &&(item.gate?`cg:${item.gate}`:"")===value.filter&&(value.operation!=="association"||(!!item.x&&item.x.metric===value.x?.metric&&item.x.channel===value.x?.channel)));
+    &&recordedGateMatches(item.gate,value.filter)&&(value.operation!=="association"||(!!item.x&&item.x.metric===value.x?.metric&&item.x.channel===value.x?.channel)));
   const recordedOperation=(value:ResultOperation)=>recordedChoice({...condition,operation:value});
   // The current condition, read when a calculation ends: a result calculated for an earlier choice is kept, not shown.
   const choiceNow=useRef(choiceKey);

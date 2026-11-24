@@ -1625,7 +1625,8 @@ def journal(work: Path, origin_port: int, out: Path, scenes: list[dict], keep: s
     return {key: report[key] for key in ("entries", "scenes", "kept_scenes", "reused_from_commit") if key in report}
 
 
-def recorded_statistics(entries: list[dict], saved: list[tuple[str, dict]] | None = None) -> dict:
+def recorded_statistics(entries: list[dict], saved: list[tuple[str, dict]] | None = None,
+                        failed: set[int] | None = None) -> dict:
     """The statistics the tour recorded, scene by scene (``snapshot/recorded-statistics.json``).
 
     The demo offers only these choices and shows their recorded results as soon as one is chosen
@@ -1633,14 +1634,21 @@ def recorded_statistics(entries: list[dict], saved: list[tuple[str, dict]] | Non
     end without a result. Each item is what the side panel chooses: the analysis, the region set,
     the metric, the measured stain and the classified stain of a nucleus filter or positivity.
     ``saved``: the seed's saved results (scene, request spec). The demo opens those without calculating
-    them again, so the tour records no request for them (seed_statistics)."""
+    them again, so the tour records no request for them (seed_statistics). ``failed``: the positions of requests
+    whose job the shared analysis then refused (failed_statistics): a run without a nucleus of the kept class, a
+    saturated stain. Such a choice has no result to show, so it is not offered.
+
+    A nucleus filter is named by its stain, the measured value it classified by and the nuclei kept
+    (``eu5:raw:positive``): the same stain classified by another value keeps other nuclei, and may hold a result
+    where this one has none."""
     analyses = {"descriptive": "distribution", "region-experimental-unit": "comparison", "region-association": "association"}
     scenes: dict[str, dict[str, dict]] = {}
     requests = []
-    for entry in entries:
+    for position, entry in enumerate(entries):
         path = entry.get("path", "").split("?")[0]
         if entry.get("method") != "POST" or not 200 <= int(entry.get("status") or 0) < 300 \
-                or not path.endswith(("/descriptive", "/common-statistics")) or not entry.get("body"):
+                or not path.endswith(("/descriptive", "/common-statistics")) or not entry.get("body") \
+                or position in (failed or set()):
             continue
         requests.append(((entry.get("scene") or "").split(":")[0], json.loads(entry["body"])))
     for scene, body in [*requests, *(saved or [])]:
@@ -1652,7 +1660,8 @@ def recorded_statistics(entries: list[dict], saved: list[tuple[str, dict]] | Non
         item = {"analysis": analysis, "region": selection.get("region_set_id"), "metric": selection.get("metric"),
                 "channel": selection.get("channel_id"),
                 "positivity": (selection.get("positivity") or {}).get("channel_id"),
-                "gate": f"{gate.get('channel_id')}:{gate.get('keep')}" if gate else None}
+                "gate": ":".join(str(part) for part in (gate.get("channel_id"), gate.get("values"), gate.get("keep"))
+                                 if part is not None) if gate else None}
         if analysis == "association":
             x = body.get("x_selection") or {}
             item["x"] = {"metric": x.get("metric"), "channel": x.get("channel_id")}
@@ -1687,10 +1696,33 @@ def seed_statistics(target: Path) -> list[tuple[str, dict]]:
     return saved
 
 
+def failed_statistics(entries: list[dict], target: Path) -> set[int]:
+    """Positions of the recorded statistics requests whose job ended failed in its walk: the job the request was
+    given (its recorded answer) is failed in the walk's last job list that names it."""
+    final: dict[tuple[str, str], str] = {}
+    jobs: dict[int, tuple[str, str]] = {}
+    for position, entry in enumerate(entries):
+        path, scene, name = entry.get("path", "").split("?")[0], entry.get("scene") or "", entry.get("file")
+        if not name or not name.endswith(".json") or not 200 <= int(entry.get("status") or 0) < 300:
+            continue
+        if entry.get("method") == "GET" and path.endswith("/jobs"):
+            listed = json.loads((target / name).read_text(encoding="utf-8"))
+            for job in listed if isinstance(listed, list) else []:
+                if isinstance(job, dict) and job.get("id"):
+                    final[(scene, job["id"])] = job.get("state") or ""
+        elif entry.get("method") == "POST" and path.endswith(("/descriptive", "/common-statistics")):
+            answer = json.loads((target / name).read_text(encoding="utf-8"))
+            job = (answer.get("job_id") or answer.get("id")) if isinstance(answer, dict) else None
+            if job:
+                jobs[position] = (scene, job)
+    return {position for position, key in jobs.items() if final.get(key) == "failed"}
+
+
 def write_recorded_statistics(target: Path) -> None:
     entries = read_journal(target)["entries"]
     (target / "recorded-statistics.json").write_text(
-        json.dumps(recorded_statistics(entries, seed_statistics(target)), ensure_ascii=False, separators=(",", ":")) + "\n")
+        json.dumps(recorded_statistics(entries, seed_statistics(target), failed_statistics(entries, target)),
+                   ensure_ascii=False, separators=(",", ":")) + "\n")
 
 
 def _owner_session(app, workspace_id: str) -> str:

@@ -32,6 +32,38 @@ def test_lists_each_recorded_choice_once_per_scene():
     }}
 
 
+def test_a_refused_calculation_is_not_a_choice_and_a_classification_names_its_measured_value(tmp_path):
+    """A request the API accepted (202) whose job then failed (a run without a nucleus of the kept class, a saturated
+    stain) has no result to show; the same classification by raw and by corrected values are different choices."""
+    from cytellect_showcase.build import failed_statistics, recorded_statistics
+
+    def gated(values, metric):
+        return {"mode": "region-experimental-unit", "selection": {"source": "region", "region_set_id": "nuclei", "metric": metric,
+                "channel_id": None, "channel_gate": {"channel_id": "eu5", "values": values, "keep": "positive"}}}
+
+    def post(scene, body, job):
+        (tmp_path / f"{job}.json").write_text(json.dumps({"job_id": job}))
+        return {**_entry(scene, "/v1/revisions/r/common-statistics", body), "file": f"{job}.json"}
+
+    def jobs(scene, states):
+        name = f"jobs-{len(list(tmp_path.iterdir()))}.json"
+        (tmp_path / name).write_text(json.dumps([{"id": job, "state": state} for job, state in states.items()]))
+        return {"scene": scene, "method": "GET", "path": "/v1/workspaces/w/jobs", "body": None, "status": 200, "file": name}
+
+    entries = [
+        post("ox:raw", gated("raw", "area_px"), "j1"), jobs("ox:raw", {"j1": "running"}), jobs("ox:raw", {"j1": "failed"}),
+        post("ox:corrected", gated("corrected", "area_px"), "j2"), jobs("ox:corrected", {"j2": "succeeded"}),
+        # The same job id in another walk does not decide this one.
+        post("ox:other", gated("raw", "area_um2"), "j3"), jobs("ox:other", {"j3": "succeeded"}), jobs("ox:raw", {"j3": "failed"}),
+    ]
+    failed = failed_statistics(entries, tmp_path)
+    assert failed == {0}
+    assert recorded_statistics(entries, None, failed)["scenes"]["ox"] == [
+        {"analysis": "comparison", "region": "nuclei", "metric": "area_px", "channel": None, "positivity": None, "gate": "eu5:corrected:positive"},
+        {"analysis": "comparison", "region": "nuclei", "metric": "area_um2", "channel": None, "positivity": None, "gate": "eu5:raw:positive"},
+    ]
+
+
 def test_the_seed_saved_results_are_recorded_choices(tmp_path):
     """The demo opens a saved result without calculating it again, so no request is recorded for it: its choice comes
     from the seed's saved results (the opening comparison and its companions must stay offered)."""
