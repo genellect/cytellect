@@ -41,6 +41,15 @@ export interface SavedResult {
   measurement?: MeasurementPolicy | {version:"1.0.0";mode:"area_only"} | null;
   backgrounds?: Record<string,Record<string,{polygon:Point[];confirmed:true}>>;
   confirmedChannelIds?:string[];
+  /** Each measured channel's provenance as the table recorded it, with the background its values were corrected by. */
+  channelProvenance?: MeasuredChannelProvenance[];
+}
+/** A measured channel's provenance in a region table (and in a result's source fields): protocol 1.0.0 names the
+ * confirmed background ROI by its mask, pixel count and median; later protocols keep a `background` record. */
+export interface MeasuredChannelProvenance {
+  channel?: {channel_id?: string} | null;
+  background?: unknown;
+  background_mask_sha256?: string; background_pixel_count?: number; background_median?: number;
 }
 /** Raw values (3.0.0) or raw values plus an automatic, unconfirmed background candidate (4.0.0). */
 /** Mask corrections the workspace offers; delete goes through the exclusion/delete path. */
@@ -57,7 +66,7 @@ export function displayNameOf(key: string): {display_name?: string} {
 }
 const measurementOf = (result: SavedResult) => result.measurement !== undefined ? result.measurement : result.protocol === "1.0.0" ? null : result.protocol === "2.0.0" ? {version:"1.0.0",mode:"area_only"} : result.protocol === "4.0.0" ? automaticBackground : rawMeasurement;
 interface Report {
-  revision_id: string; protocol_version?: string; field_tables: Record<string, {rows: MeasurementRow[]}>;
+  revision_id: string; protocol_version?: string; field_tables: Record<string, {rows: MeasurementRow[]; channel_provenance?: MeasuredChannelProvenance[]}>;
   field_failures: Array<{field_id: string; reason: string}>;
   exclusions: SavedResult["exclusions"];
 }
@@ -205,6 +214,7 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
     const masks = await client.request<SavedResult["masks"]>(`/v1/revisions/${revision}/region-masks?field_id=${encodeURIComponent(field)}`);
     const record=revisionConfigs.has(revision)?{config:revisionConfigs.get(revision)}:await client.request<{config?:RevisionRecord["config"]}>(`/v1/revisions/${revision}`);
     return {regionSet: revisionRecipes.get(revision)?.region_set_id || "nuclei", revision, field, rows: table.rows, masks, exclusions: report.exclusions, protocol: report.protocol_version,
+      ...(table.channel_provenance ? {channelProvenance: table.channel_provenance} : {}),
       ...(record.config?{measurement:record.config.measurement??null,backgrounds:record.config.backgrounds??{},confirmedChannelIds:record.config.confirmed_channel_ids??[]}: {})};
   }
   return {

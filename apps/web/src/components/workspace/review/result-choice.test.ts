@@ -1,5 +1,5 @@
 import {describe,expect,it} from "vitest";
-import {automaticOperation,sameMethod,savedMethod,choiceFilter,conditionChannel,conditionKey,gateKey,measureLabel,recordedGateMatches,savedCondition,savedFor,savedMeasureLabel,sameSources,type ResultCondition,type SavedResultLike} from "./result-choice";
+import {automaticOperation,backgroundFingerprint,changedSources,sameMethod,savedMethod,choiceFilter,conditionChannel,conditionKey,gateKey,measureLabel,recordedGateMatches,savedCondition,savedFor,savedMeasureLabel,sameSources,type ResultCondition,type SavedResultLike} from "./result-choice";
 
 const npm1={channel_id:"npm1",label:"NPM1",stain:"NPM1"};
 const sources=[{field:"f1",mask:"m1",protocol:"4.0.0",mode:"automatic_background"},{field:"f2",mask:"m2",protocol:"4.0.0",mode:"automatic_background"}];
@@ -83,6 +83,41 @@ describe("saved result for the chosen condition (#257 D-1)",()=>{
     expect(sameSources(fieldsOf(),sources.map(source=>({...source,protocol:"3.0.0"})))).toBe(false);
     expect(sameSources(fieldsOf(),sources.map(source=>({...source,mode:"raw_intensity"})))).toBe(false);
     expect(sameSources(fieldsOf(),sources.map(({field,mask})=>({field,mask})))).toBe(true);
+  });
+  // genellect/cytellect#257 NS-04: a background ROI drawn again keeps the regions' mask revision, protocol 1.0.0 and the
+  // mode; only the channels' recorded background (and the analysis revision that measured it) changes.
+  const roi=(median:number,mask:string,revision:string)=>[{channel:{channel_id:"npm1"},background_mask_sha256:mask,background_pixel_count:900,background_median:median,background_revision_id:revision},
+    {channel:{channel_id:"dna"},background_mask_sha256:mask,background_pixel_count:900,background_median:3,background_revision_id:revision}];
+  // Protocol 1.0.0 (a confirmed ROI) records no measurement policy in a result's source fields.
+  const confirmed=(provenance:ReturnType<typeof roi>|undefined)=>fieldsOf().map(field=>({field_id:field.field_id,analysis_revision_id:field.analysis_revision_id,region_set:field.region_set,channel_provenance:provenance}));
+  const current=(provenance:ReturnType<typeof roi>|undefined)=>sources.map(({field,mask})=>({field,mask,background:backgroundFingerprint(provenance)}));
+  it("tells a result corrected by an earlier background ROI apart from the current measurement",()=>{
+    expect(sameSources(confirmed(roi(7,"roi-a","r1")),current(roi(15,"roi-b","r2")))).toBe(false);
+    const stale={job:"mean-roi-a",operation:"comparison" as const,result:{...meanNucleoli,source_fields:confirmed(roi(7,"roi-a","r1"))}};
+    expect(savedFor([stale],choice({}),current(roi(15,"roi-b","r2")))).toEqual({current:undefined,older:stale});
+  });
+  it("keeps a result current when the same background is measured again or another region set is measured",()=>{
+    // Measuring again (a new analysis revision, the background's revision with it) with the same ROI keeps the values.
+    expect(sameSources(confirmed(roi(7,"roi-a","r1")),current(roi(7,"roi-a","r2")))).toBe(true);
+    // The channels' order in a table does not matter; an automatic background compares by its whole record.
+    expect(sameSources(confirmed(roi(7,"roi-a","r1")),current([...roi(7,"roi-a","r1")].reverse()))).toBe(true);
+    const automatic=(threshold:number)=>[{channel:{channel_id:"npm1"},background:{status:"established",bright_threshold:threshold,exclusion_mask_sha256:"e"}}];
+    expect(sameSources(fieldsOf().map(field=>({...field,channel_provenance:automatic(40)})),sources.map(source=>({...source,background:backgroundFingerprint(automatic(40))})))).toBe(true);
+    expect(sameSources(fieldsOf().map(field=>({...field,channel_provenance:automatic(40)})),sources.map(source=>({...source,background:backgroundFingerprint(automatic(41))})))).toBe(false);
+    // A result or table that records no background is taken as it was.
+    expect(sameSources(confirmed(undefined),current(roi(7,"roi-a","r1")))).toBe(true);
+    expect(sameSources(confirmed(roi(7,"roi-a","r1")),current(undefined))).toBe(true);
+    expect(backgroundFingerprint(undefined)).toBe("");
+  });
+  it("finds the result opened with the view changed only when a field it read was measured again differently",()=>{
+    expect(changedSources(confirmed(roi(7,"roi-a","r1")),current(roi(15,"roi-b","r2")))).toBe(true);
+    expect(changedSources(fieldsOf(["m1","m2b"]),sources)).toBe(true);
+    expect(changedSources(confirmed(roi(7,"roi-a","r1")),current(roi(7,"roi-a","r2")))).toBe(false);
+    // Fields still loading, a field not chosen now, or a table without a mask revision are no evidence of a change.
+    expect(changedSources(fieldsOf(),[])).toBe(false);
+    expect(changedSources(fieldsOf(),sources.slice(0,1))).toBe(false);
+    expect(changedSources(fieldsOf(),sources.map(source=>({...source,mask:""})))).toBe(false);
+    expect(changedSources(undefined,sources)).toBe(false);
   });
   it("reads an association's fields from its axes",()=>{
     const association:SavedResultLike={spec:{x_selection:{region_set_id:"nucleoli",metric:"area_px",channel_id:null},y_selection:{region_set_id:"nucleoli",metric:"mean",channel_id:"npm1"}},

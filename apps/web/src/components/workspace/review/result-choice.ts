@@ -1,4 +1,5 @@
 import {measureLabel,metricLabel,metricUsesChannel,nucleusPositivity} from "../../../lib/workspace/metric-catalog";
+import type {MeasuredChannelProvenance} from "../../../lib/workspace/api-adapter";
 import type {ResultOperation} from "./connected-results-model";
 
 /** What a result answers, in the terms the side panel chooses (genellect/cytellect#257 D-1, D-2): the analysis,
@@ -35,10 +36,12 @@ export interface SavedResultLike {
     test?: string | null; method?: string | null; design?: {kind?: string | null} | null} | null;
   x_source?: {metric?: string; channel?: SavedChannelLike | null; source_fields?: SavedResultLike["source_fields"]} | null;
   y_source?: {metric?: string; channel?: SavedChannelLike | null; source_fields?: SavedResultLike["source_fields"]} | null;
-  /** Each field's adopted regions (their mask revision) and measurement, as the result recorded them. */
+  /** Each field's adopted regions (their mask revision), measurement and channels (with the background each was
+   * corrected by), as the result recorded them. */
   source_fields?: Array<{field_id: string; region_set?: {region_set_id?: string; mask_revision_id?: string};
-    measurement_protocol?: string; measurement?: {mode?: string} | null}>;
+    measurement_protocol?: string; measurement?: {mode?: string} | null; channel_provenance?: ChannelProvenanceLike[] | null}>;
 }
+export type ChannelProvenanceLike = MeasuredChannelProvenance;
 
 const positive = nucleusPositivity;
 /** The stain channel a metric reads, as the side panel holds it. */
@@ -98,21 +101,58 @@ export function conditionKey(condition: ResultCondition | null): string {
     condition.x ? [condition.x.metric, condition.x.channel] : null, condition.stratum]) : "";
 }
 
-/** One chosen field's measurement as the result place compares it: its adopted regions and measurement. */
-export interface CurrentSource {field: string; mask: string; protocol?: string; mode?: string}
+/** One chosen field's measurement as the result place compares it: its adopted regions, measurement and the
+ * backgrounds its channels were corrected by (`backgroundFingerprint`, "" when the table records none). */
+export interface CurrentSource {field: string; mask: string; protocol?: string; mode?: string; background?: string}
+const canonical = (value: unknown): string => Array.isArray(value) ? `[${value.map(canonical).join(",")}]`
+  : value && typeof value === "object" ? `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonical((value as Record<string, unknown>)[key])}`).join(",")}}`
+  : JSON.stringify(value) ?? "null";
+/** The backgrounds a field's channels were corrected by, in a form that compares equal exactly when they are the same
+ * (genellect/cytellect#257 NS-04): a redrawn background ROI keeps the regions' mask revision, the protocol and the
+ * mode, and only this changes. The revision that measured it (`background_revision_id`, the analysis revision) is
+ * left out, so measuring again with the same background, or measuring another region set, keeps the fingerprint.
+ * "" when nothing is recorded (an older result or table). */
+export function backgroundFingerprint(provenance: ChannelProvenanceLike[] | null | undefined): string {
+  if (!provenance?.length) return "";
+  return canonical(provenance.map(item => [item.channel?.channel_id ?? "", "background" in item ? item.background ?? null
+    : {mask: item.background_mask_sha256 ?? null, pixels: item.background_pixel_count ?? null, median: item.background_median ?? null}])
+    .sort((a, b) => String(a[0]).localeCompare(String(b[0]))));
+}
 /** Whether a saved result was calculated from exactly the fields now chosen, with the same adopted regions (mask
- * revision) and measurement protocol and mode. A result records no background value per field, so a changed
- * background within the same protocol and mode is not told apart here. */
+ * revision), measurement protocol and mode, and background. A result or table that records no background is taken as
+ * it was. */
 export function sameSources(saved: SavedResultLike["source_fields"], current: CurrentSource[]): boolean {
   if (!saved?.length || saved.length !== current.length) return false;
   const chosen = new Map(current.map(source => [source.field, source]));
   return saved.every(field => {
     const source = chosen.get(field.field_id);
+    const background = backgroundFingerprint(field.channel_provenance);
     return !!source && !!source.mask && field.region_set?.mask_revision_id === source.mask
       && (!field.measurement_protocol || !source.protocol || field.measurement_protocol === source.protocol)
-      && (!field.measurement?.mode || !source.mode || field.measurement.mode === source.mode);
+      && (!field.measurement?.mode || !source.mode || field.measurement.mode === source.mode)
+      && (!background || !source.background || background === source.background);
   });
 }
+
+/** Whether a field a saved result was calculated from has been measured again differently since: its adopted regions
+ * (mask revision), protocol, mode or background differ where both the result and the current table record them. A
+ * field not chosen now, or a measurement not loaded yet, is no evidence of a change. */
+export function changedSources(saved: SavedResultLike["source_fields"], current: CurrentSource[]): boolean {
+  const chosen = new Map(current.map(source => [source.field, source]));
+  return (saved ?? []).some(field => {
+    const source = chosen.get(field.field_id);
+    if (!source) return false;
+    const mask = field.region_set?.mask_revision_id, background = backgroundFingerprint(field.channel_provenance);
+    return (!!mask && !!source.mask && mask !== source.mask)
+      || (!!field.measurement_protocol && !!source.protocol && field.measurement_protocol !== source.protocol)
+      || (!!field.measurement?.mode && !!source.mode && field.measurement.mode !== source.mode)
+      || (!!background && !!source.background && background !== source.background);
+  });
+}
+
+/** The fields a saved result was calculated from; an association keeps them per axis (both axes are measured on the
+ * same fields). */
+export const resultSourceFields = (result: SavedResultLike) => result.source_fields ?? result.y_source?.source_fields ?? result.x_source?.source_fields;
 
 /** The newest saved result for a condition (entries newest first): `current` when it was calculated from the
  * measurements now chosen, `older` when only an earlier measurement of the same condition was saved. */
@@ -121,9 +161,7 @@ export function savedFor<T extends {operation: ResultOperation; result: SavedRes
   const key = conditionKey(condition);
   if (!key) return {};
   const same = entries.filter(entry => conditionKey(savedCondition(entry.operation, entry.result)) === key);
-  // An association keeps its fields per axis (both axes are measured on the same fields).
-  const fieldsOf = (result: SavedResultLike) => result.source_fields ?? result.y_source?.source_fields ?? result.x_source?.source_fields;
-  return {current: same.find(entry => sameSources(fieldsOf(entry.result), sources)), older: same[0]};
+  return {current: same.find(entry => sameSources(resultSourceFields(entry.result), sources)), older: same[0]};
 }
 
 export {measureLabel};

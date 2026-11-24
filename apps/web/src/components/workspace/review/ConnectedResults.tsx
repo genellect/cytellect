@@ -19,7 +19,7 @@ import {ErrorText,useShowcaseUi} from "./showcase-ui";
 import {METRIC_HINTS} from "../../../lib/showcase/terms";
 import {DiscussionPanel} from "./DiscussionPanel";
 import {showcaseNotices,type RecordedStatistic,type ShowcaseDataset} from "@/lib/showcase";
-import {automaticOperation,sameMethod,savedMethod,choiceFilter,conditionChannel,conditionKey,recordedGateMatches,savedCondition,savedFor,savedMeasureLabel,type ResultCondition,type SavedResultLike} from "./result-choice";
+import {automaticOperation,backgroundFingerprint,changedSources,resultSourceFields,sameMethod,savedMethod,choiceFilter,conditionChannel,conditionKey,recordedGateMatches,savedCondition,savedFor,savedMeasureLabel,type ResultCondition,type SavedResultLike} from "./result-choice";
 import {declarations as statisticsDeclarations,remainingWork,type RemainingWork} from "./statistics-readiness";
 import {AxisControls,axisPlotOptions,emptyAxis,type AxisState} from "./AxisControls";
 import {ConnectedCsvResults} from "./ConnectedCsvResults";
@@ -463,7 +463,9 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   // changes, goals C7): the newest figure of each, newest first.
   const recorded:Saved[]=[];
   if(mode==="statistics")for(const entry of history)if(entry.operation==="comparison"&&entry.result.estimates&&!recorded.some(value=>value.job===entry.job))recorded.push(entry);
-  function showRecorded(entry:Saved){
+  // The saved result opened on its own when the view opened; one the researcher picks is no longer it.
+  const openedLatest=useRef("");
+  function showRecorded(entry:Saved){openedLatest.current="";
     restoreFigure(entry);
     // The analysis settings follow the chosen result too, so its test is shown under its own method.
     const method=savedMethod(entry.operation,entry.result.spec);if(method.paired!==undefined)setPaired(method.paired);if(method.rank!==undefined)setRank(method.rank);
@@ -485,7 +487,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
     if(!signature||signature===baseline.current.signature||signature===failedSignature.current||busy||stale||disabled)return;
     const timer=setTimeout(()=>void render(),350);return()=>clearTimeout(timer);},[signature,saved?.figureJob,busy,stale,disabled]);// eslint-disable-line react-hooks/exhaustive-deps
   const openingTarget=useRef<ReviewTarget|null>(null),openingCommit=useRef(false);
-  const openLatestSaved=useEffectEvent((entry:Saved)=>{if(saved)return;restoreFigure(entry);
+  const openLatestSaved=useEffectEvent((entry:Saved)=>{if(saved)return;restoreFigure(entry);openedLatest.current=entry.job;
     // The opening comparison (metric, channel, region) is for the first look only (DM-04): once the researcher has
     // measured, it is not applied, even when the saved results load after the measurement.
     if(measured)return;const metric=entry.result.spec?.selection?.metric??entry.result.metric;if(metric)onOpening?.(metric,entry.result.spec?.selection?.channel_id??null);
@@ -513,9 +515,15 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   // A result calculated here answers the same measurements and request; one saved earlier (reopened) answers when it was
   // calculated with the test and pairing now chosen. A description answers a choice that could be tested (計算 tests it).
   const chosenMethod={paired,rank,inference:design.inference!==false};
-  const pending=resultMode&&(!saved||stale||(!!saved.historical&&!sameMethod(saved.operation,saved.result.spec,chosenMethod))||(!!shownCondition&&conditionKey(shownCondition)!==choiceKey));
+  // The chosen fields' measurements as a saved result is compared with them: adopted regions, measurement and background.
+  const currentSources=sources.map(source=>({field:source.field,mask:source.result.masks?.metadata?.mask_revision_id??"",protocol:source.result.protocol,mode:source.result.measurement?.mode,background:backgroundFingerprint(source.result.channelProvenance)}));
+  // The saved result opened with the view does not answer the choice once a field it was calculated from has been
+  // measured again with other outlines or another background (genellect/cytellect#257 NS-04): the condition is described
+  // again instead of showing the earlier values as the current ones. A saved result the researcher picks stays shown.
+  const outdatedOpening=!!saved?.historical&&openedLatest.current===saved.job&&changedSources(resultSourceFields(saved.result),currentSources);
+  const pending=resultMode&&(!saved||stale||outdatedOpening||(!!saved.historical&&!sameMethod(saved.operation,saved.result.spec,chosenMethod))||(!!shownCondition&&conditionKey(shownCondition)!==choiceKey));
   const answers=(entry:Saved)=>entry.historical?sameMethod(entry.operation,entry.result.spec,chosenMethod):(entry.identity===identity&&entry.requestIdentity===requestIdentity&&!(design.inference===false&&tested(entry)));
-  const available=savedFor(history.filter(answers),condition,sources.map(source=>({field:source.field,mask:source.result.masks?.metadata?.mask_revision_id??"",protocol:source.result.protocol,mode:source.result.measurement?.mode})));
+  const available=savedFor(history.filter(answers),condition,currentSources);
   const stainOf=(id:string|null)=>id?stainName(id):null;
   const choiceLabel=measureLabel(metric,regionSet,stainOf(condition.channel));
   // In the demo, only what the tour recorded can be shown; elsewhere anything can be calculated.
