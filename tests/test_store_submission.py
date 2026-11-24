@@ -48,22 +48,21 @@ class StoreSubmissionTests(TestCase):
             ("101", {**DRAFT, "applicationPackages": []}, False),
             ("101", {**DRAFT, "listings": {}}, False),
         ]:
-            with self.subTest(requested=requested, allowed=allowed):
-                store = Mock()
-                store.call.side_effect = [
-                    {**APP, "pendingApplicationSubmission": {"id": "101"}}, PUBLISHED,
-                    draft, PREPARED, PREPARED, {"status": "CommitStarted"},
-                ]
-                if allowed:
-                    self.assertTrue(release.submit(store, PACKAGE, VERSION, COMMIT, requested))
-                    self.assertEqual(store.call.call_args_list[3].kwargs["body"], {
-                        "visibility": "Public", "pricing": PUBLISHED["pricing"],
-                        "listings": PUBLISHED["listings"], "applicationPackages": REPLACEMENTS,
-                    })
-                else:
-                    with self.assertRaises(release.StoreError):
-                        release.submit(store, PACKAGE, VERSION, COMMIT, requested)
-                    self.assertTrue(all(call.args[0] == "GET" for call in store.call.call_args_list))
+            store = Mock()
+            store.call.side_effect = [
+                {**APP, "pendingApplicationSubmission": {"id": "101"}}, PUBLISHED,
+                draft, PREPARED, PREPARED, {"status": "CommitStarted"},
+            ]
+            if allowed:
+                self.assertTrue(release.submit(store, PACKAGE, VERSION, COMMIT, requested))
+                self.assertEqual(store.call.call_args_list[3].kwargs["body"], {
+                    "visibility": "Public", "pricing": PUBLISHED["pricing"],
+                    "listings": PUBLISHED["listings"], "applicationPackages": REPLACEMENTS,
+                })
+            else:
+                with self.assertRaises(release.StoreError):
+                    release.submit(store, PACKAGE, VERSION, COMMIT, requested)
+                self.assertTrue(all(call.args[0] == "GET" for call in store.call.call_args_list))
 
     def test_waits_for_the_first_public_release(self):
         store = Mock()
