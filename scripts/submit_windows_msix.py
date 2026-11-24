@@ -28,6 +28,7 @@ WRITABLE_FIELDS = {
     "listings", "hardwarePreferences", "automaticBackupEnabled", "canInstallOnRemovableMedia",
     "isGameDvrEnabled", "gamingOptions", "hasExternalInAppProducts", "meetAccessibilityGuidelines",
     "notesForCertification", "packageDeliveryOptions", "enterpriseLicensing",
+    "allowMicrosoftDecideAppAvailabilityToFutureDeviceFamilies",
     "allowMicrosftDecideAppAvailabilityToFutureDeviceFamilies", "allowTargetFutureDeviceFamilies",
     "trailers",
 }
@@ -89,7 +90,7 @@ class Store:
 
     def call(self, method: str, suffix: str = "", *, body: dict | None = None) -> dict:
         data = json.dumps(body).encode("utf-8") if body is not None else None
-        return request_json(APP + suffix, method, "Microsoft Store API", self.headers, data)
+        return request_json(APP + suffix, method, f"Microsoft Store API {method} {suffix or '/'}", self.headers, data)
 
 
 def version_parts(version: str) -> tuple[int, ...]:
@@ -171,7 +172,7 @@ def has_candidate(submission: dict, name: str) -> bool:
     )
 
 
-def submit(store: Store, package: Path, version: str, commit: str) -> bool:
+def submit(store: Store, package: Path, version: str, commit: str, recover_id: str = "") -> bool:
     app = store.call("GET")
     if app.get("packageIdentityName") != PACKAGE_IDENTITY:
         raise StoreError("The API resolved to a different Store package identity.")
@@ -194,7 +195,10 @@ def submit(store: Store, package: Path, version: str, commit: str) -> bool:
     if version_parts(published_packages[0]["version"]) >= version_parts(version):
         raise StoreError("The candidate version must be newer than every published package.")
     pending_ref = app.get("pendingApplicationSubmission")
-    replacement = {"fileName": name, "fileStatus": "PendingUpload"}
+    replacement = {
+        "fileName": name, "fileStatus": "PendingUpload",
+        "minimumDirectXVersion": "None", "minimumSystemRam": "None",
+    }
     if pending_ref:
         path = submission_path(pending_ref)
         draft = store.call("GET", path)
@@ -202,17 +206,25 @@ def submit(store: Store, package: Path, version: str, commit: str) -> bool:
         if draft.get("status") in IN_REVIEW:
             print(f"Waiting for Store submission {pending_ref['id']} to finish.")
             return any(item["fileName"].endswith(suffix) for item in packages)
-        if not has_candidate(draft, name):
+        same_release = all(draft.get(key) == published.get(key) for key in WRITABLE_FIELDS)
+        recover_clone = (
+            pending_ref["id"] == recover_id and same_release and packages == published_packages
+            and is_public(draft) and draft.get("status") == "PendingCommit"
+        )
+        if not has_candidate(draft, name) and not recover_clone:
             raise StoreError(f"Store submission {pending_ref['id']} needs attention before continuing.")
     else:
         draft = store.call("POST", "/submissions")
         path = submission_path(draft)
         print(f"Created Store submission {draft['id']} for {version}.")
+    if not has_candidate(draft, name):
         if not is_public(draft) or draft.get("status") != "PendingCommit":
             raise StoreError("The new submission did not inherit the published public release settings.")
         metadata = {key: value for key, value in draft.items() if key in WRITABLE_FIELDS}
         packages = [
-            {"fileName": item["fileName"], "fileStatus": "PendingDelete"}
+            {**item, "fileStatus": "PendingDelete",
+             "minimumDirectXVersion": item.get("minimumDirectXVersion", "None"),
+             "minimumSystemRam": item.get("minimumSystemRam", "None")}
             for item in draft.get("applicationPackages", [])
         ]
         draft = store.call("PUT", path, body={
@@ -243,7 +255,8 @@ def main() -> None:
     args = parser.parse_args()
     try:
         version = verify_package(args.package, args.receipt, args.commit)
-        accepted = submit(Store.authenticate(), args.package, version, args.commit)
+        accepted = submit(Store.authenticate(), args.package, version, args.commit,
+                          os.environ.get("STORE_RECOVERY_SUBMISSION_ID", ""))
         if accepted and (output := os.environ.get("GITHUB_OUTPUT")):
             with Path(output).open("a", encoding="utf-8") as stream:
                 stream.write("accepted=true\n")
