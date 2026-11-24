@@ -19,14 +19,14 @@ export async function InstallGuide() {
     <header className={lp.guideHeader}><Link href="/" className={lp.wordmark} aria-label="Cytellect ホーム">cytellect</Link><a data-lp-event="contact" href={CONTACT_URL} target="_blank" rel="noopener noreferrer">お問い合わせ <Out /></a></header>
     <main className={lp.guideMain}>
       <h1>Windows版のインストール</h1>
-      <p className={lp.guideLead}>所要時間は5〜10分です。管理者権限とコマンド入力は不要です。</p>
+      <p className={lp.guideLead}>Windows 11 x64 では Microsoft Store で「入手」を選び、インストール後に「開く」を押します。Windows 10 x64 や Store を利用できない環境では、以下のファイルを使用できます。</p>
       {url ? <>
         <DownloadStart url={url} installer={installer} guide={false} />
         <p className={lp.meta}>{installer ? "インストーラー" : "ZIP"}{release && `・${size}・v${release.version}`}<br />推奨：Windows 10／11（64ビット）・メモリ 8 GB 以上・空き容量 6 GB 以上</p>
       </> : <p>配布版は準備中です。操作は<Link href="/demo">デモ</Link>で確認できます。</p>}
 
       {installer ? <section aria-labelledby="flow-title">
-        <h2 id="flow-title">インストールの手順</h2>
+        <h2 id="flow-title">ファイルからのインストールの手順</h2>
         <ol className={lp.guideSteps}>
           <li><b>ダウンロードしたファイルを開きます。</b><span>「Cytellect-Setup{release ? `-${release.version}` : ""}.exe」{size && `（${size}）`}</span></li>
           <li><b>「PCが保護されました」と表示されたら、「詳細情報」→「実行」を押します。</b><span>開発版は未署名のため表示されます。この操作で許可するのは今回の実行だけで、PCの設定は変わりません。</span></li>
@@ -34,7 +34,7 @@ export async function InstallGuide() {
           <li><b>ブラウザに開いた作業画面を確認します。</b><span>次回からはデスクトップの「Cytellect」から開きます。</span></li>
         </ol>
       </section> : <section aria-labelledby="flow-title">
-        <h2 id="flow-title">インストールの手順</h2>
+        <h2 id="flow-title">ファイルからのインストールの手順</h2>
         <ol className={lp.guideSteps}>
           <li><b>ZIPを展開します。</b><span>展開先は、ダウンロードフォルダーなど短いパスの場所にします。</span></li>
           <li><b>「Cytellect Setup」を開きます。</b><span>初回は、解析に必要なものをインターネットから取得します。</span></li>

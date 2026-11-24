@@ -23,7 +23,7 @@ Windows PC に Cytellect の配布版を導入し、起動・更新・アンイ�
 
 ## 2. ダウンロードと確認
 
-1. [Cytellect のサイト](https://cytellect.app/)の「ダウンロード」で「Windows版をダウンロード」を押し、インストーラー `Cytellect-Setup-<版>.exe`（約 1.07 GB）を保存する。リリースのページから保存してもよい。
+1. [Cytellect のサイト](https://cytellect.app/)の「ダウンロード」で、Windows 11 x64 は「Microsoft Store で入手」→「入手」→「開く」を選ぶ。EXE で導入する場合は「Windows版をダウンロード（EXE）」を押し、インストーラー `Cytellect-Setup-<版>.exe`（約 1.07 GB）を保存する。リリースのページから保存してもよい。
 2. 保存したインストーラーを開き、「インストール」を押す（[3.1](#31-インストーラー)）。
 
 - インストーラーがない版（0.1.0-local.20 まで）では、`Cytellect-<版>-windows-x64.zip` を保存し、[3.2](#32-zip-版のセットアップ) に進む。

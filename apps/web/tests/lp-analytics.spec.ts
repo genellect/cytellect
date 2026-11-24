@@ -80,7 +80,7 @@ test("download click uses a fixed event without sending the asset URL", async ({
   await page.goto(origin + "/");
   await expect.poll(async () => JSON.stringify(await commands(page))).toContain('"page_view"');
   // A normal Ctrl-click preserves browser behavior and leaves the LP available for inspection.
-  await page.locator('[data-lp-event="download"]').evaluate((anchor: HTMLAnchorElement) => {
+  await page.getByRole("link", { name: /Microsoft Store で入手/ }).evaluate((anchor: HTMLAnchorElement) => {
     anchor.addEventListener("click", event => event.preventDefault());
     anchor.dispatchEvent(new MouseEvent("click", { bubbles:true, ctrlKey:true }));
   });
@@ -95,7 +95,7 @@ test("a plain download click is measured and still opens the next-steps guide", 
   await page.route("https://github.com/**", route => route.fulfill({ body: "x", headers: { "content-disposition": "attachment; filename=test.bin" } }));
   await page.goto(origin + "/");
   await expect.poll(async () => JSON.stringify(await commands(page))).toContain('"page_view"');
-  await page.locator('#download a[data-lp-event="download"]').click();
+  await page.locator("#download").getByRole("link", { name: /Windows版をダウンロード/ }).click();
   await expect(page.getByRole("dialog", { name: "ダウンロードを始めました" })).toBeVisible();
   await expect.poll(async () => JSON.stringify(await commands(page))).toContain('"download_click"');
   await expect(page).toHaveURL(`${origin}/`);

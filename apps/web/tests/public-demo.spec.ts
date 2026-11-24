@@ -19,6 +19,7 @@ test("unconfigured public build makes no analysis connection",async({page})=>{
  if(release){
   await expect(page.getByRole("link",{name:/Windows版をダウンロード/})).toHaveAttribute("href",release);
   await expect(page.getByLabel("招待コード",{exact:true})).toHaveCount(0);
+  await expect(page.getByRole("link",{name:/Microsoft Store で入手/})).toHaveAttribute("href","https://apps.microsoft.com/detail/9PGKTQGV7X5C");
   await expect(page.locator("#download").getByText(/Windows 10／11（64ビット）/)).toBeVisible();
   // The LP shows no install steps; they appear only after the download starts, then live on /download.
   const download=page.locator("#download").getByRole("link",{name:/Windows版をダウンロード/});

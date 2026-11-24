@@ -18,7 +18,8 @@ export function DownloadStart({ url, installer, guide = true }: { url: string; i
     return () => removeEventListener("keydown", close);
   }, [open]);
   return <div className={lp.downloadStart}>
-    <a className={lp.primary} data-lp-event="download" href={url} rel="noreferrer" onClick={() => { if (guide) setOpen(true); }}>Windows版をダウンロード <span aria-hidden="true">↓</span></a>
+    <a className={lp.primary} data-lp-event="download" href="https://apps.microsoft.com/detail/9PGKTQGV7X5C">Microsoft Store で入手（Windows 11 x64）</a>
+    <a className={lp.secondary} data-lp-event="download" href={url} rel="noreferrer" onClick={() => { if (guide) setOpen(true); }}>Windows版をダウンロード（{installer ? "EXE" : "ZIP"}） <span aria-hidden="true">↓</span></a>
     {open && <div className={lp.nextSteps} role="dialog" aria-modal="false" aria-labelledby={title}>
       <p id={title} ref={heading} tabIndex={-1} className={lp.nextStepsTitle}>ダウンロードを始めました</p>
       {installer ? <ol>
