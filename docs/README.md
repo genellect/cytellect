@@ -41,6 +41,7 @@ Cytellect の文書の一覧。利用者は「利用ガイド」から、開発�
 - [画像の測定ビュー：要件定義書（案）](drafts/image-measurement-view/requirements.md)、[実装案](drafts/image-measurement-view/implementation.md)：画像の色分けを測定の入口にし、何を測っているかと次の一手を画面で示す。2026-11-11 承認、実装中
 - [結果の表現とデモの素材：要件定義書（案）](drafts/results-and-demo-story/requirements.md)、[実装案](drafts/results-and-demo-story/implementation.md)：統計の結果を見出しと箇条書きにし、前提の表示を 1 か所にまとめ、考察を LLM に分け、デモの素材を物語で選ぶ。2026-11-12 に方向性を承認、個々の判断は未決
 - [核・核小体の測定と比較：実装案（練り直し）](drafts/nucleolar-measurement/implementation.md)：genellect/cytellect#257 の実装案。最初の実装（genellect/cytellect#258）の却下を受けて、画面の案・公開実画像での検証・PR の分け方を決め直した。判断の必要な点は 2026-11-21 に決定済みで、次は画面の案。[独立レビューの記録](drafts/nucleolar-measurement/review-pr258.md)
+- [Windows 版の初回体験：画像の取り込みから AI との対話まで（実装案）](drafts/native-first-run/plan.md)：genellect/cytellect#284 の調査と実装案。取り込みの部分成功、登録できなかった画像の記録、画像から始める画面、AI の相談と実行の区別、進捗、更新案内を 11 本の PR に分ける。オーナーの判断待ち
 - [論文の図：目的の再検討と実装案](drafts/publication-figures/plan.md)：保存した比較から、代表画像・定量・統計の注釈・凡例がそろった図を既定で出す計画。本番とデモを同じ部品で変える。2026-11-19 にオーナーが承認し、実装中
 - [LP の刷新：実装方針と実装](drafts/lp-renewal/implementation.md)：2026-11-13 に承認された実装方針と、今のページを土台にページ全体を作り替えた実装（タブと 3D の空間、実写）。オーナーの判定待ち
 - [クラウド開発環境：実装計画（案）](drafts/cloud-development/plan.md)：オーナーの承認待ち
