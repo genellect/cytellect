@@ -106,8 +106,8 @@ Cytellect の文書の一覧。利用者は「利用ガイド」から、開発�
 
 ## 公開サイト
 
-- [LP の美術方針](lp-art-direction.md)
-- [LP Preview のデザイン基準](lp-optical-preview.md)
+- [LP のデザイン方針](lp-art-direction.md)：目的・守ること・今の表現の方向・作り方
+- [LP の美術方針（2026-11 までの版）](archive/lp-art-direction-2026-11.md)、[LP Preview のデザイン基準](lp-optical-preview.md)：過去の版の記録
 
 ## 記録
 
