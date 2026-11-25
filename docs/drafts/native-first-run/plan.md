@@ -1,21 +1,19 @@
 # Windows 版の初回体験（#284）：実装案
 
-作成：2026-11-25。genellect/cytellect#284 の実装の設計・変更箇所・順序・試験を定める。状態：実装は未着手。
+作成：2026-11-25。同日、独立レビューの指摘を反映して改訂（[§12](#12-改訂の記録)）。genellect/cytellect#284 の実装の設計・変更箇所・順序・試験を定める。状態：実装は未着手。
 
-**役割の分担**　症状、再現手順、証拠、原因の分析、合格条件は Issue に書かれており、要求の正本は Issue とする。この文書はそれらを繰り返さず、Issue の該当箇所を名前で参照する。Issue と食い違う場合は Issue が正しく、この文書を直す。
+**役割の分担**　症状、再現手順、証拠、原因の分析、合格条件は Issue に書かれており、要求の正本は Issue とする。この文書はそれらを繰り返さず、Issue の該当箇所を名前で参照する。Issue と食い違う場合は Issue が正しく、この文書を直す。Issue 自体に見つかった曖昧な点は、[§11](#11-issue-への追記の提案) にオーナーへの提案としてまとめ、この文書がどう解釈したかを併記した。
 
 ## 1. 作業を始める前に
 
-- [AGENTS.md](../../../AGENTS.md) と、[Issue #284](https://github.com/genellect/cytellect/issues/284) の全文を読む。担当する作業単位が参照する Issue の節（[§3](#3-issue-の項目と作業単位の対応)）は、添付の画面とログまで確かめる。
-- Issue の実機は Windows インストール版 `0.1.0-local.26`（コミット `9b44ce4bed61`）。Issue が引用するソースはこのコミットに固定されている。`main`（`462c288c`）では、引用された処理は同じ内容で、行番号だけが異なる（[§4.1](#41-issue-の原因分析の確認)）。この文書は行番号を使わず、ファイルと関数・部品の名前で示す。
-- Issue は実機で確かめた結果である。開発環境で追試できない項目も実装の対象とし、原因を特定できていない項目には、原因によらず症状が出ない実装と、原因を記録する実装を割り当てた（[§4.3](#43-原因を特定できていない項目)）。
-- 1 つの作業単位（[§6](#6-作業単位)）を 1 本の PR にする。終わりの条件を満たせない場合は PR の「残る課題」に書き、合格として報告しない。
-- `main` へのマージ、AI の中継（`services/proposal-worker`）のデプロイ、有料の API の呼び出し、Windows 版の配布は、オーナーが明示した場合だけ行う（[§10](#10-オーナーの許可が要る操作)）。
-- 関連する作業：genellect/cytellect#249（AI の導線とエラー文。再送の確認は #253、AI の設定は #254 で実装済み）、genellect/cytellect#257（画面で測定対象を示す。`main` に統合済み）、genellect/cytellect#261（EXE の自動配布。W11・W12 が前提にする）。
+- [AGENTS.md](../../../AGENTS.md) と、[Issue #284](https://github.com/genellect/cytellect/issues/284) の全文を読む。担当する作業単位が参照する Issue の節（[§3](#3-issue-の項目と作業単位の分担)）は、添付の画面とログまで確かめる。
+- Issue の実機は Windows インストール版 `0.1.0-local.26`（コミット `9b44ce4bed61`）。Issue が引用するソースはこのコミットに固定されている。`main`（`462c288c`）では、引用された処理は同じ内容で、行番号だけが異なる。この文書は行番号を使わず、ファイルと関数・部品の名前で示す。
+- Issue は実機で確かめた結果である。開発環境で追試できない項目も実装の対象とする（[§4.3](#43-原因を特定できていない項目)）。
+- 1 つの作業単位（[§6](#6-作業単位)）を 1 本の PR にする。終わりの条件は、作業単位ごとに [§3](#3-issue-の項目と作業単位の分担) で切り分けた範囲とする。満たせない場合は PR の「残る課題」に書き、合格として報告しない。
+- マージ先と配布の扱いは [§7](#7-順序統合配布) に従う。`main` へのマージ、AI の中継（`services/proposal-worker`）のデプロイ、有料の API の呼び出し、Windows 版の配布、公開デモのホイールと記録の作り直しは、オーナーが明示した場合だけ行う（[§10](#10-オーナーの判断と許可)）。
+- 関連する作業：genellect/cytellect#249（AI の導線とエラー文。再送の確認は #253、AI の設定は #254 で実装済み）、genellect/cytellect#257（`main` に統合済み。統合ブランチの進め方の前例）、genellect/cytellect#261（EXE の自動配布）、genellect/cytellect#286（Microsoft Store を主導線にする）。
 
 ### Issue の参照名
-
-この文書は、Issue の節を次の名前で参照する。
 
 | 参照名 | Issue の箇所 |
 |---|---|
@@ -31,78 +29,80 @@
 | 更新 | 同節の更新案内と、その「次の追試と合格条件」 |
 | 優先 1〜11 | 「優先して直したい操作」の 1〜11 |
 | 受入 1〜6 | 「受け入れテスト」の 1〜6 |
-| 画面 NN | 「Edge の操作ログとスクリーンショット」の画像（02、03、04、06、08、10、11、13〜16）と、添付の `Cytellect-284-edge-traces.zip` の画面（19、21、22、24、25） |
+| 画面 NN | 「Edge の操作ログとスクリーンショット」の画像（02、03、04、06、08、10、11、13〜16）と、添付の `Cytellect-284-edge-traces.zip` の画面（19、21、22、24、25。ZIP の中身はこの調査では未確認） |
 
 ## 2. 決定事項
 
-| | 決定 | 根拠 | 改める記述（改める作業単位） |
+| | 決定 | 状態 | 改める記述（作業単位） |
 |---|---|---|---|
-| 1 | 最初の操作を画像の追加にする。実験デザインは画像の登録後に決める | Issue（優先 1、入力 1） | `docs/requirements.md` の U01（2026-10-25 の改訂）、[群間比較の要件](../group-comparison/requirements.md)の E-01（2026-10-28）、`docs/workspace-redesign.md`、`docs/web.md`（W6） |
-| 2 | 登録できなかった画像について、手動の除外と理由の入力を求めない。そのために比較を止めない | 2026-11-25、オーナー。Issue（優先 6、巻き込みの判定） | `docs/web.md` の「An image the API rejects…」の段落、`region_cohorts.py` の `assemble`、契約試験（W2） |
-| 3 | 同じ内容の画像は 1 つの視野にまとめる。別の撮影として扱う場合だけ、研究者がその判断を記録する | Issue（対照 A の合格条件） | `docs/requirements.md` の I12（2026-10-06）（W6） |
-| 4 | AI の応答の扱いを、依頼の種類（質問、設定の変更、実行）で分ける。質問では設定を変えず、解析を実行しない | Issue（追試 A、判定 1・2、優先 8） | `docs/requirements.md` の L02（2026-10-06）（W3、W8） |
-| 5 | Issue の全項目を、追試の可否によらず実装案に含める。実装はオーナーの指示を待つ | 2026-11-25、オーナー | — |
+| 1 | 最初の操作を画像の追加にする。実験デザインは画像の登録後に決める | オーナーの決定（Issue の優先 1、入力 1） | `docs/requirements.md` の U01（2026-10-25 の改訂）、[群間比較の要件](../group-comparison/requirements.md)の E-01（2026-10-28）、`docs/workspace-redesign.md`、`docs/web.md`（W5） |
+| 2 | 登録できなかった画像について、手動の除外と理由の入力を求めない。そのために比較を止めない | オーナーの決定（2026-11-25） | `docs/web.md` の「An image the API rejects…」の段落、`region_cohorts.py` の `assemble`、契約試験（W1） |
+| 3 | Issue の全項目を、追試の可否によらず実装案に含める。実装はオーナーの指示を待つ | オーナーの決定（2026-11-25） | — |
+| 4 | 同じ内容の画像は 1 つの視野にまとめる。別の撮影として扱う場合だけ、研究者がその判断を記録する | **確認待ち**。Issue の対照 A の合格条件から導いた。オーナーの決定 I12（2026-10-06）を改める | `docs/requirements.md` の I12（W1） |
+| 5 | AI の応答によって、設定の変更と解析の実行を自動で行わない。どちらも研究者の操作で行う | **確認待ち**。Issue の追試 A・判定 1 から導いた。オーナーの決定である LLM の L02（2026-10-06。解析案を設定に入れ、代表視野の試行を自動で行う）を改める | `docs/requirements.md` の「LLM」の節の L02（W2、W7） |
 
 補足：
 
 - 決定 2 が廃止する規則は、`docs/web.md`、コードのコメント、契約試験にのみ記載があり、オーナーの決定の記録はない。
-- 決定 3 の理由：画素が完全に一致する 2 枚は、撮像のノイズを考えると別の撮影ではなく複製とみなせる。現在の既定は視野数（観測数として読まれる）を増やす側に働く。
-- 決定 4 の理由：解析の依頼に対する自動の試行（L02）は維持する価値がある。問題は、質問と設定の変更にも同じ処理を適用し、設定の検証に失敗すると文章の回答まで破棄する点にある。
-- 決定 3・4 は Issue の合格条件から導いた。オーナーが異なる判断をした場合は、W3・W6・W8 を改める。
+- 決定 4 の理由：画素が完全に一致する 2 枚は、撮像のノイズを考えると別の撮影ではなく複製とみなせる。現在の既定は視野数（観測数として読まれる）を増やす側に働く。
+- 決定 5 の理由：「まだ測らない」（判定 1）を守ることは不変条件であり、[開発の原則](../../development-principles.md#問題への対処)は不変条件を決定論的な検査で守ると定める。依頼の種類をモデルに宣言させて自動で実行する方式は、モデルの誤った宣言で破れる。したがって、宣言は表示する操作の選択にだけ使い、適用と実行は研究者の操作を条件とする。判定 2 の「実行を依頼した発言…で正常視野を実行」は、対象を示した 1 回の操作で満たす。
+- 決定 5 の代案：実行の依頼に限って自動で実行する。採る場合は、公開事例での誤実行率の合格基準を数値で定める必要がある。
+- `docs/requirements.md` は L01〜L05 の ID が「LLM」と「ローカル配布」の節で重複する。この文書は節の名前を付けて参照する。
 
-## 3. Issue の項目と作業単位の対応
+## 3. Issue の項目と作業単位の分担
 
-作業単位の「終わりの条件」は、この表の Issue の箇所に書かれた合格条件とする。
+1 つの合格条件を複数の作業単位が満たす場合は、各単位が満たす範囲を書く。作業単位の「終わりの条件」は、この表の自分の範囲とする。
 
-| Issue の項目 | 作業単位 |
+| Issue の項目 | 分担 |
 |---|---|
-| 入力 1（空の作業で入れる場所と対象が分からない。画面 02） | W4、W6 |
-| 入力 2（選択後も「視野 0」。保留の内容が見えない。画面 03、06） | W5、W6 |
-| 入力 3（追加で直前の選択が消える。画面 10、11） | W1、W6 |
-| 入力 4（2 群に単一の追加先。画面 15） | W7、W8 |
-| 入力 5（TXT とマスクを画像に数える。画面 16） | W5、W6 |
-| 入力 6（フォルダー入力） | W1、W6、W12 |
-| 対照 A（複製で視野が増える。画面 19） | W5、W6 |
-| 対照 B（表記違いで全件停止。画面 21、22） | W1、W6 |
-| 対照 C（破損 1 枚で正常な画像が群に入らない。画面 24、25） | W1 |
-| 巻き込み 1・2（部分成功の例外と群の割付） | W1 |
-| 巻き込み 3・4、巻き込みの判定（失敗票の永続化、比較の停止。画面 13、14） | W2 |
-| 復旧（接続断、401、403 の区別。画面 04） | W10 |
-| 追試 A（質問に形式エラー。相談・条件変更・実行の境界。画面 08） | W3、W8 |
-| 追試 B（指示の持ち越し、回答の消失、再送の判断） | W3 |
-| 判定 1・2 | W3、W8 |
-| 判定 3・4 | W3 |
-| 測定中 | W9 |
-| 更新 | W11 |
-| 優先 1・2 | W4、W6 |
-| 優先 3・4 | W1、W5、W6 |
-| 優先 5 | W7、W8 |
-| 優先 6 | W1、W2 |
-| 優先 7 | W2、W5、W10 |
-| 優先 8 | W8 |
-| 優先 9 | W3 |
-| 優先 10 | W9 |
-| 優先 11 | W11 |
-| 受入 1 | W4〜W6、W12 |
-| 受入 2 | W1、W6〜W8、W12 |
-| 受入 3 | W1、W2 |
-| 受入 4 | W1、W5、W6 |
-| 受入 5 | W3、W8 |
-| 受入 6 | W9〜W11 |
-| 索引の「要切り分け」（フォルダー、サービス停止、更新ボタン） | W1・W6・W12、W10、W11 |
+| 入力 1（画面 02） | W3：画面の案。W5：中央の追加、選ぶ前の見本、選んだ後に AI へ進める |
+| 入力 2（画面 03、06） | W4：役割と縮小画像の判定。W5：選んだ時点の一覧（視野、チャンネル、読み込み中、読めなかった項目） |
+| 入力 3（画面 10、11） | W1：選択の追記、成功分を二重に登録しない。W5：一覧に全件を残す、その回の選択だけを戻す、該当項目だけを再試行する |
+| 入力 4（画面 15） | W6：6 枚を 1 回で選び、表で割り付ける。W7：指示（「未処理と ActD に分けて」）による割付の案 |
+| 入力 5（画面 16） | W4：役割の判定。W5：内訳の表示、マスクの候補を一覧に残す |
+| 入力 6 | W1：正常な確定・空のフォルダー・全件対象外・取り消しの区別。W5：入れ子とドロップの試験、件数の診断。W12：手動の操作 |
+| 対照 A（画面 19） | W1：複製を視野にしない。W5：複製と対応先を一覧に示す、「別の撮影として追加」とその記録 |
+| 対照 B（画面 21、22） | W1：無関係な視野を登録する、選び直しで以前の競合を再検出しない。W5：競合する 2 枚を名前・画像・対応先つきで示し、行で差し替える |
+| 対照 C（画面 24、25） | W1：正常な視野を指定した群に入れる、破損 1 件を名前と理由つきで記録する、再読み込み後も各群の内容が同じ |
+| 巻き込み 1・2 | W1 |
+| 巻き込み 3・4、巻き込みの判定（画面 13、14） | W1：理由の入力を求めない、再起動後に元の名前で識別する、1 枚の差し替えで同じ票が解決する、比較を止めず群別の有効数と欠測を示す。W9：接続断の追試。W11：Methods と書き出しへの反映 |
+| 復旧（画面 04） | W9 |
+| 追試 A（画面 08） | W2：文章の回答の表示、理由コードの保存と表示、設定と実行を自動で行わない、空欄の送信の廃止、画像の事実。W7：依頼の種類に応じた回答と操作 |
+| 追試 B | W2 |
+| 判定 1 | W2：測定ジョブ 0・設定変更 0、回答が同じ会話欄に出る。W7：回答の内容（DRAQ/GFP、根拠、核染色の提案） |
+| 判定 2 | W7（操作の提示）。実行は研究者の操作による（決定 5） |
+| 判定 3・4 | W2 |
+| 測定中 | W8 |
+| 更新 | W10 |
+| 優先 1・2 | W3、W5 |
+| 優先 3 | W4、W5（「この画像について聞く」は、追加と同時に AI の入力欄へ移る操作として W5 に含める） |
+| 優先 4 | W1、W5 |
+| 優先 5 | W6、W7 |
+| 優先 6 | W1 |
+| 優先 7 | W1（票に名前・群・段階を記録）、W5（未追加の一覧の名前を保持）、W9（再接続） |
+| 優先 8 | W2（画像の事実、設定の表示と取り消し）、W7 |
+| 優先 9 | W2 |
+| 優先 10 | W8 |
+| 優先 11 | W10 |
+| 受入 1 | W3〜W5、W12（研究者による評価は別に追跡する） |
+| 受入 2 | W1、W5〜W7、W12 |
+| 受入 3 | W1、W11 |
+| 受入 4 | W1、W4、W5 |
+| 受入 5 | W2、W7 |
+| 受入 6 | W8〜W10 |
 
 ## 4. 調査結果
 
 ### 4.1 Issue の原因分析の確認
 
-Issue の原因分析が `main`（`462c288c`）でも成り立つことを確かめた。「再現」は、`createWorkspaceRuntime` に対する一時的な単体試験（`use-workspace-runtime.test.ts` と同じ偽の adapter。ファイル名だけで決まる経路のため 1 バイトの合成データ）で、`main` が Issue と同じ結果を返したことを指す。試験はコミットしていない。W1・W2・W6 で、修正後の期待に書き換えて追加する。
+Issue の原因分析が `main`（`462c288c`）でも成り立つことを確かめた。「再現」は、`createWorkspaceRuntime` に対する一時的な単体試験（`use-workspace-runtime.test.ts` と同じ偽の adapter。ファイル名だけで決まる経路のため 1 バイトの合成データ）で、`main` が Issue と同じ結果を返したことを指す。試験はコミットしていない。W1 で、修正後の期待に書き換えて追加する。独立レビュー（2026-11-25）も、この表の記述をコードで確かめた。
 
 | Issue の項目 | 確認 | `main` の該当箇所 |
 |---|---|---|
 | 対照 A | 再現 | `use-workspace-runtime.ts` の `importFiles`（同名のファイルに別のフォルダー名を付ける）、`grouping.ts` の `groupFiles`（視野のキーにフォルダーを含める。内容のハッシュは `duplicate_content` の警告のみ） |
 | 対照 B | 再現 | 同 `importFiles`（`added` に追加した後で `duplicate_channel` を検出し、全体を例外にする。`added` を戻さない） |
 | 対照 C、巻き込み 1・2 | 再現 | 同 `importFiles`（拒否が 1 件あると保存後に例外を投げる）、`ConnectedWorkspace.tsx` の `addToExperiment`（戻り値の ID でのみ群を保存する） |
-| 巻き込み 3 | 再現 | `use-workspace-runtime.ts` の `failedImports`（メモリー上のみ）、`refresh`、`UnfinishedImports.tsx`、`api-adapter.ts` の `registerImport`（登録票の行は `id`・`field_id`・`revision_id`・`exclusion_reason` のみ） |
+| 巻き込み 3 | 再現 | `use-workspace-runtime.ts` の `failedImports`（メモリー上のみ）、`refresh`、`UnfinishedImports.tsx`、`api-adapter.ts` の `registerImport`（票は `id`・`field_id`・`revision_id`・`exclusion_reason` のみ） |
 | 巻き込み 4 | コード | `region_cohorts.py` の `assemble`、契約試験 `tests/test_experiment_strata.py::test_api_refuses_a_stratum_cohort_while_a_field_or_failed_upload_is_unaccounted_for` |
 | 入力 1 | コード | `panel-state.ts` の `experimentSetupShown`、`ConnectedWorkspace.tsx` の開始画面の分岐 |
 | 入力 2・3 | コード | `ConnectedWorkspace.tsx` の `add`（`setPending(files)` で置き換える）、`ExperimentSetup.tsx` の保留のカード（件数のみ） |
@@ -114,30 +114,38 @@ Issue の原因分析が `main`（`462c288c`）でも成り立つことを確か
 
 ### 4.2 Issue に記載のない所見
 
-実装に影響する点を、調査で追加で確かめた。
-
 | | 所見 | 該当箇所 | 扱う作業単位 |
 |---|---|---|---|
-| 1 | 256 MiB を超えるファイルが 1 つあると、`importFiles` は取り込み全体を例外で打ち切る | `use-workspace-runtime.ts` の `importFiles` | W1 |
-| 2 | 視野のキーに取り込みごとのフォルダー名（`import-<UUID>`）が入るため、2 回に分けて選んだ同じ視野の別染色は、別の視野になる | 同 `importFiles`、`grouping.ts` の `groupFiles` | W6 |
-| 3 | 取り込み中は `intakeDisabled` が真になり、追加の選択を受け付けない | `ConnectedWorkspace.tsx` | W6 |
-| 4 | 解析案が検証で拒否されると、API は 502 を返し、解析案に含まれる文章（`rationale`、`missing_information`）も破棄する | `proposals.py` の `draft_proposal` | W3 |
-| 5 | 画像の登録後に「回答のみ」を表せる有効な解析案は、`recipe: "none"`、全チャンネルの列挙、指標と図が空、の 1 通りに限られる。プロンプトは目的の文を研究の問いの記述として扱い、質問や実行の保留を指示していない | `proposal_validation.py` の `validate_draft`、`services/proposal-worker/src/openai.ts` | W8 |
-| 6 | `recipe: "none"` の応答でも、`applyProposal` は解析の仕様（指標、図の提案、統計の方法）を書き換えて保存する | `use-workspace-runtime.ts` の `applyProposal`・`requestProposal` | W3 |
-| 7 | 完了した解析案を読み出す API がない。画面の解析案はメモリー上のみで、`refresh` は復元しない | `proposals.py`、`use-workspace-runtime.ts` | W3 |
-| 8 | 計算ワーカーが通算 3 回終了すると、ランチャーはローカルのサービス全体を停止する。再起動の回数を戻さず、停止の理由も記録しない。ほかの停止経路（ランチャーを閉じる、更新の切り替え、親プロセスの消失）も理由を記録しない | `local.py` の `WorkerSupervisor.start`、`run_local`、`_gui` | W10 |
-| 9 | セッションを作り直す API（`POST /v1/local/session`）は更新の追跡だけが使い、ほかの呼び出しは 401 でページの再読み込みを求める | `cloud-account.ts` の `reconnect`・`followUpdate`、`api.ts` | W10 |
-| 10 | 更新ボタンの押下後、`update_not_available` は状態を再取得するだけで、`update_unsupported` は案内を非表示にする。どちらも利用者に結果を示さない | `CloudAccount.tsx` の `applyUpdate` | W11 |
-| 11 | 更新ボタンの表示は、Issue では「アップデート」、`main` では「更新」 | `cloud-account.ts` の `updateNotice` | W11 |
+| 1 | 256 MiB を超えるファイルが 1 つあると、`importFiles` は取り込み全体を例外で打ち切る。API の上限は視野の合計に対して掛かる | `use-workspace-runtime.ts` の `importFiles`、`regions.py` の `upload_region_field` | W1 |
+| 2 | 登録の冪等キー（`client_upload_id`）と票は視野単位で、1 視野の複数チャンネルを 1 回の要求で送る。422 は原因のファイルを返さない | `importFiles` の `uploadKeys`、`upload_region_field` | W1、W4 |
+| 3 | `save_selection` は票の削除を受け付けない（`workspace_entries_cannot_disappear`）。票は 100 件までで、視野のない票も数に入る | `workspace_selection.py` の `save_selection`、`WorkspaceSelection` | W1 |
+| 4 | 比較の設定は、その時点の票の全体を保存する（`config["workspace_selection"]`）。票に書いた内容は比較ごとに記録として残る | `region_cohorts.py` の `assemble` | W1 |
+| 5 | ワークスペースの上限は 100 視野・2 GiB | `config.py` の `max_fields`・`max_upload_bytes` | W1、W5 |
+| 6 | 視野のキーに取り込みごとのフォルダー名（`import-<UUID>`）が入るため、2 回に分けて選んだ同じ視野の別染色は別の視野になる。既存の試験 `retains separate file identities when later images have the same filename` は、後から選んだ同名のファイルを別の視野として扱うことを確かめている | `importFiles`、`grouping.ts` の `groupFiles` | W5 |
+| 7 | 取り込み中は `intakeDisabled` が真になり、追加の選択を受け付けない | `ConnectedWorkspace.tsx` | W5 |
+| 8 | マスクと判定できるのは、API が `region_image_bit_depth_unsupported` で拒否する 32-bit 整数の画像だけである。8-bit・16-bit のマスクは画像として視野になる | `regions.py`、`api.ts` | W4、W5 |
+| 9 | 解析案が検証で拒否されると、API は 502 を返し、解析案に含まれる文章（`rationale`、`missing_information`）も破棄する | `proposals.py` の `draft_proposal` | W2 |
+| 10 | 画像の登録後に「回答のみ」を表せる有効な解析案は、`recipe: "none"`、全チャンネルの列挙、指標と図が空、の 1 通りに限られる。プロンプトは目的の文を研究の問いの記述として扱い、質問や実行の保留を指示していない | `proposal_validation.py` の `validate_draft`、`services/proposal-worker/src/openai.ts` | W7 |
+| 11 | `recipe: "none"` の応答でも、`applyProposal` は解析の仕様（指標、図の提案、統計の方法）を書き換えて保存する | `use-workspace-runtime.ts` の `applyProposal`・`requestProposal` | W2 |
+| 12 | 完了した解析案を読み出す API がない。画面の解析案はメモリー上のみで、`refresh` は復元しない | `proposals.py`、`use-workspace-runtime.ts` | W2 |
+| 13 | AI の入力欄は、AI が使える状態（クラウドへのログインと有効化、互換性の確認）でなければ無効になる。Issue は追試時の状態を記していない | `AiSettings.tsx` の `useAi`、`ConnectedWorkspace.tsx` の `sendInstruction` | W2 |
+| 14 | 計算ワーカーは終了すると 2 回まで再起動され、通算 3 回目の終了でランチャーがサービス全体を停止する。この上限は[ローカル配布の文書](../../local.md)に記載があり、試験もある。停止の理由は記録されない。この経路では、`run_local` が例外を返し、ランチャーが「Cytellectを起動できないか、実行が停止しました。」と「再試行」を表示する。Issue にその表示の記述はない | `local.py` の `WorkerSupervisor.start`、`run_local`、`main`、`_gui_failure_message` | W9 |
+| 15 | セッションを作り直す API（`POST /v1/local/session`）は、接続の画面（`WorkspaceAccess.tsx`）と更新の追跡が使う。解析の画面の API 呼び出し（`request`）は、401 でページの再読み込みを求める | `api.ts`、`cloud-account.ts` の `reconnect` | W9 |
+| 16 | 更新ボタンの押下後、`update_not_available` は状態を再取得するだけで、`update_unsupported` は案内を非表示にする。どちらも利用者に結果を示さない | `CloudAccount.tsx` の `applyUpdate` | W10 |
+| 17 | データベースの構成は Alembic で管理する（`migrations/versions` の 0001〜0012。`Store` が開くたびに `upgrade head`）。アプリ内更新の復帰（`restore_pending_database`）は、更新直後の失敗だけを戻す | `db.py`、`app_update.py` | W2 |
+| 18 | 公開デモは、開いたときに行う GET を正規表現 `OPENING` で限定し、それ以外の要求を 409 `showcase_action_not_recorded` にする。デモは API と解析パッケージをホイールにして Pyodide で動かす | `apps/web/src/lib/showcase/transport.ts`、[公開デモ](../../showcase.md) | [§8](#8-公開デモへの影響) |
 
 ### 4.3 原因を特定できていない項目
 
+原因の証拠がない項目には、症状を消す実装と原因を記録する実装だけを割り当てる。原因を仮定した構造の変更は、記録から原因が分かった後に行う。
+
 | Issue の項目 | 分かっていること | 実装での扱い |
 |---|---|---|
-| 追試 A：形式エラーの理由コード | 検証の理由コードは 51 種類あり、今回の値はどこにも保存されていない | W3 で理由コードを保存する。文章の回答は検証の結果によらず表示する |
-| 復旧：ローカルのサービスが停止した契機 | 所見 8 の経路が存在する。今回の停止がこの経路かは未確認 | W10 で全経路の停止理由を記録し、ワーカーの停止ではサービスを止めない |
-| 入力 6：フォルダーで受け取れない | 観測は Edge の拡張機能を介した操作による。手動の操作での発生は未確認 | W1 で選択の結果を必ず表示し、W6 で件数のみの診断を加え、W12 で手動の操作を確かめる |
-| 更新：ボタンの無反応 | 所見 10 の 2 つの分岐が該当しうる。どの分岐かは未確認 | W11 で全分岐に結果を表示する |
+| 追試 A：形式エラーの理由コード | 検証の理由コードは 51 種類あり、今回の値はどこにも保存されていない | W2 で理由コードを保存する。文章の回答は検証の結果によらず表示する |
+| 復旧・測定中：`Failed to fetch` | Issue は 2 回を記録している（11 月 22 日の全体測定中、11 月 23 日の画像の登録中）。後者では 8765 番に待受がなかった。所見 14 の経路は候補として弱い | W9 で全経路の停止理由を記録し、接続の案内と再接続を入れる。停止の経路そのものは変えない |
+| 入力 6：フォルダーで受け取れない | 観測は Edge の拡張機能を介した操作による。手動の操作での発生は未確認 | W1 で選択の結果を必ず表示し、W5 で件数のみの診断を加え、W12 で手動の操作を確かめる |
+| 更新：ボタンの無反応 | 所見 16 の 2 つの分岐が該当しうる。どの分岐かは未確認 | W10 で全分岐に結果を表示する |
+| 更新：`.27` への更新の失敗 | 記録は `update_install_failed` のみで、原因は分からない。修正は更新で利用者に届くため、配布の前提に関わる | W10 で段階と終了コードを記録する。W12 で実機の更新を確かめ、失敗する場合はインストーラーまたは Store からの導入を案内する |
 
 ## 5. 設計
 
@@ -147,52 +155,66 @@ Issue の原因分析が `main`（`462c288c`）でも成り立つことを確か
 2. 受け取ったファイルは、役割と状態を付けてすべて一覧に表示する。受け取った件数は、役割別の内訳の合計と一致する。
 3. 登録できなかった理由はアプリが記録する。名前、段階、理由コードを保存し、再起動後も同じ名前で表示する。
 4. AI の文章の回答は、設定の検証の結果によらず表示する。検証が止めるのは設定の適用に限る。
-5. AI は依頼された範囲だけを行う。会話はワークスペースと視野に結び付けて保存し、再表示のためにモデルを呼び直さない。
-6. 操作には、その場所に受付、進行、結果のいずれかを表示する。
-7. サービス、更新、接続の停止では、段階と理由コードを PC 内に記録する。記録に研究データ（ファイル名、指示の文、画素）を含めない。
+5. 設定の変更と解析の実行は、研究者の操作でだけ行う。AI の応答はこれらを自動で起こさない。
+6. 会話はワークスペースと視野に結び付けて保存し、再表示のためにモデルを呼び直さない。
+7. 操作には、その場所に受付、進行、結果のいずれかを表示する。
+8. サービス、更新、接続の停止では、段階と理由コードを PC 内に記録する。記録に研究データ（ファイル名、指示の文、画素）を含めない。
+9. 画像の登録の経路は 1 つとする。画面のどこから追加しても、同じ判定、同じ重複の規則、同じ結果の形を通る。
 
 科学上の規則は変えない。原画像の画素値を変更しない。測定値と統計は共通実装だけが生成する。ファイル名とフォルダーから群、実験回、染色を確定しない（E-04、I11、U02。案を提示して研究者が確定する方式はこれに反しない）。失敗した視野を記録なしに除外しない。
 
-### 5.2 受け取りの記録（`intake_items`）
+### 5.2 取り込みの判定の順序
 
-受け取ったファイルを 1 行ずつ記録する API の表を新設する。登録票（`workspace_selections`）に視野のない行を作る現在の方式（`registerImport`）は廃止する。
+受け取ったファイルは、次の順で判定する。対照 A と対照 B は同じ入力に異なる扱いを求めうるため、順序を固定する（[§11](#11-issue-への追記の提案) の 1）。
 
-| 列 | 内容 |
-|---|---|
-| `id` | UUID。登録時の `client_upload_id` に使う（同じ ID の再送は冪等。I11） |
-| `workspace_id`、`batch_id` | ワークスペースと、1 回の選択またはドロップ（取り消しの単位） |
-| `name` | 選択したフォルダーからの相対パス（255 文字以内） |
-| `bytes`、`sha256` | 大きさと内容のハッシュ |
-| `role` | `image`（測定する画像）、`label`（マスクの候補）、`other`（画像以外）、`unreadable`（読み取り不能）、`unknown`（未判定） |
-| `code` | 読み取りの理由コード（例：`region_image_bit_depth_unsupported`） |
-| `state` | `received`（未登録）、`registered`、`withdrawn`（研究者が取りやめた）、`interrupted`（送信が完了していない） |
-| `field_id`、`channel_id` | 登録先の視野とチャンネル |
-| `duplicate_of`、`separate` | 同一内容の先行する項目の ID と、「別の撮影として追加」の記録 |
-| `target` | 研究者が指定した追加先 `{run_id, group_id, sample}` |
-| `stored`、`shape`、`dtype` | W5 で追加する。API が内容を保存したか、読み取った寸法と型 |
+1. **役割**：拡張子が TIFF でなければ「対象外」。TIFF は API の共通の読み取り処理の結果で、画像・マスクの候補・読み取れない、に分ける（所見 8）。
+2. **同一内容**：SHA-256 が、同じ取り込みのほかのファイル、または登録済みの視野の入力（`image_info.inputs`）と一致するファイルは、複製として視野にしない。
+3. **組み分け**：残った画像を視野とチャンネルにまとめる（既存の `groupFiles`）。
+4. **名前の競合**：内容の異なる 2 枚が同じ視野・同じチャンネルに当たる場合に限り、その視野を判断待ちにする。
 
-- 役割は、拡張子（`other`）と、API の共通の読み取り処理の結果（`image`、`label`、`unreadable`）だけで決める。ブラウザに別の判定を持たない。
-- 導入は 2 段階とする。W2 は表と記録を導入し、内容は従来どおりブラウザから登録の API へ送る。W5 は受け取り時に内容を保存し、縮小画像と確定の API を加える。
+この順序では、対照 B の入力（a9-C01 と同じ内容の改名コピー）は 2 で複製として扱われ、競合にならない。名前の競合の試験には、内容の異なる競合（例：f9620-C01 を `BBBC007-a9_c01.tif` に改名したもの）を使う。
+
+### 5.3 取り込みの記録
+
+新しい表は作らない。登録票（`workspace_selections` の `entries`）の行を拡張する。行は現在と同じく視野単位で、`id` を `client_upload_id` に使う（所見 2）。`entries` は JSON の列のため、データベースの移行は不要である。
+
+```text
+intake: { names: [1〜4 件、各 255 文字以内],   // 視野を構成するファイルの名前（選択したフォルダーからの相対パス）
+          state: "pending" | "rejected" | "registered",
+          stage: "inspect" | "register" | null,   // 失敗した段階
+          code:  理由コード | null,
+          target: {run_id, group_id, sample} | null,   // 研究者が指定した追加先
+          separate: true | 省略 }                 // 「別の撮影として追加」の記録
+```
+
+- 画面は、登録の前に行を作り（`names`、`target`、`state: pending`）、結果を書く。拒否された場合は `state: rejected` と、API の応答の理由コードを書く。成功した場合は `registered` とし、`names` を残す。
+- 差し替えは、同じ行の `id` で再送する。視野の作成後、既存の `selection_at` が行と視野を結び付ける。行と視野は増えない。
+- 「追加をやめる」は行を削除する。`save_selection` を、視野のない行に限って削除を受け付けるよう改める（所見 3）。
+- 比較の設定は票の全体を保存する（所見 4）。`intake` の内容は、比較ごとの記録に残る。
+- **欠測の数え方**：視野がなく、`state` が `rejected` または `pending` の行を「登録できなかった画像」とし、`target` の群と実験回ごとに数える。`target` のない行は「群の指定なし」に数える。削除した行は数えない。
+- **上限**：100 視野・2 GiB（所見 5）を超える項目は、`workspace_limit` として結果に返し、行は作らない（票の上限に達しているため）。画面の一覧にはその回に限り表示する。
+- マスクの候補と対象外のファイルは、行を作らない（視野にならず、欠測でもない）。画面の一覧にだけ表示する。
 - ファイル名は研究データとして扱い、PC 内のデータベースにのみ保存する。ログ、診断、AI への送信範囲は変えない。
 
-### 5.3 取り込みの結果（`IntakeOutcome`）
+### 5.4 取り込みの結果（`IntakeOutcome`）
 
-`importFiles` の戻り値を次の形にする（W1）。W5 の確定の API も同じ形で返す。
+`importFiles` の戻り値を次の形にする（W1）。
 
 ```ts
 interface IntakeOutcome {
   registered: Array<{fieldId: string; names: string[]}>;
-  rejected:   Array<{item: string; names: string[]; code: string}>;   // API の拒否、大きさの上限
-  held:       Array<{names: string[]; reason: "duplicate_channel" | "duplicate_content"}>; // 判断待ち。未送信
-  skipped:    Array<{name: string}>;                                  // 画像以外
+  rejected:   Array<{entry: string | null; names: string[]; code: string}>;  // API の拒否、大きさの上限、作業の上限
+  held:       Array<{names: string[]; reason: "duplicate_channel"}>;         // 内容の異なる名前の競合。未送信
+  duplicates: Array<{name: string; sameAs: string}>;                         // 同一内容。視野にしない
+  skipped:    Array<{name: string}>;                                         // 画像以外
 }
 ```
 
-項目単位の失敗では例外を投げない。例外（`IntakeInterrupted`）は、作業全体を継続できない場合（応答なし、セッション切れ、ワークスペースの変更、容量の上限）に限り、その時点までの `IntakeOutcome` を保持する。
+項目単位の失敗では例外を投げない。例外（`IntakeInterrupted`）は、作業全体を継続できない場合（応答なし、セッション切れ、ワークスペースの変更）に限り、その時点までの `IntakeOutcome` を保持する。
 
-### 5.4 会話の記録（`assistant_messages`）
+### 5.5 会話の記録（`assistant_messages`）
 
-研究者の発言を 1 行ずつ記録する API の表を新設する。`proposal_drafts`（同一の依頼に対するキャッシュ）とは分ける。
+研究者の発言を 1 行ずつ記録する API の表を新設する（W2。Alembic の revision を 1 つ追加する）。`proposal_drafts`（同一の依頼に対するキャッシュ）とは分ける。
 
 | 列 | 内容 |
 |---|---|
@@ -202,184 +224,151 @@ interface IntakeOutcome {
 | `reply` | 文章の回答 |
 | `applicable`、`reasons`、`stage` | 設定を適用できるか。できない場合の理由コードと、失敗した段階 |
 | `request_id`、`draft_id` | 中継への依頼の ID と、適用できる解析案（`proposal_drafts`） |
-| `effect` | この発言でアプリが行った処理：`none`、`settings`、`run` |
+| `effect` | この発言に対して研究者が行った操作：`none`、`settings`、`run` |
 
-### 5.5 解析案の拡張
+### 5.6 AI の応答と操作
 
-解析案（`ProposalDraft`）に次を加える（W8）。依頼の種類はモデルが宣言し、アプリは宣言された値に対して定めた処理だけを行う。指示の文の語句による分岐は実装しない。
+決定 5 に従い、応答はどの場合も設定と解析を変えない。解析案に加える `intent`（W7）は、発言の下に表示する操作を選ぶためだけに使う。モデルが誤って宣言しても、研究者が操作しない限り何も起きない。
 
-| 項目 | 内容 |
+| 応答 | 発言の下に表示するもの |
 |---|---|
-| `intent` | `answer`（質問）、`settings`（設定の変更）、`run`（実行） |
-| `answer` | 文章の回答 |
-| `scope` | 実行の対象：`selected`、`all` |
-| `assignments` | 群と実験回の割付の案（視野、実験回、群の組） |
+| 文章のみ（設定を適用できない、または `intent: answer`） | 回答。適用できない理由がある場合はその理由 |
+| 設定の提案（`intent: settings`、または W7 より前の適用できる解析案） | 回答、「設定を適用」 |
+| 実行の提案（`intent: run`） | 回答、対象の視野、「適用して実行」。W7 より前は「適用して試行」（選択視野） |
 
-| `intent` | アプリの処理 | 検証 |
-|---|---|---|
-| `answer` | 文章を表示する。設定を変更せず、解析を実行しない | 設定の変更を含まないこと |
-| `settings` | 検証済みの設定を適用する。解析は実行しない | 現在の検証 |
-| `run` | 設定を適用し、対象の視野を発言に示して候補を作成する。採用は研究者が行う | 現在の検証 |
+W7 で解析案に加える項目：`intent`（`answer`・`settings`・`run`）、`answer`（文章）、`scope`（`selected`・`all`）、`assignments`（群と実験回の割付の案）。
 
-### 5.6 状態の表示
+### 5.7 状態の表示
 
 状態の語を次に統一する。文言は UC-01〜UC-07（[結果の表現とデモの素材の要件](../results-and-demo-story/requirements.md#e-ui-の文言uc)）に従う。
 
 | 対象 | 語 |
 |---|---|
-| 受け取ったファイル | 読み込み中、追加待ち、登録済み、要確認、マスクの候補、対象外、読み取れない |
+| 受け取ったファイル | 読み込み中、追加待ち、登録済み、要確認、同一内容、マスクの候補、対象外、読み取れない、再選択 |
 | 視野の解析 | 準備中、待機、検出中、候補を確認、保存済み |
-| 発言 | 送信中、回答、失敗、設定を適用、実行 |
+| 発言 | 送信中、回答、失敗、設定を適用済み、実行済み |
 | 接続 | 接続中、再接続中、停止 |
 
 ## 6. 作業単位
 
 | | 内容 | 種類 | 依存 |
 |---|---|---|---|
-| W1 | 取り込みの結果を項目ごとに返す | fix(web) | — |
-| W2 | 登録できなかった画像の記録と、比較の停止の廃止 | feat(api, web) | W1 |
-| W3 | AI の会話の保存、失敗理由の表示、応答の適用の分離 | fix(web, api) | — |
-| W4 | 画面の案 | docs | — |
-| W5 | 受け取りの API | feat(api) | W2 |
-| W6 | 画像から始める画面と取り込みの一覧 | feat(web) | W4、W5 |
-| W7 | 群と実験回の割付 | feat(web, api) | W6 |
-| W8 | AI の依頼の種類の区別 | feat(api, worker, web) | W3（割付の案は W7） |
-| W9 | 視野ごとの進捗 | fix(web) | — |
-| W10 | 接続の区別、再接続、停止理由の記録 | fix(web, api) | W1 |
-| W11 | 更新案内 | fix(web, api) | — |
-| W12 | Windows の実機での受入 | test | 配布 |
+| W1 | 取り込みの最初の修正（部分成功、競合、複製、記録、比較の停止の廃止） | fix(web, api) | — |
+| W2 | AI の最初の修正（会話の保存、失敗理由、文章の表示、操作の明示、画像の事実） | fix(web, api) | — |
+| W3 | 画面の案（新しい画面） | docs | — |
+| W4 | 取り込みの判定の API | feat(api) | W1 |
+| W5 | 画像から始める画面と取り込みの一覧 | feat(web) | W1、W3、W4 |
+| W6 | 群と実験回の割付 | feat(web, api) | W3、W5 |
+| W7 | AI の依頼の種類と割付の案 | feat(api, worker, web) | W2（割付の案は W6） |
+| W8 | 視野ごとの進捗 | fix(web) | — |
+| W9 | 接続の区別、再接続、停止理由の記録 | fix(web, api) | W1 |
+| W10 | 更新案内 | fix(web, api) | — |
+| W11 | 登録できなかった画像の Methods と書き出しへの反映 | feat(analysis, api) | W1 |
+| W12 | Windows の実機での受入 | test | 各段の配布候補 |
+
+画面の扱い：新しい画面と導線（W5、W6）は、W3 でオーナーが選んだ案だけを実装する。既存の画面の中の表示の修正（W1、W2、W8〜W10）は、W3 を待たず、PR に変更前後の画像を付ける（`cytellect-screen-check`）。
+
+API を変える作業単位（W1、W2、W4、W6、W7、W9〜W11）は、`python3 scripts/dev.py contracts` を実行し、OpenAPI と生成した型を同じコミットに含める。
 
 以下、場所の表記で `review/` は `apps/web/src/components/workspace/review/`、`lib/workspace/` は `apps/web/src/lib/workspace/`、`cytellect_api/` は `services/api/src/cytellect_api/` を指す。`ConnectedWorkspace.tsx`、`use-workspace-runtime.ts`、`api-adapter.ts` は 1 行が長いため、`grep -n` と `awk` の `substr` で該当箇所を切り出して読む。
 
-### W1 取り込みの結果を項目ごとに返す
+### W1 取り込みの最初の修正
 
-**Issue**　対照 B・C、巻き込み 1・2、入力 3、入力 6、受入 2〜4。
+索引の最優先のうち、取り込みに関する 4 行を、画面の構成を変えずに止める。
 
 **変更**
 
-1. `importFiles` の戻り値を `IntakeOutcome`（[§5.3](#53-取り込みの結果intakeoutcome)）にする。API の拒否（422）、名前の競合、大きさの上限（所見 1）では例外を投げず、該当する項目だけを `rejected` または `held` に入れる。
-2. 名前の競合では、競合した視野だけを `held` にし、ほかの視野を登録する。`held` と `rejected` の項目を `added` と `files` から除く。
+1. `importFiles` の戻り値を `IntakeOutcome`（[§5.4](#54-取り込みの結果intakeoutcome)）にする。API の拒否（422）、名前の競合、大きさの上限、作業の上限では例外を投げず、該当する項目だけを結果に入れる。
+2. 判定を [§5.2](#52-取り込みの判定の順序) の順にする。同一内容のファイルは `duplicates` に入れ、視野にしない。名前の競合は、競合した視野だけを `held` にし、ほかの視野を登録する。`held`・`rejected`・`duplicates` の項目を `added` と `files` から除く。
 3. `addToExperiment` と `placePending` は、`IntakeOutcome` と `IntakeInterrupted` のどちらでも、`registered` の視野を群に割り付ける。
-4. `pending` を追記にする。登録の完了後に解放する。
-5. 選択の結果を必ず表示する。空のフォルダー、画像を含まない選択、選択の取り消し（`input` の `cancel` イベント。直前の選択を保持する）を区別する。
-6. 項目単位の結果は「取込」の一覧に表示する。上部のエラー表示と「再読み込み」は `IntakeInterrupted` に限る。
+4. `pending` を追記にし、登録の完了後に解放する。
+5. 票の行に `intake`（[§5.3](#53-取り込みの記録)）を加える。`registerImport` は `names` と `target` を書き、拒否の後に `state` と `code` を書く。差し替えは同じ行の `id` で再送する。`save_selection` は視野のない行の削除を受け付ける。
+6. `assemble` から、視野も理由もない行による 409 `workspace_selection_incomplete` を削除する。測定値と統計の計算は変更しない。群または実験回に有効な値がない比較は、既存の検査（`region_comparison_unit_without_values` など）で保留する。
+7. 「取込」の一覧を票から描画する。登録できなかった行は、名前、理由、「差し替え」、「追加をやめる」を持つ。次を削除する：除外理由の入力欄と「まとめて除外」（`UnfinishedImports.tsx`）、統計の画面の「登録できなかった画像：n 件。比較の前に…」の表示、ランタイムの `failedImports`・`excludeImports`。
+8. 統計の画面の「n の内訳」に、登録できなかった画像の件数を群・実験回・理由ごとに表示する（数え方は [§5.3](#53-取り込みの記録)）。
+9. 選択の結果を必ず表示する。空のフォルダー、画像を含まない選択、選択の取り消し（`input` の `cancel` イベント。直前の選択を保持する）を区別する。
+10. 項目単位の結果は「取込」の一覧に表示する。上部のエラー表示と「再読み込み」は `IntakeInterrupted` に限る。
+11. `intake` のない既存の行（視野も理由もない行）は、「以前の取り込みの記録（名前なし）」として表示し、削除できるようにする。
+
+研究者が視野を対象外にする操作（`excludeField`、理由付き）は変更しない。読み取りの失敗、未対応の形式、送信の中断、研究者による除外は、`state`・`code`・既存の除外理由で区別する（優先 6）。
 
 **変更箇所**
 
 | 場所 | 変える点 |
 |---|---|
-| `lib/workspace/use-workspace-runtime.ts` の `importFiles`、`dropImport` | 戻り値、例外の条件、`added` の後始末 |
-| `review/ConnectedWorkspace.tsx` の `add`、`addToExperiment`、`placePending`、`pending` | 追記、部分成功時の割付、解放の時期 |
+| `lib/workspace/use-workspace-runtime.ts` の `importFiles`、`dropImport`、`refresh` | 戻り値、判定の順序、例外の条件、票からの一覧 |
+| `lib/workspace/api-adapter.ts` の `registerImport`、`upload`、`uploadOme` | `intake` の書き込み、差し替え、削除 |
+| `review/ConnectedWorkspace.tsx` の `add`、`addToExperiment`、`placePending`、`pending`、「取込」の一覧、統計の画面の通知 | 追記、部分成功時の割付、表示 |
 | `review/ExperimentSetup.tsx` の `received`、`place`、保留のカード | 結果の受け取りと表示 |
+| `review/UnfinishedImports.tsx` | 除外の UI を、名前・理由・差し替え・取りやめに置き換える |
+| `cytellect_api/workspace_selection.py` の `WorkspaceSelectionEntry`、`save_selection` | `intake`、視野のない行の削除 |
+| `cytellect_api/region_cohorts.py` の `assemble` | 検査の削除 |
+| `apps/web/src/lib/api.ts` の `workspace_selection_incomplete` | 文言 |
 
-**終わりの条件**　対照 B、対照 C、入力 3 の各合格条件。入力 6 の「正常な確定、空フォルダー、全件対象外を画面で区別できる」。対照 C は再読み込み後の各群の内容まで照合する。
-
-**試験**
-
-- 単体：[§4.1](#41-issue-の原因分析の確認) の再現試験（対照 B・C）を修正後の期待に書き換えて追加する。`pending` の追記。大きさの上限。
-- 単体：既存の `names a rejected file, keeps its ledger entry until it is excluded with a reason, and never resends it` は、例外ではなく `rejected` を確かめる形に改める。
-- ブラウザ：`workspace-form-first.spec.ts` に、群のセルへの混在入力を加える。
-
-**文書**　`docs/web.md`。　**レビュー**　`/code-review medium`。
-
-### W2 登録できなかった画像の記録と、比較の停止の廃止
-
-**Issue**　巻き込み 3・4、巻き込みの判定、優先 6・7、受入 3。決定 2。
-
-**変更**
-
-1. 表 `intake_items`（[§5.2](#52-受け取りの記録intake_items)）と、次の経路を加える。
-   - `POST /v1/workspaces/{wid}/intake-items`（複数の項目の作成）
-   - `GET /v1/workspaces/{wid}/intake-items`（一覧）
-   - `PATCH /v1/workspaces/{wid}/intake-items/{id}`（取りやめ、追加先、`separate`）
-2. 画面は送信の前に項目を作成し（名前、大きさ、ハッシュ、`batch_id`、`target`）、その ID を `client_upload_id` に使う。画像以外のファイルは `role: other` で記録し、内容は送らない。
-3. `upload_region_field` と OME の登録は、結果を項目に記録する。成功時は `registered` と `field_id`、読み取りの失敗（422）時は `role` と `code` を、視野の保存と同じトランザクションで書く。
-4. `assemble` から、視野も理由もない行による 409 `workspace_selection_incomplete` を削除する。比較の設定に、登録できなかった画像の件数を `target`（群、実験回）と理由コードごとに記録し、結果の「n の内訳」、Methods、書き出しに出力する。測定値と統計の計算は変更しない。
-5. 群または実験回に有効な値がない比較は、既存の検査（`region_comparison_unit_without_values` など）で保留する。この検査は変更しない。
-6. 「取込」の一覧を `GET …/intake-items` から描画する。読み取り不能の行は、名前、理由、「差し替え」、「追加をやめる」を持つ。次を削除する：除外理由の入力欄と「まとめて除外」（`UnfinishedImports.tsx`）、統計の画面の「登録できなかった画像：n 件。…」の表示、ランタイムの `failedImports`・`unfinishedImports`・`excludeImports`。
-7. 差し替えは、同じ項目の ID で再送する。視野の作成後、項目は `registered` になり、`target` の群に入る。項目と視野は増えない。
-8. 既存のワークスペースに残る「視野のない行」は読み取り専用とし、「以前の取り込みの記録（名前なし）」として表示する。処理を妨げず、新規には作成しない。
-
-研究者が視野を対象外にする操作（`excludeField`、理由付き）は変更しない。読み取りの失敗、未対応の形式、マスクの候補、送信の中断、測定の失敗、研究者による除外は、`role`・`state`・既存の除外理由で区別する（優先 6）。
-
-**変更箇所**
-
-| 場所 | 変える点 |
-|---|---|
-| `cytellect_api/db.py`、新規 `cytellect_api/intake.py` | 表と経路 |
-| `cytellect_api/regions.py` の `upload_region_field`、OME の登録 | 結果を項目に記録する |
-| `cytellect_api/region_cohorts.py` の `assemble` | 検査の削除、内訳の記録 |
-| `cytellect_api/workspace_selection.py` の `selection_at` | 視野のない行を読み取り専用として扱う |
-| `packages/analysis` の比較の契約と書き出し | 登録できなかった画像の内訳 |
-| `lib/workspace/api-adapter.ts` の `registerImport`、`upload`、`uploadOme` | 項目の作成に置き換える |
-| `lib/workspace/use-workspace-runtime.ts`、`review/UnfinishedImports.tsx`、`review/ConnectedWorkspace.tsx`、`apps/web/src/lib/api.ts` の `workspace_selection_incomplete` | 一覧の描画、除外の UI と文言の削除 |
-
-API の変更後に `python3 scripts/dev.py contracts` を実行し、OpenAPI と生成した型を同じコミットに含める。
-
-**終わりの条件**　巻き込みの判定のうち、失敗票と比較に関する部分（①②で有効 2 視野を使える、理由の入力を求めない、再起動後に元の名前で識別できる、1 枚の差し替えで同じ票が解決する、群別の有効数と欠測を示し必要な群が空の比較だけを保留する）。受入 3。
+**終わりの条件**　[§3](#3-issue-の項目と作業単位の分担) の W1 の範囲。対照 C は再読み込み後の各群の内容まで照合する。
 
 **試験**
 
-- API：項目の作成、状態の遷移、同じ ID での再送。
-- API：上記の契約試験の前半（視野のない行が 1 つあると拒否する）を、拒否せず内訳に記録する試験に書き換える。後半（層の未定の視野による拒否）は維持する。
-- 単体：[§4.1](#41-issue-の原因分析の確認) の再現試験（再読み込み後の名前）を修正後の期待に書き換えて追加する。
-- ブラウザ：`workspace-unfinished-imports.spec.ts` を、再読み込み後の名前と理由、差し替え、比較の計算まで確かめる内容に書き換える。
+- 単体：[§4.1](#41-issue-の原因分析の確認) の再現試験 4 件を、修正後の期待に書き換えて追加する。判定の順序（同一内容が競合より先）、内容の異なる競合、`pending` の追記、大きさと作業の上限。
+- 単体：既存の `names a rejected file, keeps its ledger entry until it is excluded with a reason, and never resends it` は、例外と除外ではなく `rejected` と票の内容を確かめる形に改める。
+- API：上記の契約試験の前半（視野のない行が 1 つあると拒否する）を、拒否しない試験に書き換える。後半（層の未定の視野による拒否）は維持する。`intake` の検証、視野のない行の削除。
+- ブラウザ：`workspace-form-first.spec.ts` に群のセルへの混在入力を加える。`workspace-unfinished-imports.spec.ts` を、再読み込み後の名前と理由、差し替え、比較の計算まで確かめる内容に書き換える。
 
-**文書**　`docs/web.md`（該当段落）、`docs/region-comparisons.md`（Input ledger and missingness）、`docs/methods.md`、`docs/requirements.md`（S10、I11）、`docs/generic-regions.md`（`client_upload_id`）、`SECURITY.md`・`docs/security.md`（保存する項目）。
+**文書**　`docs/web.md`（取り込みと、登録できなかった画像の段落）、`docs/region-comparisons.md`（Input ledger and missingness）、`docs/requirements.md`（I12、S10）、`docs/generic-regions.md`（`client_upload_id`）、`SECURITY.md`・`docs/security.md`（保存する項目にファイル名を加える）。
 
 **レビュー**　`/code-review high`（比較の検査）、`/security-review`（アップロードの受け入れ）。
 
-### W3 AI の会話の保存、失敗理由の表示、応答の適用の分離
+### W2 AI の最初の修正
 
-**Issue**　追試 A・B、判定 1〜4、優先 9、受入 5。決定 4。AI の中継は変更しない。
+追試 A・B を、AI の中継を変えずに止める。
 
 **変更**
 
-1. 表 `assistant_messages`（[§5.4](#54-会話の記録assistant_messages)）を加える。`draft_proposal` は受付時に発言を保存し、結果を追記する。`GET /v1/workspaces/{wid}/assistant-messages` で一覧を返す。
-2. 解析案が検証で拒否された場合も、文章を返す（所見 4）。`rationale` と `missing_information` を取得でき、文章の検査（`FORBIDDEN_TEXT`）を通る場合は、200 で `reply`、`applicable: false`、`reasons` を返す。取得できない場合に限り、現在の 502 を返す。いずれの場合も、理由コード、段階、`request_id` を発言の行に保存する。ログには指示の原文とモデルの出力を書かない（判定 3）。
+1. 表 `assistant_messages`（[§5.5](#55-会話の記録assistant_messages)）を Alembic の revision で加える。`draft_proposal` は受付時に発言を保存し、結果を追記する。`GET /v1/workspaces/{wid}/assistant-messages` で一覧を返す。
+2. 解析案が検証で拒否された場合も、文章を返す（所見 9）。`rationale` と `missing_information` を取得でき、文章の検査（`FORBIDDEN_TEXT`）を通る場合は、200 で `reply`、`applicable: false`、`reasons` を返す。取得できない場合に限り、現在の 502 を返す。いずれの場合も、理由コード、段階、`request_id` を発言の行に保存する。ログには指示の原文とモデルの出力を書かない（判定 3）。
 3. `request` は `detail.reasons` を `ApiError.reasons` に格納する。
 4. ランタイムに発言の一覧を持つ。ワークスペースを開いたときに取得する。送信時に入力欄を空にする。`newWorkspace` で一覧と入力欄を初期化する。AI のパネルは一覧から描画する。
-5. 失敗は該当の発言の下に表示する。理由コードを、研究者が修正できるもの（例：`proposal_one_nuclear_channel_required`）とサービス側のもの（例：`proposal_shape_invalid`）に分類し、前者には該当する設定を開く操作、後者には再送（既存の `retry_failed`）を付ける。送信中、受付済み、完了の状態を発言ごとに表示する（追試 B の再送の判断）。
-6. 応答を自動で適用しない。適用できる解析案には、発言の下に「設定を適用」と「適用して試行」を表示する。操作があるまで、設定の変更（所見 6 の仕様の書き換えを含む）と解析の実行を行わない。W8 の導入後、`intent: run` の発言は操作なしで進む。
+5. 失敗は該当の発言の下に表示する。理由コード 51 種類を、研究者が修正できるものとサービス側のものに分ける対応表を 1 か所に置く。前者には該当する設定を開く操作、後者には再送（既存の `retry_failed`）を付ける。送信中、受付済み、完了の状態を発言ごとに表示する。
+6. 応答で設定と解析を変えない（決定 5、[§5.6](#56-ai-の応答と操作)）。`requestProposal` を、応答の取得と、適用・試行に分ける。適用できる解析案には、発言の下に「設定を適用」と「適用して試行」を表示する。`recipe: "none"` の応答で解析の仕様を書き換えない（所見 11）。
 7. 空欄の送信を無効にする。画像だけから解析案を作る操作は、AI のパネルの「解析案を作る」に置く（送信内容は現在の空欄の送信と同じ）。
-8. `previous_goal` に、同じワークスペースの直前の発言を送る。
-9. 公開デモ（`/demo`）は記録した操作の再生であり、動作を変更しない。記録の作り直しが必要になった場合は、作業を止めてオーナーに確認する。
+8. `previous_goal` に、同じワークスペースの直前の、回答のあった発言を送る。
+9. AI のパネルの先頭に、選択した視野の事実を常に表示する：チャンネルの名前とその由来（ファイル名、OME、研究者の入力）、寸法、ビット深度、核染色の指定の有無。モデルを呼ばずに表示する（優先 8）。AI が使えない状態（所見 13）でも表示し、既存の `AiAvailabilityHint` で有効にする方法を示す。
+10. 公開デモ：発言の一覧の GET を呼ばない（所見 18）。例を選ぶ操作は、研究者の操作として、応答の取得に続けて適用と試行を行う（現在と同じ要求の列になり、記録は変わらない）。
 
 **変更箇所**
 
 | 場所 | 変える点 |
 |---|---|
-| `cytellect_api/db.py`、`cytellect_api/proposals.py` の `draft_proposal` | 表、保存、拒否時の応答、一覧の経路 |
+| `cytellect_api/db.py`、`cytellect_api/migrations/versions/`（新しい revision） | 表 |
+| `cytellect_api/proposals.py` の `draft_proposal`、`ProposalDraftResponse` | 保存、拒否時の応答、一覧の経路 |
 | `apps/web/src/lib/api.ts` の `request`、`ApiError` | `reasons` |
 | `lib/workspace/api-adapter.ts` の `draft` | 応答の形、一覧の取得 |
-| `lib/workspace/use-workspace-runtime.ts` の `requestProposal`、`applyProposal`、`newWorkspace`、`load` | 発言の一覧、適用の分離、復元 |
+| `lib/workspace/use-workspace-runtime.ts` の `requestProposal`、`applyProposal`、`newWorkspace`、`load` | 発言の一覧、取得と適用の分離、復元 |
 | `review/ConnectedWorkspace.tsx` の `instruction`、`send`、`sendInstruction`、AI のパネル、入力欄 | 新規 `review/AssistantPanel.tsx` に分離する |
 
-**終わりの条件**　判定 1 のうち「測定ジョブ 0、設定変更 0」と、文章の回答が同じ会話欄に表示されること。判定 3、判定 4。追試 B の 3 項目。回答の内容（DRAQ/GFP、根拠、提案する核染色）は W8 の終わりの条件とする。
+**終わりの条件**　[§3](#3-issue-の項目と作業単位の分担) の W2 の範囲。前提：AI が使える状態（ログイン済み、有効）で確かめる。
 
 **試験**
 
-- API：`tests/test_proposals.py` の拒否の試験を、文章を返す場合と返さない場合に拡張する。発言の保存と一覧。
-- 単体：発言の状態、`newWorkspace` での初期化、復元、自動で適用しないこと。
-- ブラウザ：作業 A → B → A、再読み込み、連打。
+- API：`tests/test_proposals.py` の拒否の試験を、文章を返す場合と返さない場合に拡張する。発言の保存と一覧。新しい revision の適用と、古い版のデータベースからの移行。
+- 単体：発言の状態、`newWorkspace` での初期化、復元、応答で設定と解析が変わらないこと、理由コードの対応表が 51 種類を網羅すること。
+- ブラウザ：作業 A → B → A、再読み込み、連打。公開デモの例の選択が現在と同じ結果になること（`showcase.spec.ts`）。
 
-**文書**　`docs/requirements.md`（L01、L02、L05）、`docs/proposal-service.md`、`docs/web.md`、`SECURITY.md`・`docs/security.md`（指示の原文を PC 内に保存する）。
+**文書**　`docs/requirements.md`（「LLM」の節の L01、L02、L05）、`docs/proposal-service.md`、`docs/web.md`、`SECURITY.md`・`docs/security.md`（指示の原文を PC 内に保存する）。
 
 **レビュー**　`/code-review medium`、`claude-api`。
 
-### W4 画面の案
+**データベース**　revision は W2 だけが追加する。ほかの作業単位が表を追加する場合は、W2 の revision の後に連ねる。古い版のアプリが新しい revision のデータベースを開いた場合の動作を、試験で確かめて `docs/local.md` に記す。
 
-**Issue**　入力 1、優先 1〜3。
+### W3 画面の案
 
-genellect/cytellect#258 は、画面の変更が説明の文で埋まり却下された。画面を変える作業（W6〜W9、W11）は、実装の前に案を `main` の画面と並べてオーナーに示す。
+genellect/cytellect#258 は、画面の変更が説明の文で埋まり却下された。新しい画面（W5、W6）は、実装の前に案を `main` の画面と並べてオーナーに示す。
 
-**作成するもの**　次の 5 画面について、`main` の画面と案を並べた画像を `docs/drafts/native-first-run/` に置く。公開画像を使い、`frontend-design` と `design:ux-copy` を用いる。
+**作成するもの**　次の 3 画面について、`main` の画面と案を並べた画像を `docs/drafts/native-first-run/` に置く。公開画像を使い、`frontend-design` と `design:ux-copy` を用いる。
 
 1. 空の作業：中央の「画像を追加」（選択、フォルダー、ドロップ）、受け付ける形式の 1 行、見本 3 点（測定する蛍光画像、同じ視野の別染色、輪郭のマスク。登録済みの公開画像と出典）
 2. 取り込みの一覧：内訳の 1 行、縮小画像・名前・チャンネル・状態の行、「追加」「画像を足す」、行ごとの取り消し、競合の行、同一内容の行
 3. 未割り当ての視野の表（実験回と群の案）
-4. AI のパネル：画像の事実、発言の一覧（状態と操作）、「解析案を作る」
-5. 視野の一覧の進捗、更新案内の「後で」
 
 次の図は検討の出発点とする。
 
@@ -395,57 +384,50 @@ genellect/cytellect#258 は、画面の変更が説明の文で埋まり却下�
 └────────────────────────────────┘
 ```
 
-**終わりの条件**　オーナーが各画面の案を選ぶ。選ばれた案を、この文書の W6〜W9 と W11 に反映する。
+**終わりの条件**　オーナーが各画面の案を選ぶ。選ばれた案を、この文書の W5 と W6 に反映する。
 
-### W5 受け取りの API
+### W4 取り込みの判定の API
 
-**Issue**　入力 2・5、対照 A、優先 3・7、受入 4。
+登録の前に、ファイルの役割と縮小画像を返す。何も保存しない。
+
+**設計の選択**　登録前のファイルを API に保存する方式（受け取りの表、内容の保存、確定の API）も検討した。その方式は登録の経路が 2 つになり、2 GiB の上限に登録前の内容が加わり、表の移行と削除の処理が要る。Issue は再読み込み後の再選択を認めている（優先 7「ブラウザーがファイル再選択を必要とする場合は、その対象名を示す」）。したがって、保存しない判定の API と、既存の登録の経路の組み合わせを採る。内容は判定と登録で 2 回送ることになる（PC 内の通信）。完全な Web アプリ化で転送量が問題になった時点で、保存する方式を再検討する。
 
 **変更**
 
-1. `POST /v1/workspaces/{wid}/intake-items/{id}/content`：1 ファイルの内容を受け取り、共通の読み取り処理（`read_tiff`、OME の読み取り）で `role`、`code`、`shape`、`dtype`、OME のチャンネル名を決めて保存する。256 MiB の上限と、共有の開発環境の制限（`CYTELLECT_UPLOAD_ALLOWLIST`）をこの時点で適用する。
-2. `GET …/intake-items/{id}/preview`：表示用の縮小画像を返す。原画素は変更しない。
-3. `POST …/intake-items/commit`：視野の構成（項目とチャンネルの対応）と `target` を受け取り、保存済みの内容から視野を作成する。内容を再送しない。結果を `IntakeOutcome` の形で返す。
-4. 受け取り時に、同じワークスペースの項目と、登録済みの視野の入力（`image_info.inputs` のハッシュ）と照合し、一致する場合に `duplicate_of` を記録する。
-5. 保存した内容をワークスペースの容量に算入する。保存期限と削除は視野の入力と同じ扱いとする。取りやめた項目の内容と、視野の作成後に不要となる重複を削除する。
+1. `POST /v1/workspaces/{wid}/intake/inspect`：1 ファイルを受け取り、共通の読み取り処理（`read_tiff`、OME の読み取り）で、役割（`image`・`label`・`unreadable`）、理由コード、寸法、型、OME のチャンネル名、SHA-256、表示用の縮小画像を返す。一時ファイルは応答の前に削除する。256 MiB の上限と、共有の開発環境の制限（`CYTELLECT_UPLOAD_ALLOWLIST`）を適用する。
+2. `label` は、32-bit 整数のラベル画像に限る（所見 8）。8-bit・16-bit の画像は内容から用途を推定せず、`image` とする。
+3. 読み取りの規則は `upload_region_field` と同じ関数を使い、判定と登録で結果が分かれないことを試験で確かめる。
 
 **変更箇所**
 
 | 場所 | 変える点 |
 |---|---|
-| `cytellect_api/intake.py`、`cytellect_api/db.py` | 経路、`stored`・`shape`・`dtype` |
-| `cytellect_api/regions.py` の `upload_region_field` | 読み取り、ハッシュ、容量の検査を共有し、保存済みの内容から視野を作成する経路を加える |
-| `cytellect_api/local_storage.py`、保存期限の処理 | 容量と削除 |
+| 新規 `cytellect_api/intake.py` | 判定の経路 |
+| `cytellect_api/regions.py` の `upload_region_field` | 読み取りと理由コードの対応を、判定と共有できる関数に切り出す |
 
-**終わりの条件**
+**終わりの条件**　[§3](#3-issue-の項目と作業単位の分担) の W4 の範囲。入力 5 の入力（原画像 4、32-bit のマスク 1）で、`image` 4、`label` 1 を返す。判定の後、ワークスペースの容量とファイルが増えていない。
 
-- 入力 5 の入力（原画像 4、32-bit のマスク 1、TXT 1）で、`image` 4、`label` 1、`other` 1 となり、合計が受け取った件数と一致する。
-- 受け取り後の再読み込みで、一覧と縮小画像が保持される。
-- 確定は内容を再送せず、同じ確定の再実行で視野が増えない。
-- 対照 A の入力で、複製に `duplicate_of` が記録される。
+**試験**　API：役割と理由コード（公開画像と、試験内で作成する破損した画像）、判定と登録の結果の一致、何も保存しないこと、上限と制限。
 
-**試験**　API：役割と理由コード（公開画像と、試験内で作成する破損した画像）、容量、削除、確定の冪等性、同一内容の検出。
+**文書**　`docs/generic-regions.md`、`docs/architecture.md`、`docs/security.md`。
 
-**文書**　`docs/generic-regions.md`、`docs/architecture.md`、`SECURITY.md`・`docs/security.md`（登録前のファイルの保存と削除）、`docs/local.md`（保存期限）。
+**レビュー**　`/code-review medium`、`/security-review`（アップロードの受け入れ）。
 
-**レビュー**　`/code-review medium`、`/security-review`。
-
-### W6 画像から始める画面と取り込みの一覧
-
-**Issue**　入力 1〜3・5・6、対照 A・B、優先 1〜4、受入 1・2・4。決定 1・3。
+### W5 画像から始める画面と取り込みの一覧
 
 **変更**
 
-1. 視野と実験デザインのないワークスペースでは、W4 で選ばれた開始の画面を表示する。ドロップは画面全体で受ける（既存の `dropFiles`）。「実験デザインから始める」を選んだ場合は、現在の流れ（群のセルからの追加）を維持する。
-2. 選択またはドロップのたびに、ファイルを受け取りの API（W5）へ送り、一覧に追加する。取り込み中も追加を受け付ける（所見 3）。行は、縮小画像、名前、チャンネル、状態（[§5.6](#56-状態の表示)）を持つ。先頭に内訳を 1 行で表示する。
-3. 視野への組み分けは、未登録の `image` 全体に対して行う。視野のキーから取り込みごとのフォルダー名を除く（所見 2）。
-4. 同一内容（`duplicate_of`）は 1 項目だけを使い、行に「同一内容：○○ と同じ」と「別の撮影として追加」を表示する。登録済みの視野と同一の場合は「登録済み」と表示する。
+1. 視野と実験デザインのないワークスペースでは、W3 で選ばれた開始の画面を表示する。ドロップは画面全体で受ける（既存の `dropFiles`）。
+2. 選択またはドロップのたびに、ファイルを判定の API（W4）へ送り、一覧に追加する。取り込み中も追加を受け付ける（所見 7）。行は、縮小画像、名前、チャンネル、状態（[§5.7](#57-状態の表示)）を持つ。先頭に内訳を 1 行で表示する（画像以外は拡張子で「対象外」）。
+3. 組み分けは、一覧にある未登録の画像の全体に対して [§5.2](#52-取り込みの判定の順序) の順で行う。選択の回が異なっても、同じ視野の別染色は 1 つの視野にまとまる。登録済みの視野と同じ名前で内容の異なるファイルは、現在と同じく別の視野とし、行にその旨を表示する（所見 6）。登録済みの視野へのチャンネルの追加は扱わない（[§9](#9-残る制約と危険)）。
+4. 同一内容の行は「同一内容：○○ と同じ」と「別の撮影として追加」を持つ。選んだ場合だけ視野にし、票に `separate` を記録する。登録済みの視野と同一の場合は「登録済み」と表示する。
 5. 名前の競合は該当の行だけを「要確認」にし、2 枚を名前と縮小画像で並べて、使用する 1 枚を選ばせる。ほかの行は追加できる。
-6. マスクの候補には、寸法が一致する視野を表示する。領域として使う操作は含めない。染色と生物学的な役割を推定しない。
-7. 「追加」で確定（W5）し、最初の視野を「画像」で開く。行ごとの取り消しと、直前の追加（`batch_id`）の取り消しを設ける。
-8. フォルダーは、`webkitdirectory` の `input` とドロップの両方で、入れ子を含めて受ける。
-9. 開発の起動時に限り、取り込みの診断をコンソールに出力する。内容は件数のみ（`change` の発火、`files.length`、相対パスの件数、受け取った件数）とし、名前と内容は出力しない（入力 6 の切り分け手順 ②）。
-10. `pending`、`ExperimentSetup.tsx` の保留のカード、「受け取った画像の追加先」を削除する。
+6. マスクの候補には、寸法が一致する視野を表示する。領域として使う操作は含めない。画像として登録された 8-bit・16-bit のマスクは、既存の「補助画像」の指定（`saveFieldLink`）で測定の対象から外せる。染色と生物学的な役割を推定しない。
+7. 「追加」は、ランタイムの `importFiles`（W1）で登録し、最初の視野を「画像」で開く。「この画像について聞く」は、追加に続けて AI の入力欄に移る。行ごとの取り消しと、直前の選択の取り消しを設ける。
+8. 群のセルからの追加（実験デザインを先に作った場合）も同じ一覧を通し、追加先をあらかじめ入れる。登録の経路を 1 つに保つ（原則 9）。
+9. 未追加の一覧の名前を、ワークスペースごとにブラウザに保持する。再読み込み後は「再選択」の行として表示する（優先 7）。
+10. フォルダーは、`webkitdirectory` の `input` とドロップの両方で、入れ子を含めて受ける。開発の起動時に限り、取り込みの診断をコンソールに出力する。内容は件数のみ（`change` の発火、`files.length`、相対パスの件数、一覧の件数）とする（入力 6 の切り分け手順 ②）。
+11. `pending`、`ExperimentSetup.tsx` の保留のカード、「受け取った画像の追加先」を削除する。
 
 **変更箇所**
 
@@ -454,24 +436,22 @@ genellect/cytellect#258 は、画面の変更が説明の文で埋まり却下�
 | 新規 `review/EmptyStart.tsx`、`review/IntakeList.tsx` | 開始の画面、取り込みの一覧 |
 | `review/panel-state.ts` の `experimentSetupShown` | 空の作業で実験デザインを表示する条件 |
 | `review/ConnectedWorkspace.tsx` の `add`、開始画面の分岐、`dropFiles`、`intakeDisabled`、ファイルの `input` | 一覧への接続、`pending` の削除 |
-| `review/ExperimentSetup.tsx` の実験デザインの選択、保留のカード、`pendingTarget` | 削除と整理 |
-| `lib/workspace/grouping.ts` の `groupFiles`、`lib/workspace/dropped-files.ts` | 組み分けのキー、フォルダーの読み取り |
+| `review/ExperimentSetup.tsx` の実験デザインの選択、保留のカード、`pendingTarget`、`received` | 削除と、一覧への接続 |
+| `lib/workspace/use-workspace-runtime.ts`、`lib/workspace/grouping.ts` の `groupFiles`、`lib/workspace/dropped-files.ts` | 一覧の状態、組み分け、フォルダーの読み取り |
 
-**終わりの条件**　入力 1・2・3・5 の各「修正後の判定」「合格条件」。入力 6 の合格条件。対照 A・B の合格条件。受入 1 のうち自動で確かめられる部分（研究者による評価は W12 の後に別途行う）。
+**終わりの条件**　[§3](#3-issue-の項目と作業単位の分担) の W5 の範囲。
 
 **試験**
 
-- 単体：内訳の合計、選択の回をまたぐ組み分け、同一内容、競合、取り消し。[§4.1](#41-issue-の原因分析の確認) の再現試験（対照 A）を修正後の期待に書き換えて追加する。
-- ブラウザ：入れ子のフォルダーの入力、ドロップ、4 枚＋1 枚、対照 A・B、再読み込み。`workspace-form-first.spec.ts` を新しい流れに書き換える。
+- 単体：内訳の合計、選択の回をまたぐ組み分け、同一内容と「別の撮影」、内容の異なる競合、取り消し、再読み込み後の「再選択」。既存の `retains separate file identities…` は維持する。
+- ブラウザ：入れ子のフォルダーの入力、ドロップ、4 枚＋1 枚、対照 A、内容の異なる競合、再読み込み。`workspace-form-first.spec.ts` を新しい流れに書き換える。
 - `cytellect-screen-check`。
 
-**文書**　`docs/requirements.md`（U01、I12）、[群間比較の要件](../group-comparison/requirements.md)（E-01）、`docs/workspace-redesign.md`、`docs/web.md`、`docs/quickstart.ja.md`、`docs/install-windows.ja.md`、`docs/usability-tasks.ja.md`。
+**文書**　`docs/requirements.md`（U01）、[群間比較の要件](../group-comparison/requirements.md)（E-01）、`docs/workspace-redesign.md`、`docs/web.md`、`docs/quickstart.ja.md`、`docs/install-windows.ja.md`、`docs/usability-tasks.ja.md`。
 
 **レビュー**　`frontend-design`、`design:ux-copy`、`cytellect-screen-check`、`/code-review medium`。
 
-### W7 群と実験回の割付
-
-**Issue**　入力 4、優先 5、受入 2。
+### W6 群と実験回の割付
 
 **変更**
 
@@ -480,7 +460,7 @@ genellect/cytellect#258 は、画面の変更が説明の文で埋まり却下�
 3. 案を作れない行は空欄とし、その行だけ入力を求める。
 4. 番号だけのチャンネル（C01、C02）から、染色と生物学的な役割を決めない。
 5. 実験デザインのないワークスペースでは、案の群の数から「1 画面」「2 画面」を提示し、研究者が選ぶ。
-6. 再読み込み後も案を作れるよう、視野の記録にフォルダーの相対パスを保存する（現在は `displayNameOf` が表示名の末尾だけを保存する）。
+6. 再読み込み後も案を作れるよう、フォルダーの相対パスを保持する。票の `intake.names` が相対パスを持つため、新しい保存先は要らない。
 
 案の提示は確定ではなく、E-04、I11、U02 に反しない。
 
@@ -491,9 +471,8 @@ genellect/cytellect#258 は、画面の変更が説明の文で埋まり却下�
 | 新規 `review/UnassignedFields.tsx`、`review/ExperimentSetup.tsx` | 表と一括の割付 |
 | `lib/workspace/experiment-design.ts` の `assignFields` | 複数の追加先への一括の割付 |
 | `lib/workspace/grouping.ts` の `candidates` | 割付の案の規則 |
-| `lib/workspace/api-adapter.ts` の `displayNameOf`、`cytellect_api/regions.py` | 相対パスの保存 |
 
-**終わりの条件**　入力 4 の合格条件のうち、指示による割付を除く部分（6 枚を 1 回で選び、2 視野の縮小画像を確かめ、あいまいな行だけを確認し、確定時に同じ実験回・2 群各 1 視野・各 3 チャンネルが残る）。対照と処理を同じ群に入れる操作が 1 回の操作で確定しないこと。指示による割付（「未処理と ActD に分けて」）は W8 の終わりの条件とする。
+**終わりの条件**　[§3](#3-issue-の項目と作業単位の分担) の W6 の範囲。対照と処理を同じ群に入れる操作が、1 回の操作で確定しない。
 
 **試験**　単体：案の規則（フォルダー、名前、あいまいな場合）、一括の割付。ブラウザ：DS6a の 6 枚 → 案 → 確定 → 再読み込み。
 
@@ -501,17 +480,16 @@ genellect/cytellect#258 は、画面の変更が説明の文で埋まり却下�
 
 **レビュー**　`frontend-design`、`cytellect-screen-check`、`/code-review medium`。
 
-### W8 AI の依頼の種類の区別
-
-**Issue**　追試 A（相談・条件変更・実行の境界）、判定 1・2、入力 4（指示による割付）、優先 5・8、受入 2・5。決定 4。
+### W7 AI の依頼の種類と割付の案
 
 **変更**
 
-1. 解析案に `intent`、`answer`、`scope`、`assignments` を加え、[§5.5](#55-解析案の拡張) の表のとおりに処理する。
-2. `assignments` は、登録済みの視野と保存した実験デザインに対して検証し、W7 の表に案として表示する。保存は研究者の「案を適用」による。
-3. AI のパネルの先頭に、選択した視野の事実を常に表示する：チャンネルの名前とその由来（ファイル名、OME、研究者の入力）、寸法、ビット深度、核染色の指定の有無。モデルを呼ばずに表示する（優先 8「手元のチャンネル情報から答え」）。
-4. 発言の下に、対象と状態、「解析設定を表示」、「AI による設定変更を戻す」（既存の `showSettings`、`undoProposal`）を置く。
-5. プロンプトと解析案の契約の版を上げる。配布済みの版の依頼には、従来の版で応答する。
+1. 解析案に `intent`、`answer`、`scope`、`assignments` を加える（[§5.6](#56-ai-の応答と操作)）。`intent` は表示する操作の選択にだけ使う。
+2. `intent: answer` の検証は、設定の変更を含まないことを確かめる。現在は `recipe: "none"` と全チャンネルの列挙の 1 通りしか通らない（所見 10）ため、質問への回答が検証で落ちない形を契約に定める。
+3. `intent: run` の発言には、対象の視野（`scope`。対象外にした視野と登録できなかった項目を除く）を示し、「適用して実行」を置く。実行は候補の作成までで、採用は研究者が行う。
+4. `assignments` は、登録済みの視野と保存した実験デザインに対して検証し、W6 の表に案として表示する。保存は研究者の「案を適用」による。
+5. 発言の下に、対象と状態、「解析設定を表示」、「AI による設定変更を戻す」（既存の `showSettings`、`undoProposal`）を置く。
+6. プロンプトと解析案の契約の版を上げる。配布済みの版の依頼には、従来の版で応答する。
 
 **変更箇所**
 
@@ -520,35 +498,33 @@ genellect/cytellect#258 は、画面の変更が説明の文で埋まり却下�
 | `packages/analysis/src/cytellect_analysis/proposal_contracts.py` の `ProposalDraft`、`proposal_validation.py` の `validate_draft` | 項目の追加、`intent` ごとの検証 |
 | `cytellect_api/proposals.py` | 契約の版、`assignments` の検証 |
 | `services/proposal-worker/src/` の `openai.ts`・`anthropic.ts`（プロンプト）、`schema.ts`・`contract.json`、`index.ts`（版の扱い） | 新しい版 |
-| `lib/workspace/use-workspace-runtime.ts` の `requestProposal`、`applyProposal`、`review/AssistantPanel.tsx` | `intent` ごとの処理、画像の事実 |
+| `lib/workspace/use-workspace-runtime.ts`、`review/AssistantPanel.tsx` | `intent` ごとの表示 |
 
-**終わりの条件**　判定 1・2。入力 4 の合格条件のうち、指示による割付。受入 5 の会話（「チャンネルを教えて、まだ測らない」→「核染色は DRAQ」→「正常な全視野で核を数えて」）。
+**終わりの条件**　[§3](#3-issue-の項目と作業単位の分担) の W7 の範囲。どの `intent` でも、研究者が操作するまで解析のジョブと設定の変更が 0 件である。
 
 **試験**
 
 - API：偽の提供元による `answer`、`settings`、`run`、`assignments`、形の誤り、チャンネルの不一致。
-- 単体：`answer` で解析のジョブと設定の変更がともに 0 件。
+- 単体：すべての `intent` で、応答だけでは解析のジョブと設定の変更が 0 件。
 - 中継：契約とプロンプトの版。
-- モデルによる評価は公開画像の事例で行う（有料。オーナーの許可が要る）。
+- モデルによる評価は公開画像の事例で行う（有料。オーナーの許可が要る）。観点は、質問に `answer` で答える割合と、回答の内容（チャンネル、根拠、必要な確認）。
 
-**文書**　`docs/requirements.md`（L01、L02）、`docs/proposal-service.md`、`docs/proposal-deployment.md`、[LLM による解析支援の見直し](../llm-assistant/plan.md)、送信範囲が変わる場合は `SECURITY.md`。
+**文書**　`docs/requirements.md`（「LLM」の節の L01、L02）、`docs/proposal-service.md`、`docs/proposal-deployment.md`、[LLM による解析支援の見直し](../llm-assistant/plan.md)、送信範囲が変わる場合は `SECURITY.md`。
 
 **レビュー**　`claude-api`、`/code-review medium`。
 
-**配布の順序**　中継を先にデプロイし、その後に Windows 版を配布する（[順序](../../proposal-deployment.md#order-of-worker-and-client-releases)）。
+**順序**　中継のデプロイが、クライアントの変更の `main` へのマージより先である（[§7](#7-順序統合配布)）。
 
-対話と道具による研究アシスタント（[見直し案の段階 2](../llm-assistant/plan.md#5-進め方)）は別の計画とする。W3 の会話の表と、この作業の `intent` は、段階 2 でも使用する。
+対話と道具による研究アシスタント（[見直し案の段階 2](../llm-assistant/plan.md#5-進め方)）は別の計画とする。W2 の会話の表と、この作業の `intent` は、段階 2 でも使用する。
 
-### W9 視野ごとの進捗
-
-**Issue**　測定中、優先 10、受入 6。
+### W8 視野ごとの進捗
 
 **変更**
 
 1. 実行のステップ（`field_id`、`target`、`state`）から視野ごとの状態（準備中、待機、検出中と対象の領域、候補を確認、保存済み）を導出し、視野の一覧に表示する。採用前の候補がある視野は「候補を確認」とする。
 2. ヘッダーの進捗は視野を単位とする（例：「視野 1/2：核小体を検出中」）。ステップ数を表示する場合は単位を付ける。
 3. 設定の変更の直後と「測定」の操作の直後から、対象の視野に「準備中」を表示する。
-4. 進捗の取得中の通信の失敗では、直ちに失敗としない。解析は API 側で継続するため、間隔を空けて再取得し、回復しない場合は W10 の案内に渡す。保存済みの視野と再試行の対象を表示する。同じ依頼は既存の `request_id` により重複して起動しない。
+4. 進捗の取得中の通信の失敗では、直ちに失敗としない。解析は API 側で継続するため、間隔を空けて再取得し、回復しない場合は W9 の案内に渡す。保存済みの視野と再試行の対象を表示する。同じ依頼は既存の `request_id` により重複して起動しない。
 5. 1 視野の失敗で残りを止めない。失敗した視野に「再試行」を置く。
 
 **変更箇所**
@@ -565,9 +541,7 @@ genellect/cytellect#258 は、画面の変更が説明の文で埋まり却下�
 
 **文書**　`docs/web.md`。　**レビュー**　`/code-review medium`、`cytellect-screen-check`。
 
-### W10 接続の区別、再接続、停止理由の記録
-
-**Issue**　復旧、巻き込みの判定（接続断の追試）、優先 7、受入 6。索引の「サービス停止」。
+### W9 接続の区別、再接続、停止理由の記録
 
 **変更**
 
@@ -576,12 +550,12 @@ genellect/cytellect#258 は、画面の変更が説明の文で埋まり却下�
    | 失敗 | 判定 | 表示と処理 |
    |---|---|---|
    | 応答なし | `fetch` の失敗 | 「ローカルのサービスに接続できません」と「再接続」。間隔を空けて自動でも確認する。ランチャーの開き方を 1 行で示す |
-   | セッション切れ | 401 `session_required` | `POST /v1/local/session` でセッションを作り直し、同じ要求を 1 回再試行する（所見 9） |
+   | セッション切れ | 401 `session_required` | `POST /v1/local/session` でセッションを作り直し、同じ要求を 1 回再試行する（所見 15） |
    | 開き方の誤り | 403 `local_origin_required` | デスクトップの「Cytellect」から開く案内 |
 
-2. 再接続の後、受け取りの記録と視野を照合する。登録済みの項目は「登録済み」、送信が完了していない項目は `interrupted` とする。内容が API にある場合（W5）は続行し、ない場合は名前を示して再選択を求める。登録は同じ ID で冪等である。
+2. 再接続の後、票（`intake`）と視野を照合する。視野のある行は「登録済み」、`pending` のままの行は「再選択」として名前を表示する。登録は同じ `id` で冪等である。
 3. サービスの全停止経路（ランチャーを閉じる、更新の切り替え、ワーカーの停止、ワーカーの起動失敗、親プロセスの消失、未処理の例外）で、理由コードと時刻を PC のデータフォルダーに記録する。次の起動時、前回が異常な停止であれば 1 行で知らせる。
-4. ワーカーの停止でサービス全体を止めない（所見 8）。再起動の回数は、ワーカーが一定時間正常に動作した後に 0 に戻す。再起動できない場合、API は応答を続け、解析の受付だけを `local_worker_stopped` で拒否する。画面は理由と「ワーカーを再起動」を表示する。
+4. 停止の経路そのもの（ワーカーの再起動の上限など）は変えない。上限は文書と試験のある設計であり（所見 14）、今回の停止の原因である証拠がない。3 の記録と W12 の結果から原因が分かった時点で、別の変更として扱う。
 
 **変更箇所**
 
@@ -590,41 +564,38 @@ genellect/cytellect#258 は、画面の変更が説明の文で埋まり却下�
 | `apps/web/src/lib/api.ts` の `request`、`session_required` の文言 | 再接続と再試行 |
 | `lib/workspace/use-workspace-runtime.ts` の `message`、`reload` | 失敗の分類、照合 |
 | `review/ConnectedWorkspace.tsx` のエラー表示と「再読み込み」 | 種類ごとの案内 |
-| `cytellect_api/local.py` の `WorkerSupervisor.start`、`run_local`、`_gui` | 停止理由の記録、再起動の数え方、起動時の通知 |
+| `cytellect_api/local.py` の `WorkerSupervisor.start`、`run_local`、`_gui`、`main` | 停止理由の記録、起動時の通知 |
 
-**終わりの条件**　巻き込みの判定の「接続断の追試は『未送信・送信後の応答消失・再接続・401・403』を分け、再接続時に既存の登録結果を照合する」。取り込みの途中でサービスを停止して再起動した後、登録済みの視野が重複せず、残りの項目を続行でき、一覧が保持される。停止理由が記録され、次の起動で表示される。記録に研究データを含まない。
+**終わりの条件**　巻き込みの判定の「接続断の追試は『未送信・送信後の応答消失・再接続・401・403』を分け、再接続時に既存の登録結果を照合する」。取り込みの途中でサービスを停止して再起動した後、登録済みの視野が重複せず、残りの項目が名前つきで表示される。停止理由が記録され、次の起動で表示される。記録に研究データを含まない。
 
 **試験**
 
 - 単体：3 種類の判定、再試行、照合。未送信、送信後の応答消失、再接続、401、403 を個別に通す。
-- API：停止理由の記録、再起動の数え方（`tests/test_local.py`）。
-- Windows の CI（`windows-installer`）：ワーカーの停止後も API が応答する。
+- API：全停止経路の理由の記録（`tests/test_local.py`）。
+- Windows の CI（`windows-installer`）：停止理由が記録され、次の起動で読める。
 
 **文書**　`docs/local.md`（停止と再開）、`docs/install-windows.ja.md`、`docs/web.md`。
 
 **レビュー**　`/code-review medium`、`/security-review`（セッション）。
 
-### W11 更新案内
-
-**Issue**　更新、優先 11、受入 6。索引の「更新ボタン無反応」。
+### W10 更新案内
 
 **変更**
 
-1. 通常の案内に「後で」を加える。操作後は、次の起動まで表示しない。
+1. 通常の案内に「後で」を加える。操作後は、ランチャーを次に起動するまで表示しない。起動の識別は API が返す値で行う（ブラウザのタブごとの記憶では、タブを開き直すと再び表示されるため）。
 2. 操作の直後から、同じ場所に段階を表示する：受付、ダウンロード中、インストール中、再起動中、完了。
-3. 結果を表示しない 2 つの分岐（所見 10）に、1 行の結果を表示する：「新しい版はありません」、「この PC ではアプリ内から更新できません」と代替の手順。
+3. 結果を表示しない 2 つの分岐（所見 16）に、1 行の結果を表示する：「新しい版はありません」、「この PC ではアプリ内から更新できません」と代替の手順。
 4. 解析中の操作では「解析が終わってから更新してください」を表示し、解析を止めない（現在の動作）。二重の操作と別タブで進行中の場合は、進行中の更新の段階を表示する。更新後の再開先を表示する（優先 11）。
 5. 失敗の段階を記録する。`run_installer` は段階（起動、タイムアウト、終了）と終了コードを返す。失敗コードを `update_installer_launch_failed`、`update_installer_timeout`、`update_install_failed`（終了コード付き）に分け、状態の記録に `stage` と `exit_code` を残す。インストーラーのログは PC の更新フォルダーに保存し、外部へ送らない。
 6. Microsoft Store の版での案内の表示条件を、コードと試験で確かめる。Store が更新を担う版では、この案内を表示しないか、Store への案内だけを表示する。
-7. ボタンの語を 1 つに統一する（所見 11）。配布版 `0.1.0-local.26` の表示を確かめたうえで決める。
 
 **変更箇所**
 
 | 場所 | 変える点 |
 |---|---|
 | `apps/web/src/components/workspace/CloudAccount.tsx` の `UpdateBanner`（`applyUpdate`） | 「後で」、全分岐の結果表示、段階の表示 |
-| `apps/web/src/lib/cloud-account.ts` の `updateNotice`、文言 | 段階と語 |
-| `cytellect_api/app_update.py` の `run_installer`、`UpdateService._run`、状態の記録 | 失敗の段階、終了コード、ログ |
+| `apps/web/src/lib/cloud-account.ts` の `updateNotice`、文言 | 段階 |
+| `cytellect_api/app_update.py` の `run_installer`、`UpdateService._run`、状態の記録 | 失敗の段階、終了コード、ログ、起動の識別 |
 
 **終わりの条件**　更新の「次の追試と合格条件」（「後で」、解析中、二重クリック、別タブで進行中、起動拒否、タイムアウト、非ゼロ終了を個別に通す）。
 
@@ -634,69 +605,158 @@ genellect/cytellect#258 は、画面の変更が説明の文で埋まり却下�
 
 **レビュー**　`/code-review medium`、`/security-review`（更新）。
 
+### W11 登録できなかった画像の Methods と書き出しへの反映
+
+W1 は、登録できなかった画像を票と比較の設定に記録し、画面の「n の内訳」に表示する。この作業は、同じ内訳を Methods の文と書き出し（CSV、再現用の束）に加える。
+
+**変更**　比較の結果の契約に、登録できなかった画像の件数（群、実験回、理由コードごと）を加え、Methods と書き出しに出力する。値の計算は変更しない。
+
+**変更箇所**　`packages/analysis` の比較の契約と書き出し、`cytellect_api/region_cohorts.py`、統計の画面の表示。
+
+**終わりの条件**　受入 3 の「群ごとの欠測・有効数が解析記録に残る」のうち、Methods と書き出しの部分。既存の保存済みの結果（この項目を持たない）が読める。
+
+**試験**　API と解析：内訳の出力、既存の結果の読み込み、再現（replay）の一致。
+
+**文書**　`docs/region-comparisons.md`、`docs/methods.md`、`docs/statistics.md`。
+
+**レビュー**　`/code-review high`。
+
+**公開デモ**　`packages/analysis` を変えるため、デモのホイールの作り直しが要る（[§8](#8-公開デモへの影響)）。
+
 ### W12 Windows の実機での受入
 
-**Issue**　受入 1〜6、入力 6（切り分け手順 ①）、更新の「次の追試と合格条件」。
+開発環境の試験の合格を、実機の合格として報告しない。段（[§7](#7-順序統合配布)）ごとに、配布候補を Issue と同じ環境（インストール版、Edge）に導入して確かめる。主導線である Microsoft Store の版（#286）でも同じ項目を確かめる。入力は Issue の「入力の用意と再現の約束」の公開画像とする。
 
-開発環境の試験の合格を、実機の合格として報告しない。配布候補を Issue と同じ環境（インストール版、Edge）に導入し、Issue の「入力の用意と再現の約束」の公開画像で次を行い、画面と時刻を記録する。
-
-1. 受入 1〜6。
-2. フォルダー：Edge の通常のピッカーで、原画像のサブフォルダー（4 件）と親フォルダー（10 件）の選択、取り消し、確定。同じ 2 つのドラッグ＆ドロップ。
-3. 接続：取り込みの途中でランチャーを閉じて再起動する。再起動前から開いていたタブで操作する。
-4. 更新：W11 の終わりの条件の 7 場面。
-5. 再起動後に、群の内容、登録できなかった画像の名前、会話が保持されることを照合する。
+| 段 | 確かめる項目 |
+|---|---|
+| 段 1 の後 | 対照 A・B・C、巻き込みの判定、追試 A・B、判定 1・3・4、受入 3。再起動後に、群の内容、登録できなかった画像の名前、会話が保持されること。アプリ内更新が成功すること |
+| 段 2 の後 | 受入 1・2・4。フォルダー：Edge の通常のピッカーで、原画像のサブフォルダー（4 件）と親フォルダー（10 件）の選択、取り消し、確定。同じ 2 つのドラッグ＆ドロップ。接続：取り込みの途中でランチャーを閉じて再起動する。再起動前から開いていたタブで操作する |
+| 段 3 の後 | 受入 5・6。更新：W10 の終わりの条件の 7 場面 |
 
 **終わりの条件**　受入の記録（`docs/local-release-<版>.md`）に、合格、失敗、未実施を分けて記載する。受入 1 の研究者による評価（迷って戻った箇所と支援の回数）は、未完了の受入条件として [roadmap](../../roadmap.md) で追跡する。
 
-## 7. 順序と並行
+## 7. 順序、統合、配布
 
-```text
-W1 ──► W2 ──► W5 ──► W6 ──► W7 ──┐
- └───► W10          ▲            ├──► W12
-W4 ─────────────────┘            │
-W3 ──────────────► W8 ───────────┤
-W9 ──────────────────────────────┤
-W11 ─────────────────────────────┘
-```
+### 段
 
-- 最初に W1 と W3 に着手する。どちらも依存がなく、索引の最優先の項目に対応する。
-- W1、W3、W4、W9、W11 は並行できる。
-- `ConnectedWorkspace.tsx` は W1、W3、W6、W9 が変更する。並行する場合は担当を分け、W1、W3、W9、W6 の順に `main` へ取り込む。W3 は AI のパネルを、W6 は取り込みを別の部品に分離し、同じ行の変更を減らす。
-- W3 と W8 は同じ配布に含めることを目標とする。W8 の中継のデプロイが遅れる場合は、W3 だけで配布できる。その場合、解析の依頼にも「適用して試行」の操作が 1 回必要になる。
-- 各作業単位は、[CLAUDE.md](../../../CLAUDE.md#目的別のスキル) の表に該当するスキルを使い、`cytellect-verify`、画面を変えた場合は `cytellect-screen-check` の後に、`cytellect-pr` で PR を作成する。
+| 段 | 作業単位 | 止まる症状 |
+|---|---|---|
+| 1 | W1、W2 | 索引の最優先 5 行 |
+| 2 | W3 → W4 → W5 → W6、W8、W9、W10 | 入力 1〜6、測定中、復旧、更新 |
+| 3 | W7、W11 | 判定 1・2 の回答の内容、指示による割付、Methods と書き出し |
 
-## 8. 共通の検証
+- 最初に W1 と W2 に着手する。どちらも依存がない。
+- W1、W2、W3、W8、W10 は並行できる。
+- `ConnectedWorkspace.tsx` は W1、W2、W5、W8 が変更する。並行する場合は担当を分け、W1、W2、W8、W5 の順に取り込む。W2 は AI のパネルを、W5 は取り込みを別の部品に分離し、同じ行の変更を減らす。
 
-- 試験と画面の確認には、登録済みの公開画像（BBBC007、BBBC013、BBBC039、DS6a）を使う。Issue の入力と同じである。
-- 破損した画像は、Issue と同じ方法（公開 BBBC013 の `A01-DRAQ.tif` の先頭 32 バイト）で試験内に作成する。共有の開発環境の制限（`CYTELLECT_UPLOAD_ALLOWLIST`）が有効な場合、この画像は読み取りの前に拒否されるため、この試験は制限のない設定で実行する。
-- ファイル名だけで結果が決まる経路の単体試験は、既存の試験と同じ最小のバイト列を使い、試験名に「合成」と明記する（[開発の原則](../../development-principles.md#研究データと検証)の条件 1〜4 に該当する）。
-- 公開デモ（`/demo`）は画像の追加を受け付けない。W1、W2、W5〜W7 はデモの動作を変えない。W3、W8、W9 は共通の部品を変更するため、各 PR でデモの記録に影響しないことを確かめる。
+### 統合と配布
 
-## 9. 残る危険
+EXE の自動配布（#261、[有効化の手順](../../release-signing.md#exe-の自動配布)）が有効な場合、`main` に入った変更は、検証の成功後に配布とアプリ内更新の対象になる。作業単位ごとに `main` へマージすると、段の途中の状態が利用者に届く。
 
-| 危険 | 対応 |
+- #257 と同じく、統合ブランチ（`integration/284`）を使う。作業単位の PR は統合ブランチへマージし、段ごとに 1 回、`main` へマージする。
+- 段の `main` へのマージの前に、統合ブランチから作った配布候補で W12 のその段の項目を確かめる。
+- W7 は、中継を先にデプロイしてから `main` へマージする（[順序](../../proposal-deployment.md#order-of-worker-and-client-releases)）。自動配布が有効な場合、マージが配布を起動するためである。
+- 自動配布が有効かどうかは、この調査では確認していない。段 1 のマージの前にオーナーに確かめる（[§10](#10-オーナーの判断と許可)）。
+
+各作業単位は、[CLAUDE.md](../../../CLAUDE.md#目的別のスキル) の表に該当するスキルを使い、`cytellect-verify`、画面を変えた場合は `cytellect-screen-check` の後に、`cytellect-pr` で PR を作成する。
+
+## 8. 公開デモへの影響
+
+公開デモは、API と解析パッケージをホイールにして Pyodide で動かし、開いたときの GET を限定する（所見 18）。ホイールと記録の作り直しは、オーナーの許可が要る。
+
+| 作業単位 | API・解析パッケージの変更 | 開いたときの要求 | デモでの扱い |
+|---|---|---|---|
+| W1 | API（票の `intake`、`assemble` の検査の削除） | 増えない（票の GET は既存） | デモは画像を追加しないため、動作は変わらない。ホイールは古くなる（CI が警告する） |
+| W2 | API（`assistant_messages`、応答の形） | 発言の一覧の GET が増える | デモでは呼ばない。例の選択は現在と同じ要求の列にする。記録は変えない |
+| W4、W5、W6 | API（判定の経路） | 増えない | デモは画像の追加を受け付けないため、開始の画面と一覧は表示しない |
+| W7 | 解析パッケージ（解析案の契約） | 増えない | 記録済みの解析案は従来の版として読む。新しい版の例を加える場合は記録の作り直しが要る |
+| W8 | なし（画面） | 増えない | 記録した実行の進捗の表示が変わる。`showcase.spec.ts` で確かめる |
+| W11 | 解析パッケージ（比較の契約） | 増えない | ホイールの作り直しが要る。記録済みの結果はこの項目を持たないまま読めるようにする |
+
+W9、W10 はローカルの配布だけに関わり、デモには影響しない。
+
+## 9. 残る制約と危険
+
+| 制約・危険 | 対応 |
 |---|---|
-| W2 の変更は、比較に含まれる視野と n の内訳の表示に関わる | 測定値と統計の計算は変更しない。契約試験、Methods、要件を同じ PR で改め、`/code-review high` を行う |
-| W5 は登録前のファイルを PC 内に保存し、使用する容量が増える | 容量への算入、保存期限、削除を視野の入力と同じ扱いにし、取りやめた項目と重複を削除する |
-| W8 は中継の契約の版を上げる。配布済みの版との互換が要る | 版ごとに応答を分ける既存の仕組みを使う。中継を先にデプロイする |
-| W3 を W8 より先に配布すると、解析の依頼に操作が 1 回増える | 同じ配布に含めることを目標とする（[§7](#7-順序と並行)） |
-| 画面の変更が、#258 と同様に却下される | W4 で案を `main` と並べて示し、選ばれた案だけを実装する |
-| `ConnectedWorkspace.tsx` の変更が競合する | [§7](#7-順序と並行) の取り込みの順序と、部品の分離 |
-| 原因を特定できていない 4 項目（[§4.3](#43-原因を特定できていない項目)）が、実装後も実機で再発する | W12 で実機を確かめる。再発時は、W3・W10・W11 が保存する理由コードと停止理由から原因を特定する |
+| 登録済みの視野へ、後からチャンネルを追加できない（視野は作成後に構成を変えない）。入力 3 が挙げる「2 回目のファイルが同じ視野の追加染色」は、追加の前に限って 1 つの視野にまとまる | W5 の一覧で、登録済みの視野と同じ名前のファイルにその旨を表示する。視野の作り直しは範囲外とし、必要なら別の Issue にする |
+| マスクと判定できるのは 32-bit 整数のラベル画像だけである | 8-bit・16-bit のマスクは画像として登録される。既存の「補助画像」の指定で対象から外す（W5） |
+| 再読み込みで、未追加のファイルの内容は失われる | 名前を保持し、「再選択」として示す（W5）。Issue の優先 7 が認める範囲 |
+| 判定と登録で、内容を 2 回送る | PC 内の通信のため許容する。Web アプリ化の時点で再検討する（W4） |
+| 票は 100 行までで、登録できなかった行も数に入る | 上限を超える項目は結果に返す。「追加をやめる」で行を削除できる（W1） |
+| W1 の変更は、比較に含まれる視野と n の内訳の表示に関わる | 測定値と統計の計算は変更しない。契約試験と要件を同じ PR で改め、`/code-review high` を行う |
+| 決定 5 により、解析の依頼にも操作が 1 回要る | Issue の判定 1 を決定論的に守るための選択。代案は [§2](#2-決定事項) |
+| 中継の契約の版を上げる（W7）。配布済みの版との互換が要る | 版ごとに応答を分ける既存の仕組みを使う。中継を先にデプロイする |
+| 画面の変更が、#258 と同様に却下される | 新しい画面は W3 で案を示し、選ばれた案だけを実装する。既存の画面の修正は PR に変更前後の画像を付ける |
+| 原因を特定できていない項目（[§4.3](#43-原因を特定できていない項目)）が、実装後も実機で再発する | W12 で段ごとに実機を確かめる。再発時は、W2・W9・W10 が保存する理由コードと停止理由から原因を特定する |
+| 実機のアプリ内更新が失敗する場合、修正が届かない | W12 の段 1 で更新を確かめる。失敗する場合はインストーラーまたは Store からの導入を案内する |
 
-## 10. オーナーの許可が要る操作
+## 10. オーナーの判断と許可
+
+### 確認が要る点
+
+| | 点 | この文書の前提 |
+|---|---|---|
+| 1 | 決定 4（同じ内容の画像を 1 つの視野にまとめる。I12 を改める） | 採用 |
+| 2 | 決定 5（AI の応答で設定の変更と解析の実行を自動で行わない。L02 を改める）。代案は実行の依頼に限る自動の実行 | 採用 |
+| 3 | 統合ブランチ（`integration/284`）で段ごとに `main` へ入れる。EXE の自動配布の現在の状態 | 統合ブランチを使う |
+| 4 | [§11](#11-issue-への追記の提案) の Issue への追記 | この文書の解釈で進める |
+
+### 許可が要る操作
 
 | 操作 | 関係する作業単位 |
 |---|---|
-| `main` へのマージ | すべて（PR ごと） |
-| AI の中継のデプロイ | W8 |
-| 有料の API の呼び出し（モデルによる評価、形式エラーの理由コードの確認） | W3、W8 |
-| Windows 版の配布、Microsoft Store への提出 | W12 の前 |
-| 公開デモの記録の作り直し | W3、W8、W9 で必要になった場合 |
+| `main` へのマージ | 段ごと |
+| AI の中継のデプロイ | W7 |
+| 有料の API の呼び出し（モデルによる評価、形式エラーの理由コードの確認） | W2、W7 |
+| Windows 版の配布、Microsoft Store への提出 | W12 の各段 |
+| 公開デモのホイールと記録の作り直し | W11。W1・W2・W7 のホイールの更新 |
 
-## 11. この調査で実施していないこと
+## 11. Issue への追記の提案
 
-- Windows の実機での確認。
-- 有料の API の呼び出し。
-- 画面の確認（画面を変更していない）。
-- 別の担当による調査結果の再確認。
+Issue はオーナーの文書であり、この調査では編集していない。レビューで見つかった点と、この文書の解釈を示す。
+
+| | Issue の点 | 提案 | この文書の解釈 |
+|---|---|---|---|
+| 1 | 対照 B の競合ファイルは a9-C01 と同じ内容の改名コピーである。対照 A の合格条件（同じ内容は 1 つにまとめる）を先に適用すると、対照 B の「競合 2 枚を提示する」場面が起きない | 判定の順序を定め、対照 B に内容の異なる競合の入力を加える | 同一内容を先に判定する（[§5.2](#52-取り込みの判定の順序)） |
+| 2 | 追試 A・B と受入 5 は、AI が使える状態（ログイン済み、有効）を前提にしているが、記載がない。「初めて開いた研究者」は AI を有効にしていない場合がある | 前提を記し、AI が使えない初回に何を示すかを決める | AI が使えなくても画像の事実を表示し、有効にする方法を示す（W2） |
+| 3 | 優先順位が 3 通りある（冒頭の「最初に追う 3 件」、索引の最優先 5 行、「優先して直したい操作」1〜11） | 実装の順序の基準を 1 つにする | 索引に従う（段 1 は最優先 5 行） |
+| 4 | 入力のファイル名（`BBBC007-a9-C01.tif` など）と配布元（`Cytellect-Public-Image-Sets`）が、リポジトリにない。リポジトリの登録名は `a9-dna.tif` などである | 入力の作り方（登録済みの画像との対応）を記す | 下の対応表。試験では、登録済みの画像を Issue の名前で複製して使う |
+| 5 | 判定の基準のない合格条件がある：入力 1・受入 1（説明書なしで進める）、受入 6（状態と次の操作を指させる）、判定 3（直せる項目とサービス側の修復の区別） | 基準（回数、時間、理由コードの対応表）を定める | 自動の試験で確かめられる範囲を終わりの条件とし、研究者による評価は別に追跡する。判定 3 の対応表は W2 で作る |
+| 6 | 追試 A の画面のリンクが、本文（`…/9c0e7da0-…`）と末尾の画像（`…/9c79d0a0-…`）で一致しない | 正しい方にそろえる | — |
+
+**入力の対応**（確認できた範囲）
+
+| Issue の名前 | リポジトリの登録 | 確認 |
+|---|---|---|
+| `BBBC007-a9-C01.tif` | `a9-dna.tif`（`scripts/prepare_workspace_bbbc007.py` で作成、`fixtures/public/uploads.json`） | SHA-256 が Issue の記載（`1abc5c6e…`）と一致 |
+| `BBBC007-a9-C02.tif` | `a9-actin.tif`（同上） | 名前からの対応。ハッシュは未照合 |
+| `BBBC007-f9620-C01.tif`・`-C02.tif` | `fixtures/public/bbbc007/manifest.json` の `f9620` の `dna`・`actin` | 未照合 |
+| `A01-DRAQ.tif`・`A01-GFP.tif` | `fixtures/public/bbbc013/A01-dapi.tif`・`A01-gfp.tif` | 未照合 |
+| `BBBC039-B02-視野09-Hoechst.tif`、DS6a の「視野01」、`BBBC007-a9-核の手動輪郭.tif` | `fixtures/public/bbbc039`、`fixtures/public/nucleolar`、`manifest.json` の `nuclear_outline` | 未照合 |
+
+## 12. 改訂の記録
+
+2026-11-25、独立レビュー（別のエージェントが Issue とこの文書を読み、コードで確かめた）の指摘を反映した。
+
+| 指摘 | 反映 |
+|---|---|
+| モデルの宣言では「まだ測らない」を保証できない | 決定 5、[§5.6](#56-ai-の応答と操作)：適用と実行を研究者の操作に限る |
+| ファイル単位の ID を視野単位の冪等キーに使う設計が成り立たない | [§5.3](#53-取り込みの記録)：票の行（視野単位）を拡張し、新しい表を作らない |
+| 対照 A と対照 B が同じ入力に異なる扱いを求める | [§5.2](#52-取り込みの判定の順序)、[§11](#11-issue-への追記の提案) の 1 |
+| 終わりの条件を単独で満たせない作業単位がある | [§3](#3-issue-の項目と作業単位の分担)：分担を作業単位ごとに切り分けた |
+| 最初の一歩が大きく、最優先の項目が後ろに回る | W1・W2 を、最優先 5 行を止める最初の修正にした |
+| EXE の自動配布との関係がない | [§7](#7-順序統合配布)：統合ブランチと段ごとのマージ |
+| データベースの移行の手順がない | 所見 17、W2 の「データベース」。取り込みの記録は移行を要しない形にした |
+| 公開デモへの影響の記述が誤り | 所見 18、[§8](#8-公開デモへの影響) |
+| 登録の経路が二重になり、受け取りの API が過大 | W4 の「設計の選択」：保存しない判定の API に改め、登録の経路を 1 つにした |
+| AI が使えない初回の扱いがない | 所見 13、W2 の 9、[§11](#11-issue-への追記の提案) の 2 |
+| 画面の案と依存関係の矛盾 | [§6](#6-作業単位) の「画面の扱い」と依存の表 |
+| 原因が未特定の項目に、証拠なしで構造の変更を当てている | [§4.3](#43-原因を特定できていない項目)、W9 の 4：停止の経路は変えない |
+| 上限（100 視野、2 GiB、票 100 行）、群の指定のない失敗の数え方が未定義 | 所見 3・5、[§5.3](#53-取り込みの記録) |
+| マスクの判定の範囲 | 所見 8、W4 の 2、W5 の 6 |
+| 入力がリポジトリから再現できない | [§11](#11-issue-への追記の提案) の 4 と対応表 |
+| 事実の誤り：更新ボタンの語（配布版も「更新」）、セッションの作り直しの利用箇所、ワーカーの停止時の表示 | 所見から削除、所見 14・15 を訂正 |
+| 更新の失敗そのものが未調査、`Failed to fetch` は 2 回 | [§4.3](#43-原因を特定できていない項目) |
+
+この調査で実施していないこと：Windows の実機での確認、有料の API の呼び出し、画面の確認（画面を変更していない）、添付の ZIP の中身の確認。
