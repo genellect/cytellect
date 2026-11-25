@@ -17,7 +17,7 @@
 | `cytellect-verify` | コード・設定・依存パッケージ・文書を変えた |
 | `cytellect-screen-check` | 画面を変えた |
 | `cytellect-pr` | PR を作る・更新する（途中のコミットの push では使わない） |
-| `frontend-design:frontend-design` | 新しい画面を作る、画面の構成や導線を変える。LP は先に [LP のデザイン方針](docs/lp-art-direction.md)を読む |
+| `frontend-design:frontend-design` | 新しい画面を作る、画面の構成や導線を変える。LP は先に [LP の美術方針](docs/lp-art-direction.md)を読む |
 | `design:ux-copy` | 新しい画面や導線の文言をまとめて書く |
 | `/code-review medium`（測定・統計・検出・作図の計算は `high`） | ロジックを変えた：解析・API・計算ワーカー・提案 Worker・開発用スクリプトの処理と、画面の状態とデータの処理 |
 | `/security-review` | 認証・認可（ログイン、招待、セッション、端末トークン）、アップロードの受け入れ、更新の署名、workflow の権限とシークレットを変えた |
