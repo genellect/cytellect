@@ -11,10 +11,13 @@ landing-page copy and repeated feature-card layouts.
   hierarchy. Lead with the researcher's ambition, then reduced repetitive work,
   accessible analytical decisions and communication through a figure. Feature
   categories such as "images and measurements" are not benefit headlines.
-- The current art direction is light and readable (approved in #59). The
-  [art direction](lp-art-direction.md) (approved 2026-10-23) is the canonical
-  visual standard: science and the world view are carried by photoreal
-  laboratory footage with a clean, bright grade, not by hand-authored objects.
+- The [art direction](lp-art-direction.md) (approved 2026-10-23) records the
+  direction and the history of the owner's judgments. The owner's current
+  instructions and the design skills take precedence over its details and over
+  the visual details in this section (owner's decision, 2026-11-25; the order
+  is set out at the top of the art direction). Past versions were light and
+  readable (#59) and carried by photoreal laboratory footage, not by
+  hand-authored objects.
   The [LP design record](lp-optical-preview.md) keeps the layout history.
   Keep the copy and actions in the first viewport, including short windows and
   mobile. Avoid generic nested glass spheres, star fields and decorative
