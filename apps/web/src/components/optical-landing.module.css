@@ -362,8 +362,8 @@
 @media(prefers-reduced-motion:reduce){.page *,.page *::before,.page *::after{transition:none!important}}
 /* ── The dark world (landing page only: `data-world="dark"` on its root). Measured from the owner's
    references at 1440 px and scaled with the viewport (1 px = 1/14.4 vw): layout, spacing, type and hero from
-   Altos Labs; the world and its components from Lila Sciences; the 3D space and its motion after Lusion. */
-.world{position:fixed;inset:0;z-index:0;pointer-events:none;background:#000}
+   Altos Labs; the components from Lila Sciences; the background and the motion are Lusion's dark 3D. */
+.world{position:fixed;inset:0;z-index:0;pointer-events:none;background:#14151b}
 .world canvas{display:block;width:100%;height:100%;opacity:0;transition:opacity 1.4s}
 .world[data-state="ready"] canvas{opacity:1}
 .page[data-world="dark"]{
@@ -374,7 +374,7 @@
   --t-h1:clamp(40px,calc(60 * var(--px)),84px);--t-h2:clamp(26px,calc(60 * var(--px)),84px);--t-h3:clamp(21px,calc(34 * var(--px)),48px);--t-lead:clamp(17px,calc(20 * var(--px)),28px);--t-label:clamp(12px,calc(14 * var(--px)),18px);
   --fg:#fff;--ink:#fff;--muted:#ffffffcc;--rule:#ffffff24;--line:#ffffff24;--ground:#000;--paper:#0c0c0c;--green:#000;--accent:#e7b8a4;--accent-ink:#53917e;
   --card:#ffffff0d;--card-rule:#ffffff1a;
-  background:#000;color:#fff;font-family:Inter,"Noto Sans JP",sans-serif;font-weight:400;line-height:1.4;font-feature-settings:"palt"}
+  background:#14151b;color:#fff;font-family:Inter,"Noto Sans JP",sans-serif;font-weight:400;line-height:1.4;font-feature-settings:"palt"}
 .page[data-world="dark"] ::selection{background:#fff;color:#000}
 .page[data-world="dark"] :is(a,button,summary):focus-visible{outline:2px solid #fff;outline-offset:4px}
 .page[data-world="dark"] :is(h1,h2,h3,b,strong){font-weight:400}
@@ -502,3 +502,12 @@
 }
 @media(prefers-reduced-motion:reduce){.heroFrame{transform:none;filter:none;border-radius:0}
 }
+/* Headlines (Lusion): each line slides in from its own side and settles on the left axis as it enters. */
+@keyframes lpFromRight{from{transform:translateX(12vw);opacity:.15}to{transform:none;opacity:1}}
+@keyframes lpFromLeft{from{transform:translateX(-7vw);opacity:.15}to{transform:none;opacity:1}}
+@media(prefers-reduced-motion:no-preference){@supports(animation-timeline:view()){
+  .page[data-world="dark"] :is(.manifesto,.statement,.impactTitle,.inviteTitle)>span{animation:lpFromRight linear both;animation-timeline:view();animation-range:entry 5% cover 38%}
+  .page[data-world="dark"] :is(.manifesto,.statement,.impactTitle,.inviteTitle)>span:nth-child(even){animation-name:lpFromLeft}
+}}
+/* Copy stays legible where the 3D pile passes behind it. */
+.page[data-world="dark"] :is(.manifesto,.statement,.experienceLead,.stop h3,.stop>p,.faqTitle){text-shadow:0 0 24px #14151b,0 0 8px #14151bcc}

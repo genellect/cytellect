@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { LineWorld as World } from "./line-world-engine";
+import type { SceneWorld as World } from "./scene-world-engine";
 import lp from "./optical-landing.module.css";
 
-/** The landing page's 3D world (line-world-engine), fixed behind every section. It also tells the hero how far
+/** The landing page's 3D world (scene-world-engine), fixed behind every section. It also tells the hero how far
  *  it has been scrolled (`--leave`, 0 to 1), so the film frame can draw back into the space as the page
  *  starts. With reduced motion the world is one still frame; without WebGL the page stays on black. */
-export function LineWorld() {
+export function SceneWorld() {
   const host = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const element = host.current;
@@ -26,9 +26,9 @@ export function LineWorld() {
     const move = (event: PointerEvent) => { if (event.pointerType === "mouse") world?.pointer(event.clientX / innerWidth, 1 - event.clientY / innerHeight, true); };
     const leave = () => world?.pointer(0.5, 0.5, false);
     const visibility = () => world?.running(!document.hidden);
-    void import("./line-world-engine").then(({ mountLineWorld }) => {
+    void import("./scene-world-engine").then(({ mountSceneWorld }) => {
       if (disposed) return;
-      world = mountLineWorld(element, { still, compact });
+      world = mountSceneWorld(element, { still, compact });
       if (world) element.dataset.state = "ready";
       sync();
     });

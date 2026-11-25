@@ -5,7 +5,7 @@ import { ProductMenu } from "./ProductMenu";
 import { HeroFilm } from "./HeroFilm";
 import { LandingExperience, type FeatureLinks } from "./LandingExperience";
 import { LandingHeaderTone } from "./LandingHeaderTone";
-import { LineWorld } from "./LineWorld";
+import { SceneWorld } from "./SceneWorld";
 import { LandingHomeLink } from "./LandingHomeLink";
 import { LandingImpact } from "./LandingImpact";
 import { LandingInvite } from "./LandingInvite";
@@ -34,7 +34,7 @@ function NavigationLinks(){return <><a href="#workflow">プロダクト</a><a da
 
 export default function PublicLanding() {
   return <div className={lp.page} data-cytellect-public-page="/" data-world="dark">
-    <LineWorld />
+    <SceneWorld />
     <LandingAnalytics page="/" />
     <a className={styles.skipLink} href="#main">本文へ</a>
     <header className={lp.header} data-lp-header data-tone="dark"><LandingHomeLink className={lp.wordmark} /><nav className={lp.navigation} aria-label="メインナビゲーション"><NavigationLinks /></nav><ProductMenu><NavigationLinks /></ProductMenu></header>
