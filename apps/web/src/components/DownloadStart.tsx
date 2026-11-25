@@ -3,11 +3,12 @@
 import { STORE_PRODUCT_URL } from "@/lib/release";
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
-import lp from "./optical-landing.module.css";
+import defaults from "./optical-landing.module.css";
 
 /** The download link itself, and right after it a small guide to what to do with the file.
- *  The file downloads as an ordinary link; the guide only appears once it is asked for. */
-export function DownloadStart({ url, installer, guide = true }: { url: string; installer: boolean; guide?: boolean }) {
+ *  The file downloads as an ordinary link; the guide only appears once it is asked for. `classes` lets the
+ *  landing page dress it in its own stylesheet. */
+export function DownloadStart({ url, installer, guide = true, classes: lp = defaults }: { url: string; installer: boolean; guide?: boolean; classes?: Record<string, string> }) {
   const [open, setOpen] = useState(false);
   const title = useId();
   const heading = useRef<HTMLParagraphElement>(null);

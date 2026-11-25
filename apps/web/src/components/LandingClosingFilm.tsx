@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import lp from "./optical-landing.module.css";
+import lp from "./landing-world.module.css";
 
 /** The invitation closes on the same footage the page opens with. The poster stays when motion is reduced,
  *  and the film plays only while it is on screen. */

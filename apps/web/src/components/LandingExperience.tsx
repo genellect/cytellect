@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import type { ExperienceController, ExperiencePanel } from "./experience-scene";
-import lp from "./optical-landing.module.css";
+import { showShot, worldState, WORLD_STATE } from "./world-bus";
+import lp from "./landing-world.module.css";
 
 const Forward = () => <span aria-hidden="true">→</span>;
 
@@ -11,26 +11,16 @@ const Forward = () => <span aria-hidden="true">→</span>;
 export type FeatureLinks = { discussion: string; table: string; figure: string; ask: string };
 
 const shot = (file: string) => `/marketing/${file}`;
-/** Every plate is a capture of the public demo (scripts/capture-lp-evidence.mjs, public/marketing/lp-evidence.json). */
-const PANELS: ExperiencePanel[] = [
-  { id: "stats", src: shot("lp-screen-statistics.webp") },
-  { id: "ai", src: shot("lp-screen-ai.webp") },
-  { id: "figure", src: shot("lp-screen-figure.webp") },
-  { id: "ask", src: shot("lp-focus-ai.webp") },
-  { id: "table", src: shot("lp-focus-table.webp") },
-  { id: "conclusion", src: shot("lp-focus-conclusion.webp") },
-  { id: "discussion", src: shot("lp-focus-discussion.webp") },
-  { id: "layout", src: shot("lp-focus-figure-layout.webp") },
-  { id: "size", src: shot("lp-focus-figure-size.webp") },
-];
 
 type Plate = { file: string; alt: string; width: number; height: number };
 const Img = ({ plate, className }: { plate: Plate; className?: string }) =>
   <img className={className} src={shot(plate.file)} alt={plate.alt} width={plate.width} height={plate.height} loading="lazy" decoding="async" />;
 
 type Chapter = {
-  id: string; number: string; label: string; title: string; lead: string; extra?: ReactNode; link: ReactNode;
-  /** The shot of experience-scene the camera flies to, and an optional slower second one. */
+  id: string; number: string; label: string;
+  /** The title in phrases: a line breaks only between them. */
+  title: string[]; lead: string; extra?: ReactNode; link: ReactNode;
+  /** The shot of the 3D world (scene-world-engine) the camera flies to, and an optional slower second one. */
   shot: number; then?: number;
   back?: Plate; front: Plate[]; kind: "layers" | "strip";
 };
@@ -38,7 +28,7 @@ type Chapter = {
 const chapters = (links: FeatureLinks): Chapter[] => [
   {
     id: "measure", number: "01", label: "検出と測定", shot: 2, then: 3, kind: "strip",
-    title: "測りたい値が、細胞ひとつひとつに並びます。",
+    title: ["測りたい値が、", "細胞ひとつひとつに", "並びます。"],
     lead: "汎用のAIでは見つからない構造まで、輪郭を一つも描かずに。測った値は、細胞ごとに一行に並びます。",
     extra: <>
       <ul className={lp.params} aria-label="測れる値">{["数と密度", "大きさと形", "明るさ", "陽性の割合", "位置と分布", "区画のあいだの比"].map(item => <li key={item}>{item}</li>)}</ul>
@@ -54,7 +44,7 @@ const chapters = (links: FeatureLinks): Chapter[] => [
   },
   {
     id: "discussion", number: "02", label: "要約と考察", shot: 4, kind: "layers",
-    title: "結果を読み解く時間を、次の実験を考える時間に。",
+    title: ["結果を読み解く時間を、", "次の実験を考える時間に。"],
     lead: "解析が終わると、結論の一文と考察が並びます。解釈も、ほかの説明も、次に確かめることも。",
     link: <Link data-lp-event="demo_statistics" href={links.discussion} className={lp.button}>この結果をデモで開く <Forward /></Link>,
     back: { file: "lp-screen-statistics.webp", alt: "Cytellectの統計の画面。結果のまとめ、図、解析の設定が並ぶ", width: 1600, height: 790 },
@@ -65,7 +55,7 @@ const chapters = (links: FeatureLinks): Chapter[] => [
   },
   {
     id: "ask", number: "03", label: "AIによる設定", shot: 1, kind: "layers",
-    title: "やりたいことを一文で。解析の設定は、AIが組み立てます。",
+    title: ["やりたいことを一文で。", "解析の設定は、", "AIが組み立てます。"],
     lead: "どの値を、どの群で、どう比べるか。メニューを一つずつ選ぶ必要はありません。",
     link: <Link data-lp-event="example" href={links.ask} className={lp.button}>デモで指示する <Forward /></Link>,
     back: { file: "lp-screen-ai.webp", alt: "Cytellectの統計の画面。右に AI のパネルが開いている", width: 1600, height: 790 },
@@ -73,7 +63,7 @@ const chapters = (links: FeatureLinks): Chapter[] => [
   },
   {
     id: "figure", number: "04", label: "統計と論文の図", shot: 5, kind: "layers",
-    title: "統計の検定も、論文に載せる図も、クリックだけで。",
+    title: ["統計の検定も、", "論文に載せる図も、", "クリックだけで。"],
     lead: "結果に合った検定で比べ、論文の体裁で図を組みます。幅も、レイアウトも、文字の大きさも。",
     link: <Link data-lp-event="demo_figure" href={links.figure} className={lp.button}>この図をデモで開く <Forward /></Link>,
     back: { file: "lp-screen-figure.webp", alt: "Cytellectのグラフの画面。実験回ごとの図と、図の設定が並ぶ", width: 1600, height: 790 },
@@ -84,49 +74,26 @@ const chapters = (links: FeatureLinks): Chapter[] => [
   },
 ];
 
-/** What Cytellect does, one tab at a time: detection and measurement first, then the summary and discussion. On a wide screen with motion
- *  allowed, the tabs sit beside one 3D space and the camera flies to the chosen screen; elsewhere (phones,
- *  reduced motion, no WebGL) the chosen tab shows the same screens as glass plates. */
+/** What Cytellect does, one tab at a time: detection and measurement first, then the summary and discussion. Where
+ *  the page's 3D world carries the demo's screens (a wide screen with a mouse and motion allowed), the camera
+ *  flies to the screen of the chosen tab; elsewhere (phones, reduced motion, no WebGL) the chosen tab shows the
+ *  same captures as plates in the page. */
 export function LandingExperience({ links }: { links: FeatureLinks }) {
-  const host = useRef<HTMLDivElement>(null);
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
-  const scene = useRef<ExperienceController | null>(null);
   const [mode, setMode] = useState<"plates" | "space">("plates");
   const [active, setActive] = useState(0);
   const list = chapters(links);
   const activeRef = useRef(0);
 
   useEffect(() => {
-    const wide = matchMedia("(min-width: 1024px)"), still = matchMedia("(prefers-reduced-motion: reduce)");
-    let abort: AbortController | null = null, seen: IntersectionObserver | null = null;
-    const stop = () => { abort?.abort(); abort = null; seen?.disconnect(); seen = null; scene.current?.dispose(); scene.current = null; setMode("plates"); };
-    const sync = async () => {
-      stop();
-      if (!wide.matches || still.matches || !document.createElement("canvas").getContext("webgl2") || !host.current) return;
-      setMode("space");
-      abort = new AbortController();
-      const signal = abort.signal;
-      try {
-        const { mountExperience } = await import("./experience-scene");
-        if (signal.aborted || !host.current) return;
-        const mounted = await mountExperience(host.current, PANELS, signal);
-        if (signal.aborted) { mounted.dispose(); return; }
-        scene.current = mounted;
-        // The space opens on the overview and flies to the chosen screen when the visitor reaches it.
-        seen = new IntersectionObserver(([entry]) => {
-          if (!entry.isIntersecting) return;
-          seen?.disconnect();
-          const chapter = chapters(links)[activeRef.current];
-          mounted.show(chapter.shot, chapter.then);
-        }, { threshold: 0.45 });
-        seen.observe(host.current);
-      } catch {
-        if (!signal.aborted) stop();
-      }
+    const sync = () => {
+      const space = worldState() === "tour";
+      setMode(space ? "space" : "plates");
+      if (space) { const chapter = chapters(links)[activeRef.current]; showShot(chapter.shot, chapter.then); }
     };
     sync();
-    wide.addEventListener("change", sync); still.addEventListener("change", sync);
-    return () => { wide.removeEventListener("change", sync); still.removeEventListener("change", sync); stop(); };
+    addEventListener(WORLD_STATE, sync);
+    return () => removeEventListener(WORLD_STATE, sync);
   }, [links]);
 
   // The segmented control's filled pill slides under the chosen tab.
@@ -169,7 +136,7 @@ export function LandingExperience({ links }: { links: FeatureLinks }) {
     // On a phone the bar scrolls sideways; bring the chosen tab into view.
     const rail = tab?.parentElement;
     if (tab && rail && rail.scrollWidth > rail.clientWidth) rail.scrollTo({ left: tab.offsetLeft - rail.clientWidth / 2 + tab.offsetWidth / 2, behavior: "smooth" });
-    scene.current?.show(list[next].shot, list[next].then);
+    if (mode === "space") showShot(list[next].shot, list[next].then);
   };
   const onKeyDown = (event: KeyboardEvent) => {
     const last = list.length - 1;
@@ -185,45 +152,42 @@ export function LandingExperience({ links }: { links: FeatureLinks }) {
     <header className={lp.experienceIntro}>
       <p className={lp.eyebrow}><span>Cytellect</span>画像から、論文まで</p>
       <h2 id="workflow-title" className={lp.statement} aria-label="手作業で数週間かかっていた解析を、一つの画面で数分に。"><span>手作業で数週間かかっていた</span><span>解析を、一つの画面で数分に。</span></h2>
-      <p className={lp.experienceLead}>画像を入れるだけ。輪郭を手で描く、表に写す、統計ソフトに移す。その作業がなくなります。</p>
+      <p className={lp.experienceLead}><span>画像を入れるだけ。輪郭を手で描く、表に写す、統計ソフトに移す。</span><span>その作業がなくなります。</span></p>
     </header>
     {/* Keyboard focus anywhere in the bar or the open panel stops the tour for good, so a focused link is never
         hidden by the next tab. */}
-    <div className={lp.tour} onFocusCapture={() => setAuto(false)}>
-      <div className={lp.experienceStage} aria-hidden="true"><div ref={host} className={lp.experienceCanvas} /><div className={lp.experienceVeil} /></div>
-      <div className={lp.tourInner}>
-        <div ref={bar} className={lp.switcher} onPointerEnter={() => setHover(true)} onPointerLeave={() => setHover(false)}>
-          <div role="tablist" aria-label="Cytellectでできること" aria-orientation="horizontal" className={lp.tablist} onKeyDown={onKeyDown}
-            onScroll={event => { const rail = event.currentTarget; rail.dataset.end = String(Math.ceil(rail.scrollLeft + rail.clientWidth) >= rail.scrollWidth); }}>
-            {pill && <span className={lp.tabPill} style={{ transform: `translateX(${pill.left}px)`, width: pill.width }} aria-hidden="true">
-              {playing && <span key={active} className={lp.tabSweep} data-running={running} onAnimationEnd={() => select(active + 1, false, false)} />}
-            </span>}
-            {list.map((chapter, index) => <button key={chapter.id} ref={node => { tabs.current[index] = node; }} type="button" role="tab"
-              id={`feature-tab-${chapter.id}`} aria-controls={`feature-${chapter.id}`} aria-selected={index === active} tabIndex={index === active ? 0 : -1}
-              className={lp.tab} onClick={() => select(index)}><span aria-hidden="true">{chapter.number}</span>{chapter.label}</button>)}
-          </div>
-          <div className={lp.switchNav}>
-            <span className={lp.switchCount} aria-hidden="true"><b>{active + 1}</b> / {list.length}</span>
-            <button type="button" className={lp.switchArrow} aria-label="前の機能" onClick={() => select(active - 1)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6.5 9 12l5.5 5.5" /></svg></button>
-            <button type="button" className={lp.switchArrow} aria-label="次の機能" onClick={() => select(active + 1)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6.5 15 12l-5.5 5.5" /></svg></button>
-          </div>
+    <div className={lp.tour} data-station="tour" onFocusCapture={() => setAuto(false)}>
+      <div ref={bar} className={lp.switcher} onPointerEnter={() => setHover(true)} onPointerLeave={() => setHover(false)}>
+        <div role="tablist" aria-label="Cytellectでできること" aria-orientation="horizontal" className={lp.tablist} onKeyDown={onKeyDown}
+          onScroll={event => { const rail = event.currentTarget; rail.dataset.end = String(Math.ceil(rail.scrollLeft + rail.clientWidth) >= rail.scrollWidth); }}>
+          {pill && <span className={lp.tabPill} style={{ transform: `translateX(${pill.left}px)`, width: pill.width }} aria-hidden="true">
+            {playing && <span key={active} className={lp.tabSweep} data-running={running} onAnimationEnd={() => select(active + 1, false, false)} />}
+          </span>}
+          {list.map((chapter, index) => <button key={chapter.id} ref={node => { tabs.current[index] = node; }} type="button" role="tab"
+            id={`feature-tab-${chapter.id}`} aria-controls={`feature-${chapter.id}`} aria-selected={index === active} tabIndex={index === active ? 0 : -1}
+            className={lp.tab} onClick={() => select(index)}><span aria-hidden="true">{chapter.number}</span>{chapter.label}</button>)}
         </div>
-        {list.map((chapter, index) => <div key={chapter.id} role="tabpanel" id={`feature-${chapter.id}`} aria-labelledby={`feature-tab-${chapter.id}`}
-          hidden={index !== active} className={lp.chapter} data-chapter={chapter.id}>
-          <div className={lp.chapterText}>
-            <h3 className={lp.chapterTitle}>{chapter.title}</h3>
-            <p className={lp.chapterLead}>{chapter.lead}</p>
-            {chapter.extra}
-            {chapter.link}
-          </div>
-          <figure className={lp.plates} data-kind={chapter.kind}>
-            {chapter.back && <Img plate={chapter.back} className={lp.plateBack} />}
-            {chapter.kind === "strip"
-              ? <div className={lp.plateScroll}><Img plate={chapter.front[0]} className={lp.plateWide} /></div>
-              : <div className={lp.plateFront}>{chapter.front.map(plate => <Img key={plate.file} plate={plate} className={lp.plate} />)}</div>}
-          </figure>
-        </div>)}
+        <div className={lp.switchNav}>
+          <span className={lp.switchCount} aria-hidden="true"><b>{active + 1}</b> / {list.length}</span>
+          <button type="button" className={lp.switchArrow} aria-label="前の機能" onClick={() => select(active - 1)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6.5 9 12l5.5 5.5" /></svg></button>
+          <button type="button" className={lp.switchArrow} aria-label="次の機能" onClick={() => select(active + 1)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6.5 15 12l-5.5 5.5" /></svg></button>
+        </div>
       </div>
+      {list.map((chapter, index) => <div key={chapter.id} role="tabpanel" id={`feature-${chapter.id}`} aria-labelledby={`feature-tab-${chapter.id}`}
+        hidden={index !== active} className={lp.chapter} data-chapter={chapter.id}>
+        <div className={lp.chapterText}>
+          <h3 className={lp.chapterTitle} aria-label={chapter.title.join("")}>{chapter.title.map(phrase => <span key={phrase}>{phrase}</span>)}</h3>
+          <p className={lp.chapterLead}>{chapter.lead}</p>
+          {chapter.extra}
+          {chapter.link}
+        </div>
+        <figure className={lp.plates} data-kind={chapter.kind}>
+          {chapter.back && <Img plate={chapter.back} className={lp.plateBack} />}
+          {chapter.kind === "strip"
+            ? <div className={lp.plateScroll}><Img plate={chapter.front[0]} className={lp.plateWide} /></div>
+            : <div className={lp.plateFront}>{chapter.front.map(plate => <Img key={plate.file} plate={plate} className={lp.plate} />)}</div>}
+        </figure>
+      </div>)}
     </div>
   </section>;
 }

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { LandingClosingFilm } from "./LandingClosingFilm";
-import lp from "./optical-landing.module.css";
+import lp from "./landing-world.module.css";
 
 /** The page's last invitation, on the footage it opened with: the demo first, the free Windows version next. */
 export function LandingInvite() {

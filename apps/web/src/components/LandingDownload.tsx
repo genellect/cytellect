@@ -4,7 +4,7 @@ import { releaseSize, windowsReleaseAsset } from "@/lib/release";
 import { publicWindowsRelease } from "@/lib/public-windows-release";
 import { CONTACT_URL } from "@/lib/site";
 import { DownloadStart } from "./DownloadStart";
-import lp from "./optical-landing.module.css";
+import lp from "./landing-world.module.css";
 
 const Out = () => <span aria-hidden="true">↗</span>;
 
@@ -13,14 +13,14 @@ const Out = () => <span aria-hidden="true">↗</span>;
 export async function LandingDownload() {
   const { url, release } = await publicWindowsRelease();
   const installer = windowsReleaseAsset(url) === "installer";
-  return <section id="download" className={[lp.section, lp.download].join(" ")} aria-labelledby="download-title">
-    <div className={lp.wide}>
+  return <section id="download" className={lp.download} aria-labelledby="download-title">
+    <div className={lp.shell}>
       <h2 id="download-title" className={lp.statement}>まず、あなたのPCで。そして、研究室へ。</h2>
       <ol className={lp.journey}>
         <li className={lp.stop}>
           <h3>Windows版は無料。</h3>
           <p>検出と測定から、統計、結論と考察、論文の図まで。画像はPCの外に出ません。</p>
-          {PUBLIC_SHOWCASE ? <DownloadStart url={url} installer={installer} />
+          {PUBLIC_SHOWCASE ? <DownloadStart url={url} installer={installer} classes={lp} />
             : <Link data-lp-event="example" href="/demo" className={lp.primary}>デモを体験する <span aria-hidden="true">→</span></Link>}
           {PUBLIC_SHOWCASE && <p className={lp.meta}>{url && <>{installer ? "インストーラー" : "ZIP"}{release ? ` ${releaseSize(release.size_bytes)}（v${release.version}）` : ""}<br />Windows 10／11（64ビット）<br /></>}<Link data-lp-event="install_guide" href="/download">インストールの流れ</Link></p>}
         </li>
@@ -31,7 +31,7 @@ export async function LandingDownload() {
         </li>
       </ol>
     </div>
-    <div id="guide" className={[lp.wide, lp.faq].join(" ")}>
+    <div id="guide" className={[lp.shell, lp.faq].join(" ")}>
       <h2 className={lp.faqTitle}>よくある質問</h2>
       <div className={lp.faqList}>
         <details><summary>料金は？</summary><p>Windows版は無料です。GPU推論とLLMを使う研究室のクラウドは応相談で、大学内での試験導入は基本無料です。</p></details>

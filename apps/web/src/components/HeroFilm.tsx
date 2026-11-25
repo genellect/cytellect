@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import styles from "./optical-landing.module.css";
+import styles from "./landing-world.module.css";
 
 const FILMS = [["/marketing/hero-film.webm", "video/webm"], ["/marketing/hero-film.mp4", "video/mp4"]] as const;
 const POSTER = "/marketing/hero-film-poster.webp";
