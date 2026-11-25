@@ -1,6 +1,6 @@
 # Windows 11 の Microsoft Store 版
 
-[Issue #215](https://github.com/genellect/cytellect/issues/215) の第1段階で、現行の Windows 配布 ZIP から MSIX を作る。初回の Store 申請と配布は第2段階で行う。
+[Issue #215](https://github.com/genellect/cytellect/issues/215) の第1段階で、現行の Windows 配布 ZIP から MSIX を作る。限定配布後、2026-11-24 に提出3が一般公開された。Windows 11 x64 は [Microsoft Store](https://apps.microsoft.com/detail/9PGKTQGV7X5C)、Windows 10 x64 などでは EXE を利用できる。
 
 ## 作成
 
@@ -20,6 +20,12 @@
 
 提出ジョブは、実行時点の `main` と受領書・MSIX 内のコミットを照合する。一般公開済みの提出から新しい提出を作り、掲載情報や価格などを引き継いだまま x64 パッケージを差し替える。既存の審査が進行中なら、そのまま待つ。6 時間ごとの実行でも最新のビルドを選び直す。途中で止まった場合は、Actions に記録された提出 ID を Partner Center で確認する。Store の審査と公開後、端末は Microsoft Store の自動更新で新しい版を受け取る。
 
+### Store が基本価格を `Base` と返した場合
+
+Microsoft の提出 API は、一部の公開版の基本価格を `Base` と返すが、更新時に同じ値を渡すと HTTP 400 を返す。[Microsoft Store CLI の価格指定](https://learn.microsoft.com/windows/apps/publish/msstore-dev-cli/publish-command)を参照。通常の無料・有料の価格 ID はそのまま引き継ぐ。
+
+Actions に `pricing.priceId=Base` が出た場合だけ、Partner Center で対象の**公開済み提出**の基本価格と全市場の価格を確認する。すべて無料で今後もその価格で提出する場合、GitHub の Settings → Environments → store-release で `STORE_CONFIRMED_FREE_SUBMISSION_ID` にその公開済み提出の数値 ID を登録して再実行する。下書きの ID とは異なる。この指定で書き換えるのは、その公開版から引き継いだ基本価格の API 表記だけで、地域別の設定はそのまま送る。API が無料と確認できない地域別価格を返した場合は停止する。API が地域別価格を返さない場合、スクリプトは市場ごとの価格を確かめられず、この指定だけで無料として送るため、登録の前に Partner Center で全市場を確認する。提出受理後は変数を削除する。次の公開版にはこの指定は適用されない。
+
 ## データと更新
 
 Windows 11 の [AppData 仮想化の除外](https://learn.microsoft.com/en-us/windows/msix/desktop/flexible-virtualization)を `%LOCALAPPDATA%\Cytellect` に限って指定する。このフォルダーで EXE 版が作った作業を Store 版から開ける。Store 版は更新と削除の際もフォルダーを保持する。保管期間は既存設定を引き継ぐ。新規導入の既定は利用者が削除するまで保持する。Store 版が新しく作るフォルダーには、EXE 版と同じ所有の印（`setup-root.json`）と保持の設定（`settings/retention.json`）を書くため、あとから EXE 版を入れても同じフォルダーを使える。EXE 版の削除時に作業データも削除する操作を選ぶと、共有している作業は削除される。
@@ -31,3 +37,13 @@ Store 版の更新には Microsoft Store を使う。ソースの検証、ロー
 `windows-msix` は GitHub の Windows ランナーで、新規導入と移行を一つずつ検証する。新規導入では Windows のアプリ起動経路で開き、登録済みの公開 BBBC013 画像を解析・出力する。アンインストールの後に再導入して同じ作業を開き、Code Integrity の監査でパッケージ外のネイティブファイルの読み込みを調べる。監査の記録にパッケージ内のファイルが 1 件もない場合は、パッケージのパスを識別できていないものとして失敗にする。移行では、空の端末に公開済みの EXE（`0.1.0-local.23`）を導入して公開 BBBC013 画像の解析を保存し、そのフォルダーを MSIX で開いて同じ測定を読む。続けて、EXE 版が残った状態で MSIX でも解析する。2 つの検証は別々のランナーで行う。新規導入の検証でパッケージを削除した後も、作業フォルダーの `data\tmp` のファイルが別のプロセスに 2 分以上開かれたままになり、同じランナーでは 2 つ目を空のフォルダーから始められないため。CI は使い捨ての証明書を使い、受領書のみを保存する。
 
 研究者の導入と自動更新の受入は、Windows 11 の実機に Store から入れた版で行う。Smart App Control を有効にした端末を含め、Windows の設定をそのままにして検証する。
+
+### API が作成した下書きからの復旧
+
+パッケージの差し替えでは、下書きから読み取った旧パッケージの `id` があれば、その値と `PendingDelete` を一緒に送る。新しい MSIX は `PendingUpload` として追加し、旧版の ID は引き継がない。[Microsoft のパッケージ更新例](https://learn.microsoft.com/en-us/windows/uwp/monetize/csharp-code-examples-for-the-windows-store-submission-api)。
+
+通常は復旧対象を指定しない。パッケージ更新の前に実行が停止した場合、Actions の作成ログと Partner Center の提出IDを照合する。オーナーが復旧を決めたときだけ、GitHub の Settings → Environments → store-release → Environment variables に `STORE_RECOVERY_SUBMISSION_ID` を設定し、数値の提出IDを値にする。main の Windows Store release を実行し、環境承認時に対象コミットと提出IDを確認する。
+
+復旧は指定IDの公開下書きが PendingCommit で、パッケージと配布・掲載情報が公開版と一致する場合に限る。差異があればログに出た項目名を調べる。API で作成した下書きは API で更新する。受理記録と Microsoft の提出状態を確認したら、同じ Environment variables からこの変数を削除する。対象の提出を取りやめる場合も削除する。他の提出IDには適用されない。
+
+提出の更新で HTTP 400 が返ったときは、Actions の提出ジョブで操作名、Microsoft の要求 ID、応答に含まれる既知のエラーコードと項目名を確認する。表示された項目名は応答に言及があったことを示す。エラー本文や審査用メモ、署名付き URL はログに出さない。同じコミットがすでに審査中または公開済みの場合、再実行は重複提出を省略する。自動提出の動作確認には、新しい対象版で API が審査申請を受理した記録を使う。

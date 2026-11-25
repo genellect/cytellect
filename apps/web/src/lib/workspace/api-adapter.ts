@@ -41,6 +41,15 @@ export interface SavedResult {
   measurement?: MeasurementPolicy | {version:"1.0.0";mode:"area_only"} | null;
   backgrounds?: Record<string,Record<string,{polygon:Point[];confirmed:true}>>;
   confirmedChannelIds?:string[];
+  /** Each measured channel's provenance as the table recorded it, with the background its values were corrected by. */
+  channelProvenance?: MeasuredChannelProvenance[];
+}
+/** A measured channel's provenance in a region table (and in a result's source fields): protocol 1.0.0 names the
+ * confirmed background ROI by its mask, pixel count and median; later protocols keep a `background` record. */
+export interface MeasuredChannelProvenance {
+  channel?: {channel_id?: string} | null;
+  background?: unknown;
+  background_mask_sha256?: string; background_pixel_count?: number; background_median?: number;
 }
 /** Raw values (3.0.0) or raw values plus an automatic, unconfirmed background candidate (4.0.0). */
 /** Mask corrections the workspace offers; delete goes through the exclusion/delete path. */
@@ -57,7 +66,7 @@ export function displayNameOf(key: string): {display_name?: string} {
 }
 const measurementOf = (result: SavedResult) => result.measurement !== undefined ? result.measurement : result.protocol === "1.0.0" ? null : result.protocol === "2.0.0" ? {version:"1.0.0",mode:"area_only"} : result.protocol === "4.0.0" ? automaticBackground : rawMeasurement;
 interface Report {
-  revision_id: string; protocol_version?: string; field_tables: Record<string, {rows: MeasurementRow[]}>;
+  revision_id: string; protocol_version?: string; field_tables: Record<string, {rows: MeasurementRow[]; channel_provenance?: MeasuredChannelProvenance[]}>;
   field_failures: Array<{field_id: string; reason: string}>;
   exclusions: SavedResult["exclusions"];
 }
@@ -68,10 +77,10 @@ export interface Recipe {
   source: "manual" | "stardist_nuclear" | "fiji_positive_regions" | "fiji_nuclear_compartment" | "cellpose_cell"; defining_channel_id: string;
   compartment?: "nucleoli" | "nucleoplasm"; nuclear_revision_id?: string; nuclear_channel_id?: string;
   detector?: AnyCellposeProcessingDetector | NclObjectProcessingDetector | NuclearProcessingDetector | SignalProcessingDetector | {engine?: "fiji-nucleolar-compartments"; protocol_version?: "1.0.0" | "1.1.0"; threshold_method?: "otsu" | "manual"; threshold?: number | null; smoothing_sigma_px: number; minimum_area_px: number; maximum_area_px?: number | null; split_touching: boolean}
-    | {engine: "cytellect-nucleolar-v2"; protocol_version: "2.0.0" | "2.1.0"; source: "dapi_poor" | "marker"; smoothing_sigma_px: number; rim_exclusion_px: number; relative_threshold: number; marker_fraction: number; background_radius_px: number; minimum_area_px: number; maximum_area_px: number | null; minimum_solidity: number};
+    | {engine: "cytellect-nucleolar-v2"; protocol_version: "2.0.0" | "2.1.0" | "2.2.0"; source: "dapi_poor" | "marker"; smoothing_sigma_px: number; rim_exclusion_px: number; relative_threshold: number; marker_fraction: number; background_radius_px: number; minimum_area_px: number; maximum_area_px: number | null; minimum_solidity: number; minimum_area_um2?: number | null; minimum_contrast_snr?: number};
   nucleolar_revision_id?: string;
   nuclear_role_source?: "recorded_stain" | "user_selected_role";
-  detection_max_side_px?: number; detection_scale?: "nuclear-size/1.0.0";
+  detection_max_side_px?: number; detection_scale?: "nuclear-size/1.0.0" | "nuclear-size/1.1.0";
 }
 export interface ProposalMetric {metric:string;channel:string|null;region?:string|null}
 export interface ProposalStatistics {kind:"descriptive"|"comparison"|"association";test:string|null;omnibus:string|null;association:string|null;x?:ProposalMetric|null;y?:ProposalMetric|null}
@@ -106,7 +115,7 @@ export interface CompartmentSummaryFile {
   corrected_channels?: Record<string, {protocol: string; rows: CompartmentSummaryRow[]; missing_reason?: string | null}>;
 }
 export type RunTarget = "nuclei" | "nucleoli" | "nucleoplasm" | "cell";
-export interface WorkspaceRun {id:string; workspace_id:string;spec_version:number;target:RunTarget;state:"queued"|"running"|"succeeded"|"failed"|"cancelled"|"adopted";created:number;updated:number;steps:Array<{field_id:string;target:RunTarget;state:"pending"|"queued"|"succeeded"|"reused"|"failed"|"blocked";revision_id:string|null;job_id:string|null;recipe:Recipe|null;error:string|null;background_pending?:boolean}>}
+export interface WorkspaceRun {id:string; workspace_id:string;spec_version:number;/** From the run list: the run answers the saved specification (same version, or same content apart from the primary-measure declaration). */spec_current?:boolean;target:RunTarget;state:"queued"|"running"|"succeeded"|"failed"|"cancelled"|"adopted";created:number;updated:number;steps:Array<{field_id:string;target:RunTarget;state:"pending"|"queued"|"succeeded"|"reused"|"failed"|"blocked";revision_id:string|null;job_id:string|null;recipe:Recipe|null;error:string|null;background_pending?:boolean}>}
 export interface RevisionRecord {id: string; state: string; created: number; config: {recipe: Recipe; field_ids: string[]; exclusions?: SavedResult["exclusions"];measurement?:SavedResult["measurement"];backgrounds?:SavedResult["backgrounds"];confirmed_channel_ids?:string[]}}
 export interface Transport {
   request: typeof request; post: typeof post; blob: typeof fetchBlob; wait: () => Promise<void>;
@@ -129,10 +138,10 @@ export function channelSpecification(channel: ChannelDefinition) {
 export function nuclearRecipe(channel: ChannelDefinition, detectionMaxSide?: number | null): Recipe {
   if (channel.role !== "nuclear") throw new Error("核検出に使うチャンネルを選択してください。");
   if (detectionMaxSide != null && (!Number.isInteger(detectionMaxSide) || detectionMaxSide < 64 || detectionMaxSide > 2048)) throw new Error("検出用画像の長辺は64〜2048pxで指定してください。");
-  // Without an explicit size the detection copy follows the estimated nucleus size (nuclear-size/1.0.0),
+  // Without an explicit size the detection copy follows the estimated nucleus size (nuclear-size/1.1.0),
   // so high-resolution images are not split into nuclear texture.
   return {id: "region-2d", version: detectionMaxSide == null ? "1.7.0" : "1.5.0", region_set_id: "nuclei", label: "核", source: "stardist_nuclear",
-    ...(detectionMaxSide == null ? {detection_scale: "nuclear-size/1.0.0" as const} : {detection_max_side_px: detectionMaxSide}),
+    ...(detectionMaxSide == null ? {detection_scale: "nuclear-size/1.1.0" as const} : {detection_max_side_px: detectionMaxSide}),
     defining_channel_id: channel.token, nuclear_role_source: channel.evidence === "user" ? "user_selected_role" : "recorded_stain"};
 }
 
@@ -205,6 +214,7 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
     const masks = await client.request<SavedResult["masks"]>(`/v1/revisions/${revision}/region-masks?field_id=${encodeURIComponent(field)}`);
     const record=revisionConfigs.has(revision)?{config:revisionConfigs.get(revision)}:await client.request<{config?:RevisionRecord["config"]}>(`/v1/revisions/${revision}`);
     return {regionSet: revisionRecipes.get(revision)?.region_set_id || "nuclei", revision, field, rows: table.rows, masks, exclusions: report.exclusions, protocol: report.protocol_version,
+      ...(table.channel_provenance ? {channelProvenance: table.channel_provenance} : {}),
       ...(record.config?{measurement:record.config.measurement??null,backgrounds:record.config.backgrounds??{},confirmedChannelIds:record.config.confirmed_channel_ids??[]}: {})};
   }
   return {

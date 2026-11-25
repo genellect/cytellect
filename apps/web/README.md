@@ -12,7 +12,7 @@ With `WINDOWS_EXE_CHANNEL_ENABLED=true` in the Vercel Production environment, th
 2. Set `version`, `"asset": "installer"`, `url` (`https://github.com/genellect/cytellect/releases/download/v<version>/Cytellect-Setup-<version>.exe`), `sha256`, `source_commit` (the release's source commit, 40 hex characters) and `size_bytes` (the byte size of the downloaded file).
 3. After the merge and deployment, run the release download check below (`CYTELLECT_TEST_RELEASE_DOWNLOAD=1`) against the canonical site.
 
-`NEXT_PUBLIC_WINDOWS_RELEASE_URL` overrides this record only when explicitly defined. An **empty value disables downloads**; an invalid value also disables them and never falls back. Removing the variable restores the recorded release on the next build. Local builds and builds with an analysis API configured preserve their workspace UI regardless of the release setting.
+`NEXT_PUBLIC_WINDOWS_RELEASE_URL` overrides this record only when explicitly defined. An empty or invalid value hides the file download. The public Microsoft Store listing remains available. Removing the variable restores the recorded release on the next build. Local builds and builds with an analysis API configured preserve their workspace UI regardless of the release setting.
 
 Only version-specific HTTPS GitHub assets in `genellect/cytellect` are accepted: `releases/download/v<version>/Cytellect-Setup-<version>.exe`, whose tag and file name carry the same version, or `Cytellect-<version>-windows-x64.zip`. There is no `/latest` URL, browser release probe or local-service discovery. The version/checksum link appears only when the effective asset matches the recorded release, so an override cannot inherit a different version's metadata.
 

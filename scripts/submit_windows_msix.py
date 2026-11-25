@@ -28,6 +28,7 @@ WRITABLE_FIELDS = {
     "listings", "hardwarePreferences", "automaticBackupEnabled", "canInstallOnRemovableMedia",
     "isGameDvrEnabled", "gamingOptions", "hasExternalInAppProducts", "meetAccessibilityGuidelines",
     "notesForCertification", "packageDeliveryOptions", "enterpriseLicensing",
+    "allowMicrosoftDecideAppAvailabilityToFutureDeviceFamilies",
     "allowMicrosftDecideAppAvailabilityToFutureDeviceFamilies", "allowTargetFutureDeviceFamilies",
     "trailers",
 }
@@ -46,13 +47,75 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+def validation_diagnostic(error: urllib.error.HTTPError) -> str:
+    """Report only known schema terms and a Microsoft request ID, never raw error messages."""
+    fields = WRITABLE_FIELDS | {
+        "applicationPackages", "id", "fileName", "fileStatus", "minimumDirectXVersion", "minimumSystemRam",
+        "baseListing", "images", "imageType", "description", "keywords", "priceId", "marketSpecificPricings",
+        "packageRollout", "fallbackSubmissionId", "isMandatoryUpdate", "mandatoryUpdateEffectiveDate",
+    }
+    codes = {"InvalidRequest", "InvalidParameter", "InvalidParameterValue", "InvalidValue", "InvalidOperation",
+             "InvalidState", "BadRequest", "InvalidRequestBody", "InvalidSubmission", "InvalidArgument",
+             "ValidationError", "ResourceNotFound", "ServiceError", "PackageValidationFailed"}
+    parts = []
+    headers = error.headers or {}
+    request_id = next((headers.get(key) for key in (
+        "MS-CorrelationId", "x-ms-correlation-request-id", "x-ms-request-id", "request-id",
+    ) if headers.get(key)), None)
+    if request_id and re.fullmatch(r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}", request_id):
+        parts.append(f"Request ID: {request_id}")
+    try:
+        payload = json.loads(error.read(65536))
+    except (OSError, ValueError, RecursionError, http.client.HTTPException):
+        payload = None
+    if isinstance(payload, dict):
+        # Some endpoints use an error envelope; others put code and message at the root.
+        detail = payload.get("error", payload)
+        if isinstance(detail, dict):
+            code = detail.get("code")
+            if isinstance(code, str) and code in codes:
+                parts.append(f"Code: {code}")
+            # Only field paths (a.b, a[0]) and explicit targets count; plain words in a message do not.
+            text = json.dumps(detail)
+            paths = re.findall(r"[A-Za-z][A-Za-z0-9]*(?:\[\d+\])?(?:\.[A-Za-z][A-Za-z0-9]*(?:\[\d+\])?)+"
+                               r"|[A-Za-z][A-Za-z0-9]*\[\d+\]", text)
+            children = detail.get("details")
+            records = [detail, *children] if isinstance(children, list) else [detail]
+            # A validator can name a single parameter in prose without supplying a JSON target.
+            # Emit only schema keys, never the rejected value or the original message.
+            for item in records:
+                if not isinstance(item, dict):
+                    continue
+                if isinstance(item.get("target"), str):
+                    paths.append(item["target"])
+                for message in (item.get("message"), item.get("details")):
+                    if isinstance(message, str):
+                        paths.extend(re.findall(
+                            r"\b(?:parameter|property|field|not a valid)\s+['\"]?([A-Za-z][A-Za-z0-9]*)\b",
+                            message, flags=re.IGNORECASE,
+                        ))
+            terms = {term.casefold() for path in paths for term in re.findall(r"[A-Za-z][A-Za-z0-9]*", path)}
+            mentioned = sorted(field for field in fields if field.casefold() in terms)
+            if mentioned:
+                parts.append("Fields mentioned: " + ", ".join(mentioned))
+    return " ".join(parts)
+
+
 def request_json(url: str, method: str, operation: str, headers: dict, data=None) -> dict:
     request = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
         with urllib.request.build_opener(NoRedirect()).open(request, timeout=90) as response:
             result = json.load(response)
     except urllib.error.HTTPError as error:
-        raise StoreError(f"{operation} failed (HTTP {error.code}).") from None
+        detail = ""
+        try:
+            with error:
+                if url.startswith(APP + "/") and error.code == 400:
+                    detail = validation_diagnostic(error)
+        except Exception:
+            # The diagnostic is optional; never let it hide the HTTP status.
+            detail = ""
+        raise StoreError(f"{operation} failed (HTTP {error.code}). {detail}".rstrip()) from None
     except (OSError, ValueError):
         raise StoreError(f"{operation} did not return a readable API response.") from None
     if not isinstance(result, dict):
@@ -89,7 +152,7 @@ class Store:
 
     def call(self, method: str, suffix: str = "", *, body: dict | None = None) -> dict:
         data = json.dumps(body).encode("utf-8") if body is not None else None
-        return request_json(APP + suffix, method, "Microsoft Store API", self.headers, data)
+        return request_json(APP + suffix, method, f"Microsoft Store API {method} {suffix or '/'}", self.headers, data)
 
 
 def version_parts(version: str) -> tuple[int, ...]:
@@ -171,7 +234,35 @@ def has_candidate(submission: dict, name: str) -> bool:
     )
 
 
-def submit(store: Store, package: Path, version: str, commit: str) -> bool:
+def package_update_pricing(published: dict, confirmed_free_id: str) -> dict:
+    pricing = published.get("pricing")
+    price_id = pricing.get("priceId") if isinstance(pricing, dict) else None
+    if not isinstance(price_id, str) or not price_id.strip():
+        raise StoreError("The published base price is missing. Verify pricing in Partner Center.")
+    if price_id != "Base":
+        return pricing
+    markets = pricing.get("marketSpecificPricings")
+    if markets is not None and (not isinstance(markets, dict) or any(tier != "Free" for tier in markets.values())):
+        raise StoreError("Store returned Base with market prices that cannot be verified as free.")
+    if not confirmed_free_id or published.get("id") != confirmed_free_id:
+        raise StoreError("Store returned pricing.priceId=Base, which the update API rejects. "
+                         "Verify all markets of the published submission before setting STORE_CONFIRMED_FREE_SUBMISSION_ID.")
+    return {**pricing, "priceId": "Free"}
+
+
+def price_terms(pricing, confirmed_base: bool = False):
+    """The parts of a price that decide what buyers pay; other keys may differ in shape between reads."""
+    if not isinstance(pricing, dict):
+        return None
+    price_id = pricing.get("priceId")
+    # The API may read a confirmed free Base price back as Base after Free was written.
+    if confirmed_base and price_id == "Base":
+        price_id = "Free"
+    return price_id, pricing.get("marketSpecificPricings") or {}
+
+
+def submit(store: Store, package: Path, version: str, commit: str, recover_id: str = "",
+           *, confirmed_free_id: str = "") -> bool:
     app = store.call("GET")
     if app.get("packageIdentityName") != PACKAGE_IDENTITY:
         raise StoreError("The API resolved to a different Store package identity.")
@@ -194,7 +285,11 @@ def submit(store: Store, package: Path, version: str, commit: str) -> bool:
     if version_parts(published_packages[0]["version"]) >= version_parts(version):
         raise StoreError("The candidate version must be newer than every published package.")
     pending_ref = app.get("pendingApplicationSubmission")
-    replacement = {"fileName": name, "fileStatus": "PendingUpload"}
+    replacement = {
+        "fileName": name, "fileStatus": "PendingUpload",
+        "minimumDirectXVersion": published_packages[0].get("minimumDirectXVersion", "None"),
+        "minimumSystemRam": published_packages[0].get("minimumSystemRam", "None"),
+    }
     if pending_ref:
         path = submission_path(pending_ref)
         draft = store.call("GET", path)
@@ -202,26 +297,53 @@ def submit(store: Store, package: Path, version: str, commit: str) -> bool:
         if draft.get("status") in IN_REVIEW:
             print(f"Waiting for Store submission {pending_ref['id']} to finish.")
             return any(item["fileName"].endswith(suffix) for item in packages)
-        if not has_candidate(draft, name):
+        changed_fields = sorted(key for key in WRITABLE_FIELDS if draft.get(key) != published.get(key))
+        recover_clone = (
+            pending_ref["id"] == recover_id and not changed_fields and packages == published_packages
+            and is_public(draft) and draft.get("status") == "PendingCommit"
+        )
+        if not has_candidate(draft, name) and not recover_clone:
+            if pending_ref["id"] == recover_id:
+                if packages != published_packages:
+                    changed_fields.append("applicationPackages")
+                if draft.get("status") != "PendingCommit":
+                    changed_fields.append("status")
+                raise StoreError(f"Recovery stopped for {recover_id}. Different fields: {', '.join(changed_fields)}.")
             raise StoreError(f"Store submission {pending_ref['id']} needs attention before continuing.")
-    else:
+    # Validate before creating a draft. In-flight submissions above need no update request.
+    pricing = package_update_pricing(published, confirmed_free_id)
+    # package_update_pricing only lets Base through when the owner confirmed it as free.
+    confirmed_base = published["pricing"]["priceId"] == "Base"
+    if not pending_ref:
         draft = store.call("POST", "/submissions")
         path = submission_path(draft)
         print(f"Created Store submission {draft['id']} for {version}.")
+    if not has_candidate(draft, name):
         if not is_public(draft) or draft.get("status") != "PendingCommit":
             raise StoreError("The new submission did not inherit the published public release settings.")
+        if price_terms(draft.get("pricing")) != price_terms(published.get("pricing")):
+            raise StoreError("The draft pricing differs from the published submission.")
         metadata = {key: value for key, value in draft.items() if key in WRITABLE_FIELDS}
-        packages = [
-            {"fileName": item["fileName"], "fileStatus": "PendingDelete"}
-            for item in draft.get("applicationPackages", [])
-        ]
+        metadata["pricing"] = pricing
+        packages = []
+        for item in draft.get("applicationPackages", []):
+            previous = {
+                "fileName": item["fileName"], "fileStatus": "PendingDelete",
+                "minimumDirectXVersion": item.get("minimumDirectXVersion", "None"),
+                "minimumSystemRam": item.get("minimumSystemRam", "None"),
+            }
+            if item.get("id"):
+                previous["id"] = item["id"]
+            packages.append(previous)
         draft = store.call("PUT", path, body={
             **metadata, "applicationPackages": [*packages, replacement],
         })
-        if any(draft.get(key) != value for key, value in metadata.items()):
+        if any(draft.get(key) != value for key, value in metadata.items() if key != "pricing"):
             raise StoreError("The Store changed release settings while attaching the package.")
         if not has_candidate(draft, name):
             raise StoreError("The Store did not attach the intended package.")
+    if price_terms(draft.get("pricing"), confirmed_base) != price_terms(pricing):
+        raise StoreError("The attached package has unexpected pricing.")
     upload_package(draft["fileUploadUrl"], package, name)
     current = store.call("GET", path)
     if not has_candidate(current, name) or any(
@@ -243,7 +365,9 @@ def main() -> None:
     args = parser.parse_args()
     try:
         version = verify_package(args.package, args.receipt, args.commit)
-        accepted = submit(Store.authenticate(), args.package, version, args.commit)
+        accepted = submit(Store.authenticate(), args.package, version, args.commit,
+                          os.environ.get("STORE_RECOVERY_SUBMISSION_ID", ""),
+                          confirmed_free_id=os.environ.get("STORE_CONFIRMED_FREE_SUBMISSION_ID", ""))
         if accepted and (output := os.environ.get("GITHUB_OUTPUT")):
             with Path(output).open("a", encoding="utf-8") as stream:
                 stream.write("accepted=true\n")

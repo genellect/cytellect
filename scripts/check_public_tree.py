@@ -34,8 +34,10 @@ sensitive = {
     ".db",
 }
 SHOWCASE_DIR = "apps/web/public/showcase/"
-# DM-10: 700 MB. The requirement does not define MB, so the limit is read as 700 MiB (700 × 1024 × 1024 bytes).
-SHOWCASE_LIMIT_BYTES = 700 * 1024 * 1024
+# DM-10: 1,300 MiB (1,300 × 1024 × 1024 bytes), decided from the measured 1,173.9 MiB of the demo recorded with every
+# scene in full (1,230,884,606 bytes in 15,692 files at f5afd458a; 2026-11-24, genellect/cytellect#257). Before, 700 MiB
+# (2026-11-13).
+SHOWCASE_LIMIT_BYTES = 1300 * 1024 * 1024
 
 
 def tracked_files(base: Path) -> list[str]:

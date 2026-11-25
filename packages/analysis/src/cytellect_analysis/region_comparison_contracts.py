@@ -4,7 +4,7 @@ from typing import Annotated, Any, Literal
 from pydantic import Field, field_validator, model_validator
 
 from .contracts import PlotSpec
-from .descriptive_contracts import RegionSelection
+from .descriptive_contracts import NUCLEAR_SHAPE_METRICS, RegionSelection
 from .regions import Id, RegionModel
 
 Text = Annotated[str, Field(min_length=1, max_length=200)]
@@ -82,6 +82,9 @@ class RegionComparisonRequest(RegionModel):
             raise ValueError("gfp_gate_unsupported_request")
         if self.version == "1.0.0" and getattr(self.selection, "channel_gate", None) is not None:
             raise ValueError("channel_gate_unsupported_request")
+        if self.version == "1.0.0" and self.selection.metric in NUCLEAR_SHAPE_METRICS:
+            # Nuclear shape (nuclear-features/1.0.0) is compared by common statistics request 2.0.0 only.
+            raise ValueError("nuclear_features_unsupported_request")
         if (len(self.conditions) != len(set(self.conditions))
                 or set(self.conditions) != {group for pair in self.comparison_family.contrasts for group in pair}):
             raise ValueError("region_comparison_condition_scope_mismatch")

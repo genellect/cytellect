@@ -30,9 +30,12 @@ describe("real workspace transport boundaries", () => {
   });
   it("retains confirmed ROI policy and coordinates when excluding a measured region",async()=>{
     const backgrounds={f1:{channel2:{polygon:[[0,0],[2,0],[2,2]] as Array<[number,number]>,confirmed:true as const}}};
-    const {adapter,post}=fake(async path=>path.endsWith("/jobs")?[{id:"j1",state:"succeeded"}]:path.includes("region-masks")?result.masks:path==="/v1/revisions/r1"?{config:{backgrounds,confirmed_channel_ids:["channel2"]}}:{revision_id:"r1",protocol_version:"1.0.0",field_tables:{f1:{rows:[]}},field_failures:[],exclusions:[]});
+    const provenance=[{channel:{channel_id:"channel2"},background_mask_sha256:"a".repeat(64),background_pixel_count:3,background_median:7}];
+    const {adapter,post}=fake(async path=>path.endsWith("/jobs")?[{id:"j1",state:"succeeded"}]:path.includes("region-masks")?result.masks:path==="/v1/revisions/r1"?{config:{backgrounds,confirmed_channel_ids:["channel2"]}}:{revision_id:"r1",protocol_version:"1.0.0",field_tables:{f1:{rows:[],channel_provenance:provenance}},field_failures:[],exclusions:[]});
     const saved=await adapter.readResult("r1","f1",nuclearRecipe(channel));
     expect(saved.measurement).toBeNull();expect(saved.backgrounds).toEqual(backgrounds);
+    // The background the values were corrected by, for the statistics to tell a redrawn ROI apart (#257 NS-04).
+    expect(saved.channelProvenance).toEqual(provenance);
     await adapter.correct("w1",saved,"exclude",17,nuclearRecipe(channel));
     expect(post).toHaveBeenCalledWith("/v1/revisions/r1/region-reconfigure",expect.objectContaining({measurement:null,backgrounds,confirmed_channel_ids:["channel2"]}));
   });
@@ -45,7 +48,7 @@ describe("real workspace transport boundaries", () => {
   });
   it("sizes detection from the nuclei by default and versions an explicitly selected detection scale", () => {
     // Without an explicit size, the detection copy follows the estimated nucleus size.
-    expect(nuclearRecipe(channel)).toMatchObject({version: "1.7.0", detection_scale: "nuclear-size/1.0.0"});
+    expect(nuclearRecipe(channel)).toMatchObject({version: "1.7.0", detection_scale: "nuclear-size/1.1.0"});
     expect(nuclearRecipe(channel)).not.toHaveProperty("detection_max_side_px");
     expect(nuclearRecipe(channel, 320)).toMatchObject({version: "1.5.0", detection_max_side_px: 320, defining_channel_id: "channel2"});
     for (const invalid of [0, 63, 2049, 320.5, NaN]) expect(() => nuclearRecipe(channel, invalid)).toThrow();

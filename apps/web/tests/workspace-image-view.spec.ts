@@ -259,7 +259,7 @@ test("statistics open on the latest saved comparison, the saved comparisons swit
   await expect(navigation.getByRole("button",{name:"統計",exact:true})).toHaveAttribute("aria-current","page");
   const results=page.getByRole("region",{name:"測定結果の統計解析"});
   const summary=results.getByRole("region",{name:"結果のまとめ"});
-  await expect(summary).toContainText("核の平均輝度（c2）");
+  await expect(summary).toContainText("核の平均輝度（NPM1）");
   await expect(results.getByRole("status").filter({hasText:/前の結果|記録した結果/})).toHaveCount(0);
   const switcher=results.getByRole("group",{name:"保存した比較"});
   await expect(switcher.getByRole("button")).toHaveCount(2);

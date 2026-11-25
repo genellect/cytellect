@@ -12,6 +12,7 @@ from scipy import stats
 
 from .descriptive import SAFE_ERROR_CODES as DESCRIPTIVE_ERRORS
 from .descriptive import _finite, prepare_region_observations, region_report_measurement_policy
+from .nuclear_features import reads_no_stain, samples_space
 from .region_comparison_contracts import RegionComparisonRequest, RegionComparisonResult
 from .region_policy import MEASUREMENT_POLICY
 from .statistics import finite_records
@@ -56,7 +57,7 @@ def _measurement_policy(report, config):
     return measurement
 
 
-def _source(report, config, request):
+def _source(report, config, request, features=None):
     _measurement_policy(report, config)
     confirmed = (config.get("review_record") or {}).get("confirmed_at")
     if isinstance(confirmed, bool) or not isinstance(confirmed, (int, float)):
@@ -69,7 +70,7 @@ def _source(report, config, request):
             or report.get("recipe") != config.get("recipe") or len(ids) != len(set(ids))
             or set(ids) != set(snapshot) or report.get("exclusions", []) != config.get("exclusions", [])):
         raise ValueError("region_comparison_source_mismatch")
-    observations, sources, unit, failed = prepare_region_observations(report, snapshot, request.selection)
+    observations, sources, unit, failed = prepare_region_observations(report, snapshot, request.selection, features)
     return snapshot, observations, sources, unit, failed
 
 
@@ -192,12 +193,15 @@ def _design_ledger(snapshot, observations, report, request, control_fields=None,
 
 def _acquisition(sources, snapshot, selected, field_ledger, request):
     review, metric = request.acquisition_review, request.selection.metric
-    area = metric.startswith("area_")
+    # Area and nuclear shape read no stain; pixel area, integrated intensity and the nuclear features change with
+    # the pixel grid and need one confirmed spatial sampling.
+    area = reads_no_stain(metric)
+    sampled = samples_space(metric)
     if set(review.field_batches) - set(snapshot):
         raise ValueError("region_comparison_acquisition_review_required")
     if review.basis == "calibrated-area" and metric != "area_um2":
         raise ValueError("region_comparison_acquisition_review_required")
-    if (metric == "area_px" or "integrated" in metric) and not review.spatial_sampling_confirmed:
+    if sampled and not review.spatial_sampling_confirmed:
         raise ValueError("region_comparison_incompatible_sampling")
     if metric == "area_um2":
         eligible_fields = {field["field_id"] for field in field_ledger
@@ -211,7 +215,7 @@ def _acquisition(sources, snapshot, selected, field_ledger, request):
         raise ValueError("region_comparison_incompatible_sampling")
     if metric == "area_um2" and len(calibration) > 1 and review.basis != "calibrated-area":
         raise ValueError("region_comparison_acquisition_review_required")
-    if metric == "area_px" or "integrated" in metric:
+    if sampled:
         if len(calibration) > 1:
             raise ValueError("region_comparison_incompatible_sampling")
     batches, dtypes = {}, set()
@@ -252,7 +256,7 @@ def compare_regions(report, config, request):
     ledger, unit_ledger, pairs, selected, observation_ledger, missing, selection_counts = _design_ledger(
         snapshot, observations, report, request)
     acquisition, warnings = _acquisition(sources, snapshot, selected, ledger, request)
-    if not request.selection.metric.startswith("area_"):
+    if not reads_no_stain(request.selection.metric):
         selected_ids = {(row["field_id"], row["region_id"]) for row in selected}
         for fid, table in report["field_tables"].items():
             for row in table["rows"]:

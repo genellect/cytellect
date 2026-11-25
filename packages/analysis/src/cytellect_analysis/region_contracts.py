@@ -235,7 +235,7 @@ class ScaledNuclearRecipe(RegionModel):
 
 
 class AutoScaledNuclearRecipe(RegionModel):
-    """Nuclei with a detection copy sized from the estimated nucleus diameter (nuclear-size/1.0.0)."""
+    """Nuclei with a detection copy sized from the estimated nucleus diameter (nuclear-size/1.1.0; 1.0.0 replays)."""
     id: Literal["region-2d"] = "region-2d"
     version: Literal["1.7.0"] = "1.7.0"
     region_set_id: Id
@@ -243,7 +243,7 @@ class AutoScaledNuclearRecipe(RegionModel):
     source: Literal["stardist_nuclear"] = "stardist_nuclear"
     defining_channel_id: Id
     nuclear_role_source: Literal["recorded_stain", "user_selected_role"]
-    detection_scale: Literal["nuclear-size/1.0.0"] = "nuclear-size/1.0.0"
+    detection_scale: Literal["nuclear-size/1.0.0", "nuclear-size/1.1.0"] = "nuclear-size/1.1.0"
     detector: NuclearDetectorSpec = Field(default_factory=NuclearDetectorSpec)
 
 

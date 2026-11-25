@@ -16,6 +16,8 @@ from .masks import validate_labels
 
 class NucleolarShape(TypedDict):
     nucleolar_eccentricity: float | None
+    # Largest nucleolus area / union area of the nucleus's nucleoli (as nucleus table 1.0.0); None without nucleoli.
+    largest_nucleolus_fraction: float | None
     objects: int
     measured_objects: int
     missing_reason: str | None
@@ -71,8 +73,10 @@ def nucleolar_eccentricity(nuclei: np.ndarray, nucleoli: np.ndarray) -> dict[int
     for parent in (int(value) for value in np.unique(nuclei) if value):
         objects = children.get(parent, [])
         weighted, weight, measured = 0.0, 0, 0
+        areas = []
         for label in objects:
             rows, columns = pixels(label)
+            areas.append(int(rows.size))
             value = object_eccentricity(rows, columns)
             if value is None:
                 continue
@@ -81,5 +85,6 @@ def nucleolar_eccentricity(nuclei: np.ndarray, nucleoli: np.ndarray) -> dict[int
             measured += 1
         reason = "no_nucleolus" if not objects else None if measured else "degenerate_objects"
         shapes[parent] = {"nucleolar_eccentricity": weighted / weight if measured else None,
+                          "largest_nucleolus_fraction": max(areas) / sum(areas) if areas else None,
                           "objects": len(objects), "measured_objects": measured, "missing_reason": reason}
     return shapes

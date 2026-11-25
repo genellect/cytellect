@@ -1,4 +1,4 @@
-"""Automatic nuclear detection scale (nuclear-size/1.0.0): estimate, choice, recipe and worker."""
+"""Automatic nuclear detection scale (nuclear-size/1.0.0 and 1.1.0): estimate, choice, recipe and worker."""
 import copy
 import json
 import os
@@ -38,7 +38,7 @@ def test_large_nuclei_are_measured_and_get_a_detection_copy_at_the_target_size()
     centres = [(400, 400), (400, 1200), (1200, 400), (1200, 1200), (800, 1600)]
     image = textured_nuclei(2000, 150, centres)
     record = estimate_nuclear_diameter(image)
-    assert record["protocol"] == "nuclear-size/1.0.0" and record["missing_reason"] is None
+    assert record["protocol"] == "nuclear-size/1.1.0" and record["missing_reason"] is None
     assert record["diameter_px"] == pytest.approx(300, rel=0.08)
     side = automatic_detection_max_side(image.shape, record["diameter_px"])
     assert side == round(2000 * TARGET_DIAMETER_PX / record["diameter_px"])
@@ -67,10 +67,43 @@ def auto_recipe():
 
 def test_recipe_is_a_separate_version_with_a_fixed_scale_protocol():
     data = auto_recipe().model_dump(mode="json")
-    assert data["version"] == "1.7.0" and data["detection_scale"] == "nuclear-size/1.0.0"
+    assert data["version"] == "1.7.0" and data["detection_scale"] == "nuclear-size/1.1.0"
     assert RegionAnalysisRequest.model_validate({"field_ids": ["f1"], "recipe": data}).recipe == auto_recipe()
     with pytest.raises(ValueError):
         AutoScaledNuclearRecipe.model_validate({**data, "detection_scale": "nuclear-size/9.9.9"})
+    # Saved 1.0.0 recipes keep their protocol and replay with the 1.0.0 estimate.
+    saved = AutoScaledNuclearRecipe.model_validate({**data, "detection_scale": "nuclear-size/1.0.0"})
+    assert saved.detection_scale == "nuclear-size/1.0.0"
+    with pytest.raises(ValueError, match="nuclear_scale_protocol_invalid"):
+        estimate_nuclear_diameter(np.ones((8, 8), np.uint16), "nuclear-size/9.9.9")
+
+
+BACKGROUND_FIELD = Path(__file__).resolve().parents[1] / "fixtures/public/nuclear-scale/ds6b-30min-cis100-294-nuclear-640.tif"
+
+
+def background_field():
+    import tifffile
+    return tifffile.imread(BACKGROUND_FIELD)
+
+
+def test_large_scale_background_does_not_become_the_typical_nucleus():
+    """Regression on a registered public field (DS6b, 0.325 um/px; nuclei about 50-90 px).
+
+    Its nuclear channel carries a background brighter than the nuclear contrast across much of the
+    field. 1.0.0 thresholds it into one field-spanning component, so the detection copy shrinks to the
+    minimum side and StarDist finds one "nucleus". 1.1.0 removes the large-scale background first.
+    """
+    image = background_field()
+    old = estimate_nuclear_diameter(image, "nuclear-size/1.0.0")
+    assert old["diameter_px"] > 400  # the failure: about ten nuclear diameters
+    record = estimate_nuclear_diameter(image)
+    assert record["protocol"] == "nuclear-size/1.1.0" and record["missing_reason"] is None
+    assert 40 <= record["diameter_px"] <= 110
+    assert record["background_opening_side_grid_px"] == 81  # 320 px grid (factor 2): a quarter of it, odd
+    side = automatic_detection_max_side(image.shape, record["diameter_px"])
+    assert side is None or side >= 0.35 * max(image.shape)
+    # 1.0.0 replay is unchanged by the new protocol.
+    assert estimate_nuclear_diameter(image, "nuclear-size/1.0.0") == old
 
 
 def test_worker_sizes_the_detection_copy_per_field_records_it_and_reuses_masks(tmp_path, monkeypatch):
@@ -86,13 +119,13 @@ def test_worker_sizes_the_detection_copy_per_field_records_it_and_reuses_masks(t
     assert not report["field_failures"] and len(calls) == 1
     event = read_json(store.safe_path("results", "r1", "provenance.json"))["fields"]["f1"]["detector"]
     scale = event["detection_scale"]
-    assert scale["protocol"] == "nuclear-size/1.0.0" and scale["detection_max_side_px"] == calls[0]
+    assert scale["protocol"] == "nuclear-size/1.1.0" and scale["detection_max_side_px"] == calls[0]
     image = np.load(store.safe_path("workspaces", "w", "fields", "f1", "channel-dna.npy"))
     expected = estimate_nuclear_diameter(image)
     assert scale["diameter_px"] == expected["diameter_px"]
     assert calls[0] == automatic_detection_max_side(image.shape, expected["diameter_px"])
     provenance = read_json(store.safe_path("results", "r1", "provenance.json"))
-    assert "Detection scale: nuclear-size/1.0.0" in region_methods(config, report, provenance)
+    assert "Detection scale: nuclear-size/1.1.0" in region_methods(config, report, provenance)
     repeated = execute(store, settings, {**config, "reuse_revision": "r1"}, "r2")
     assert not repeated["field_failures"] and len(calls) == 1
     reused = read_json(store.safe_path("results", "r2", "provenance.json"))["fields"]["f1"]["detector"]
@@ -134,3 +167,29 @@ def test_high_resolution_nuclei_are_not_split_into_texture(tmp_path):
     assert side is not None
     assert count(large, side, "automatic") == pytest.approx(reference, rel=0.1)
     assert count(large, None, "capacity-only") > reference * 1.1  # the failure this protects against
+
+
+@pytest.mark.fiji
+def test_field_with_large_scale_background_is_not_one_nucleus(tmp_path):
+    """Regression (real Fiji): the registered DS6b crop is one "nucleus" under 1.0.0, separate nuclei under 1.1.0.
+
+    StarDist still misses the nuclei inside the brightest background (its percentile normalisation is
+    field-wide); that limitation is recorded in docs/public-nucleolar-shape-validation.md, not fixed here.
+    """
+    executable = os.environ.get("CYTELLECT_FIJI_EXECUTABLE")
+    if not executable:
+        pytest.skip("Real Fiji runtime not configured; this check has NOT passed")
+    from cytellect_analysis.engine import detect_nuclei
+    from cytellect_analysis.region_contracts import NuclearDetectorSpec
+
+    image = background_field()
+
+    def areas(protocol):
+        side = automatic_detection_max_side(image.shape, estimate_nuclear_diameter(image, protocol)["diameter_px"])
+        labels, _ = detect_nuclei(image, NuclearDetectorSpec(), tmp_path / protocol.replace("/", "-"), executable,
+                                  detection_max_side=side)
+        return np.bincount(labels.ravel())[1:][np.bincount(labels.ravel())[1:] > 0]
+
+    assert len(areas("nuclear-size/1.0.0")) <= 2  # the failure this protects against
+    fixed = areas("nuclear-size/1.1.0")
+    assert len(fixed) >= 5 and fixed.max() < 0.05 * image.size

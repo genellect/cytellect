@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { comparisonDefaults, emptyDesign, fieldMetadata, labelProblem, newId, readiness, type PlainExperimentDesign as ExperimentDesign } from "./experiment-design";
+import { comparisonDefaults, declareStrata, emptyDesign, fieldMetadata, labelProblem, newId, readiness, removeStrata, withAcquisition, type PlainExperimentDesign as ExperimentDesign } from "./experiment-design";
 
 // The same cases as tests/test_experiment_design.py, so both derivations agree.
 const design = (overrides: Partial<ExperimentDesign> = {}): ExperimentDesign => ({
@@ -50,12 +50,26 @@ describe("experiment design 1.0.0", () => {
       { code: "experiment_design_unassigned_fields", field_ids: ["f9"] },
       { code: "experiment_design_missing_combination", run_id: "r2", group_ids: ["drug"] },
       { code: "experiment_design_acquisition_dates_missing", field_ids: ["f3"] },
+      { code: "experiment_design_acquisition_unconfirmed" },
       { code: "experiment_design_independence_unconfirmed" },
     ]);
-    expect(readiness(design(), ["f1", "f2", "f3", "f4", "f5"])).toEqual([
+    expect(readiness(design({ acquisition_confirmed: true }), ["f1", "f2", "f3", "f4", "f5"])).toEqual([
       { code: "experiment_design_acquisition_dates_missing", field_ids: ["f3", "f4", "f5"] }]);
     expect(readiness(emptyDesign("pair"), [])).toEqual([{ code: "experiment_design_no_runs" },
-      { code: "experiment_design_independence_unconfirmed" }]);
+      { code: "experiment_design_acquisition_unconfirmed" }, { code: "experiment_design_independence_unconfirmed" }]);
+  });
+
+  it("keeps the acquisition statement additive (genellect/cytellect#257 decision 11)", () => {
+    // A new design states nothing; the key is written only once the researcher declares it.
+    expect("acquisition_confirmed" in emptyDesign("pair")).toBe(false);
+    expect(readiness(design(), ["f1", "f2", "f3", "f4", "f5"])).toContainEqual({ code: "experiment_design_acquisition_unconfirmed" });
+    const stated = declareStrata(design({ acquisition_confirmed: true }), "細胞株", ["U2OS"]);
+    expect(stated.acquisition_confirmed).toBe(true);
+    // Removing the strata keeps the statement (and leaves it out when it was never made).
+    expect(removeStrata(stated).acquisition_confirmed).toBe(true);
+    expect("acquisition_confirmed" in removeStrata(declareStrata(design(), "細胞株", ["U2OS"]))).toBe(false);
+    expect(withAcquisition(design(), true).acquisition_confirmed).toBe(true);
+    expect(withAcquisition(withAcquisition(design(), true), false)).toEqual(design());
   });
 
   it("checks labels and creates stable identifiers", () => {
