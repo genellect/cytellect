@@ -163,8 +163,6 @@ CI でインストーラーを試すだけのビルド（`ci.yml` の `windows-i
 
 ### Web サイトの部品と素材
 
-LP の英字の見出しと本文は Instrument Sans（SIL Open Font License 1.1）で組む。Fontsource の `@fontsource-variable/instrument-sans` 5.3.0 にある latin の可変ウェイト版を改変せずに `apps/web/public/fonts` に置き、ライセンス本文を同じ場所に、SHA-256 を公開ファイルの登録に記録している。日本語は Noto Sans JP のまま。
-
 次の COMPASS の部品は、著作権者の明示的な許可を得て Cytellect 用に改変した。元は `genellect/compass` のコミット `4805fb6df9e5a0bd267aef9cfa440174ccac5fb1`。元の著作権と改変の表示はソースファイルに残している。この許可は、COMPASS のリポジトリのライセンスや、その第三者の素材の条件を変えない。
 
 | Cytellect のファイル | COMPASS の元のファイル | 改変の内容 |
@@ -335,8 +333,6 @@ Evidence gaps and follow-up work. README and the product strategy describe capab
 The analysis package bundles Liberation Sans 2.1.5 Regular and Bold (SIL Open Font License 1.1, Arial metrics) unmodified for publication figures (`cytellect_analysis/assets/fonts`), taken from Debian `fonts-liberation` 2.1.5-3. The license text sits beside the fonts and their SHA-256 hashes are in the public-file registry. The fonts are in the wheel, so the Windows, Docker and demo builds draw figures with the same font.
 
 ### Website components and media
-
-Latin text on the landing page is set in Instrument Sans (SIL Open Font License 1.1): the unmodified latin variable-weight file from Fontsource `@fontsource-variable/instrument-sans` 5.3.0 in `apps/web/public/fonts`, with the license text beside it and its SHA-256 in the public-file registry. Japanese stays in Noto Sans JP.
 
 The following COMPASS components were adapted for Cytellect with the copyright owner's express permission, from `genellect/compass` commit `4805fb6df9e5a0bd267aef9cfa440174ccac5fb1`. Original copyright and adaptation notices remain in the source files. This permission does not change the license of the COMPASS repository or the terms of its third-party assets.
 

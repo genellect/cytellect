@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 
 /** The landing page's world: one WebGL space behind every section, black, crossed by ribbons and discs of
  *  hundreds of fine lines in the warm colour of culture medium. The camera travels through it as the page
@@ -124,7 +125,7 @@ const STOPS: { at: number; cam: [number, number, number]; look: [number, number,
 export function mountLineWorld(host: HTMLElement, options: Options): LineWorld | null {
   let renderer: THREE.WebGLRenderer;
   try {
-    renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false, powerPreference: options.compact ? "low-power" : "high-performance" });
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: options.compact ? "low-power" : "high-performance" });
   } catch {
     return null;
   }
@@ -148,11 +149,25 @@ export function mountLineWorld(host: HTMLElement, options: Options): LineWorld |
         lit: { value: new THREE.Color(0xf6d2c0) }, shade: { value: new THREE.Color(0x8a4a33) }, near: { value: 0.6 }, far: { value: 46 } },
     });
     const mesh = new THREE.Mesh(geometry, material);
+    mesh.renderOrder = 1;
     mesh.position.set(...place.p);
     mesh.rotation.set(...place.r);
     scene.add(mesh);
     ribbons.push({ mesh, material, spin: new THREE.Vector3(...spin) });
   };
+
+  // One thick glossy line (after Lusion) runs through the whole space, past every stop of the camera; it
+  // reflects a soft studio room, so it reads as a solid object among the fine lines.
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const room = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  const route = new THREE.CatmullRomCurve3([
+    [-14, 10, -28], [-2, 7, -20], [9, 4.5, -15], [14, 0, -17], [9, -4.5, -21], [3, -2.5, -18], [8, 3, -14], [15, 4.5, -18], [22, 0, -26],
+  ].map(p => new THREE.Vector3(...(p as [number, number, number]))), false, "centripetal", 0.5);
+  const tubeMaterial = new THREE.MeshPhysicalMaterial({ color: 0xd8705e, roughness: 0.16, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.08, envMap: room, envMapIntensity: 1.25 });
+  const tube = new THREE.Mesh(new THREE.TubeGeometry(route, Math.round(900 * detail), options.compact ? 0.18 : 0.21, 28, false), tubeMaterial);
+  tube.renderOrder = 0;
+  scene.add(tube);
 
   // The great disc: a ring of concentric lines with a dark heart, tilted away to the right.
   add(disc(2.6, 9.5, Math.round(360 * detail), 24), { p: [7.5, -0.6, -9], r: [-1.05, 0.55, 0.2] }, { count: 64, speed: 0.012, gain: 0.95, edge: 0.06 }, [0, 0, 0.004]);
@@ -230,6 +245,7 @@ export function mountLineWorld(host: HTMLElement, options: Options): LineWorld |
       if (frame) cancelAnimationFrame(frame);
       observer.disconnect();
       for (const ribbon of ribbons) { ribbon.mesh.geometry.dispose(); ribbon.material.dispose(); }
+      tube.geometry.dispose(); tubeMaterial.dispose(); room.dispose(); pmrem.dispose();
       renderer.dispose();
       renderer.domElement.remove();
     },
