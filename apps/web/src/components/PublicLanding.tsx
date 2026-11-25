@@ -5,7 +5,7 @@ import { ProductMenu } from "./ProductMenu";
 import { HeroFilm } from "./HeroFilm";
 import { LandingExperience, type FeatureLinks } from "./LandingExperience";
 import { LandingHeaderTone } from "./LandingHeaderTone";
-import { LightField } from "./LightField";
+import { LineWorld } from "./LineWorld";
 import { LandingHomeLink } from "./LandingHomeLink";
 import { LandingImpact } from "./LandingImpact";
 import { LandingInvite } from "./LandingInvite";
@@ -33,23 +33,22 @@ const CREDITS: { label: string; sources: [string, string][]; note?: ReactNode }[
 function NavigationLinks(){return <><a href="#workflow">プロダクト</a><a data-lp-event="guide" href="#guide">ガイド</a><a href="https://yuto-matsui.com/">About the Developer</a><a data-lp-event="download_section" href="#download">ダウンロード</a><Link data-lp-event="example" href="/demo" className={lp.navDownload}>デモを体験 <span aria-hidden="true">→</span></Link></>;}
 
 export default function PublicLanding() {
-  return <div className={lp.page} data-cytellect-public-page="/">
+  return <div className={lp.page} data-cytellect-public-page="/" data-world="dark">
+    <LineWorld />
     <LandingAnalytics page="/" />
     <a className={styles.skipLink} href="#main">本文へ</a>
     <header className={lp.header} data-lp-header data-tone="dark"><LandingHomeLink className={lp.wordmark} /><nav className={lp.navigation} aria-label="メインナビゲーション"><NavigationLinks /></nav><ProductMenu><NavigationLinks /></ProductMenu></header>
     <LandingHeaderTone />
     <main id="main">
       <section id="top" className={lp.hero} data-tone="dark" aria-labelledby="hero-title">
-        <HeroFilm />
-        <div className={lp.heroShade} />
+        <div className={lp.heroFrame}><HeroFilm /><div className={lp.heroShade} /></div>
         <div className={lp.heroCopy}>
-          <h1 id="hero-title" lang="en" aria-label="Get your microscopy publication-ready."><span>Get your</span>{" "}<span>microscopy</span>{" "}<span>publication-<br className={lp.mobileBreak} />ready.</span></h1>
+          <h1 id="hero-title" lang="en" aria-label="Get your microscopy publication-ready."><span><span>Get your</span>{" "}<span>microscopy</span></span>{" "}<span>publication-<br className={lp.mobileBreak} />ready.</span></h1>
           <div className={lp.heroActions}><Link data-lp-event="example" href="/demo" className={lp.primary}>デモを体験する <Forward /></Link><a data-lp-event="download_section" href="#download" className={lp.heroSecondary}>ダウンロード <span aria-hidden="true">↓</span></a></div>
         </div>
       </section>
 
       <section className={lp.mission} aria-labelledby="mission-title">
-        <LightField />
         <div className={lp.column}>
           <h2 id="mission-title" className={lp.manifesto} aria-label="画像解析を、一部の専門家の技術から、すべての生命科学研究者が使える研究基盤に。"><span><span>画像解析を、</span><span>一部の専門家の技術から、</span></span><span><span>すべての生命科学研究者が</span><span>使える研究基盤に。</span></span></h2>
         </div>

@@ -77,8 +77,8 @@
 
 /* Mission: the statement alone, in moving light. */
 .mission{position:relative;isolation:isolate;display:grid;align-items:center;min-height:min(68svh,720px);padding-block:clamp(96px,10vw,168px);overflow:hidden;background:radial-gradient(48% 60% at 82% 78%,#eebfab8c,#eebfab00 70%),radial-gradient(60% 50% at 30% 10%,#fff,#fff0 70%),linear-gradient(180deg,#eef0ec,#f3f4f1)}
-.lightField{position:absolute;z-index:-1;inset:0;width:100%;height:100%;opacity:0;transition:opacity 1.2s}
-.lightField[data-state="ready"]{opacity:1}
+
+
 
 /* The product: tabs, the summary and discussion first. Beside one 3D space on a wide screen, or with the
    chosen tab's screens as glass plates without it. */
@@ -360,3 +360,134 @@
 @media(min-width:761px) and (max-aspect-ratio:1/1){.hero{align-items:flex-start;padding-top:150px}.hero h1{font-size:clamp(64px,8vw,88px)}.heroShade{background:linear-gradient(180deg,#0a1311b3 0%,#0a131166 38%,#0a131100 70%)}}
 @media(max-height:600px) and (min-width:761px){.hero{min-height:480px;padding-top:108px;padding-bottom:32px}.hero h1{font-size:clamp(40px,8.8svh,60px)}.heroActions{margin-top:22px}}
 @media(prefers-reduced-motion:reduce){.page *,.page *::before,.page *::after{transition:none!important}}
+/* ── The dark world (landing page only: `data-world="dark"` on its root; the install guide keeps the light
+   page above). One black space behind every section (LineWorld): fine lines in the warm colour of culture
+   medium. Type in one weight, Instrument Sans for Latin and Noto Sans JP for Japanese, all on the left axis. */
+.world{position:fixed;inset:0;z-index:0;pointer-events:none;background:#000}
+.world canvas{display:block;width:100%;height:100%;opacity:0;transition:opacity 1.4s}
+.world[data-state="ready"] canvas{opacity:1}
+.page[data-world="dark"]{--fg:#fff;--ink:#fff;--muted:#ffffffb8;--rule:#ffffff24;--line:#ffffff24;--ground:#000;--paper:#0c0c0c;--green:#000;--accent:#e7b8a4;--accent-ink:#c98a70;--gutter:clamp(22px,7.8vw,148px);--section-space:clamp(120px,11vw,200px);--t-h2:clamp(30px,3.3vw,56px);--t-h3:clamp(22px,1.75vw,30px);--t-body:clamp(16px,1.25vw,19px);--card:linear-gradient(160deg,#1b1b1bcc,#0e0e0ecc);--card-rule:#ffffff17;background:#000;color:#fff;font-family:"Instrument Sans","Noto Sans JP",sans-serif;font-weight:400;line-height:1.75;font-feature-settings:"palt"}
+.page[data-world="dark"] ::selection{background:#e7b8a4;color:#000}
+.page[data-world="dark"] :is(a,button,summary):focus-visible{outline:2px solid var(--accent);outline-offset:5px}
+.page[data-world="dark"] :is(h1,h2,h3,b,strong){font-weight:400}
+.page[data-world="dark"] .column,.page[data-world="dark"] .wide,.page[data-world="dark"] .sectionShell,.page[data-world="dark"] .experienceIntro,.page[data-world="dark"] .tourInner{width:calc(100% - 2 * var(--gutter));max-width:1640px}
+/* Header: a dark glass bar across the content width; the demo is the one white action in it. */
+.page[data-world="dark"] .header,.page[data-world="dark"] .header[data-tone="light"]{--h-fg:#fff;--h-bg:#121212c7;--h-rule:#ffffff14;top:14px;left:max(14px,calc(var(--gutter) - 22px));right:max(14px,calc(var(--gutter) - 22px));max-width:none;height:56px;padding:0 8px 0 22px;border-radius:6px;box-shadow:none;backdrop-filter:blur(20px) saturate(1.2);-webkit-backdrop-filter:blur(20px) saturate(1.2)}
+.page[data-world="dark"] .wordmark,.page[data-world="dark"] .footerBrand{font-family:"Instrument Sans",sans-serif;font-size:23px;font-weight:500;letter-spacing:-.035em}
+.page[data-world="dark"] .navigation{gap:clamp(18px,2.2vw,36px)}
+.page[data-world="dark"] .navigation a{font-size:14px;font-weight:400}
+.page[data-world="dark"] .navDownload,.page[data-world="dark"] .header[data-tone="light"] .navigation .navDownload{height:40px;padding:0 16px;gap:18px;border-radius:4px;background:#fff;color:#000!important}
+.page[data-world="dark"] .navDownload>span{color:var(--accent-ink)}
+.page[data-world="dark"] .header>div>nav{background:#121212;border-color:#ffffff1f;border-radius:8px}
+.page[data-world="dark"] .header>div>nav .navDownload{background:#fff;color:#000!important}
+/* Actions: white for the main one, dark glass for the rest; square-cut, as instruments are. */
+.page[data-world="dark"] :is(.primary,.heroSecondary,.secondary,.button){min-height:52px;padding:0 20px 0 22px;gap:30px;border-radius:4px;font-size:15px;font-weight:450}
+.page[data-world="dark"] .primary,.page[data-world="dark"] .hero .primary,.page[data-world="dark"] .invite .primary{border:1px solid #fff;background:#fff;color:#000!important}
+.page[data-world="dark"] .primary:hover{background:#f3ece7}
+.page[data-world="dark"] .primary>span{color:var(--accent-ink)}
+.page[data-world="dark"] :is(.heroSecondary,.secondary,.button){border:1px solid #ffffff38;background:#ffffff0d;color:#fff!important;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.page[data-world="dark"] :is(.heroSecondary,.secondary,.button):hover{border-color:#ffffff80;background:#ffffff1a;text-decoration:none!important}
+.page[data-world="dark"] .eyebrow,.page[data-world="dark"] .eyebrow>span{color:#fff;font-weight:400}
+.page[data-world="dark"] .eyebrow>span{letter-spacing:.08em}
+.page[data-world="dark"] .eyebrow>span::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.page[data-world="dark"] .eyebrow>span::after{display:none}
+/* Hero: the film, full bleed, with the promise on the left axis. As the page starts, the frame draws back into
+   the space and its corners round, so the world behind it comes into view. */
+.page[data-world="dark"] .hero{--leave:0;padding-inline:var(--gutter);background:none;align-items:center}
+.heroFrame{position:absolute;inset:0;z-index:0;overflow:hidden;transform-origin:50% 0;transform:translateY(calc(var(--leave) * 9svh)) scale(calc(1 - var(--leave) * .16));border-radius:calc(var(--leave) * 28px);filter:brightness(calc(1 - var(--leave) * .45));will-change:transform}
+.page[data-world="dark"] .film{background:#000}
+.page[data-world="dark"] .heroShade{background:linear-gradient(90deg,#000000b8 0%,#0000007a 34%,#00000000 62%),linear-gradient(0deg,#00000066,#0000 28%)}
+.page[data-world="dark"] .heroCopy{max-width:none;opacity:calc(1 - var(--leave) * 1.6)}
+.page[data-world="dark"] .hero h1{max-width:13.5em;font-family:"Instrument Sans",sans-serif;font-size:clamp(46px,min(4.6vw,9.2svh),86px);font-weight:400;line-height:1.04;letter-spacing:-.022em}
+.page[data-world="dark"] .hero h1>span{display:block}
+.page[data-world="dark"] .hero h1>span>span{display:inline}
+.page[data-world="dark"] .heroActions{margin-top:clamp(32px,3.2vw,48px);gap:12px}
+/* Statements: one weight, set large only where the page says what it stands for. */
+.page[data-world="dark"] :is(.manifesto,.statement,.display,.impactTitle,.inviteTitle){max-width:21em;font-size:var(--t-h2);font-weight:400;line-height:1.38;letter-spacing:.005em}
+.page[data-world="dark"] .manifesto{max-width:22em;font-size:clamp(32px,3.5vw,60px);line-height:1.38}
+.page[data-world="dark"] .mission{min-height:100svh;padding-block:var(--section-space);background:none;overflow:visible}
+/* The product: no ground of its own; the 3D tour is transparent, so the world runs through it. */
+.page[data-world="dark"] .experience{background:none}
+.page[data-world="dark"] :is(.experienceLead,.chapterLead,.reasonsLead,.inviteLead){font-size:var(--t-body);line-height:1.85;color:#fff}
+.page[data-world="dark"] .tablist{border:1px solid #ffffff1f;border-radius:6px;background:#121212b8;box-shadow:none;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+.page[data-world="dark"] .tabPill{border-radius:4px;background:#fff;box-shadow:none}
+.page[data-world="dark"] .tabSweep{background:var(--accent-ink)}
+.page[data-world="dark"] .tab{border-radius:4px;color:#fff;font-weight:400}
+.page[data-world="dark"] .tab:hover{background:#ffffff12}
+.page[data-world="dark"] .tab[aria-selected="true"]{color:#000}
+.page[data-world="dark"] .switchArrow{border-radius:4px;border-color:#ffffff2e;background:#121212b8;box-shadow:none;color:#fff}
+.page[data-world="dark"] .switchArrow:hover{border-color:#fff;background:#fff;color:#000}
+.page[data-world="dark"] .chapterTitle{font-weight:400}
+.page[data-world="dark"] .params li{border-color:#ffffff2e;background:#ffffff0a}
+.page[data-world="dark"] .example{border-top-color:#ffffff1f}
+.page[data-world="dark"] .exampleLabel{font-weight:400}
+.page[data-world="dark"] .numbers strong{font-family:"Instrument Sans",sans-serif;letter-spacing:-.02em;color:#fff}
+.page[data-world="dark"] .numbers p:first-child strong{color:#f3d3c4}
+.page[data-world="dark"] :is(.plateBack,.plate,.plateWide){border-color:#ffffff1f;background:#ffffff0d;box-shadow:0 40px 90px -50px #e7b8a440}
+.page[data-world="dark"] .plates[data-kind="strip"]{background:radial-gradient(70% 90% at 90% 100%,#b9765d3d,#0000 70%),#0c0c0cd9;border:1px solid var(--card-rule)}
+.page[data-world="dark"] .experienceVeil{background:linear-gradient(90deg,#000000e0 0%,#000000b8 30%,#00000059 44%,#0000 58%)}
+/* Reasons: the bench, full bleed, with the four reasons in dark glass over it. */
+.page[data-world="dark"] .reasonsPhoto{mask-image:linear-gradient(180deg,#0000 0%,#000 38%,#000 78%,#0000 100%);filter:brightness(.78) contrast(1.05)}
+.page[data-world="dark"] .reasons::after{content:"";position:absolute;z-index:-1;inset:0;background:linear-gradient(0deg,#000000b3 0%,#0000 46%),linear-gradient(90deg,#00000080,#0000 55%);pointer-events:none}
+.page[data-world="dark"] .loop li{border:1px solid var(--card-rule);border-radius:10px;background:var(--card);box-shadow:none;backdrop-filter:blur(22px) saturate(1.1);-webkit-backdrop-filter:blur(22px) saturate(1.1)}
+.page[data-world="dark"] .loop b{font-weight:450}
+/* Impact: a dark card, warmed from one corner, with the path drawn as a line of light. */
+.page[data-world="dark"] .impact{padding-top:var(--section-space)}
+.page[data-world="dark"] .impact .wide{width:calc(100% - 2 * var(--gutter));max-width:1640px}
+.page[data-world="dark"] .impactPanel{padding:clamp(72px,8vw,144px) clamp(24px,6vw,112px);border:1px solid var(--card-rule);border-radius:20px;background:radial-gradient(55% 85% at 88% 112%,#b9765d66,#b9765d00 72%),radial-gradient(40% 60% at 0% 0%,#ffffff0a,#fff0 70%),#0b0b0bd9;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:#fff}
+.page[data-world="dark"] .path::before{background:linear-gradient(90deg,#ffffff1f,#ffffff80 55%,#e7b8a4)}
+.page[data-world="dark"] .path b{font-weight:400}
+.page[data-world="dark"] .path li:last-child b{font-weight:400}
+/* Invitation: the one bright card, the page's close; the film from the opening sits in it. */
+.page[data-world="dark"] .invite{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);align-items:stretch;gap:clamp(28px,4vw,72px);width:calc(100% - 2 * var(--gutter));max-width:1640px;min-height:0;margin:var(--section-space) auto 0;padding:clamp(28px,3.4vw,56px);border-radius:20px;background:radial-gradient(60% 90% at 52% 104%,#f0cdb9,#f0cdb900 72%),#f6f2ed;color:#000;overflow:hidden}
+.page[data-world="dark"] .invite::before,.page[data-world="dark"] .inviteMark{display:none}
+.page[data-world="dark"] .inviteInner{display:flex;flex-direction:column;justify-content:space-between;width:auto;margin:0;padding:clamp(8px,1vw,16px) 0}
+.page[data-world="dark"] .inviteTitle{max-width:11em;font-size:clamp(30px,3.3vw,56px)}
+.page[data-world="dark"] .inviteLead{max-width:24em;margin-top:clamp(28px,6vw,120px);color:#000}
+.page[data-world="dark"] .invite .primary{border-color:#000;background:#000;color:#fff!important}
+.page[data-world="dark"] .invite .primary:hover{background:#262626}
+.page[data-world="dark"] .invite .primary>span{color:var(--accent)}
+.page[data-world="dark"] .invite .heroSecondary{border-color:#0000004d;background:#0000;color:#000!important;backdrop-filter:none}
+.page[data-world="dark"] .invite .heroSecondary:hover{background:#0000000d}
+.page[data-world="dark"] .closingFilm{position:relative;z-index:0;inset:auto;grid-column:2;grid-row:1;min-height:clamp(320px,30vw,560px);border-radius:12px;overflow:hidden;background:#000}
+.page[data-world="dark"] .inviteInner{grid-column:1;grid-row:1}
+/* Download and questions, back in the dark. */
+.page[data-world="dark"] .download{color:#fff}
+.page[data-world="dark"] .journey::before{background:linear-gradient(90deg,#ffffff1f,#ffffff66 60%,#e7b8a4)}
+.page[data-world="dark"] .stop::before{background:#fff}
+.page[data-world="dark"] .stop h3,.page[data-world="dark"] .faqTitle{font-weight:400}
+.page[data-world="dark"] .stop>p{color:#fff}
+.page[data-world="dark"] .stop>.meta,.page[data-world="dark"] .faqContact,.page[data-world="dark"] .faqList summary::after{color:var(--muted)}
+.page[data-world="dark"] :is(.stop>.meta a,.faqContact a){color:#fff}
+.page[data-world="dark"] .nextSteps,.page[data-world="dark"] .nextSteps::before{background:#f6f2ed;color:#000}
+.page[data-world="dark"] .nextStepsActions{border-top-color:#0000001f}
+/* Footer: a dark card, like the cards above it. */
+.page[data-world="dark"] .footer{border-top:0;padding:clamp(48px,6vw,96px) 0 var(--gutter);background:none}
+.page[data-world="dark"] .footer>div{padding:clamp(32px,4vw,64px);border:1px solid var(--card-rule);border-radius:20px;background:#0b0b0bd9;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.page[data-world="dark"] .footerPrimary>div>span,.page[data-world="dark"] .credits{color:var(--muted)}
+.page[data-world="dark"] .credits a{color:#fff;font-weight:450}
+.page[data-world="dark"] .demoBar a{border-radius:6px;border-color:#fff;background:#fff;color:#000!important}
+.page[data-world="dark"] .motionToggle{border-color:#ffffff40;background:#000000b3}
+@media(max-width:1100px){.page[data-world="dark"] .invite{grid-template-columns:1fr}
+.page[data-world="dark"] .closingFilm{grid-column:1;grid-row:2;min-height:300px}
+}
+@media(max-width:760px){.page[data-world="dark"]{--gutter:20px}
+.page[data-world="dark"] .header,.page[data-world="dark"] .header[data-tone="light"]{top:10px;left:10px;right:10px;height:54px;padding:0 7px 0 18px}
+.page[data-world="dark"] .wordmark{font-size:22px}
+.page[data-world="dark"] .hero{align-items:flex-start;padding-top:clamp(140px,20svh,190px)}
+.page[data-world="dark"] .hero h1{font-size:clamp(42px,12.4vw,60px);line-height:1.04}
+.page[data-world="dark"] .hero h1>span>span{display:block}
+.page[data-world="dark"] .heroShade{background:linear-gradient(180deg,#000000b8 0%,#00000073 44%,#0000 72%)}
+.page[data-world="dark"] :is(.primary,.heroSecondary){min-height:50px;padding:0 16px;gap:16px}
+.page[data-world="dark"] .manifesto{font-size:clamp(26px,7.4vw,34px)}
+.page[data-world="dark"] :is(.statement,.display,.impactTitle,.inviteTitle){font-size:clamp(24px,6.8vw,30px)}
+.page[data-world="dark"] .mission{min-height:80svh}
+.page[data-world="dark"] .plates,.page[data-world="dark"] .plates[data-kind="strip"]{border:1px solid var(--card-rule);background:radial-gradient(80% 70% at 90% 100%,#b9765d40,#0000 70%),#0c0c0cd9;box-shadow:none}
+.page[data-world="dark"] .impactPanel{padding:64px 22px;border-radius:14px}
+.page[data-world="dark"] .invite{padding:22px;border-radius:14px;gap:28px}
+.page[data-world="dark"] .inviteInner{padding:8px 4px}
+.page[data-world="dark"] .footer>div{padding:28px 22px;border-radius:14px}
+.page[data-world="dark"] .stop:first-child::after{background:linear-gradient(180deg,#ffffff1f,#ffffff66 60%,#e7b8a4)}
+}
+@media(prefers-reduced-motion:reduce){.heroFrame{transform:none;filter:none;border-radius:0}
+}

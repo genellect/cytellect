@@ -1,7 +1,7 @@
 import * as THREE from "three";
 
 /** The product tour on the landing page: Cytellect's screens, captured from the public demo, stand as glass
- *  plates in one bright space, and the camera flies to the screen of the tab the visitor chooses (summary and
+ *  plates in the dark space of the page (its lines show through: the canvas is transparent), and the camera flies to the screen of the tab the visitor chooses (summary and
  *  discussion, detection and measurement, AI set-up, statistics and figures). Each plate shows a capture as it
  *  is; nothing is drawn over the interface. */
 export type PanelId = "stats" | "ai" | "figure" | "ask" | "table" | "conclusion" | "discussion" | "layout" | "size";
@@ -69,30 +69,27 @@ void main(){
   float shape=1.-smoothstep(-aa,aa,outer);
   vec2 inner=size*.5-bezel;float inside=1.-smoothstep(-aa,aa,box(p,inner,max(radius-bezel,.004)));
   vec3 tex=texture2D(map,(p+inner)/(2.*inner)).rgb;
-  vec3 glass=vec3(.985,.99,.985)-.05*vUv.x+.035*vUv.y;
+  vec3 glass=vec3(.075,.074,.072)+.05*vUv.y;
   float rim=1.-smoothstep(0.,aa*3.,abs(outer+aa*1.6));
-  vec3 color=mix(glass,tex,inside)+rim*.35*(1.-inside);
-  color=mix(color,vec3(.955,.962,.952),dim);
-  gl_FragColor=vec4(color,shape*mix(.62,1.,inside)*opacity);
+  vec3 color=mix(glass,tex,inside)+vec3(.95,.78,.7)*rim*.42*(1.-inside);
+  color=mix(color,vec3(0.),dim*.85);
+  gl_FragColor=vec4(color,shape*mix(.78,1.,inside)*opacity);
 }`;
-/** The plate's soft shadow on the light behind it. */
+/** The plate's soft warm glow in the dark behind it. */
 const SHADOW_FRAGMENT = /* glsl */`
 uniform vec2 size;uniform float spread;uniform float opacity;varying vec2 vUv;
 float box(vec2 p,vec2 b,float r){vec2 q=abs(p)-b+r;return length(max(q,0.))+min(max(q.x,q.y),0.)-r;}
 void main(){vec2 p=(vUv-.5)*(size+spread*2.);float d=max(box(p,size*.5,.2),0.);float a=exp(-d*d/(spread*spread*.32));
-  gl_FragColor=vec4(.09,.15,.13,a*.2*opacity);}`;
-/** The space itself: lab-white light, falling a little toward the floor, with the warm colour of culture
- *  medium gathering behind the conclusion. */
+  gl_FragColor=vec4(.91,.62,.5,a*.09*opacity);}`;
+/** The space itself is the page's dark; only the warm colour of culture medium gathers behind the conclusion. */
 const ROOM_FRAGMENT = /* glsl */`
 uniform float warm;uniform float time;varying vec2 vUv;
 float hash(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
 void main(){vec2 uv=vUv;
-  vec3 color=mix(vec3(.918,.93,.92),vec3(.968,.972,.962),smoothstep(.15,.85,uv.y));
   vec2 g=uv-vec2(.66+.02*sin(time*.11),.42+.02*cos(time*.09));
-  color=mix(color,vec3(.953,.82,.75),exp(-dot(g*vec2(1.3,1.9),g*vec2(1.3,1.9))*5.)*(.18+.6*warm));
-  vec2 h=uv-vec2(.36,.86);color+=vec3(.035)*exp(-dot(h,h)*7.);
-  color+=(hash(uv*vec2(1733.,977.)+time)-.5)*.012;
-  gl_FragColor=vec4(color,1.);}`;
+  float glow=exp(-dot(g*vec2(1.3,1.9),g*vec2(1.3,1.9))*5.)*(.05+.16*warm);
+  glow+=(hash(uv*vec2(1733.,977.)+time)-.5)*.004;
+  gl_FragColor=vec4(vec3(.72,.42,.3),max(glow,0.));}`;
 
 type Plate = { id: PanelId; group: THREE.Group; plate: THREE.ShaderMaterial; shadow: THREE.ShaderMaterial; seed: number };
 
@@ -108,16 +105,16 @@ const mix = (a: View, b: View, t: number): View => ({ cam: lerp3(a.cam, b.cam, t
   poses: Object.fromEntries((Object.keys(HOME) as PanelId[]).map(id => { const x = a.poses[id], y = b.poses[id]; return [id, { p: lerp3(x.p, y.p, t), ry: lerp(x.ry, y.ry, t), o: lerp(x.o, y.o, t) }]; })) as Record<PanelId, Pose> });
 
 export async function mountExperience(host: HTMLElement, panels: ExperiencePanel[], signal: AbortSignal): Promise<ExperienceController> {
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, premultipliedAlpha: false, powerPreference: "high-performance" });
   renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  renderer.setClearColor(0xf3f4f1, 1);
+  renderer.setClearColor(0x000000, 0);
   host.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 120);
   scene.add(camera);
-  const room = new THREE.ShaderMaterial({ vertexShader: PLATE_VERTEX, fragmentShader: ROOM_FRAGMENT, uniforms: { warm: { value: 0 }, time: { value: 0 } }, depthWrite: false });
+  const room = new THREE.ShaderMaterial({ vertexShader: PLATE_VERTEX, fragmentShader: ROOM_FRAGMENT, uniforms: { warm: { value: 0 }, time: { value: 0 } }, transparent: true, depthWrite: false });
   const backdrop = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), room);
   backdrop.position.z = -60;
   backdrop.renderOrder = -1;

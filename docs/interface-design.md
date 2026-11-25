@@ -50,7 +50,7 @@ landing-page copy and repeated feature-card layouts.
   accessible before download. These are functional product information.
 - Show actual public-image measurements and outputs. Never invent results,
   independent replicates or a customer quote to complete a composition.
-- Use self-hosted Inter and Noto Sans JP. Reuse the owner's COMPASS components
+- Use self-hosted fonts: Instrument Sans for Latin on the landing page, Inter elsewhere, and Noto Sans JP. Reuse the owner's COMPASS components
   with source attribution; see [the asset register](oss.md).
 
 Visual references: [Lila](https://www.lila.ai/),
