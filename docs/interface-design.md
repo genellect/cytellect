@@ -12,10 +12,10 @@ landing-page copy and repeated feature-card layouts.
   accessible analytical decisions and communication through a figure. Feature
   categories such as "images and measurements" are not benefit headlines.
 - The [art direction](lp-art-direction.md) (approved 2026-10-23) records the
-  direction and the history of the owner's judgments. The owner's current
-  instructions and the design skills take precedence over its details and over
-  the visual details in this section (owner's decision, 2026-11-25; the order
-  is set out at the top of the art direction). Past versions were light and
+  direction and the history of the owner's judgments. The landing page's
+  design is decided by the owner's instructions and the design skills; the art
+  direction and the visual notes in this section are history to consult, not
+  rules (owner's decision, 2026-11-25). Past versions were light and
   readable (#59) and carried by photoreal laboratory footage, not by
   hand-authored objects.
   The [LP design record](lp-optical-preview.md) keeps the layout history.
