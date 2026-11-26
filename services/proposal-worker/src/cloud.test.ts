@@ -164,6 +164,45 @@ describe("e-mail code login", () => {
     expect([voided.status, await voided.json()]).toEqual([400, { error: "too_many_attempts" }]);
   });
 
+  it("compares at most five candidates against one code when the requests arrive together", async () => {
+    const t = await setup();
+    await t.auth.allow(USER, t.time.now);
+    await t.send("POST", "/v1/auth/code", { email: USER });
+    const code = t.mailer.code(USER);
+    const wrong = code === "123456" ? "654321" : "123456";
+    // Every request reads the code before any of them is counted: the read is held at a gate.
+    const read = t.auth.code.bind(t.auth);
+    const waiting: (() => void)[] = [];
+    vi.spyOn(t.auth, "code").mockImplementation(async (email, purpose) => {
+      const row = await read(email, purpose);
+      // Only each request's first read is held; a later re-read passes.
+      if (waiting.length < 6) await new Promise<void>((release) => waiting.push(release));
+      return row;
+    });
+    const arrived = async (count: number) => { while (waiting.length < count) await new Promise((next) => setTimeout(next, 1)); };
+    const guesses = Array.from({ length: 5 }, () => t.send("POST", "/v1/auth/verify", { email: USER, code: wrong }));
+    await arrived(5);
+    const correct = t.send("POST", "/v1/auth/verify", { email: USER, code });
+    await arrived(6);
+    for (const release of waiting.slice(0, 5)) release();
+    const refused = await Promise.all(guesses.map(async (guess) => (await guess).status));
+    expect(refused).toEqual([400, 400, 400, 400, 400]);
+    waiting[5]();
+    const late = await correct;
+    expect([late.status, await late.json()]).toEqual([400, { error: "too_many_attempts" }]);
+    expect((await read(USER, "device"))?.attempts).toBe(5);
+  });
+
+  it("accepts the right code on the fifth attempt and never a sixth", async () => {
+    const t = await setup();
+    await t.auth.allow(USER, t.time.now);
+    await t.send("POST", "/v1/auth/code", { email: USER });
+    const code = t.mailer.code(USER);
+    const wrong = code === "123456" ? "654321" : "123456";
+    for (let index = 0; index < 4; index += 1) await t.send("POST", "/v1/auth/verify", { email: USER, code: wrong });
+    expect((await t.send("POST", "/v1/auth/verify", { email: USER, code })).status).toBe(200);
+  });
+
   it("never sends a code to an address the owner has not allowed, and asks the owner once", async () => {
     const t = await setup();
     const stranger = "new.person@example.org";
@@ -485,6 +524,33 @@ describe("proposals with user-bound tokens", () => {
     expect([limited.status, await limited.json()]).toEqual([429, { code: "quota_exceeded", resets_at: "2026-11-01T00:00:00.000Z" }]);
     expect(t.modelFetcher).toHaveBeenCalledTimes(1);
     expect(await dump(t.db)).not.toContain("核面積");
+  });
+
+  it("limits invitation redemption per client address and stays closed without a limiter", async () => {
+    const t = await setup();
+    const redeem = (ip: string, invitation = "x".repeat(40)) => t.call(new Request(`${ORIGIN}/v1/devices`, {
+      method: "POST", headers: { "cf-connecting-ip": ip }, body: JSON.stringify({ invitation }),
+    }));
+    for (let index = 0; index < 10; index += 1) expect((await redeem("192.0.2.1")).status).toBe(403);
+    const invited = await (await t.call(new Request(`${ORIGIN}/v1/admin/invitations`, { method: "POST", headers: t.bearer(BASE_ENV.ADMIN_TOKEN!) }))).json() as { invitation: string };
+    const blocked = await redeem("192.0.2.1", invited.invitation);
+    expect([blocked.status, await blocked.json()]).toEqual([429, { error: "rate_limited", retry_after_seconds: 3600 }]);
+    // The refused request did not use the invitation; another address is not affected.
+    expect((await redeem("198.51.100.7", invited.invitation)).status).toBe(201);
+    t.time.now += 3_600_000;
+    expect((await redeem("192.0.2.1")).status).toBe(403);
+
+    // An invitation-only installation (no e-mail login configured) keeps redeeming, under the same limit.
+    t.setEnv({ ...BASE_ENV, OWNER_EMAIL: "", ADMIN_SIGNING_KEY: undefined });
+    const issued = await (await t.call(new Request(`${ORIGIN}/v1/admin/invitations`, { method: "POST", headers: t.bearer(BASE_ENV.ADMIN_TOKEN!) }))).json() as { invitation: string };
+    expect((await redeem("203.0.113.9", issued.invitation)).status).toBe(201);
+    for (let index = 0; index < 9; index += 1) expect((await redeem("203.0.113.9")).status).toBe(403);
+    expect((await redeem("203.0.113.9")).status).toBe(429);
+
+    t.setEnv({ ...BASE_ENV, OWNER_EMAIL: "", ADMIN_SIGNING_KEY: undefined, ADMIN_TOKEN: undefined });
+    const closed = await redeem("203.0.113.10");
+    expect([closed.status, await closed.json()]).toEqual([503, { error: "auth_unavailable" }]);
+    expect((await handle(new Request(`${ORIGIN}/v1/devices`, { method: "POST", body: "{}" }), BASE_ENV, t.store)).status).toBe(503);
   });
 
   it("closes the invitation flow and its tokens when the migration flag is off", async () => {

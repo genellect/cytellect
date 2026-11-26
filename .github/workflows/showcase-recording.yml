@@ -27,11 +27,11 @@ jobs:
       CYTELLECT_CELLPOSE_REMOTE_URL: ""
       CYTELLECT_CELLPOSE_REMOTE_TOKEN: ""
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         if: inputs.recording_run == ''
         with: {node-version: "24"}
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with: {python-version: "3.12"}
       - run: npm install --global pnpm@11.19.0
         if: inputs.recording_run == ''
@@ -53,7 +53,7 @@ jobs:
         run: cp -a apps/web/public/showcase /tmp/cytellect-published
       - name: Download a completed recording stage
         if: inputs.recording_run != ''
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: showcase-presentation
           run-id: ${{ inputs.recording_run }}
@@ -81,7 +81,7 @@ jobs:
       - name: Pack generated public assets
         if: inputs.recording_run == ''
         run: tar -czf /tmp/showcase-presentation.tar.gz apps/web/public/showcase fixtures/public/allowlist.json
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         if: inputs.recording_run == ''
         with:
           name: showcase-presentation
@@ -104,7 +104,7 @@ jobs:
           uv run python scripts/verify_showcase_update.py --before /tmp/cytellect-published --after apps/web/public/showcase
           uv run python scripts/check_public_tree.py
           tar -czf /tmp/showcase-presentation-complete.tar.gz apps/web/public/showcase fixtures/public/allowlist.json
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         if: inputs.showcase_figures
         with:
           name: showcase-presentation-complete
