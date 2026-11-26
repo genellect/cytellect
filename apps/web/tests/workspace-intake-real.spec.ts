@@ -157,12 +157,21 @@ test.describe("#284 W1, W4, W5 intake against the real API", () => {
     await expect(table.getByRole("cell").filter({hasText:"Rep1 · treated"})).toBeVisible();
     const specification = async () => (await (await page.request.get(`${api}/v1/workspaces/${workspaceId(page)}/analysis-spec`)).json()).spec;
     expect(Object.keys((await specification())?.experiment?.fields ?? {})).toEqual([]);
-    await table.getByRole("button", {name:"案を適用", exact:true}).click();
+    // Both groups would take a folder's name: which one is the control is the researcher's choice, not the order of
+    // the names. Until it is chosen, nothing can be applied.
+    const apply = table.getByRole("button", {name:"案を適用", exact:true});
+    await expect(apply).toBeDisabled();
+    await expect(table.getByRole("status")).toHaveText("案の適用には、対照の群の指定が必要です。");
+    await table.getByLabel("案の対照の群").selectOption("treated");
+    await expect(table.getByRole("status")).toHaveText("群の名前の変更：対照 → treated、処理 → control");
+    await apply.click();
     await expect(table).toHaveCount(0);
     await expect.poll(async () => Object.keys((await specification()).experiment.fields ?? {}).length, {timeout:60000}).toBe(2);
     const design = (await specification()).experiment;
     expect(design.runs.map((run:{label:string}) => run.label)).toEqual(["Rep1"]);
     const byGroup = Object.fromEntries(design.groups.map((group:{id:string;label:string}) => [group.label, Object.values(design.fields as Record<string, {group_id:string}>).filter(value => value.group_id === group.id).length]));
     expect(byGroup).toEqual({control: 1, treated: 1});
+    // The control is the group the researcher named, though "control" sorts first.
+    expect(design.groups.find((group:{id:string}) => group.id === design.control_group_id).label).toBe("treated");
   });
 });

@@ -50,6 +50,16 @@ describe("the actions of an answer follow its kind of request (#284 W7, plan 5.6
     expect(render(null, null, {applicable: null})).not.toContain("再送");
     expect(render(null, null, {applicable: null, state: "failed", reply: null, reasons: ["proposal_service_unavailable"]})).toContain("再送");
   });
+  it("names the nuclear stain to set before the answer's settings can be applied, as the one next action", () => {
+    const html = renderToStaticMarkup(createElement(AssistantPanel, {
+      messages: [message("m")], busy: false, demo: false, undoable: null, canApply: () => false, canTry: () => false, canRun: () => false,
+      answerOf: (): AnswerView => ({intent: "settings", scope: null, choices: [], assignments: 0}), confirmationOf: () => [{channel: "c1", label: "DRAQ"}],
+      onApply: none, onResend: none, onUndo: none, onShowSettings: none, onPlace: none, onConfirm: none,
+    }));
+    expect(html).toContain("設定の適用には、核染色の指定が必要です。");
+    expect(html).toContain("核染色に DRAQ を指定");
+    expect(html).not.toContain(">設定を適用<");
+  });
   it("states the selected target as one value", () => {
     expect(targetText({scope: "selected", fields: [{id: "a", label: "A01"}], excluded: 0})).toBe("対象：選択した視野 · A01");
     expect(targetText({scope: "all", fields: [{id: "a", label: "A01"}], excluded: 0})).toBe("対象：全視野 · 1 視野");

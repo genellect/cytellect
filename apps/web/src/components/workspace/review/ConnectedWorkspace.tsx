@@ -629,7 +629,8 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
           <div><button disabled={busy} onClick={()=>void sendInstruction(retryPending.value,false,true,retryPending.message)}>再送</button>
             <button disabled={busy} onClick={()=>setRetryPending(null)}>キャンセル</button></div></section>}
         {demoReply&&<p>{demoReply}</p>}
-        <AssistantPanel field={field} messages={r.messages} busy={busy} demo={demo} canApply={id=>r.canApply(id)} canTry={id=>r.canTry(id)}
+        <AssistantPanel field={field} messages={r.messages} busy={busy} demo={demo} canApply={id=>r.canApply(id,field?.id)} canTry={id=>r.canTry(id,field?.id)}
+          confirmationOf={id=>r.confirmationOf(id,field?.id)} onConfirm={(id,channel)=>void act(()=>r.confirmNuclear(id,channel,field?.id))}
           undoable={r.canUndoProposal()?appliedMessage:null} onApply={applyAnswer} onShowSettings={showSettings} onPlace={placeOf}
           onUndo={()=>void act(()=>r.undoProposal())} onResend={message=>{if(message.state==="failed")setRetryPending({value:message.text,message:message.id});else void sendInstruction(message.text,false,false,message.id);}}
           onPropose={fields.length&&aiAccess.available?()=>void sendInstruction(""):undefined}

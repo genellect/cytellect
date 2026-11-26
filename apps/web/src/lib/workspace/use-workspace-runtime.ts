@@ -50,6 +50,8 @@ export interface RuntimeSnapshot {
  * the items to confirm, and how many assignment suggestions it made. `intent` null is an earlier draft. */
 export interface AnswerView {intent: "answer" | "settings" | "run" | null; scope: "selected" | "all" | null; choices: Array<{question: string; options: string[]}>; assignments: number}
 /** The fields 「適用して実行」 runs: the selected one, or every registered field the researcher has not excluded. */
+/** A channel an answer proposes as the nuclear stain, awaiting the researcher's own choice. */
+export interface ChannelConfirmation {channel: string; label: string}
 export interface RunTargets {scope: "selected" | "all"; fields: Array<{id: string; label: string}>; excluded: number}
 /** A saved row without a field. `legacy` rows come from before rows carried names (#284). */
 export interface IntakeRow {entry:string; names:string[]; state:"pending"|"rejected"|"legacy"; code:string|null; mask:boolean; target:IntakeTarget|null}
@@ -205,6 +207,22 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       return fieldId&&!labelProblem(value.run)&&!labelProblem(value.group)?[{fieldId,runLabel:value.run,groupLabel:value.group,source:"ai" as const}]:[];});
   }
   const intentOf=(id:string)=>answers.get(id)?.draft.intent??null;
+  async function storeAssignments(assignments:ChannelAssignment[],fieldId?:string){
+    const selected=fieldId?registered.get(fieldId):null;
+    if(fieldId&&!selected)throw new Error("登録した画像が見つかりません。");
+    const configuration=(field:ImportedField)=>fingerprint({mode:field.image_info.input_mode??"native",channels:field.image_info.channels.map(channel=>channel.channel_id).sort()});
+    const field_ids=selected?[...registered.values()].filter(field=>configuration(field)===configuration(selected)).map(field=>field.id):undefined;
+    await adapter.saveChannelAssignments(workspace(),{version:state.assignments.version,assignments,...(field_ids?{field_ids}:{})});histories.clear();publish({proposal:null,processing:null});await refresh(workspace());
+  }
+  const answerField=(selectedFieldId?:string)=>selectedFieldId||state.data?.fields.find(value=>!value.exclusionReason)?.id;
+  /** The channels an answer proposes as the nuclear stain while the workspace has no nuclear channel for them yet
+   * (the API's `needs_confirmation`): the researcher sets the role before the answer's settings can be applied. */
+  function pendingConfirmation(messageId:string,selectedFieldId?:string):ChannelConfirmation[]{
+    const proposal=answers.get(messageId);if(!proposal?.needs_confirmation.length)return [];
+    const field=state.data?.fields.find(value=>value.id===answerField(selectedFieldId));
+    return proposal.needs_confirmation.flatMap(token=>{const channel=field?.channels.find(value=>value.id===token);
+      return channel&&channel.role!=="nuclear"?[{channel:token,label:channel.stain||channel.label||token}]:[];});
+  }
   const withMessage=(message:AssistantMessage)=>state.messages.some(value=>value.id===message.id)?state.messages.map(value=>value.id===message.id?message:value):[...state.messages,message];
   async function readMessages(id:string){try{return await adapter.listMessages(id);}catch{return state.messages;}}
   const candidateStore=new Map<string,Partial<Record<ReviewTarget,RuntimeCandidate>>>();
@@ -352,7 +370,9 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     const chosen=state.data!.fields.filter(field=>!field.exclusionReason&&(!fieldId||field.id===fieldId));if(!chosen.length)throw new Error("解析する画像を選択してください。");
     if(!preview&&chosen.length===1&&candidate(chosen[0].id,target)?.runId&&candidate(chosen[0].id,target)?.runState==="succeeded"&&!candidate(chosen[0].id,target)?.backgroundPending){await acceptPrepared(chosen[0].id,target);return;}
     publish({progress:progressOf(chosen.map(field=>field.id),"準備中")});
-    await persistSpecification(target);if(!preview)publish({activeTarget:target});stopped=false;
+    // A request that never started leaves no 準備中 behind: the saved results show again (#284 W8).
+    try{await persistSpecification(target);}catch(error){const progress={...state.progress};for(const field of chosen)if(progress[field.id]==="準備中")delete progress[field.id];publish({progress});throw error;}
+    if(!preview)publish({activeTarget:target});stopped=false;
     const signatures=new Map(chosen.map(field=>[field.id,candidateSignature(field.id)]));
     try{let {run,key}=await followRun(target,chosen.map(field=>field.id),preview);
       await readCandidates(run,signatures);
@@ -371,8 +391,9 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       if(!preview){const adopted=run.steps.map(step=>step.field_id).filter((id,index,all)=>all.indexOf(id)===index);
         publish({progress:progressOf(adopted,"採用中")});
         await adapter.acceptWorkspaceRun(workspace(),run.id);rememberRunAdoption(run);for(const id of adopted)candidateStore.delete(id);
-        const progress={...state.progress};for(const id of adopted)delete progress[id];publish({progress});
-        await refresh(workspace());}
+        // 採用中 stays until the adopted results are read, so a field never shows 未測定 in between.
+        await refresh(workspace());
+        const progress={...state.progress};for(const id of adopted)delete progress[id];publish({progress});}
     }catch(error){
       // A field still marked 準備中 or 待機 did not start: the request itself failed.
       const progress={...state.progress};for(const field of chosen)if(progress[field.id]==="準備中")delete progress[field.id];publish({progress});throw error;
@@ -684,13 +705,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     saveExperiment(experiment:ExperimentDesign){return exclusive("実験デザインを保存中",async()=>{await checkCurrent();const spec={...currentSpecification(specification.spec?.target??state.activeTarget),experiment};specification=await writeSpecification(workspace(),{version:specification.version,spec});specificationDirty=false;publish({});});},
     /** Declares the primary measure (#257 RP-04), or removes the declaration with null; the server records the time. */
     savePrimaryOutcome(primary:PrimaryOutcome|null){return exclusive("主要指標を保存中",async()=>{await checkCurrent();const spec:Record<string,unknown>={...currentSpecification(specification.spec?.target??state.activeTarget)};if(primary)spec.primary_outcome=primary;else delete spec.primary_outcome;specification=await writeSpecification(workspace(),{version:specification.version,spec:spec as typeof specification.spec});specificationDirty=false;publish({});});},
-    saveAssignments(assignments:ChannelAssignment[],fieldId?:string){return exclusive("染色設定を保存中",async()=>{
-      const selected=fieldId?registered.get(fieldId):null;
-      if(fieldId&&!selected)throw new Error("登録した画像が見つかりません。");
-      const configuration=(field:ImportedField)=>fingerprint({mode:field.image_info.input_mode??"native",channels:field.image_info.channels.map(channel=>channel.channel_id).sort()});
-      const field_ids=selected?[...registered.values()].filter(field=>configuration(field)===configuration(selected)).map(field=>field.id):undefined;
-      await adapter.saveChannelAssignments(workspace(),{version:state.assignments.version,assignments,...(field_ids?{field_ids}:{})});histories.clear();publish({proposal:null,processing:null});await refresh(workspace());
-    });},
+    saveAssignments(assignments:ChannelAssignment[],fieldId?:string){return exclusive("染色設定を保存中",()=>storeAssignments(assignments,fieldId));},
     saveFieldLink(fieldId:string,kind:"analysis"|"reference",referenceFor:string|null=null){return exclusive("画像の対応を保存中",async()=>{await checkCurrent();const links=await adapter.getFieldLinks(workspace());await adapter.saveFieldLink(workspace(),fieldId,{version:links.version,selection_version:adapter.selection()?.version??0,kind,reference_for_field_id:referenceFor});await refresh(workspace());});},
     currentResult(field:string,target:ReviewTarget){
       const saved=currentTargets.get(field)?.[target];
@@ -735,9 +750,25 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     clearPreparing(ids:string[]){if(!ids.some(id=>state.progress[id]==="準備中"))return;const progress={...state.progress};for(const id of ids)if(progress[id]==="準備中")delete progress[id];publish({progress});},
     /** True when the applicable answer proposes an analysis that can be tried on an image. An answer that declares its
      * kind of request (#284 W7) offers 「設定を適用」 or 「適用して実行」 instead. */
-    canTry(messageId:string){return this.canApply(messageId)&&intentOf(messageId)===null&&!!state.data?.fields.length&&answers.get(messageId)?.draft.recipe!=="none";},
+    canTry(messageId:string,selectedFieldId?:string){return this.canApply(messageId,selectedFieldId)&&intentOf(messageId)===null&&!!state.data?.fields.length&&answers.get(messageId)?.draft.recipe!=="none";},
     /** True when this session holds the applicable answer of the message and it proposes settings (not a question's answer). */
-    canApply(messageId:string){const message=state.messages.find(value=>value.id===messageId);return answers.has(messageId)&&message?.applicable!==false&&intentOf(messageId)!=="answer";},
+    canApply(messageId:string,selectedFieldId?:string){const message=state.messages.find(value=>value.id===messageId);return answers.has(messageId)&&message?.applicable!==false&&intentOf(messageId)!=="answer"&&!pendingConfirmation(messageId,selectedFieldId).length;},
+    /** The nuclear channels the answer proposes that the researcher has not set yet; applying and running wait for them. */
+    confirmationOf(messageId:string,selectedFieldId?:string):ChannelConfirmation[]{const message=state.messages.find(value=>value.id===messageId);
+      return message?.applicable===false||message?.effect!=="none"||intentOf(messageId)==="answer"?[]:pendingConfirmation(messageId,selectedFieldId);},
+    /** 「核染色に指定」: records the proposed channel as the nuclear stain of the selected field's channel configuration
+     * (the researcher's own confirmation, as in 染色対応). It applies no settings and runs nothing. */
+    confirmNuclear(messageId:string,channel:string,selectedFieldId?:string){return exclusive("染色設定を保存中",async()=>{
+      const proposal=answers.get(messageId),fieldId=answerField(selectedFieldId),field=state.data?.fields.find(value=>value.id===fieldId);
+      if(!proposal||!field||!proposal.needs_confirmation.includes(channel)||!field.channels.some(value=>value.id===channel))throw new Error("核染色の指定には、この発言の再送が必要です。");
+      await checkCurrent();
+      const proposed=new Map(proposal.draft.channels.map(value=>[value.token,value.role]));
+      await storeAssignments(field.channels.map(value=>({channel_id:value.id,stain:value.stain,
+        role:value.id===channel?"nuclear":value.role==="unused"||(value.role===null&&proposed.get(value.id)==="unused")?"unused":"measure"})),field.id);
+      answers.set(messageId,{...proposal,needs_confirmation:proposal.needs_confirmation.filter(value=>value!==channel)});
+      if(lastApplicable?.proposal===proposal)lastApplicable={...lastApplicable,proposal:answers.get(messageId)!};
+      publish({});
+    });},
     /** What the answer of a message received in this session offers; null when it is not held (a reload, a failure). */
     answerOf(messageId:string):AnswerView|null{const proposal=answers.get(messageId);if(!proposal)return null;const draft=proposal.draft;
       return {intent:draft.intent??null,scope:draft.scope??null,choices:draft.choices??[],assignments:(draft.assignments??[]).length};},
@@ -750,7 +781,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       return {scope,fields,excluded:state.data.fields.length-eligible.length};
     },
     /** True when the message's applicable run request has an analysis and fields to run it on. */
-    canRun(messageId:string,selectedFieldId?:string){return this.canApply(messageId)&&answers.get(messageId)?.draft.recipe!=="none"&&!!this.runTargets(messageId,selectedFieldId)?.fields.length;},
+    canRun(messageId:string,selectedFieldId?:string){return this.canApply(messageId,selectedFieldId)&&answers.get(messageId)?.draft.recipe!=="none"&&!!this.runTargets(messageId,selectedFieldId)?.fields.length;},
     /** Applies the answer's settings and, with `trial`, previews them on the selected field (the researcher's action). */
     applyAnswer(messageId:string,trial:boolean,selectedFieldId?:string){return exclusive(trial?"AIの解析案を試行中":"AIの解析案を適用中",async()=>{
       const proposal=answers.get(messageId),message=state.messages.find(value=>value.id===messageId);
@@ -760,9 +791,12 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       const run=trial&&!!state.data?.fields.length&&proposal.draft.recipe!=="none";
       if(run&&!field)throw new Error("試行には、視野の選択が必要です。");
       applyProposal(field);
-      if(run)await runInternal(state.activeTarget,field!,true);else await persistSpecification(state.activeTarget);
+      // A field that failed does not undo what was saved: the message says what was done, then the failure is reported.
+      const saved=specification.version;let failure:unknown=null;
+      try{if(run)await runInternal(state.activeTarget,field!,true);else await persistSpecification(state.activeTarget);}catch(error){if(specification.version===saved&&!(run&&candidate(field!,state.activeTarget)))throw error;failure=error;}
       const recorded=await adapter.recordEffect(workspace(),messageId,run?"run":"settings");
       publish({messages:withMessage(recorded??{...message,effect:run?"run":"settings"})});
+      if(failure)throw failure;
     });},
     /** 「適用して実行」 of a run request (#284 W7): applies its settings and makes detection candidates on its target fields
      * (the selected one, or all eligible). Only from the researcher's action; adopting the candidates stays theirs. */
@@ -772,9 +806,13 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       if(proposal.draft.recipe==="none"||!targets?.fields.length)throw new Error("実行には、対象の視野が必要です。");
       await checkCurrent();publish({proposal});
       applyProposal(targets.scope==="selected"?targets.fields[0].id:selectedFieldId&&targets.fields.some(field=>field.id===selectedFieldId)?selectedFieldId:targets.fields[0].id);
-      await runInternal(state.activeTarget,targets.scope==="selected"?targets.fields[0].id:undefined,true);
+      // Some fields may fail (another channel configuration, an unreadable image): the settings are saved and the other
+      // fields have candidates, so the message is recorded as run and the failed fields are reported after it.
+      const saved=specification.version;let failure:unknown=null;
+      try{await runInternal(state.activeTarget,targets.scope==="selected"?targets.fields[0].id:undefined,true);}catch(error){if(specification.version===saved&&!targets.fields.some(field=>candidate(field.id,state.activeTarget)))throw error;failure=error;}
       const recorded=await adapter.recordEffect(workspace(),messageId,"run");
       publish({messages:withMessage(recorded??{...message,effect:"run"})});
+      if(failure)throw failure;
     });},
   };
   return runtime;

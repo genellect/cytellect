@@ -2,7 +2,7 @@
 import type {AssistantMessage} from "@/lib/workspace/api-adapter";
 import {reasonView, type ReasonPlace} from "@/lib/workspace/assistant-reasons";
 import type {ReviewField} from "@/lib/workspace/review-preview";
-import type {AnswerView, RunTargets} from "@/lib/workspace/use-workspace-runtime";
+import type {AnswerView, ChannelConfirmation, RunTargets} from "@/lib/workspace/use-workspace-runtime";
 import styles from "./connected-workspace.module.css";
 
 const SOURCES: Record<string, string> = {filename: "ファイル名", ome_metadata: "OME メタデータ", user_entered: "入力", unresolved: "未確定", assignment: "染色対応"};
@@ -42,6 +42,10 @@ interface Props {
   onRun?: (id: string) => void;
   /** A choice of an item to confirm, sent as the next message. */
   onChoose?: (text: string) => void;
+  /** The nuclear channels the answer proposes that the workspace has not recorded yet: applying waits for them. */
+  confirmationOf?: (id: string) => ChannelConfirmation[];
+  /** 「核染色に … を指定」: the researcher's own record of the nuclear stain (as in 染色対応); applies nothing. */
+  onConfirm?: (id: string, channel: string) => void;
 }
 
 /** The fields a run request covers, as one state: 「対象：選択した視野 · A01」 or 「対象：全視野 · 2 視野 · 対象外 1」. */
@@ -58,7 +62,7 @@ export function targetText(targets: RunTargets): string {
  * chooses one (decision 4).
  */
 export function AssistantPanel({field, messages, busy, demo, canApply, canTry, undoable, onApply, onResend, onUndo, onShowSettings, onPlace, onPropose,
-  answerOf = () => null, runTargets = () => null, canRun = () => false, onRun, onChoose}: Props) {
+  answerOf = () => null, runTargets = () => null, canRun = () => false, onRun, onChoose, confirmationOf = () => [], onConfirm}: Props) {
   const nuclear = field?.channels.find(channel => channel.id === field.nuclearChannelId) ?? field?.channels.find(channel => channel.role === "nuclear");
   return <div className={styles.assistant}>
     {field && <section aria-label="選択した視野の情報" className={styles.assistantFacts}>
@@ -73,6 +77,7 @@ export function AssistantPanel({field, messages, busy, demo, canApply, canTry, u
       {messages.map(message => {
         const reasons = message.reasons.map(reasonView);
         const view = answerOf(message.id), intent = view?.intent ?? null, targets = intent === "run" ? runTargets(message.id) : null;
+        const confirmation = demo ? [] : confirmationOf(message.id);
         return <li key={message.id} className={styles.message} data-state={message.state}>
           <p className={styles.userMessage}>{message.text || "画像からの解析案"}</p>
           <p className={styles.messageState}>状態：{messageState(message)}</p>
@@ -92,6 +97,10 @@ export function AssistantPanel({field, messages, busy, demo, canApply, canTry, u
           </div>}
           {view && view.assignments > 0 && <p className={styles.messageState}>割付の案：{view.assignments} 視野 <button type="button" disabled={busy} onClick={() => onPlace("experiment")}>実験</button></p>}
           {targets && <p className={styles.messageState}>{targetText(targets)}</p>}
+          {confirmation.length > 0 && <div className={styles.messageChoices} role="group" aria-label="核染色の指定">
+            <p>設定の適用には、核染色の指定が必要です。</p>
+            {confirmation.map(item => <button key={item.channel} type="button" disabled={busy || !onConfirm} onClick={() => onConfirm?.(message.id, item.channel)}>核染色に {item.label} を指定</button>)}
+          </div>}
           <div className={styles.messageActions}>
             {message.effect === "none" && intent === null && canApply(message.id) && <>
               <button type="button" disabled={busy} onClick={() => onApply(message.id, false)}>設定を適用</button>
