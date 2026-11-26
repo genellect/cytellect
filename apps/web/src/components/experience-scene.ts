@@ -87,13 +87,12 @@ const ROOM_FRAGMENT = /* glsl */`
 uniform float warm;uniform float time;varying vec2 vUv;
 float hash(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
 void main(){vec2 uv=vUv;
-  vec3 color=mix(vec3(.03,.042,.082),vec3(.02,.027,.051),smoothstep(.15,.85,uv.y));
   vec2 g=uv-vec2(.66+.02*sin(time*.11),.42+.02*cos(time*.09));
-  color+=vec3(.2,.36,1.)*exp(-dot(g*vec2(1.3,1.9),g*vec2(1.3,1.9))*5.)*(.14+.2*warm);
-  vec2 k=uv-vec2(.9,.84);color+=vec3(.36,.3,.9)*exp(-dot(k,k)*6.)*.1;
-  vec2 h=uv-vec2(.36,.86);color+=vec3(.03,.1,.16)*exp(-dot(h,h)*7.);
-  color+=(hash(uv*vec2(1733.,977.)+time)-.5)*.008;
-  gl_FragColor=vec4(color,1.);}`;
+  float near=exp(-dot(g*vec2(1.3,1.9),g*vec2(1.3,1.9))*5.)*(.16+.22*warm);
+  vec2 k=uv-vec2(.9,.84);float far=exp(-dot(k,k)*6.)*.1;
+  vec3 tint=(vec3(.2,.36,1.)*near+vec3(.36,.3,.9)*far)/max(near+far,.0001);
+  float glow=near+far+(hash(uv*vec2(1733.,977.)+time)-.5)*.006;
+  gl_FragColor=vec4(tint,clamp(glow,0.,1.));}`;
 
 type Plate = { id: PanelId; group: THREE.Group; plate: THREE.ShaderMaterial; shadow: THREE.ShaderMaterial; seed: number };
 
@@ -111,16 +110,16 @@ const mix = (a: View, b: View, t: number): View => ({ cam: lerp3(a.cam, b.cam, t
 /** `surface` is the element whose drags turn the space (the whole tour, so the text column does not block it);
  *  `onGrab` tells the tour that the visitor took hold of it. */
 export async function mountExperience(host: HTMLElement, panels: ExperiencePanel[], signal: AbortSignal, surface: HTMLElement = host, onGrab?: () => void): Promise<ExperienceController> {
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, premultipliedAlpha: false, powerPreference: "high-performance" });
   renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  renderer.setClearColor(0x05070d, 1);
+  renderer.setClearColor(0x000000, 0);
   host.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 120);
   scene.add(camera);
-  const room = new THREE.ShaderMaterial({ vertexShader: PLATE_VERTEX, fragmentShader: ROOM_FRAGMENT, uniforms: { warm: { value: 0 }, time: { value: 0 } }, depthWrite: false });
+  const room = new THREE.ShaderMaterial({ vertexShader: PLATE_VERTEX, fragmentShader: ROOM_FRAGMENT, uniforms: { warm: { value: 0 }, time: { value: 0 } }, transparent: true, depthWrite: false });
   const backdrop = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), room);
   backdrop.position.z = -60;
   backdrop.renderOrder = -1;
@@ -197,9 +196,9 @@ export async function mountExperience(host: HTMLElement, panels: ExperiencePanel
     // The camera turns around the point it looks at: by the pointer a little, by the hand as far as it is taken.
     target.set(...view.look);
     offset.set(view.cam[0] - view.look[0], view.cam[1] - view.look[1] + Math.sin(time * 0.3) * 0.03, view.cam[2] - view.look[2]);
-    offset.applyAxisAngle(upAxis, orbit.yaw - pointer.x * 0.14);
+    offset.applyAxisAngle(upAxis, orbit.yaw - pointer.x * 0.24);
     sideAxis.crossVectors(upAxis, offset).normalize();
-    offset.applyAxisAngle(sideAxis, THREE.MathUtils.clamp(orbit.pitch - pointer.y * 0.06, -0.5, 0.5));
+    offset.applyAxisAngle(sideAxis, THREE.MathUtils.clamp(orbit.pitch - pointer.y * 0.1, -0.5, 0.5));
     camera.position.copy(target).add(offset);
     camera.lookAt(target);
     // Shift the frame to the right of the text column.

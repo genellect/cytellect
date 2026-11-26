@@ -3,70 +3,83 @@
 import { useEffect, useRef } from "react";
 import lp from "./optical-landing.module.css";
 
-/** Light through glass in a dark room: a slow WebGL gradient behind the mission statement, in the blue-black
- *  of the page with its blue and violet light. The CSS gradient under it stands in when motion is
- *  reduced or WebGL is unavailable, and the field stops while it is off screen. */
-const FRAGMENT = `#version 300 es
-precision highp float;uniform vec2 res;uniform float time;out vec4 color;
-float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
-float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
-float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*noise(p);p=p*2.03+vec2(1.7,9.2);a*=.5;}return v;}
-void main(){
-  vec2 uv=gl_FragCoord.xy/res;vec2 p=uv*vec2(res.x/res.y,1.);float t=time*.035;
-  float flow=fbm(p*1.25+vec2(t,-t*.6));float fine=fbm(p*3.2+flow*1.6-vec2(t*1.4,0.));
-  vec3 c=mix(vec3(.02,.027,.051),vec3(.03,.045,.095),smoothstep(0.,1.,uv.y*.8+flow*.35));
-  vec2 m=uv-vec2(.8+.04*sin(time*.05),.24+.05*cos(time*.04));
-  c+=vec3(.22,.38,1.)*exp(-dot(m*vec2(1.,1.5),m*vec2(1.,1.5))*6.)*(.42+.3*fine);
-  vec2 v=uv-vec2(.2,.92);c+=vec3(.42,.34,.95)*exp(-dot(v,v)*5.)*(.14+.1*flow);
-  float sheen=pow(.5+.5*sin((p.x*.7+p.y*.45)*2.4+flow*2.2+time*.05),3.);
-  c+=vec3(.3,.8,1.)*sheen*smoothstep(.3,.95,uv.x)*.05;
-  c+=vec3(.1,.2,.5)*smoothstep(.62,.95,fine)*.3*smoothstep(.3,1.,uv.x);
-  c+=(hash(gl_FragCoord.xy+time)-.5)*.01;
-  color=vec4(c,1.);}`;
-const VERTEX = `#version 300 es
-in vec2 position;void main(){gl_Position=vec4(position,0.,1.);}`;
+/** The far layer of the landing page's stage: one field of light, fixed behind every section. Each section
+ *  gives the stage its own two lights (where they stand and what colour they are), and the field passes from
+ *  one to the next as the page scrolls: blue beside the mission, blue behind the product's screens, the warm
+ *  colour of culture medium where the path reaches the patient. A third, soft light follows the mouse. The
+ *  lights are plain CSS gradients placed by custom properties, so the stage needs no WebGL and stands still
+ *  unless the visitor scrolls or moves the mouse. */
+type Light = { at: [number, number]; colour: [number, number, number] };
+/** Positions are fractions of the window (x from the left, y from the top); colours are RGB. Sections without
+ *  a key (the hero and the invitation, which the film covers) leave the stage dark. */
+const KEYS: { selector: string; a: Light; b: Light }[] = [
+  { selector: "[data-stage='mission']", a: { at: [0.84, 0.72], colour: [77, 124, 255] }, b: { at: [0.16, 0.04], colour: [139, 120, 240] } },
+  { selector: "#workflow", a: { at: [0.82, 0.46], colour: [46, 86, 214] }, b: { at: [0.04, 0.94], colour: [96, 84, 200] } },
+  { selector: "[data-stage='reasons']", a: { at: [0.1, 0.1], colour: [60, 104, 230] }, b: { at: [0.94, 0.94], colour: [40, 66, 150] } },
+  { selector: "#impact", a: { at: [0.84, 0.74], colour: [231, 184, 164] }, b: { at: [0.1, 0.08], colour: [77, 124, 255] } },
+  { selector: "#download", a: { at: [0.88, 0.12], colour: [66, 130, 255] }, b: { at: [0.06, 0.92], colour: [96, 84, 200] } },
+];
 
 export function LightField() {
-  const ref = useRef<HTMLCanvasElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const canvas = ref.current;
-    if (!canvas || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const gl = canvas.getContext("webgl2", { antialias: false, alpha: false, premultipliedAlpha: false });
-    if (!gl) return;
-    const compile = (type: number, source: string) => { const shader = gl.createShader(type)!; gl.shaderSource(shader, source); gl.compileShader(shader); return shader; };
-    const program = gl.createProgram()!;
-    gl.attachShader(program, compile(gl.VERTEX_SHADER, VERTEX));
-    gl.attachShader(program, compile(gl.FRAGMENT_SHADER, FRAGMENT));
-    gl.linkProgram(program);
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return;
-    gl.useProgram(program);
-    const buffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
-    const position = gl.getAttribLocation(program, "position");
-    gl.enableVertexAttribArray(position);
-    gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
-    const res = gl.getUniformLocation(program, "res"), time = gl.getUniformLocation(program, "time");
-    // Half resolution: the field is soft, and it keeps the GPU quiet.
-    const scale = Math.min(devicePixelRatio, 2) * 0.5;
-    const resize = () => { canvas.width = Math.max(1, Math.round(canvas.clientWidth * scale)); canvas.height = Math.max(1, Math.round(canvas.clientHeight * scale)); gl.viewport(0, 0, canvas.width, canvas.height); };
-    let frame = 0, visible = false;
-    const start = performance.now();
-    const draw = () => {
+    const stage = ref.current;
+    if (!stage) return;
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const sections = KEYS.map(key => ({ ...key, node: document.querySelector<HTMLElement>(key.selector) }));
+    // x, y, r, g, b and strength of each light as shown now; they ease towards the section in view.
+    const shown = { a: [0.8, 0.7, 77, 124, 255, 0], b: [0.2, 0.1, 139, 120, 240, 0] };
+    let frame = 0, last = 0;
+    const draw = (now: number) => {
       frame = 0;
-      if (!visible) return;
-      gl.uniform2f(res, canvas.width, canvas.height);
-      gl.uniform1f(time, (performance.now() - start) / 1000 + 40);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
-      canvas.dataset.state = "ready";
-      frame = requestAnimationFrame(draw);
+      const ease = still || !last ? 1 : 1 - Math.exp(-Math.min(0.05, (now - last) / 1000) * 3.2);
+      last = now;
+      // Each section weighs in by how close it is to the middle of the window.
+      const want = { a: [0, 0, 0, 0, 0], b: [0, 0, 0, 0, 0] };
+      let total = 0;
+      for (const section of sections) {
+        if (!section.node) continue;
+        const box = section.node.getBoundingClientRect();
+        const reach = box.height / 2 + innerHeight / 2, away = Math.abs(box.top + box.height / 2 - innerHeight / 2);
+        const weight = Math.max(0, 1 - away / reach) ** 2;
+        if (weight <= 0) continue;
+        total += weight;
+        for (const [slot, light] of [[want.a, section.a], [want.b, section.b]] as const) {
+          slot[0] += light.at[0] * weight; slot[1] += light.at[1] * weight;
+          for (let i = 0; i < 3; i++) slot[2 + i] += light.colour[i] * weight;
+        }
+      }
+      let moving = false;
+      for (const [name, slot, target] of [["a", shown.a, want.a], ["b", shown.b, want.b]] as const) {
+        // Where no section lights the stage, the light fades where it stands.
+        const goal = total > 0 ? [...target.map(value => value / total), Math.min(1, total * 1.4)] : [...slot.slice(0, 5), 0];
+        for (let i = 0; i < 6; i++) { const step = (goal[i] - slot[i]) * ease; slot[i] += step; if (Math.abs(goal[i] - slot[i]) > (i < 2 || i === 5 ? 0.002 : 0.5)) moving = true; }
+        stage.style.setProperty(`--${name}x`, `${(slot[0] * 100).toFixed(2)}%`);
+        stage.style.setProperty(`--${name}y`, `${(slot[1] * 100).toFixed(2)}%`);
+        stage.style.setProperty(`--${name}c`, `${Math.round(slot[2])} ${Math.round(slot[3])} ${Math.round(slot[4])}`);
+        stage.style.setProperty(`--${name}s`, slot[5].toFixed(3));
+      }
+      stage.dataset.state = "ready";
+      if (moving) frame = requestAnimationFrame(draw); else last = 0;
     };
-    const sizes = new ResizeObserver(resize);
-    sizes.observe(canvas);
-    const seen = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; if (visible && !frame) frame = requestAnimationFrame(draw); });
-    seen.observe(canvas);
-    resize();
-    return () => { cancelAnimationFrame(frame); sizes.disconnect(); seen.disconnect(); gl.deleteBuffer(buffer); gl.deleteProgram(program); };
+    const wake = () => { if (!frame) frame = requestAnimationFrame(draw); };
+    const move = (event: PointerEvent) => {
+      if (event.pointerType !== "mouse" || still) return;
+      stage.style.setProperty("--mx", `${event.clientX}px`); stage.style.setProperty("--my", `${event.clientY}px`); stage.style.setProperty("--ms", "1");
+    };
+    const leave = () => stage.style.setProperty("--ms", "0");
+    addEventListener("scroll", wake, { passive: true });
+    addEventListener("resize", wake);
+    addEventListener("pointermove", move, { passive: true });
+    document.documentElement.addEventListener("pointerleave", leave);
+    wake();
+    return () => {
+      cancelAnimationFrame(frame);
+      removeEventListener("scroll", wake);
+      removeEventListener("resize", wake);
+      removeEventListener("pointermove", move);
+      document.documentElement.removeEventListener("pointerleave", leave);
+    };
   }, []);
-  return <canvas ref={ref} className={lp.lightField} aria-hidden="true" />;
+  return <div ref={ref} className={lp.lightField} aria-hidden="true" />;
 }

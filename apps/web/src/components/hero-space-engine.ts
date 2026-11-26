@@ -2,7 +2,8 @@ import * as THREE from "three";
 
 /** The hero's own 3D space: the visitor stands inside the film. Six screens close into a hexagonal room and all
  *  play the hero film; the one ahead fills most of the view, its neighbours stand at an angle on either side,
- *  and the polished floor and ceiling carry their reflections. The pointer turns the view, a drag or a flick
+ *  and the polished floor and ceiling carry their reflections. Where two screens meet stands a column of light,
+ *  blue rising to cyan, and the columns the pointer looks towards burn brighter. The pointer turns the view, a drag or a flick
  *  spins the room with inertia and it settles facing the nearest screen; touch does the same sideways and
  *  leaves vertical scrolling to the page. The footage passes through unchanged (no colour management, no tone
  *  mapping). */
@@ -46,7 +47,20 @@ void main(){
   gl_FragColor=vec4(c/n*fade*lit+(hash(gl_FragCoord.xy)-.5)/255.,1.);
 }`;
 
-export async function mountHeroSpace(host: HTMLElement, surface: HTMLElement, poster: string, signal: AbortSignal): Promise<HeroSpace | null> {
+/** A column of light at a corner of the room: a bright core in a soft glow, blue at its foot and cyan at its head. */
+const COLUMN = /* glsl */`
+uniform float lit;uniform float power;varying vec2 vUv;
+void main(){
+  float x=abs(vUv.x-.5)*2.;
+  float core=exp(-x*x*1400.)*.72,glow=exp(-x*x*22.)*.24+exp(-x*5.)*.07;
+  float ends=smoothstep(0.,.22,vUv.y)*smoothstep(1.,.78,vUv.y);
+  vec3 tint=mix(vec3(.3,.49,1.),vec3(.26,.85,1.),smoothstep(.2,.9,vUv.y));
+  gl_FragColor=vec4((tint*glow+vec3(.6,.84,1.)*core)*ends*lit*power,1.);
+}`;
+
+/** `onLook` is told, every frame, where the view is turned by the pointer (−1 to 1 each way), so the hero's copy
+ *  can stand a little in front of the room. */
+export async function mountHeroSpace(host: HTMLElement, surface: HTMLElement, poster: string, signal: AbortSignal, onLook?: (x: number, y: number) => void): Promise<HeroSpace | null> {
   let renderer: THREE.WebGLRenderer;
   try {
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
@@ -90,6 +104,19 @@ export async function mountHeroSpace(host: HTMLElement, surface: HTMLElement, po
     above.position.set(x, HEIGHT + 0.1, z); above.rotation.y = -angle; above.scale.y = -1;
     room.add(face, below, above);
   }
+  // The columns stand at the six corners, taller than the screens so the floor and ceiling carry them on.
+  const RADIUS = APOTHEM / Math.cos(Math.PI / SIDES);
+  const strip = new THREE.PlaneGeometry(5.2, HEIGHT * 2.6);
+  const columns = Array.from({ length: SIDES }, (_, k) => {
+    const angle = (k + 0.5) * STEP;
+    const material = new THREE.ShaderMaterial({ vertexShader: VERTEX, fragmentShader: COLUMN, transparent: true, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: { lit, power: { value: 0.6 } } });
+    const mesh = new THREE.Mesh(strip, material);
+    mesh.position.set(Math.sin(angle) * (RADIUS - 0.2), 0, -Math.cos(angle) * (RADIUS - 0.2));
+    mesh.rotation.y = -angle;
+    mesh.renderOrder = 2;
+    room.add(mesh);
+    return { angle, material };
+  });
 
   let width = 1, height = 1, active = true, frame = 0, last = performance.now(), rest = 0, spanX = 1;
   const born = last;
@@ -130,9 +157,17 @@ export async function mountHeroSpace(host: HTMLElement, surface: HTMLElement, po
     lit.value = Math.min(1, time / 1.1);
     room.rotation.y = yaw;
     camera.position.x = rest;
-    camera.rotation.y = -look.x * 0.26 + opening * 0.95 + Math.sin(time * 0.31) * 0.012;
-    camera.rotation.x = look.y * 0.1 + Math.sin(time * 0.23) * 0.006;
+    camera.rotation.y = -look.x * 0.34 + opening * 0.95 + Math.sin(time * 0.31) * 0.012;
+    camera.rotation.x = look.y * 0.14 + Math.sin(time * 0.23) * 0.006;
     eye.value.copy(camera.position);
+    // The columns the view is turned towards burn brighter.
+    const facing = camera.rotation.y - room.rotation.y;
+    for (const column of columns) {
+      const off = Math.atan2(Math.sin(-column.angle - facing), Math.cos(-column.angle - facing));
+      const target = 0.42 + 0.5 * Math.exp(-off * off * 3.2);
+      column.material.uniforms.power.value += (target - column.material.uniforms.power.value) * (1 - Math.exp(-dt * 4));
+    }
+    onLook?.(look.x, look.y);
     renderer.render(scene, camera);
     if (active) frame = requestAnimationFrame(draw);
   };
@@ -191,6 +226,7 @@ export async function mountHeroSpace(host: HTMLElement, surface: HTMLElement, po
       surface.removeEventListener("pointerleave", leave);
       delete surface.dataset.grabbing;
       plane.dispose(); screen.dispose(); floor.dispose(); ceiling.dispose();
+      strip.dispose(); for (const column of columns) column.material.dispose();
       still.dispose(); videoTexture?.dispose();
       renderer.dispose();
       renderer.domElement.remove();

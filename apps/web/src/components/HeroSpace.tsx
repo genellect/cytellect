@@ -19,7 +19,7 @@ export function HeroSpace() {
       space?.film(video && video.readyState >= 2 ? video : null);
     };
     const sync = () => space?.running(seen && !document.hidden);
-    const stop = () => { abort?.abort(); abort = null; space?.dispose(); space = null; delete hero.dataset.space; };
+    const stop = () => { abort?.abort(); abort = null; space?.dispose(); space = null; delete hero.dataset.space; hero.style.removeProperty("--look-x"); hero.style.removeProperty("--look-y"); };
     const start = async () => {
       stop();
       if (!motion.matches || !document.createElement("canvas").getContext("webgl2")) return;
@@ -27,7 +27,10 @@ export function HeroSpace() {
       try {
         const { mountHeroSpace } = await import("./hero-space-engine");
         if (controller.signal.aborted) return;
-        const mounted = await mountHeroSpace(element, hero, "/marketing/hero-film-poster.webp", controller.signal);
+        // The copy stands a little in front of the room: it shifts against the turn of the view.
+        const mounted = await mountHeroSpace(element, hero, "/marketing/hero-film-poster.webp", controller.signal, (x, y) => {
+          hero.style.setProperty("--look-x", x.toFixed(3)); hero.style.setProperty("--look-y", y.toFixed(3));
+        });
         if (controller.signal.aborted) { mounted?.dispose(); return; }
         if (!mounted) return;
         space = mounted;
