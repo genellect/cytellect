@@ -86,3 +86,39 @@ def test_historical_selection_without_version_stays_1_0_0():
     parsed = RegionComparisonRequestV2.model_validate(raw)
     assert parsed.selection.version == "1.0.0"
     assert parsed.model_dump(mode="json")["selection"]["version"] == "1.0.0"
+
+
+def test_largest_nucleolus_fraction_reads_the_bound_shapes_like_the_nucleus_table(tmp_path):
+    """#257 A-3: the largest nucleolus over all of a nucleus's nucleoli, compared in percentage points; none without
+    nucleoli. Rule checks on small arrays, as the fixture above (synthetic labels)."""
+    import numpy as np
+    from cytellect_analysis.nucleolar_shape import nucleolar_eccentricity
+    from cytellect_analysis.nucleus_table import nucleolar_morphology
+
+    report, config, summaries = compartment_fixture()
+    by_unit = {"a1": 1.0, "a2": 0.9, "a3": 0.95, "b1": 0.5, "b2": 0.6, "b3": 0.55}
+    shapes = shapes_for(summaries)
+    for fid, nuclei in shapes.items():
+        for shape in nuclei.values():
+            shape["largest_nucleolus_fraction"] = by_unit[fid[:2]] if shape["objects"] else None
+    result = analyze_region_comparison(report, config, v11("largest_nucleolus_fraction", estimates="comparison-estimates/1.0.0"),
+                                       summaries=summaries, shapes=shapes)
+    assert set(values(result).values()) == set(by_unit.values())
+    assert {row["missing_reason"] for row in result["observation_ledger"] if row["value"] is None} <= {"no_nucleolus"}
+    assert result["estimates"]["scale"] == "fraction" and result["unit"] == "dimensionless"
+    assert render_common_statistics(result, tmp_path)["source_files"]
+    with pytest.raises(ValueError, match="compartment_summary_shape_unavailable"):
+        analyze_region_comparison(report, config, v11("largest_nucleolus_fraction"), summaries=summaries)
+    # The shape module gives the nucleus table's value: largest object area / union area, every object counted.
+    nuclei = np.zeros((12, 24), np.uint32)
+    nuclei[1:11, 1:11], nuclei[1:11, 13:23] = 1, 2
+    nucleoli = np.zeros_like(nuclei)
+    nucleoli[2:5, 2:5] = 1  # 9 px
+    nucleoli[7:9, 7:9] = 2  # 4 px
+    nucleoli[3, 15] = 3     # 1 px: the union and the largest of its nucleus
+    shaped = nucleolar_eccentricity(nuclei, nucleoli)
+    table = nucleolar_morphology(nuclei, nucleoli, {1: "candidate", 2: "candidate"}, None)
+    assert shaped[1]["largest_nucleolus_fraction"] == pytest.approx(9 / 13)
+    assert shaped[2]["largest_nucleolus_fraction"] == 1.0
+    for parent in (1, 2):
+        assert shaped[parent]["largest_nucleolus_fraction"] == table[parent].largest_object_fraction

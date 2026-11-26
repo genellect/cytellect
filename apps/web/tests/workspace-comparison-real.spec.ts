@@ -59,7 +59,7 @@ test("synthetic fields reach real independent-unit comparison and editable expor
   await page.getByRole("navigation", {name:"作業の切替"}).getByRole("button", {name:"統計", exact:true}).click();
   const panel = page.getByRole("region", {name:"測定結果の統計解析"});
   const options=page.getByRole("complementary", {name:"解析対象"});
-  await options.getByRole("combobox", {name:"領域",exact:true}).selectOption("nuclei");
+  await options.getByRole("radiogroup", {name:"対象",exact:true}).getByRole("radio", {name:"核",exact:true}).click();
   await options.getByRole("combobox", {name:"指標",exact:true}).selectOption("mean");
   await options.getByRole("combobox", {name:"染色",exact:true}).selectOption("c2");
   await panel.getByRole("combobox", {name:"解析",exact:true}).selectOption("comparison");
@@ -76,9 +76,16 @@ test("synthetic fields reach real independent-unit comparison and editable expor
   await expect(panel.locator('input[aria-label$=" condition"]').first()).toHaveValue("A");
   expect(writes.filter(value => value.endsWith("/review"))).toHaveLength(0);
   await panel.getByLabel("A / B", {exact:true}).check();
+  // A workspace registered without a design confirms its typed groups, units and acquisition in 統計 (owner decision on
+  // genellect/cytellect#273, 2026-11-21). The regions and fields are those adopted in 画像 (decision 11): no tick for them.
+  await expect(panel.getByRole("checkbox", {name:"測定領域と採用する視野を確認済み"})).toHaveCount(0);
+  expect(writes.filter(value => value.endsWith("/common-statistics"))).toHaveLength(0);
   await panel.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み", {exact:true}).check();
-  await panel.getByLabel("測定領域と採用する視野を確認済み", {exact:true}).check();
+  // Chosen, the comparison is described at once (D-5); the Welch test runs on 計算.
+  const tested = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname.endsWith("/common-statistics")
+    && (response.request().postDataJSON() as {test?: string}).test === "welch-t", {timeout: 300_000});
   await panel.getByRole("button", {name:"計算", exact:true}).click();
+  const testedJob = ((await (await tested).json()) as {job_id: string}).job_id;
   // Include operation errors rather than reporting only a missing-table timeout.
   await expect.poll(async()=>{
     const errors=await panel.getByRole("alert").allTextContents();
@@ -87,7 +94,7 @@ test("synthetic fields reach real independent-unit comparison and editable expor
   },{timeout:120000}).toBeGreaterThan(0);
   await expect(panel.getByText("Welch t-test", {exact:true}).first()).toBeVisible();
   const jobs = await (await page.request.get(`${api}/v1/workspaces/${workspace}/jobs`)).json();
-  const job = jobs.find((value: {analysis_mode?: string; analysis_version?: string; state: string}) => value.analysis_mode === "region-experimental-unit" && value.analysis_version === "2.0.0" && value.state === "succeeded");
+  const job = jobs.find((value: {id: string; analysis_mode?: string; analysis_version?: string; state: string}) => value.id === testedJob && value.analysis_mode === "region-experimental-unit" && value.analysis_version === "2.0.0" && value.state === "succeeded");
   expect(job).toBeTruthy();
   const result = await (await page.request.get(`${api}/v1/jobs/${job.id}/common-statistics`)).json();
   expect(result.spec.test).toBe("welch-t");
@@ -113,21 +120,29 @@ test("synthetic fields reach real independent-unit comparison and editable expor
   const beforeFigure=statisticsPosts().length;
   await page.getByRole("navigation", {name:"作業の切替"}).getByRole("button", {name:"グラフ", exact:true}).click();
   const figurePanel=page.getByRole("region", {name:"図の作成・保存"});
+  await figurePanel.getByRole("combobox", {name:"大きさ", exact:true}).selectOption("custom");
+  const resized = page.waitForResponse(response => {
+    const request = response.request();
+    if (request.method() !== "POST" || !new URL(response.url()).pathname.endsWith("/figure-render")) return false;
+    const {plot} = request.postDataJSON() as {plot: {width_inches: number; presentation?: {size: string}}};
+    return plot.presentation?.size === "custom" && Math.abs(plot.width_inches * 25.4 - 120) < 0.001;
+  }, {timeout:120000});
   await figurePanel.getByLabel("幅 / mm", {exact:true}).fill("120");
-  await figurePanel.getByRole("button", {name:"図を更新", exact:true}).click();
-  await expect(figurePanel.getByRole("button", {name:"図を更新", exact:true})).toBeEnabled({timeout:120000});
+  expect((await resized).status()).toBe(202);
+  const save = figurePanel.getByRole("button", {name:"保存", exact:true});
+  await expect(save).toBeEnabled({timeout:120000});
+  await expect(figurePanel.getByRole("alert")).toHaveCount(0);
   expect(statisticsPosts()).toHaveLength(beforeFigure);
-  expect(writes.some(value=>value.endsWith("/figure-render"))).toBeTruthy();
   await expect(figurePanel.getByLabel("元画像を含める",{exact:true})).not.toBeChecked();
   await figurePanel.getByLabel("元画像を含める",{exact:true}).check();
   const exported=page.waitForResponse(response=>new URL(response.url()).pathname.endsWith("/export")&&response.request().method()==="POST");
   const downloaded=page.waitForEvent("download",{timeout:120000});
-  await figurePanel.getByRole("button", {name:"保存", exact:true}).click();
+  await save.click();
   const exportResponse=await exported;expect(exportResponse.status()).toBe(202);
   expect(new URL(exportResponse.url()).searchParams.get("include_raw")).toBe("true");
   const publication=await downloaded;
   await publication.saveAs(path.join(output,"publication.zip"));
-  await expect(figurePanel.getByRole("button", {name:"保存", exact:true})).toBeEnabled({timeout:120000});
+  await expect(save).toBeEnabled({timeout:120000});
   const replay=JSON.parse(execFileSync(python,["-B","-c",[
     "import sys,json,io,zipfile,hashlib", "from pathlib import Path",
     "from cytellect_analysis.region_exports import replay_region_bundle",

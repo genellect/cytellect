@@ -38,7 +38,8 @@
 .row>label{min-width:140px}
 .recorded{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}.recorded button{font-size:14px;padding:4px 12px;border-radius:14px}.recorded button[aria-pressed=true]{background:#eaf1fb;border-color:#2468cc;color:#1757b6}
 .reportedLine{margin:10px 0 0;font-size:14px;color:#3b4656}.reportedLine strong{margin-right:8px;color:#1d2b45}
-.unresolved{margin:10px 0;padding:10px 12px;border:1px solid #f0d9a8;border-radius:6px;background:#fffaf0;font-size:14px}.unresolved p{margin:6px 0;color:#4a4130}.unresolved table{font-size:13px;margin:6px 0}
+/* The one piece of earlier work a result waits for (decision 11): an action in the amber of 実験's warning marks. */
+.root .remaining{border-color:#e2c27a;background:#fffaf0;color:#4a3700;min-height:36px;text-align:left}
 .missingLead{margin:6px 0 10px;padding:6px 10px;border-left:3px solid #d9a441;background:#fffaf0;font-size:14px}.missingLead p{margin:2px 0}.missing{margin:10px 0;font-size:13px}.missing p{margin:4px 0;color:#4a4130}.missing table{font-size:13px;margin:4px 0}.missing th[scope=row]{white-space:nowrap}.missingWarning{color:#7a4b00;font-weight:600}
 
 .stratumPick{display:flex;flex-direction:column;gap:4px;margin:6px 0 10px;padding:8px 10px;border:1px solid #dfe3e8;border-radius:6px;background:#f8fafc}.stratumPick label{display:flex;gap:8px;align-items:center;font-size:14px}.stratumPick p{margin:0;font-size:13px;color:#3b4656}
@@ -57,3 +58,14 @@
 .legendDraft{max-width:760px;margin:0 0 18px;display:grid;gap:6px}
 .legendHead{display:flex;align-items:center;gap:10px}.legendHead button{font-size:14px;padding:4px 12px}.legendHead span{font-size:12px;color:#66717f}
 .legendDraft textarea{width:100%;font:13px/1.5 ui-sans-serif,system-ui,sans-serif;padding:8px;border:1px solid #d5dbe3;border-radius:4px;resize:vertical;box-sizing:border-box}
+.pendingCard{min-height:132px;display:flex;flex-direction:column;align-items:flex-start;gap:12px}
+.pendingCard h3{margin:0}
+.pendingFrame{min-height:240px;border:1px dashed #d5dbe3;border-radius:8px}
+.fieldCheck{margin-top:12px}
+.fieldCheck summary{cursor:pointer;color:#26303c;font-size:14px}
+.switched{margin:0;color:#4b5563;font-size:13px}
+/* A declared experiment design, read on one line (genellect/cytellect#257 D-6). */
+.designLine{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;margin:0;color:#26303c;font-size:14px}
+.designLine span+span::before{content:"・";margin-right:12px;color:#8a94a3}
+.designLine button{margin-left:auto;border:0;background:none;padding:0;color:#2468cc;cursor:pointer;font-size:14px}
+.outcomeRole{display:inline-block;margin-left:6px;padding:0 6px;border-radius:8px;font-size:12px;line-height:18px;vertical-align:1px;border:1px solid #9aa6b5;color:#3b4654}.outcomeRole[data-outcome-role=primary]{border-color:#1757b6;background:#1757b6;color:#fff}

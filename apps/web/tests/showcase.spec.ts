@@ -457,32 +457,34 @@ async function openSettings(page: Page) {
   await expect(inspector).toBeVisible();
   return inspector;
 }
-/** A metric of a fixed region (such as nucleolar count) hides the region choice; area brings it back. */
-async function chooseMetric(page: Page, region: string, metric: string, channel: string | null) {
+const SUBJECTS: Record<string, string> = {nuclei: "核", nucleoli: "核小体", nucleoplasm: "核質"};
+/** The variants chosen by the switch under the metric list: the listed metric and the switch's radio. */
+const VARIANTS: Record<string, [string, string]> = {mean_corrected: ["mean", "背景補正"], integrated_corrected: ["integrated", "背景補正"],
+  area_um2: ["area_px", "µm²"], nucleolar_area_um2: ["nucleolar_area_px", "µm²"]};
+const subjectRadio = (page: Page, name: string) => page.getByRole("complementary", {name: "解析対象"})
+  .getByRole("radiogroup", {name: "対象", exact: true}).getByRole("radio", {name, exact: true});
+/** The subject first (it sets the region), then one of its metrics, then a variant of it (M-01). */
+async function chooseMetric(page: Page, subject: string, metric: string, channel: string | null) {
   const side = page.getByRole("complementary", {name: "解析対象"});
-  const choice = side.getByRole("combobox", {name: "領域", exact: true});
-  if (!await choice.count()) await side.getByRole("combobox", {name: "指標", exact: true}).selectOption("area_px");
-  await choice.selectOption(region);
-  await side.getByRole("combobox", {name: "指標", exact: true}).selectOption(metric);
+  const radio = subjectRadio(page, SUBJECTS[subject]);
+  await radio.click();
+  await expect(radio).toBeChecked();
+  const [listed, variant] = VARIANTS[metric] ?? [metric, null];
+  await side.getByRole("combobox", {name: "指標", exact: true}).selectOption(listed);
+  if (variant) {
+    await side.getByRole("radio", {name: variant, exact: true}).click();
+    await expect(side.getByRole("radio", {name: variant, exact: true})).toBeChecked();
+  }
   if (channel) await side.getByRole("combobox", {name: "染色", exact: true}).selectOption(channel);
 }
-async function fillIfEmpty(control: Locator, value: string) {
-  if (await control.count() && !await control.inputValue()) await control.fill(value);
-}
+/** The chosen condition's result. The demo asks for no confirmation and has no 計算: choosing a recorded condition shows
+ * its recorded result at once (genellect/cytellect#257 D-1, owner decision 2026-11-21). */
 async function calculate(page: Page) {
   const results = page.getByRole("region", {name: "測定結果の統計解析"});
-  await fillIfEmpty(results.getByRole("textbox", {name: "独立実験単位", exact: true}), "公開画像の反復（デモ）");
-  await fillIfEmpty(results.getByRole("textbox", {name: "対応の根拠", exact: true}), "同じ反復（Rep）内の 2 条件");
-  const confirm = results.getByLabel("独立実験単位、撮影・画素条件、採否と欠測の扱いを確認済み");
-  if (await confirm.count() && !await confirm.isChecked()) await confirm.check();
-  const reviewed = results.getByLabel("測定領域と採用する視野を確認済み");
-  if (!await reviewed.isChecked()) await reviewed.check();
-  // Nuclei without an established nucleolus are listed by group, run and reason once read (Q-05).
-  const keep = results.getByLabel("この一覧を確認し、欠測として残して計算する", {exact: true});
-  await expect(results.getByRole("button", {name: "計算", exact: true}).and(page.locator(":enabled")).or(keep).first()).toBeVisible({timeout: live});
-  if (await keep.count() && !await keep.isChecked()) await keep.check();
-  await results.getByRole("button", {name: "計算", exact: true}).click();
-  await expect(results.getByRole("button", {name: "計算", exact: true})).toBeEnabled({timeout: live});
+  await expect(results.getByRole("button", {name: "計算", exact: true})).toHaveCount(0);
+  await expect(results.getByRole("checkbox", {name: /確認済み|欠測として残して計算する/})).toHaveCount(0);
+  await page.waitForTimeout(300);
+  await expect(results.getByRole("region", {name: "選択中の条件"})).toHaveCount(0, {timeout: live});
   await expect(results.getByText("測定結果または解析条件が変わりました。再計算してください。")).toHaveCount(0);
   expect(await alerts(page)).toEqual([]);
 }
@@ -684,7 +686,7 @@ test("measuring again with another background correction is answered from the re
   await expect(notRecorded(page)).toHaveCount(0);
   // The statistics view then compares the new measurement: the opening result's region is for the first look only.
   await page.locator("header").getByRole("button", {name: "統計", exact: true}).click();
-  await expect(page.getByRole("complementary", {name: "解析対象"}).getByRole("combobox", {name: "領域", exact: true})).toHaveValue("nuclei");
+  await expect(subjectRadio(page, "核")).toBeChecked();
   await expect(notRecorded(page)).toHaveCount(0);
   await noErrors(page, watch);
 });
@@ -726,15 +728,45 @@ test("the ActD scene's statistics open on the nucleolar 5-EU and switch to the e
   await expect(recorded.getByRole("button")).toHaveCount(2, {timeout: live});
   const sentence = results.getByRole("region", {name: "結果のまとめ"}).getByRole("heading", {level: 3});
   // The opening comparison names its region and channel, and the side panel already agrees with it.
-  await expect(sentence).toContainText("核小体の平均輝度（eu5）");
+  await expect(sentence).toContainText("核小体の平均輝度（5-EU）");
   await expect(results.getByRole("status").filter({hasText: /前の結果|記録した結果/})).toHaveCount(0);
   await recorded.getByRole("button", {name: /離心率/}).click();
   await expect(sentence).toContainText("離心率");
   await expect(page.getByRole("complementary", {name: "解析対象"}).getByRole("combobox", {name: "指標", exact: true})).toHaveValue("nucleolar_eccentricity");
-  await recorded.getByRole("button", {name: /eu5/}).click();
+  await recorded.getByRole("button", {name: /5-EU/}).click();
   await expect(sentence).toContainText("平均輝度");
   await expect(results.getByRole("status").filter({hasText: /前の結果|記録した結果/})).toHaveCount(0);
   await expect(notRecorded(page)).toHaveCount(0);
+  await noErrors(page, watch);
+});
+
+test("the subject and a metric's variant are each one Tab stop, chosen with the arrow keys (M-01)", async ({page}) => {
+  test.skip(!OPENING_NUCLEOLAR, "The fully recorded opening scene has no nucleoli.");
+  const watch = await openDemo(page, sceneUrl(OPENING, "step=statistics"));
+  await expect(page.getByRole("region", {name: "結果のまとめ"})).toBeVisible({timeout: live});
+  const side = page.getByRole("complementary", {name: "解析対象"});
+  const subjects = side.getByRole("radiogroup", {name: "対象", exact: true});
+  // Only the checked radio of a group is in the Tab order.
+  await expect(subjects.locator("[role=radio][tabindex='0']")).toHaveCount(1);
+  await subjectRadio(page, "核小体").click();
+  await expect(subjectRadio(page, "核小体")).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(subjectRadio(page, "核質")).toBeChecked();
+  await expect(subjectRadio(page, "核質")).toBeFocused();
+  await page.keyboard.press("ArrowLeft");
+  await expect(subjectRadio(page, "核小体")).toBeChecked();
+  // The variant: mean intensity, then background-corrected by the arrow key; the request names the corrected metric.
+  const metric = side.getByRole("combobox", {name: "指標", exact: true});
+  await metric.selectOption("mean");
+  const correction = side.getByRole("radiogroup", {name: "補正", exact: true});
+  await expect(correction.locator("[role=radio][tabindex='0']")).toHaveText("原値");
+  await correction.getByRole("radio", {name: "原値", exact: true}).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(correction.getByRole("radio", {name: "背景補正", exact: true})).toBeChecked();
+  await expect(correction.getByRole("radio", {name: "背景補正", exact: true})).toBeFocused();
+  // The list still shows the mean intensity; the switch picks its corrected values.
+  await expect(metric).toHaveValue("mean");
+  await expect(side.getByTestId("metric-definition")).toContainText("背景を差し引いた平均輝度");
   await noErrors(page, watch);
 });
 
@@ -759,7 +791,7 @@ test("statistics of nucleoli, nucleoplasm and nucleolar measures show results, d
   await recorded.getByRole("button", {name: /総面積/}).click();
   await expect(sentence).toContainText("総面積");
   await expect(metric).toHaveValue("nucleolar_area_px");
-  await recorded.getByRole("button", {name: /eu5/}).click();
+  await recorded.getByRole("button", {name: /5-EU/}).click();
   await expect(sentence).toContainText("平均輝度");
   await expect(metric).toHaveValue("mean");
   await recorded.getByRole("button", {name: /離心率/}).click();
@@ -768,9 +800,9 @@ test("statistics of nucleoli, nucleoplasm and nucleolar measures show results, d
   await expect(results.getByRole("status").filter({hasText: /前の結果|記録した結果/})).toHaveCount(0);
   const operation = results.getByRole("combobox", {name: "解析", exact: true});
   const cases: Array<[string, string, string | null, string]> = [
-    ["nucleoli", "area_px", null, "distribution"], ["nucleoli", "mean", "npm1", "comparison"],
-    ["nucleoplasm", "mean", "npm1", "distribution"], ["nuclei", "nucleolar_count", null, "comparison"],
-    ["nuclei", "nucleolar_area_fraction", null, "distribution"], ["nuclei", "log2_nucleoplasm_over_nucleolus", "npm1", "comparison"],
+    ["nucleoli", "area_px", null, "comparison"], ["nucleoli", "mean", "npm1", "comparison"],
+    ["nucleoplasm", "mean", "npm1", "comparison"], ["nucleoli", "nucleolar_count", null, "comparison"],
+    ["nucleoli", "nucleolar_area_fraction", null, "comparison"], ["nucleoplasm", "log2_nucleoplasm_over_nucleolus", "npm1", "comparison"],
     ["nucleoli", "mean", "eu5", "comparison"],
   ];
   for (const [region, metric, channel, kind] of cases) {
@@ -800,7 +832,7 @@ test("the statistics view states the premise once, in the basis line, and opens 
       // The discussion is a frame apart from the computed result (AC-01); its limits (AC-04) are not statements of the premise.
       .filter(element => (element as HTMLElement).offsetParent !== null && !element.closest("details:not([open]) > :not(summary)") && !element.closest("section[aria-label='考察']"))
       .map(element => element.textContent ?? "")
-      // The folded counts table names its unit column (独立実験単位); it is a heading, not a statement of the premise.
+      // The folded counts table names its unit column (実験回); it is a heading, not a statement of the premise.
       .filter(text => /独立|検定なし|記述のみ|記述統計/.test(text) && !text.startsWith("数の内訳")));
     expect(statements, scene?.id).toHaveLength(1);
     expect(statements[0]).toMatch(/^記述統計/);
@@ -849,15 +881,17 @@ test("a per-nucleus nucleolar result is read and checked on the nucleoli, and un
   const recorded = results.getByRole("group", {name: "保存した比較"});
   await expect(recorded.getByRole("button")).toHaveCount(2, {timeout: live});
   // Both recorded comparisons count the same unresolved nuclei, and never also say nothing is missing (Q-05, S-03).
-  for (const name of [/eu5/, /離心率/]) {
+  for (const name of [/5-EU/, /離心率/]) {
     await recorded.getByRole("button", {name}).click();
     await summary.getByText("n の内訳と除外").click();
     await expect(summary).toContainText(/核小体を確定できない核 \d+（欠測）/);
     await expect(summary).not.toContainText("除外・欠測：なし");
   }
   // The eccentricity comes from the per-nucleus summary but is a shape of the nucleoli, and reads so everywhere.
-  await expect(results.locator("[class*=current]")).toContainText("核小体（核ごとの値） · 核小体の離心率");
-  await expect(page.getByRole("complementary", {name: "解析対象"})).toContainText("領域：核小体（核ごとの値）");
+  await expect(results.locator("[class*=current]")).toContainText("核小体の離心率");
+  const side = page.getByRole("complementary", {name: "解析対象"});
+  await expect(subjectRadio(page, "核小体")).toBeChecked();
+  await expect(side.getByRole("combobox", {name: "指標", exact: true})).toHaveAccessibleDescription("核ごと");
   await expect(results.getByRole("status").filter({hasText: /前の結果|記録した結果/})).toHaveCount(0);
   await header.getByRole("button", {name: "画像", exact: true}).click();
   await expect(page.locator("[class*=fieldCard] small").first()).toHaveText(/^核小体 \d+/, {timeout: live});
@@ -952,10 +986,10 @@ test("an AI example on another field, then measuring and statistics of each regi
   await statistics("nucleoplasm", "mean", "npm1", "comparison");
   // The recorded experiment information is shown as recorded.
   await expect(results.locator("details").filter({hasText: "実験情報"}).locator("input").first()).toHaveAttribute("readonly", "");
-  await statistics("nucleoli", "area_px", null, "distribution");
+  await statistics("nucleoli", "area_px", null, "comparison");
   await measure("nuclei", "selected");
   await statistics("nuclei", "area_px", null, "comparison");
-  await statistics("nucleoplasm", "mean_corrected", "npm1", "distribution");
+  await statistics("nucleoplasm", "mean_corrected", "npm1", "comparison");
   await header.getByRole("button", {name: "グラフ", exact: true}).click();
   await renderFigure(page);
   // An example choosing rank-based methods: the statistics that follow keep them.
@@ -1000,6 +1034,16 @@ for (const scene of SCENES.length ? SCENES : [undefined]) test(`each preset AI i
     if(manifest){
       const expected=manifest.scenario.proposals.presets[index].draft.figure_presentation.legend_terms;
       await header.getByRole("button",{name:"グラフ",exact:true}).click();
+      // グラフ shows the figure of the side panel's choice (SR-04). The example's analysis is not one the tour recorded:
+      // its card says so as information, and a saved figure opened from 保存した図 carries the example's legend facts.
+      const figures=page.getByRole("region",{name:"図の作成・保存"});
+      await page.waitForTimeout(1000);
+      await expect(figures.getByRole("region",{name:"選択中の条件"}).getByRole("status").filter({hasText:"解析中"})).toHaveCount(0,{timeout:live});
+      if(await figures.getByRole("region",{name:"選択中の条件"}).count()){
+        const history=figures.getByRole("combobox",{name:"保存した図",exact:true});
+        await history.selectOption({index:1});
+        await expect(figures.getByRole("region",{name:"選択中の条件"})).toHaveCount(0,{timeout:live});
+      }
       await renderFigure(page);
       const legend=page.getByRole("region",{name:"Figure legend の下書き",exact:true});
       await expect(legend).toContainText("AI の提案から記入：細胞株、処理と時間、抗体・色素");

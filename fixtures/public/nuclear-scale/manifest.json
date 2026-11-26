@@ -1,0 +1,23 @@
+{
+  "schema": "cytellect-public-fixture/1",
+  "purpose": "Regression for the automatic nuclear detection scale (nuclear-size/1.1.0): a field whose nuclear channel carries a large-scale background brighter than the nuclear contrast. Under nuclear-size/1.0.0 the estimate is about ten times the nucleus diameter and StarDist returns one nucleus for the field.",
+  "dataset": "DS6b_5EU_TimeCourse_RawData (Schmidt, Rohatgi, Brandman 2022)",
+  "source": "https://zenodo.org/records/6643490",
+  "doi": "10.5281/zenodo.6643490",
+  "license": "CC-BY-4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0/",
+  "attribution": "Images: Schmidt HB, Rohatgi R, Brandman O (2022), DS6b_5EU_TimeCourse_RawData, Zenodo, doi:10.5281/zenodo.6643490, CC BY 4.0. Cropped, one channel; pixel values unchanged.",
+  "citation": "Schmidt HB et al. Oxaliplatin disrupts nucleolar function through biophysical disintegration. Cell Reports 2022. doi:10.1016/j.celrep.2022.111629",
+  "files": {
+    "ds6b-30min-cis100-294-nuclear-640.tif": {
+      "original": "40x_NA1.4_30min_Cis100_20211115_01_294.tif",
+      "original_sha256": "f232bbaebd8066f23ea081640395bf33cdcbc32c880025c41600ee4530fed2a8",
+      "original_registration": "fixtures/public/nucleolar-shape/manifest.json (DS6b, tuning split)",
+      "channel": "OME channel 0 (filter DAPI, NucBlue / Hoechst 33342), uint16, 0.325 um/px",
+      "crop_yx": [0, 0, 640, 640],
+      "modifications": "Top-left 640 x 640 pixels of the nuclear plane; zlib-compressed TIFF; pixel values unchanged.",
+      "selection": "One of the 11 DS6b tuning fields whose nuclear detection broke in the public nucleolar validation (docs/public-nucleolar-shape-validation.md). The crop was chosen because nuclear-size/1.0.0 still fails on it (estimated diameter 572 px; nuclei in this field are about 50-90 px).",
+      "sha256": "68ab05b0efc42b14019f91af3fc0660a70928e6ed3bbce49abf104a85adfd3c5"
+    }
+  }
+}

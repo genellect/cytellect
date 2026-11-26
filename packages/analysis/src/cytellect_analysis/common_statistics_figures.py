@@ -32,6 +32,9 @@ from .figures import (
     series_color,
 )
 from .gfp_selection import recorded_gate_lines
+from .nuclear_features import LABELS as NUCLEAR_FEATURE_LABELS
+from .nuclear_features import is_feature
+from .nuclear_features import methods_lines as feature_methods_lines
 from .regions import RegionModel
 
 # 2.0.0: publication figures (docs/drafts/publication-figures/plan.md). 1.0.0 and 1.0.1 replay saved figures.
@@ -55,6 +58,7 @@ COMPARTMENT_LABELS = {
     "nucleolar_area_px": ("Nucleolar area per nucleus", "核あたりの核小体の総面積"),
     "nucleolar_area_um2": ("Nucleolar area per nucleus", "核あたりの核小体の総面積"),
     "nucleolar_eccentricity": ("Nucleolar eccentricity", "核小体の離心率"),
+    "largest_nucleolus_fraction": ("Largest nucleolus / all nucleoli", "最大の核小体 / 核小体全体"),
 }
 FIELD_SUMMARY_LABELS = {
     "nucleus_count": ("Nucleus count", "核数"),
@@ -83,7 +87,8 @@ def _label(source, ja=False):
     metric = source["metric"]
     labels = {"area_px": ("Region area", "領域面積"), "area_um2": ("Region area", "領域面積"),
               "mean": ("Mean intensity", "平均輝度"), "median": ("Median intensity", "輝度中央値"),
-              "integrated": ("Integrated intensity", "積算輝度"), **COMPARTMENT_LABELS, **FIELD_SUMMARY_LABELS}
+              "integrated": ("Integrated intensity", "積算輝度"), **COMPARTMENT_LABELS, **FIELD_SUMMARY_LABELS,
+              **{key.removesuffix("_corrected"): value for key, value in NUCLEAR_FEATURE_LABELS.items()}}
     label = labels[metric.removesuffix("_corrected")][ja]
     if channel:
         label = f"{channel['label']}: {label}"
@@ -153,6 +158,8 @@ def common_statistics_methods(result):
                                                       spec.get("selection", {}).get("version", "1.0.0")))
         elif source["metric"] in FIELD_SUMMARY_LABELS:
             lines.append(field_summary_methods_sentence(axis, source["metric"]))
+        elif is_feature(source["metric"]):
+            lines.extend(f"{axis}: {line}" for line in feature_methods_lines(source["source_fields"], source["metric"]))
         elif source["metric"].endswith("_corrected"):
             automatic = any((item.get("measurement") or {}).get("mode") == "automatic_background" for item in source["source_fields"])
             basis = "saved automatic background candidate median" if automatic else "saved confirmed background ROI median"
@@ -245,7 +252,7 @@ def _unit_axis(spec, ja):
     if spec.get("test") == "none":
         # Short enough for every figure width; the legend states that independence is not confirmed.
         return "条件（n：記録した実験回）" if ja else "Condition (n: recorded runs)"
-    return "条件（n：独立実験単位）" if ja else "Condition (n: independent units)"
+    return "条件（n：独立した実験回）" if ja else "Condition (n: independent units)"
 
 
 def _unit_interval(values):
@@ -388,7 +395,7 @@ def render_common_statistics(result, output: Path, *, methods_template=None, fig
                 ticks = MaxNLocator(integer=True, min_n_ticks=2).tick_values(0, max_count)
                 ax.set_yticks([value for value in ticks if 0 <= value <= max_count])
                 ax.set_xlabel(plot["x_label"] or _label(canonical, ja))
-                ax.set_ylabel(plot["y_label"] or ("独立実験単位数" if ja else "Independent-unit count"))
+                ax.set_ylabel(plot["y_label"] or ("独立した実験回の数" if ja else "Independent-unit count"))
                 ax.legend(frameon=False)
                 note = "Histogram counts independent units using shared equal-width bins; rugs show every unit."
             elif plot["kind"] in ("superplot", "unit-mean-bar"):
@@ -623,6 +630,21 @@ def _render_publication(canonical, output: Path, template, order, images=None):
                     _write_svg_font_stack(output / "figure.svg")
         finally:
             plt.close(fig)
+    # The fields behind a comparison, group → run → field, for checking which fields carry the result.
+    fields = None
+    if not association:
+        from .field_check import render_field_check
+
+        # A check that cannot be laid out is left out (with its reason); it never fails the comparison's own figure.
+        try:
+            fields = render_field_check(canonical, order, output, font_size=size.font_size,
+                                        series_colors=(plot.get("style") or {}).get("series_colors"))
+        except ValueError as error:
+            if str(error) not in ("figure_labels_overlap", "figure_text_outside_canvas", "figure_font_glyphs_unavailable"):
+                raise
+            for name in ("fields.svg", "fields.pdf", "fields.png"):
+                (output / name).unlink(missing_ok=True)
+            fields = {"skipped": str(error), "files": []}
     tables = _tables(canonical)
     tables["graphical-summary"] = drawn.summary
     csv_files = []
@@ -658,13 +680,16 @@ def _render_publication(canonical, output: Path, template, order, images=None):
                                 "presentation": presentation, "forms": forms["forms"], "default_form": forms["default"],
                                 "legend_gaps": gaps,
                                 "compositions": [] if association else ["quantification", "images-quantification"],
-                                "images": image_figure.record() if image_figure is not None else None}
+                                "images": image_figure.record() if image_figure is not None else None,
+                                "field_check": fields}
     annotations = [{"left": b.left, "right": b.right, "lines": b.lines} for b in drawn.annotations.brackets]
     source = {**canonical, **metadata, "unit_glyphs": drawn.glyphs, "graphical_summary": drawn.summary,
               "annotations": annotations, "layout": "deterministic beeswarm",
-              "source_hashes": {n: hashlib.sha256((output / n).read_bytes()).hexdigest() for n in csv_files}}
+              "source_hashes": {n: hashlib.sha256((output / n).read_bytes()).hexdigest()
+                                for n in [*csv_files, *((fields or {}).get("files") or [])]}}
     (output / "figure-data.json").write_text(json.dumps(source, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
     return {**metadata, "figure_version": "2.0.0", "formats": ["svg", "pdf", "png"], "svg_text": "editable",
             "source_files": ["figure.svg", "figure.pdf", "figure.png", *csv_files, "figure-data.json",
                              "figure-legend.md", "figure-caption.md", "methods.md",
-                             *(["figure-images.npz"] if image_figure is not None else [])]}
+                             *(["figure-images.npz"] if image_figure is not None else []),
+                             *((fields or {}).get("files") or [])]}

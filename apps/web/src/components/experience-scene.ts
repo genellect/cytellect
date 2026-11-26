@@ -1,7 +1,7 @@
 import * as THREE from "three";
 
 /** The product tour on the landing page: Cytellect's screens, captured from the public demo, stand as glass
- *  plates in one bright space, and the camera flies to the screen of the tab the visitor chooses (summary and
+ *  plates in one dark space, and the camera flies to the screen of the tab the visitor chooses (summary and
  *  discussion, detection and measurement, AI set-up, statistics and figures). Each plate shows a capture as it
  *  is; nothing is drawn over the interface. */
 export type PanelId = "stats" | "ai" | "figure" | "ask" | "table" | "conclusion" | "discussion" | "layout" | "size";
@@ -69,30 +69,30 @@ void main(){
   float shape=1.-smoothstep(-aa,aa,outer);
   vec2 inner=size*.5-bezel;float inside=1.-smoothstep(-aa,aa,box(p,inner,max(radius-bezel,.004)));
   vec3 tex=texture2D(map,(p+inner)/(2.*inner)).rgb;
-  vec3 glass=vec3(.985,.99,.985)-.05*vUv.x+.035*vUv.y;
+  vec3 glass=vec3(.06,.075,.12)+.05*vUv.y;
   float rim=1.-smoothstep(0.,aa*3.,abs(outer+aa*1.6));
-  vec3 color=mix(glass,tex,inside)+rim*.35*(1.-inside);
-  color=mix(color,vec3(.955,.962,.952),dim);
-  gl_FragColor=vec4(color,shape*mix(.62,1.,inside)*opacity);
+  vec3 color=mix(glass,tex,inside)+vec3(.72,.86,1.)*rim*.5*(1.-inside);
+  color=mix(color,vec3(.02,.027,.051),dim*.85);
+  gl_FragColor=vec4(color,shape*mix(.78,1.,inside)*opacity);
 }`;
-/** The plate's soft shadow on the light behind it. */
+/** The plate's soft blue glow in the dark behind it. */
 const SHADOW_FRAGMENT = /* glsl */`
 uniform vec2 size;uniform float spread;uniform float opacity;varying vec2 vUv;
 float box(vec2 p,vec2 b,float r){vec2 q=abs(p)-b+r;return length(max(q,0.))+min(max(q.x,q.y),0.)-r;}
 void main(){vec2 p=(vUv-.5)*(size+spread*2.);float d=max(box(p,size*.5,.2),0.);float a=exp(-d*d/(spread*spread*.32));
-  gl_FragColor=vec4(.09,.15,.13,a*.2*opacity);}`;
-/** The space itself: lab-white light, falling a little toward the floor, with the warm colour of culture
- *  medium gathering behind the conclusion. */
+  gl_FragColor=vec4(.3,.49,1.,a*.14*opacity);}`;
+/** The space itself: the blue-black of the page, a little lighter toward the floor, with blue light gathering
+ *  behind the screen in view (more of it behind the conclusion). */
 const ROOM_FRAGMENT = /* glsl */`
 uniform float warm;uniform float time;varying vec2 vUv;
 float hash(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
 void main(){vec2 uv=vUv;
-  vec3 color=mix(vec3(.918,.93,.92),vec3(.968,.972,.962),smoothstep(.15,.85,uv.y));
   vec2 g=uv-vec2(.66+.02*sin(time*.11),.42+.02*cos(time*.09));
-  color=mix(color,vec3(.953,.82,.75),exp(-dot(g*vec2(1.3,1.9),g*vec2(1.3,1.9))*5.)*(.18+.6*warm));
-  vec2 h=uv-vec2(.36,.86);color+=vec3(.035)*exp(-dot(h,h)*7.);
-  color+=(hash(uv*vec2(1733.,977.)+time)-.5)*.012;
-  gl_FragColor=vec4(color,1.);}`;
+  float near=exp(-dot(g*vec2(1.3,1.9),g*vec2(1.3,1.9))*5.)*(.16+.22*warm);
+  vec2 k=uv-vec2(.9,.84);float far=exp(-dot(k,k)*6.)*.1;
+  vec3 tint=(vec3(.2,.36,1.)*near+vec3(.36,.3,.9)*far)/max(near+far,.0001);
+  float glow=near+far+(hash(uv*vec2(1733.,977.)+time)-.5)*.006;
+  gl_FragColor=vec4(tint,clamp(glow,0.,1.));}`;
 
 type Plate = { id: PanelId; group: THREE.Group; plate: THREE.ShaderMaterial; shadow: THREE.ShaderMaterial; seed: number };
 
@@ -107,17 +107,19 @@ const viewOf = (shot: Shot): View => ({ cam: shot.cam, look: shot.look, shift: s
 const mix = (a: View, b: View, t: number): View => ({ cam: lerp3(a.cam, b.cam, t), look: lerp3(a.look, b.look, t), shift: lerp(a.shift, b.shift, t), warm: lerp(a.warm, b.warm, t),
   poses: Object.fromEntries((Object.keys(HOME) as PanelId[]).map(id => { const x = a.poses[id], y = b.poses[id]; return [id, { p: lerp3(x.p, y.p, t), ry: lerp(x.ry, y.ry, t), o: lerp(x.o, y.o, t) }]; })) as Record<PanelId, Pose> });
 
-export async function mountExperience(host: HTMLElement, panels: ExperiencePanel[], signal: AbortSignal): Promise<ExperienceController> {
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+/** `surface` is the element whose drags turn the space (the whole tour, so the text column does not block it);
+ *  `onGrab` tells the tour that the visitor took hold of it. */
+export async function mountExperience(host: HTMLElement, panels: ExperiencePanel[], signal: AbortSignal, surface: HTMLElement = host, onGrab?: () => void): Promise<ExperienceController> {
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, premultipliedAlpha: false, powerPreference: "high-performance" });
   renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  renderer.setClearColor(0xf3f4f1, 1);
+  renderer.setClearColor(0x000000, 0);
   host.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 120);
   scene.add(camera);
-  const room = new THREE.ShaderMaterial({ vertexShader: PLATE_VERTEX, fragmentShader: ROOM_FRAGMENT, uniforms: { warm: { value: 0 }, time: { value: 0 } }, depthWrite: false });
+  const room = new THREE.ShaderMaterial({ vertexShader: PLATE_VERTEX, fragmentShader: ROOM_FRAGMENT, uniforms: { warm: { value: 0 }, time: { value: 0 } }, transparent: true, depthWrite: false });
   const backdrop = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), room);
   backdrop.position.z = -60;
   backdrop.renderOrder = -1;
@@ -155,7 +157,14 @@ export async function mountExperience(host: HTMLElement, panels: ExperiencePanel
   let view = viewOf(SHOTS[0]);
   let flight: { from: View; to: View; start: number; duration: number; then?: number } | null = null;
   const pointer = { x: 0, y: 0, tx: 0, ty: 0 };
+  // The visitor can take hold of the space: a drag or a flick turns it around the screen in view, and it swings
+  // back to the shot when released.
+  // `pressed` is a press on the tour; it takes hold (`held`) once it has moved sideways, so a click or a scroll
+  // that starts on the tour neither turns the space nor stops the tour.
+  const orbit = { yaw: 0, pitch: 0, vy: 0, vp: 0, pressed: false, held: false, from: 0, x: 0, y: 0, t: 0 };
+  const offset = new THREE.Vector3(), upAxis = new THREE.Vector3(0, 1, 0), sideAxis = new THREE.Vector3();
   const start = performance.now();
+  let previous = start;
   const target = new THREE.Vector3();
 
   const resize = () => {
@@ -179,8 +188,21 @@ export async function mountExperience(host: HTMLElement, panels: ExperiencePanel
       if (t >= 1) { const next = flight.then; flight = null; if (next !== undefined) fly(next, 7000); }
     }
     pointer.x += (pointer.tx - pointer.x) * 0.05; pointer.y += (pointer.ty - pointer.y) * 0.05;
-    camera.position.set(view.cam[0] + pointer.x * 0.18, view.cam[1] + pointer.y * 0.1 + Math.sin(time * 0.3) * 0.03, view.cam[2]);
-    camera.lookAt(target.set(...view.look));
+    const dt = Math.min(0.05, (now - previous) / 1000);
+    previous = now;
+    if (!orbit.held) {
+      // A spring brings the space back to the shot; a flick carries it past and it swings home.
+      orbit.vy += (-26 * orbit.yaw - 6.5 * orbit.vy) * dt; orbit.vp += (-26 * orbit.pitch - 6.5 * orbit.vp) * dt;
+      orbit.yaw += orbit.vy * dt; orbit.pitch += orbit.vp * dt;
+    }
+    // The camera turns around the point it looks at: by the pointer a little, by the hand as far as it is taken.
+    target.set(...view.look);
+    offset.set(view.cam[0] - view.look[0], view.cam[1] - view.look[1] + Math.sin(time * 0.3) * 0.03, view.cam[2] - view.look[2]);
+    offset.applyAxisAngle(upAxis, orbit.yaw - pointer.x * 0.24);
+    sideAxis.crossVectors(upAxis, offset).normalize();
+    offset.applyAxisAngle(sideAxis, THREE.MathUtils.clamp(orbit.pitch - pointer.y * 0.1, -0.5, 0.5));
+    camera.position.copy(target).add(offset);
+    camera.lookAt(target);
     // Shift the frame to the right of the text column.
     camera.setViewOffset(width, height, -width * view.shift, 0, width, height);
     room.uniforms.warm.value = view.warm;
@@ -211,8 +233,31 @@ export async function mountExperience(host: HTMLElement, panels: ExperiencePanel
   resizeObserver.observe(host);
   const visibility = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; if (visible) request(); });
   visibility.observe(host);
-  const move = (event: PointerEvent) => { pointer.tx = event.clientX / innerWidth * 2 - 1; pointer.ty = -(event.clientY / innerHeight * 2 - 1); };
+  const interactive = (node: EventTarget | null) => node instanceof Element && node.closest("a,button,input,select,textarea,[role=tab]") !== null;
+  const down = (event: PointerEvent) => {
+    if (event.button !== 0 || interactive(event.target)) return;
+    orbit.pressed = true; orbit.from = orbit.x = event.clientX; orbit.y = event.clientY; orbit.t = event.timeStamp;
+  };
+  const move = (event: PointerEvent) => {
+    if (orbit.pressed && !orbit.held && Math.abs(event.clientX - orbit.from) > 6) {
+      orbit.held = true; orbit.vy = orbit.vp = 0; orbit.x = event.clientX; orbit.y = event.clientY; orbit.t = event.timeStamp;
+      surface.dataset.grabbing = "true";
+      onGrab?.();
+    }
+    if (orbit.held) {
+      const elapsed = Math.max(1, event.timeStamp - orbit.t) / 1000;
+      const turn = -(event.clientX - orbit.x) / Math.max(1, width) * 1.9, lift = (event.clientY - orbit.y) / Math.max(1, height) * (event.pointerType === "mouse" ? 0.9 : 0);
+      orbit.yaw = THREE.MathUtils.clamp(orbit.yaw + turn, -1.1, 1.1); orbit.pitch = THREE.MathUtils.clamp(orbit.pitch + lift, -0.4, 0.4);
+      orbit.vy = orbit.vy * 0.4 + (turn / elapsed) * 0.6; orbit.vp = orbit.vp * 0.4 + (lift / elapsed) * 0.6;
+      orbit.x = event.clientX; orbit.y = event.clientY; orbit.t = event.timeStamp;
+      request();
+    } else if (!orbit.pressed && event.pointerType === "mouse") { pointer.tx = event.clientX / innerWidth * 2 - 1; pointer.ty = -(event.clientY / innerHeight * 2 - 1); }
+  };
+  const up = () => { orbit.pressed = false; orbit.held = false; delete surface.dataset.grabbing; };
+  surface.addEventListener("pointerdown", down);
   addEventListener("pointermove", move, { passive: true });
+  addEventListener("pointerup", up);
+  addEventListener("pointercancel", up);
   resize();
   request();
 
@@ -221,7 +266,11 @@ export async function mountExperience(host: HTMLElement, panels: ExperiencePanel
     dispose() {
       cancelAnimationFrame(frame);
       resizeObserver.disconnect(); visibility.disconnect();
+      surface.removeEventListener("pointerdown", down);
       removeEventListener("pointermove", move);
+      removeEventListener("pointerup", up);
+      removeEventListener("pointercancel", up);
+      delete surface.dataset.grabbing;
       for (const item of plates) {
         item.group.traverse(node => { if (node instanceof THREE.Mesh) node.geometry.dispose(); });
         item.plate.dispose(); item.shadow.dispose();

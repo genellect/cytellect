@@ -1008,15 +1008,28 @@ def create_app(settings: Settings | None = None, *, proposal_credentials=None):
             jid = queue(conn, table["workspace_id"], tid, "table-statistics", body.model_dump(mode="json"))
         return {"job_id": jid}
 
+    def calculated_at(job, lookup):
+        """The server time the statistics behind a job were calculated: a statistics job's creation, followed through
+        figure re-renders to the statistics job they re-draw (#257 RP-04). None for any other job."""
+        seen = set()
+        while job is not None and job["kind"] == "figure-render" and job["id"] not in seen:
+            seen.add(job["id"])
+            source = lookup(job["payload"].get("source_job_id"))
+            job = source if source is not None and source["workspace_id"] == job["workspace_id"] else None
+        return job["created"] if job is not None and job["kind"] in ("statistics", "table-statistics") else None
+
+    def job_view(r, lookup):
+        return {**{k: r[k] for k in ("id", "revision_id", "kind", "state", "created", "error", "attempts")},
+                "analysis_mode": r["payload"].get("mode") if r["kind"] in ("statistics", "table-statistics") else None,
+                "analysis_version": r["payload"].get("version") if r["kind"] in ("statistics", "table-statistics") else None,
+                "calculated_at": calculated_at(r, lookup)}
+
     @api.get("/v1/workspaces/{wid}/jobs", response_model=list[JobView])
     def list_jobs(wid: str, who: Owner):
         workspace(wid, who)
-        return [
-            {**{k: r[k] for k in ("id", "revision_id", "kind", "state", "created", "error", "attempts")},
-             "analysis_mode": r["payload"].get("mode") if r["kind"] in ("statistics", "table-statistics") else None,
-             "analysis_version": r["payload"].get("version") if r["kind"] in ("statistics", "table-statistics") else None}
-            for r in store.rows(jobs, workspace_id=wid)
-        ]
+        rows = store.rows(jobs, workspace_id=wid)
+        by_id = {r["id"]: r for r in rows}
+        return [job_view(r, by_id.get) for r in rows]
 
     def job_record(jid, who):
         j = store.one(jobs, id=jid)
@@ -1028,9 +1041,7 @@ def create_app(settings: Settings | None = None, *, proposal_credentials=None):
     @api.get("/v1/jobs/{jid}", response_model=JobView)
     def get_job(jid: str, who: Owner):
         j = job_record(jid, who)
-        return {**{k: j[k] for k in ("id", "revision_id", "kind", "state", "created", "error", "attempts")},
-                "analysis_mode": j["payload"].get("mode") if j["kind"] in ("statistics", "table-statistics") else None,
-                "analysis_version": j["payload"].get("version") if j["kind"] in ("statistics", "table-statistics") else None}
+        return job_view(j, lambda source: store.one(jobs, id=source) if source else None)
 
     @api.post("/v1/jobs/{jid}/cancel")
     def cancel(jid: str, who: Owner):
@@ -1064,6 +1075,10 @@ def create_app(settings: Settings | None = None, *, proposal_credentials=None):
             "figure-caption.md": "text/markdown; charset=utf-8",
             # The English legend draft of a publication figure (common-statistics figure 2.0.0).
             "figure-legend.md": "text/markdown; charset=utf-8",
+            # The fields behind a comparison, group → run → field (genellect/cytellect#257, check of the result).
+            "fields.svg": "image/svg+xml",
+            "fields.png": "image/png",
+            "fields.pdf": "application/pdf",
             "figure-data.json": "application/json",
             "model-predictions.csv": "text/csv",
             "figure.pdf": "application/pdf",

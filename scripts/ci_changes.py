@@ -41,6 +41,8 @@ RULES: tuple[tuple[str, frozenset[str]], ...] = (
     ("apps/web/src/components/PublicLanding.tsx", frozenset({"lp"})),
     ("apps/web/src/components/Landing*.tsx", frozenset({"lp"})),
     ("apps/web/src/components/HeroFilm.tsx", frozenset({"lp"})),
+    ("apps/web/src/components/HeroSpace.tsx", frozenset({"lp"})),
+    ("apps/web/src/components/hero-space-engine.ts", frozenset({"lp"})),
     ("apps/web/src/components/optical-landing.module.css", frozenset({"lp"})),
     ("apps/web/tests/marketing.spec.ts", frozenset({"lp"})),
     ("apps/web/tests/lp-*.spec.ts", frozenset({"lp"})),

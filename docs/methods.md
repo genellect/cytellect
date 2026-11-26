@@ -149,6 +149,7 @@ Inspect boundaries on representative fields before applying a scale to a batch.
 
 ## Automatic nuclear detection scale (recipe 1.7.0, nuclear-size/1.0.0, 2026-10-07)
 
+Since 2026-11-21 new runs use nuclear-size/1.1.0 ([below](#automatic-nuclear-detection-scale-nuclear-size110-2026-11-21)); saved 1.0.0 records replay as described here.
 Without an explicit size, the workspace now requests nuclear recipe 1.7.0. Per
 field, the typical nucleus diameter is estimated from the defining (nuclear)
 channel's measurement plane:
@@ -179,6 +180,31 @@ choose an explicit size (recipe 1.5.0) when that happens. A real-Fiji regression
 test (`tests/test_nuclear_scale.py`, BBBC013 enlarged six times) requires the
 automatic scale to reproduce the original count within 10% and confirms that the
 capacity-only path does not.
+
+## Automatic nuclear detection scale (nuclear-size/1.1.0, 2026-11-21)
+
+New workspace runs record `detection_scale: nuclear-size/1.1.0` in recipe 1.7.0. The estimate is that of
+1.0.0 with one added step: after the Gaussian smoothing, the large-scale background of the grid is
+subtracted (grey opening with a square whose side is a quarter of the grid's long side, rounded up to an odd
+number of grid pixels, `nearest` edges) before the Otsu threshold. The opening side is recorded with the
+estimate (`background_opening_side_grid_px`).
+
+Cause (public DS6b, [validation report](public-nucleolar-shape-validation.md#核の検出が壊れた視野の原因)):
+in fields whose nuclear channel carries a background brighter than the nuclear contrast over a large part
+of the field (out-of-focus or mounting-medium fluorescence, uneven illumination), the single Otsu threshold
+of 1.0.0 selected that background; the area-weighted median component spanned 35–73% of the field, the
+estimated diameter was 316–1,107 px instead of about 50–64 px, the detection copy shrank to 64–146 px and
+StarDist returned one nucleus for the field. On the 360 DS6b fields, 1.1.0 changed the other estimates by
+−3.6% to +0.2% (5th–95th percentile) and brought all 16 fields above 100 px to 61–89 px.
+
+Limits: structures wider than the opening are treated as background; on a synthetic check a single nucleus
+wider than about half the image's long side is underestimated (choose an explicit size, recipe 1.5.0).
+StarDist's own field-wide percentile normalization still misses nuclei inside the brightest background; 1.1.0
+fixes only the scale. The real-Fiji regression (`tests/test_nuclear_scale.py`) uses a registered public crop
+of one such field (`fixtures/public/nuclear-scale/`) and still requires the BBBC013 ×6 check. Saved 1.0.0
+recipes replay with the 1.0.0 estimate, and re-running saved automatically scaled nuclei keeps their protocol
+(API and browser); masks are reused only under the same scale protocol. The public demo runtime asks for the
+protocols its recordings were made with until the demo is recorded again.
 
 ## GFP-positive nuclei from negative controls (gfp-gate/2.0.0, 2026-10-06)
 
@@ -350,6 +376,40 @@ not rename saved scientific outputs.
 `cytellect-nucleolar-v2/2.0.0` marker detection continues to use Gaussian sigma 0.7 px, including historical recipes whose `smoothing_sigma_px` records another value. Those records are not rewritten or reinterpreted. Its DAPI-poor path continues to use the recorded sigma as before.
 
 Marker-only protocol `2.1.0` uses the recorded `smoothing_sigma_px` (0–20 px), with 0.7 px as the new-request default. Rolling-ball subtraction, threshold definition, rim exclusion, component filtering, coordinates and original measurement pixels are unchanged. Opening an old result or editing an unrelated setting does not upgrade it. An explicit marker sigma edit, a new marker configuration or adoption of a 2.1.0 proposal creates the new protocol configuration; accepted masks remain unchanged until the usual preview/adoption operation. Fiji NCL protocol 1.1.0 is unaffected. This is parameter-semantic compatibility, not a claim of biological validation.
+
+### Marker protocol 2.2.0: nuclei without marker contrast and the physical minimum (2026-11-21, not adopted)
+
+Owner decisions 20 and 22 of genellect/cytellect#257 ([plan](drafts/nucleolar-measurement/implementation.md#82-目的と統計の結果図の決定2026-11-21)).
+**2.2.0 failed its pre-registered acceptance criteria on public real images and is not the default; whether to
+adopt it awaits the owner's decision.** New marker definitions keep 2.1.0. 2.2.0 is kept as an explicit recipe
+(for reproducing the validation) and is not offered in the workspace; neither its form nor `k` is changed after
+the evaluation split was seen. Rolling ball, sigma, threshold, rim, solidity and coordinates are those of 2.1.0.
+It adds two rules:
+
+1. **Marker contrast against noise.** The statistic of `cellpose-sam-ncl-parent/4.2.0`, unchanged: the original
+   marker plane is smoothed with Gaussian sigma 0.9 px (`reflect` edges); the field noise is 1.4826 × MAD of
+   (original − smoothed) over nuclear pixels at or below the 75th percentile of the smoothed nuclear pixels, at
+   least 0.5 intensity code unit; a parent's signal is the 99th minus the 75th percentile of the smoothed values
+   inside it. A parent whose signal is below `minimum_contrast_snr` × noise is `indeterminate`
+   (`insufficient_marker_contrast`) before thresholding; its candidates are not adopted. The criterion is
+   against noise, never against the enrichment being measured; no object is removed for its brightness. Signal,
+   noise and their ratio are recorded per parent. Its `minimum_contrast_snr` is 5, the 4.2.0 value and the
+   pre-registered fallback: no value of the grid met every acceptance criterion on the tuning split of the public
+   validation, and the one evaluation run did not pass either
+   ([report](public-nucleolar-shape-validation.md#判定できない核の規則決定-20)).
+2. **Minimum area.** max(`minimum_area_px` (4), `minimum_area_um2` (0.3) converted with the field's confirmed
+   calibration, rounded half up); 4 px without a calibration. The applied value and its source are recorded
+   (`minimum_area`). An explicit pixel minimum set by the researcher removes the physical minimum. Rim exclusion
+   and the rolling-ball radius stay in pixels (not switched in this version).
+
+Under 2.2.0, an indeterminate parent has no nucleolar union or nucleoplasm. The nucleus table reports its nucleolar values
+missing with the reason `indeterminate`; compartment-summary statistics describe nuclei with at least one
+adopted nucleolus; under `unresolved-as-missing/1.0.0` it is kept in the ledger as missing. Its count, area
+and intensity are never 0. Adopted small nucleoli stay in the count, total area and per-nucleolus values; the
+nucleus table records each nucleus's object areas (`object_areas_px`) and the field's size breakdown
+(`nucleolar_sizes`, for any protocol), and the statistics basis lists indeterminate nuclei only when there are
+any. Saved 2.0.0 and 2.1.0 records replay unchanged and ignore the calibration. `dapi_poor` (2.0.0) is unchanged. Detection
+correctness is not established: no independent hand-drawn outlines exist (NS-03).
 
 ### Measured CSV distribution and SVG source navigation
 
@@ -545,8 +605,12 @@ their historical output for previously supported selections.
 A design records what the researcher declared: `layout` (`single`: one group
 described; `pair`: two groups compared), the groups (1 or 2), the control group
 (required before a pair comparison), the independent runs, each field's group,
-run and optional sample (coverslip or well), and whether the researcher confirmed
-that the runs were performed independently. Group, run and sample labels are at
+run and optional sample (coverslip or well), whether the researcher confirmed
+that the runs were performed independently, and whether the researcher stated that the acquisition and pixel
+settings are comparable between the groups: the same settings, or, for areas in µm², a calibrated pixel size
+(`acquisition_confirmed`, added 2026-11-21 by owner
+decision 11 of genellect/cytellect#257). The acquisition statement is additive: it is written only while
+it is stated, so a design saved before it keeps its bytes and its hash, and reads as not stated. Group, run and sample labels are at
 most 24 characters, without leading or trailing spaces, control characters or the
 separator `·`. Dates are ISO `YYYY-MM-DD`. Nothing is inferred from file names,
 folders, dates or plate labels.
@@ -563,10 +627,20 @@ the existing ledgers and the field → sample → unit aggregation (S02):
 
 `experiment_design.readiness` lists issues to resolve before inference: unassigned
 or unknown fields, no runs, no control, a run missing a group, fields without an
-imaging date (needed for intensity comparisons, not for areas or counts), and
+imaging date (needed for intensity comparisons, not for areas or counts), the
+acquisition statement not made (needed for every comparison and association), and
 unconfirmed independence. Descriptions never wait for these issues (S09). The default pair
 comparison is paired by run with contrast `[treatment, control]`, so the reported
-effect is treatment − control; the researcher still confirms the design (S10).
+effect is treatment − control. The design is confirmed where it is declared (S10): since
+owner decision 11 (2026-11-21) the workspace builds a comparison's `acquisition_review`,
+`spatial_sampling_confirmed` and the inference flag from the design's acquisition and
+independence statements, its regions and fields from the adoption in 画像, and
+`missingness_confirmed` from the saved missingness policies, whose missing values the
+result's n breakdown lists; it asks for no separate confirmation in 統計. A workspace
+registered without a design has no place to declare them, so it keeps one confirmation in 統計 for its typed
+groups, units and acquisition (owner decision on genellect/cytellect#273, 2026-11-21). The acquisition statement
+is sent as `acquisition_review.basis` `calibrated-area` for areas in µm² and `same-settings` otherwise, the two
+cases the API accepts.
 
 ### Experiment design 1.1.0: declared strata (2026-11-09)
 
@@ -736,6 +810,56 @@ Adds to the 1.0.0 metrics, for nuclei with at least one adopted nucleolus
 - `nucleolar_area_um2` needs a confirmed calibration (`compartment_summary_calibration_required`);
   area and eccentricity follow the pixel-area acquisition review (equal sampling,
   one calibration), µm² the calibrated-area review.
+- `largest_nucleolus_fraction` (added 2026-11-21, genellect/cytellect#257 A-3; earlier 1.1.0 requests are unchanged):
+  pixel area of the nucleus's largest adopted nucleolus / summed pixel area of its adopted nucleoli, the
+  `largest_nucleolus_fraction` of nucleus table 1.0.0. It is read from the same bound masks as eccentricity (every
+  object counts, one-pixel objects included), is in [1/n, 1] for n nucleoli, and is compared as a difference in
+  percentage points. It follows the pixel-area acquisition review.
+
+### Per-nucleus features 1.0.0 (2026-11-21)
+
+`nuclear-features/1.0.0` (`nuclear_features.py`) gives per-nucleus values of StarDist nuclear region sets only
+(`region_set.source = stardist_nuclear`, selection `region_set_id = nuclei`); a request on nucleoli, nucleoplasm, cells
+or another source is refused (`nuclear_features_nuclei_only`). Nucleolar shape per nucleolus failed decision 4
+([public check](public-nucleolar-shape-validation.md)) and is read through the per-nucleus summaries above. Values are
+recomputed when statistics run from each field's adopted, hash-checked labels and bound to the measured nuclei by
+region identity and pixel area; nothing is stored in the measurement table.
+
+- Shape (region selection metrics `solidity`, `axis_ratio`, `eccentricity`; any measurement mode; no channel):
+  solidity = pixel area / convex-hull pixel area; axis ratio = major / minor axis of the ellipse with the nucleus's
+  second moments; eccentricity = `sqrt(1 − λmin/λmax)` of its pixel-centre covariance (scikit-image `regionprops`).
+  A nucleus touching the image border (`touches_border`), below 96 px (`below_minimum_area`; set from the
+  digitisation error of public nucleus masks in genellect/cytellect#258) or with a zero minor axis (`degenerate`) has
+  no value and keeps its reason; it still counts in nucleus numbers and areas. Shape is compared as a difference,
+  needs the spatial-sampling review and one calibration, and is 2D, not a volume or sphericity.
+- Signal (computed by the shared implementation; **not offered as statistics metrics**): on the corrected pixels
+  `I − b` of one channel (`b` = the field's automatic background candidate median, measurement protocol 4.0.0), the
+  pixel CV (population SD / mean, no smoothing, epsilon or clipping; the raw CV, corrected mean and SD kept beside
+  it) and the positive-area fraction (corrected pixels strictly above Otsu's threshold, 256 bins, of the corrected
+  pixels of every measurable, not excluded nucleus of the same acquisition date / nucleus pixels). A nucleus has no
+  signal value when the background was not established, it touches the border, any pixel is at the acquisition
+  limit (else the storage maximum), its corrected mean is not positive, or its corrected mean is below
+  `MINIMUM_SIGNAL_TO_BACKGROUND` = 1 times the background spread (1.4826 × MAD of the recomputed background pixels,
+  whose mask and median must equal the saved provenance; the Signal QC 1.0.0 ratio). Both failed the public check
+  for every stain ([record](public-nuclear-signal-validation.md)): the measurable fraction differed between
+  treatment conditions, mainly through saturated NPM1 and border-touching nuclei. Region selections and
+  `require_region_metric` refuse `cv_corrected` and `positive_area_fraction`.
+
+### Primary outcome declaration 1.0.0 (2026-11-21)
+
+The analysis spec may hold `primary_outcome` (metric, region set, channel) declared before results are read
+(genellect/cytellect#257 RP-04). The server sets `declared_at` from its own clock; it is kept while the declared
+measure is unchanged and renewed when it changes, so a client cannot backdate it. Every job in the job list carries
+`calculated_at`: a statistics job's creation time, and for a figure re-render the creation time of the statistics job
+it re-draws (followed through re-renders of re-renders), never the re-render's own time. A result is marked primary
+only when it is the declared measure and `calculated_at > declared_at`; a result without a recorded time, or any other
+measure, is exploratory. When any result of the declared measure was calculated at or before `declared_at` (or has no
+recorded time), the declaration came after that result was seen, and every result of that measure is exploratory,
+also one calculated again after the declaration. Nothing is marked without a declaration. The declaration changes no value or test.
+It also changes no detection or measurement: a workspace run's candidates are adopted, reused by a later run, and
+recovered after a reload (`spec_current` in the run list) when the saved spec agrees with the run's snapshot in content
+apart from `primary_outcome`. A difference in any other item of the spec refuses them (`analysis_spec_changed`), as
+before; content decides, not the spec version.
 
 ### Nucleus table 1.0.0 (2026-11-09)
 
@@ -890,7 +1014,10 @@ ledger as missing instead of being removed (`compartment_review.py`).
   equals it exactly (`compartment_missing_confirmation_mismatch`); the review record
   keeps the policy and the ledger. `GET /v1/revisions/{rid}/compartment-ledger`
   returns the ledger before the review. Statistics stop when the ledger no longer
-  equals the reviewed one (`compartment_missing_ledger_changed`).
+  equals the reviewed one (`compartment_missing_ledger_changed`). Since owner decision 11
+  (2026-11-21, genellect/cytellect#257) the workspace sends the ledger it read as the
+  confirmation without asking the researcher to tick it first; the result's n breakdown and
+  the line beside its sentence show the missing nuclei. The API checks are unchanged.
 - Results (common-statistics 2.0.0 comparisons and descriptive results) carry
   `compartment_missing`: per condition and experimental unit, fields, nuclei,
   resolved, missing (with reasons) and excluded. The missing fraction is

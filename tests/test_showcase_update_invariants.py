@@ -6,6 +6,7 @@ import shutil
 from pathlib import Path
 
 import pytest
+from cytellect_showcase.journal_files import read_journal
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("showcase_update", ROOT / "scripts/verify_showcase_update.py")
@@ -41,7 +42,7 @@ def test_rejects_changed_published_drawing(tmp_path, recorded, change):
 
 def test_exact_scientific_values_do_not_use_the_catalogues_rounding():
     # Read an actual public result, not manufactured measurement data.
-    journal = json.loads((SNAPSHOT / "journal.json").read_text(encoding="utf-8"))
+    journal = read_journal(SNAPSHOT)
     entry = next(entry for entry in journal["entries"] if entry["method"] == "GET" and entry.get("file")
                  and entry["path"].endswith("/common-statistics"))
     original = json.loads((SNAPSHOT / entry["file"]).read_text(encoding="utf-8"))
@@ -51,7 +52,7 @@ def test_exact_scientific_values_do_not_use_the_catalogues_rounding():
 
 
 def test_only_known_presentation_defaults_and_capture_ids_are_normalized():
-    journal = json.loads((SNAPSHOT / "journal.json").read_text(encoding="utf-8"))
+    journal = read_journal(SNAPSHOT)
     entry = next(entry for entry in journal["entries"] if entry["method"] == "GET" and entry.get("file")
                  and entry["path"].endswith("/common-statistics"))
     original = json.loads((SNAPSHOT / entry["file"]).read_text(encoding="utf-8"))

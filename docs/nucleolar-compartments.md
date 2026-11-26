@@ -105,9 +105,11 @@ applies to per-nucleus nucleolar summaries (nucleolar count, area fraction),
 which read the same compartment revisions.
 
 The unresolved-nucleoli policy `unresolved-as-missing/1.0.0` (requirements Q-05,
-2026-10-26) is the explicit alternative. The researcher confirms, before the
-calculation, the nuclei without an established nucleolus by group, unit and reason;
-they then stay as missing instead of being deleted. This is not a blanket acceptance
+2026-10-26) is the explicit alternative. The nuclei without an established nucleolus
+stay as missing instead of being deleted. Since owner decision 11 (2026-11-21,
+genellect/cytellect#257) the workspace sends the revision's per-field list with the
+calculation without a separate confirmation, and the result lists them by group, unit and
+reason in its n breakdown (before, the researcher ticked the list first). This is not a blanket acceptance
 of unresolved masks: the confirmation must equal the revision's own per-field list,
 only `no_candidate`, `indeterminate` and empty nucleoplasm can be kept as missing, and
 failures still stop. The result states, beside its sentence, that it describes the
@@ -132,6 +134,8 @@ researcher selects and can change; it runs in the analysis package
 |---|---|---|
 | `dapi_poor` (default) | Per parent nucleus: Gaussian-smoothed nuclear channel (`smoothing_sigma_px`, default 2), interior after eroding `rim_exclusion_px` (default 4); candidates are pixels below `relative_threshold` (default 0.7) x the interior median; 8-connected components; `minimum_area_px` (4), optional `maximum_area_px`, `minimum_solidity` (0.6). The recipe's defining channel is the nuclear channel. | Kodiha et al., BMC Cell Biol 2011, doi:10.1186/1471-2121-12-25 |
 | `marker` | Stable nucleolar marker (UBF/FBL): rolling-ball background subtraction (`background_radius_px`, 10), Gaussian sigma 0.7 px, per-nucleus threshold min + `marker_fraction` (0.4) x (max - min), same filters. Reported as "FC/rDNA-defined"; masks are not dilated. The defining channel must differ from the nuclear channel. | Potapova et al., eLife 2023, doi:10.7554/eLife.88799 |
+
+Marker protocol 2.2.0 (2026-11-21; failed its pre-registered validation, not the default, adoption awaits the owner) adds a noise-based marker-contrast rule per nucleus (`indeterminate`, `insufficient_marker_contrast`) and a minimum area of max(4 px, 0.3 µm²) from the field calibration; see [methods](methods.md#marker-protocol-220-nuclei-without-marker-contrast-and-the-physical-minimum-2026-11-21).
 
 States per parent are `candidate`, `no_candidate` or `indeterminate`
 (constant/empty interior); per-parent reference values, thresholds and component

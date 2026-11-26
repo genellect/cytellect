@@ -101,13 +101,19 @@ def _canonical_detector(fn: str, detector: Any) -> Any:
 
 
 def record_key(fn: str, arrays: dict[str, np.ndarray], detector: Any,
-               detection_max_side: int | None = None) -> str:
-    """Return the documented record key for one detector call."""
+               detection_max_side: int | None = None, pixel_area_um2: float | None = None) -> str:
+    """Return the documented record key for one detector call.
+
+    A calibration passed to ``detect_compartments`` (marker protocol 2.2.0) joins the options;
+    calls without one keep their historical keys.
+    """
     if fn not in FUNCTIONS:
         raise ValueError("showcase_detection_function_unknown")
+    options: dict[str, Any] = {"detection_max_side": None if detection_max_side is None else int(detection_max_side)}
+    if pixel_area_um2 is not None:
+        options["pixel_area_um2"] = float(pixel_area_um2)
     document = {"fn": fn, "arrays": {name: array_digest(value) for name, value in arrays.items()},
-                "detector": _canonical_detector(fn, detector),
-                "options": {"detection_max_side": None if detection_max_side is None else int(detection_max_side)}}
+                "detector": _canonical_detector(fn, detector), "options": options}
     text = json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
@@ -146,7 +152,8 @@ def _describe(fn: str, args: tuple, kwargs: dict) -> _Call:
             arrays["nuclei"] = values["nuclei"]
     detector = values[_DETECTOR_ARGUMENT[fn]]
     side = values.get("detection_max_side") if fn == "detect_nuclei" else None
-    return _Call(fn, record_key(fn, arrays, detector, side), _canonical_detector(fn, detector),
+    area = values.get("pixel_area_um2") if fn == "detect_compartments" else None
+    return _Call(fn, record_key(fn, arrays, detector, side, area), _canonical_detector(fn, detector),
                  Path(values["output_dir"]))
 
 

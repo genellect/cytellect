@@ -2,8 +2,13 @@ import { test, expect } from "@playwright/test";
 import path from "node:path";
 import fs from "node:fs";
 import { createHash } from "node:crypto";
-import published from "../src/lib/published-release.json";
-// The published record names its asset; the installer replaces the ZIP steps (src/lib/release.ts).
+import { verifiedRelease } from "../src/lib/release-record";
+import fallback from "../src/lib/published-release.json";
+
+const recordPath = process.env.CYTELLECT_EXPECT_RELEASE_RECORD;
+const published = verifiedRelease(recordPath ? JSON.parse(fs.readFileSync(recordPath, "utf8")) : fallback);
+if (!published) throw new Error("Invalid expected Windows release record");
+
 const assetFile=published.asset==="installer"?`Cytellect-Setup-${published.version}.exe`:`Cytellect-${published.version}-windows-x64.zip`;
 test("unconfigured public build makes no analysis connection",async({page})=>{
  await page.emulateMedia({reducedMotion:"reduce"});
@@ -14,6 +19,7 @@ test("unconfigured public build makes no analysis connection",async({page})=>{
  if(release){
   await expect(page.getByRole("link",{name:/Windows版をダウンロード/})).toHaveAttribute("href",release);
   await expect(page.getByLabel("招待コード",{exact:true})).toHaveCount(0);
+  await expect(page.getByRole("link",{name:/Microsoft Store で入手/})).toHaveAttribute("href","https://apps.microsoft.com/detail/9PGKTQGV7X5C");
   await expect(page.locator("#download").getByText(/Windows 10／11（64ビット）/)).toBeVisible();
   // The LP shows no install steps; they appear only after the download starts, then live on /download.
   const download=page.locator("#download").getByRole("link",{name:/Windows版をダウンロード/});
@@ -32,16 +38,23 @@ test("unconfigured public build makes no analysis connection",async({page})=>{
   await expect(next).toHaveCount(0);
   // Free and cloud are told apart; the cloud is adopted through the contact form.
   await expect(page.locator("#download").getByRole("link",{name:/研究室で導入を相談/}).first()).toHaveAttribute("href","https://yuto-matsui.com/contact/");
-  await page.getByText("画像はPCの外に出ますか？",{exact:true}).click();
+  await page.getByText("画像とデータの取り扱い",{exact:true}).click();
   await expect(page.getByText(/検出に使う画像だけを送り、クラウドには残しません。/)).toBeVisible();
  }else{
-  await expect(page.locator("#download").getByRole("link",{name:"デモを体験する",exact:true})).toBeVisible();
+  await expect(page.locator("#download").getByRole("link",{name:/Microsoft Store で入手/})).toBeVisible();
   await expect(page.getByLabel("招待コード",{exact:true})).toHaveCount(0);
   await expect(page.getByRole("link",{name:/Windows版をダウンロード/})).toHaveCount(0);
  }
- for(const width of [1440,390]){
+ for(const width of [1440,390,375,320]){
   await page.setViewportSize({width,height:900});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
+  for(const link of await page.locator('#download a[data-lp-event="store"], #download a[data-lp-event="download"]').all()){
+   const bounds=await link.boundingBox();
+   expect(bounds).not.toBeNull();
+   expect(bounds!.x).toBeGreaterThanOrEqual(0);
+   expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(width);
+   expect(await link.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
+  }
   if(process.env.CYTELLECT_SCREENSHOT_DIR)await page.screenshot({path:path.join(process.env.CYTELLECT_SCREENSHOT_DIR,`public-download-${width}.png`),fullPage:true});
  }
  const hero=page.getByRole("region",{name:"Get your microscopy publication-ready.",exact:true});
@@ -63,9 +76,10 @@ test("published Windows asset downloads with the recorded checksum",async({page}
  expect(download.suggestedFilename()).toBe(assetFile);
  const destination=testInfo.outputPath(assetFile);
  await download.saveAs(destination);
- const bytes=fs.readFileSync(destination);
- expect(bytes.length).toBe(published.size_bytes);
- expect(createHash("sha256").update(bytes).digest("hex")).toBe(published.sha256);
+ expect(fs.statSync(destination).size).toBe(published.size_bytes);
+ const hash=createHash("sha256");
+ for await (const chunk of fs.createReadStream(destination)) hash.update(chunk);
+ expect(hash.digest("hex")).toBe(published.sha256);
 });
 test("the install guide page shows what happens before and after the download",async({page})=>{
  test.skip(process.env.CYTELLECT_EXPECT_UNCONFIGURED!=="1","Production without API only");
@@ -82,7 +96,7 @@ test("the install guide page shows what happens before and after the download",a
  await download.evaluate(a=>a.addEventListener("click",e=>e.preventDefault()));
  await download.click();
  await expect(page.getByRole("dialog")).toHaveCount(0);
- for(const width of [1440,390]){
+ for(const width of [1440,390,375,320]){
   await page.setViewportSize({width,height:900});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
  }

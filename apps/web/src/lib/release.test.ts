@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { windowsReleaseUrl, windowsReleaseAsset, resolveWindowsReleaseUrl, verifiedRelease, releaseSize, PUBLISHED_RELEASE } from "./release";
 import published from "./published-release.json";
+import { verifiedChannelRelease } from "./public-windows-release";
 const asset="https://github.com/genellect/cytellect/releases/download/test-fixture/Cytellect-test-fixture-windows-x64.zip";
 const installer="https://github.com/genellect/cytellect/releases/download/v0.1.0-local.99/Cytellect-Setup-0.1.0-local.99.exe";
 /** Hosts, schemes, repositories, paths and decorations that only look like a release asset. */
@@ -65,6 +66,15 @@ describe("published release metadata",()=>{
 });
 
 describe("published release fallback",()=>{
+ it("accepts only a newer canonical EXE channel record",()=>{
+  const version="0.1.0-local.99";
+  const record={...published,version,asset:"installer",url:installer};
+  expect(verifiedChannelRelease(record)).toEqual(record);
+  expect(verifiedChannelRelease(published)).toBeNull();
+  expect(verifiedChannelRelease({...record,url:asset})).toBeNull();
+  expect(verifiedChannelRelease({...record,sha256:""})).toBeNull();
+  expect(verifiedChannelRelease(null)).toBeNull();
+ });
  it("uses verified metadata only when the environment override is undefined",()=>{
   expect(PUBLISHED_RELEASE).not.toBeNull();
   expect(resolveWindowsReleaseUrl(undefined,false,false)).toBe(PUBLISHED_RELEASE?.url);

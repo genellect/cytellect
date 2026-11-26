@@ -43,7 +43,7 @@ description: Cytellect の画面（解析ワークスペース、公開デモ /d
 
 ## 3. 点検する
 
-撮った画面を、`docs/development-principles.md`「画面と文章」の 4 つの問いと文言の規則（UC-01〜UC-07）に照らして、毎回確かめる。LP は `docs/lp-art-direction.md` に従う。
+撮った画面を、`docs/development-principles.md`「画面と文章」の 4 つの問いと文言の規則（UC-01〜UC-07）に照らして、毎回確かめる。LP は、オーナーの指示とデザインのスキルの判断で確かめ、`docs/lp-art-direction.md` は経緯として参考にする。
 
 1. 何を対象に、何を測っているかが、画面から分かる。
 2. 次の操作が 1 つに見える。

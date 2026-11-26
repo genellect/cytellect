@@ -16,6 +16,7 @@ from .exports import environment
 from .exports_csv import write_csv
 from .images import read_tiff, sha256
 from .masks import polygon_mask, validate_label_array
+from .nuclear_features import compute_features, selections_of
 from .nuclear_scale import TARGET_DIAMETER_PX
 from .plan_adoption import planning_methods, validate_revision_plan
 from .region_contracts import (
@@ -101,11 +102,27 @@ def _compartment_initial(recipe) -> str | None:
                 "All recorded detector parameters use original-coordinate pixels and input intensity code units. "
                 "Measurements use unchanged original pixels, including the filled object envelope. "
                 "NCL-defined candidates depend on the measured marker and do not establish stress-independent nucleoli.")
-    if getattr(detector, "protocol_version", None) != "2.0.0":
+    version = getattr(detector, "protocol_version", None)
+    if version not in ("2.0.0", "2.2.0"):
         return None
-    size = (f"8-connected components of {detector.minimum_area_px}"
+    physical = getattr(detector, "minimum_area_um2", None)
+    minimum = (f"max({detector.minimum_area_px} px, {physical:g} µm² converted with the field's calibration; "
+               f"{detector.minimum_area_px} px without one)" if physical is not None else f"{detector.minimum_area_px}")
+    size = (f"8-connected components of {minimum}"
             + (f"–{detector.maximum_area_px}" if detector.maximum_area_px is not None else " or more")
             + f" px with solidity ≥ {detector.minimum_solidity:g} are kept.")
+    if version == "2.2.0":
+        return ("Initial masks: nucleolar candidates from a nucleolar marker channel (cytellect-nucleolar-v2 2.2.0). "
+                f"After rolling-ball subtraction (radius {detector.background_radius_px} px) and a Gaussian σ "
+                f"{detector.smoothing_sigma_px:g} px, pixels above min + {detector.marker_fraction:g} × (max − min) of the "
+                f"nucleus interior (a {detector.rim_exclusion_px} px rim excluded) are candidates (after Potapova et al., "
+                f"eLife 2023, doi:10.7554/eLife.88799). {size} A nucleus whose marker contrast (99th minus 75th "
+                "percentile of the Gaussian σ 0.9 px smoothed original marker in the nucleus) is below "
+                f"{detector.minimum_contrast_snr:g} × the field's noise (1.4826 × MAD of original minus smoothed over "
+                "the lower three quarters of nuclear pixels) is indeterminate: its candidates are not adopted and its "
+                "nucleolar values are missing, not zero. The criterion is relative to noise, not to nucleolar enrichment. "
+                "UBF, FBL or NPM1 mark nucleolar sub-compartments or the granular component; candidates are "
+                "marker-defined.")
     if detector.source == "dapi_poor":
         return ("Initial masks: nucleolar candidates are DNA-poor regions of the nuclear stain "
                 f"(cytellect-nucleolar-v2 2.0.0). Within each nucleus, after a Gaussian σ {detector.smoothing_sigma_px:g} px "
@@ -233,9 +250,13 @@ def region_methods(config, report, provenance):
                      "no upscaling. Runtime capacity can reduce detection further. "
                      "The actual transform is recorded per field; measurements retain original pixels.")
     if isinstance(request.recipe, AutoScaledNuclearRecipe):
-        lines.append("Detection scale: nuclear-size/1.0.0. Per field, the typical nucleus diameter was estimated from "
-                     "the nuclear channel (block mean to a <=512 px grid, Gaussian sigma 2 grid px, Otsu threshold, "
-                     "hole filling, area-weighted median component), and the detection copy was reduced so that this "
+        flattened = request.recipe.detection_scale != "nuclear-size/1.0.0"
+        lines.append(f"Detection scale: {request.recipe.detection_scale}. Per field, the typical nucleus diameter was "
+                     "estimated from the nuclear channel (block mean to a <=512 px grid, Gaussian sigma 2 grid px, "
+                     + ("subtraction of the large-scale background by a grey opening with a square of a quarter of the "
+                        "grid's long side, " if flattened else "")
+                     + "Otsu threshold, hole filling, area-weighted median component), and the detection copy was "
+                     "reduced so that this "
                      f"diameter is about {TARGET_DIAMETER_PX} px; small images are not enlarged. StarDist segments "
                      "nuclei of the size range of its training data (Schmidt et al. 2018). The estimate and the "
                      "detection size are recorded per field; label edges are coarser by the reduction factor and can be "
@@ -334,7 +355,7 @@ def _statistics_methods_template(result):
 
 
 def _descriptive_shapes(result, dependencies, config):
-    if result["spec"]["selection"]["metric"] != "nucleolar_eccentricity":
+    if result["spec"]["selection"]["metric"] not in ("nucleolar_eccentricity", "largest_nucleolus_fraction"):
         return None
     from .nucleolar_shape import nucleolar_eccentricity
     from .region_export_dependencies import checked_parent
@@ -348,7 +369,7 @@ def _descriptive_shapes(result, dependencies, config):
     return shapes
 
 
-def _recompute_statistics(report, config, result, dependencies=None, provenance=None):
+def _recompute_statistics(report, config, result, dependencies=None, provenance=None, features=None):
     from .descriptive import describe_regions
     from .descriptive_contracts import parse_descriptive_request
     from .region_export_dependencies import inputs
@@ -373,10 +394,11 @@ def _recompute_statistics(report, config, result, dependencies=None, provenance=
 
         request = parse_common_statistics_request(result["spec"])
         if request.mode == "region-association":
-            calculated = analyze_region_association(report, config, request, nuclear=nuclear)
+            calculated = analyze_region_association(report, config, request, nuclear=nuclear, features=features)
         else:
             calculated = analyze_region_comparison(report, config, request, summaries=summaries, nuclear=nuclear,
-                                                    shapes=_descriptive_shapes(result, dependencies or {}, config))
+                                                    shapes=_descriptive_shapes(result, dependencies or {}, config),
+                                                    features=features)
     elif result["analysis_kind"] == "region-comparison":
         from .region_comparison import compare_regions
         from .region_comparison_contracts import RegionComparisonRequest
@@ -392,7 +414,8 @@ def _recompute_statistics(report, config, result, dependencies=None, provenance=
             from .field_summary_source import describe_field_summary
             calculated = describe_field_summary(report, config["field_snapshot"], parse_descriptive_request(result["spec"]), nuclear=nuclear)
         else:
-            calculated = describe_regions(report, config["field_snapshot"], parse_descriptive_request(result["spec"]), nuclear=nuclear)
+            calculated = describe_regions(report, config["field_snapshot"], parse_descriptive_request(result["spec"]),
+                                          nuclear=nuclear, features=features)
     calculated["revision_id"] = report["revision_id"]
     if result.get("analysis_kind") == "descriptive":
         from .experiment_strata import with_stratum
@@ -435,8 +458,9 @@ def _render_statistics(calculated, folder, *, methods_template=None, saved_figur
 
 def build_region_bundle(destination: Path, *, report, config, provenance, mask_files,
                         raw_files=(), statistics_results=(), statistics_roots=(), include_raw=False,
-                        omitted_statistics=(), dependencies=None):
-    """Bundle owned server paths only; public URL/access checks belong to the API."""
+                        omitted_statistics=(), dependencies=None, features=None):
+    """Bundle owned server paths only; public URL/access checks belong to the API. ``features`` carries the
+    nuclear-features/1.0.0 values of nuclear shape or signal results (worker ``load_nuclear_features``)."""
     request = _request(config)
     validate_region_report_policy(region_report_from_json(json.dumps(report)), config)
     if report.get("analysis_kind") != "region-2d" or report.get("recipe") != request.recipe.model_dump(mode="json"):
@@ -463,7 +487,7 @@ def build_region_bundle(destination: Path, *, report, config, provenance, mask_f
                     raise ValueError("region_bundle_background_exclusion_mismatch")
     descriptions = []
     for result in statistics_results:
-        calculated = _recompute_statistics(report, config, result, dependencies, provenance)
+        calculated = _recompute_statistics(report, config, result, dependencies, provenance, features)
         if any(result.get(key) != value for key, value in calculated.items()):
             raise ValueError("region_export_statistics_source_mismatch")
         descriptions.append(calculated)
@@ -615,6 +639,7 @@ def replay_region_bundle(bundle_dir: Path, raw_dir: Path, output_dir: Path):
         raise ValueError("region_bundle_revision_mismatch")
     output_dir.mkdir(parents=True, exist_ok=False)
     tables = {}
+    replay_labels, replay_channels = {}, {}
     for fid in sorted(report["field_tables"]):
         info = RegionImageInfo.model_validate(config["field_snapshot"][fid]["image_info"])
         for slot, source in info.inputs.items():
@@ -632,6 +657,7 @@ def replay_region_bundle(bundle_dir: Path, raw_dir: Path, output_dir: Path):
         validate_label_array(labels)
         if _array_hash(labels, "<u4") != mask_record["mask_sha256"] or list(labels.shape) != mask_record["shape"]:
             raise ValueError("region_bundle_mask_pixels_mismatch")
+        replay_labels[fid], replay_channels[fid] = labels, channels
         backgrounds = ({cid: polygon_mask(labels.shape, background.polygon)
                         for cid, background in request.backgrounds[fid].items()}
                        if request.measurement is None else {})
@@ -654,7 +680,9 @@ def replay_region_bundle(bundle_dir: Path, raw_dir: Path, output_dir: Path):
     paged_outputs = []
     for path in sorted((bundle_dir / "statistics").glob("*/result.json")):
         result = json.loads(path.read_text(encoding="utf-8"))
-        replayed = _recompute_statistics(reproduced, config, result, dependencies, provenance)
+        replayed = _recompute_statistics(reproduced, config, result, dependencies, provenance, compute_features(
+            selections_of(result.get("spec")), reproduced, config["field_snapshot"], replay_labels.__getitem__,
+            lambda fid, channel: replay_channels[fid][channel]))
         matches = all(result.get(key) == value for key, value in replayed.items())
         if result["analysis_kind"] == "region-comparison":
             has_comparisons = True

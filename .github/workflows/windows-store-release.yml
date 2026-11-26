@@ -185,6 +185,8 @@ jobs:
           STORE_TENANT_ID: ${{ secrets.STORE_TENANT_ID }}
           STORE_CLIENT_ID: ${{ secrets.STORE_CLIENT_ID }}
           STORE_CLIENT_SECRET: ${{ secrets.STORE_CLIENT_SECRET }}
+          STORE_RECOVERY_SUBMISSION_ID: ${{ vars.STORE_RECOVERY_SUBMISSION_ID }}
+          STORE_CONFIRMED_FREE_SUBMISSION_ID: ${{ vars.STORE_CONFIRMED_FREE_SUBMISSION_ID }}
         run: |
           head=$(git ls-remote origin refs/heads/main | cut -f1)
           if [ "$head" != "$GITHUB_SHA" ]; then

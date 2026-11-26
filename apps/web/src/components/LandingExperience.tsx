@@ -89,6 +89,9 @@ const chapters = (links: FeatureLinks): Chapter[] => [
  *  reduced motion, no WebGL) the chosen tab shows the same screens as glass plates. */
 export function LandingExperience({ links }: { links: FeatureLinks }) {
   const host = useRef<HTMLDivElement>(null);
+  const tour = useRef<HTMLDivElement>(null);
+  // The tour plays by itself until the visitor chooses a tab, moves the keyboard focus into it, or takes hold of the space.
+  const [auto, setAuto] = useState(true);
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
   const scene = useRef<ExperienceController | null>(null);
   const [mode, setMode] = useState<"plates" | "space">("plates");
@@ -109,7 +112,8 @@ export function LandingExperience({ links }: { links: FeatureLinks }) {
       try {
         const { mountExperience } = await import("./experience-scene");
         if (signal.aborted || !host.current) return;
-        const mounted = await mountExperience(host.current, PANELS, signal);
+        // A drag or a flick anywhere on the tour turns the space; taking hold of it stops the tour playing by itself.
+        const mounted = await mountExperience(host.current, PANELS, signal, tour.current ?? host.current, () => setAuto(false));
         if (signal.aborted) { mounted.dispose(); return; }
         scene.current = mounted;
         // The space opens on the overview and flies to the chosen screen when the visitor reaches it.
@@ -143,7 +147,6 @@ export function LandingExperience({ links }: { links: FeatureLinks }) {
   // It pauses while the pointer rests on the bar, the bar is off screen or the browser tab is hidden, and
   // stops for good once the visitor chooses or moves the keyboard focus into it.
   const bar = useRef<HTMLDivElement>(null);
-  const [auto, setAuto] = useState(true);
   const [inView, setInView] = useState(false);
   const [hover, setHover] = useState(false);
   const [shown, setShown] = useState(true);
@@ -189,7 +192,7 @@ export function LandingExperience({ links }: { links: FeatureLinks }) {
     </header>
     {/* Keyboard focus anywhere in the bar or the open panel stops the tour for good, so a focused link is never
         hidden by the next tab. */}
-    <div className={lp.tour} onFocusCapture={() => setAuto(false)}>
+    <div ref={tour} className={lp.tour} onFocusCapture={() => setAuto(false)}>
       <div className={lp.experienceStage} aria-hidden="true"><div ref={host} className={lp.experienceCanvas} /><div className={lp.experienceVeil} /></div>
       <div className={lp.tourInner}>
         <div ref={bar} className={lp.switcher} onPointerEnter={() => setHover(true)} onPointerLeave={() => setHover(false)}>

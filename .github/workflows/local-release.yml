@@ -1,10 +1,24 @@
 name: Prepare Windows release
 on:
+  workflow_run:
+    workflows: [Verify]
+    branches: [main]
+    types: [completed]
+  schedule:
+    - cron: '41 */6 * * *'
   workflow_dispatch:
     inputs:
+      automatic:
+        description: "Resume the automatic release of the newest successful main commit"
+        type: boolean
+        default: false
+      channel_only:
+        description: "Verify the protected website channel with the current public EXE while auto-release is disabled"
+        type: boolean
+        default: false
       version:
         description: "Unique prerelease version, for example 0.1.0-local.2"
-        required: true
+        required: false
         type: string
       commit:
         description: "Full 40-character SHA of the main commit to release; empty releases the current main head"
@@ -13,27 +27,61 @@ on:
         default: ""
 permissions:
   contents: read
+env:
+  AUTOMATIC: ${{ github.event_name != 'workflow_dispatch' || inputs.automatic }}
+# A trigger that will release nothing (automatic release disabled, or Verify did not succeed) stays out
+# of the release group: a queued run there replaces the run already waiting, such as a manual release.
 concurrency:
-  group: windows-release
+  group: >-
+    ${{ (github.event_name != 'workflow_dispatch' || inputs.automatic) &&
+    (vars.WINDOWS_EXE_AUTO_RELEASE != 'true' ||
+    (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion != 'success')) &&
+    format('windows-release-idle-{0}', github.run_id) || 'windows-release' }}
   cancel-in-progress: false
 jobs:
   # The released source is resolved once, here, and every later job builds, tests, signs and tags
   # exactly that commit (docs/release-signing.md). The workflow itself always runs from main.
   source:
-    if: github.ref == 'refs/heads/main'
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      !inputs.channel_only &&
+      ((github.event_name == 'workflow_dispatch' && !inputs.automatic) ||
+       (github.repository == 'genellect/cytellect' && vars.WINDOWS_EXE_AUTO_RELEASE == 'true' &&
+        (github.event_name != 'workflow_run' ||
+         (github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.event == 'push' &&
+          github.event.workflow_run.head_branch == 'main' &&
+          github.event.workflow_run.head_repository.id == github.event.repository.id))))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
       checks: read
+      actions: read
     outputs:
-      commit: ${{ steps.resolve.outputs.commit }}
+      commit: ${{ steps.resolve.outputs.commit || steps.automatic.outputs.commit }}
+      version: ${{ steps.resolve.outputs.version || steps.automatic.outputs.version }}
+      artifact-run: ${{ steps.automatic.outputs.artifact-run }}
     env:
       RELEASE_VERSION: ${{ inputs.version }}
       REQUESTED_COMMIT: ${{ inputs.commit }}
     steps:
+      - uses: actions/checkout@v5
+        if: env.AUTOMATIC == 'true'
+        with:
+          fetch-depth: 0
+          sparse-checkout: scripts/windows_exe_release.cjs
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Select the newest successful main commit
+        id: automatic
+        if: env.AUTOMATIC == 'true'
+        uses: actions/github-script@v8
+        with:
+          script: await require('./scripts/windows_exe_release.cjs').select(github, context, core)
       - name: Resolve the released main commit and require successful checks on it
         id: resolve
+        if: env.AUTOMATIC != 'true'
         uses: actions/github-script@v8
         with:
           script: |
@@ -77,9 +125,31 @@ jobs:
             }
             core.info(`Releasing ${commit} (main head at dispatch: ${context.sha})`);
             core.setOutput('commit', commit);
-  proposal-compatibility:
+            core.setOutput('version', process.env.RELEASE_VERSION);
+  reserve:
     needs: source
-    environment: proposal-preflight
+    if: needs.source.outputs.commit != '' && (github.event_name != 'workflow_dispatch' || inputs.automatic)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      RELEASE_COMMIT: ${{ needs.source.outputs.commit }}
+      RELEASE_VERSION: ${{ needs.source.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: scripts/windows_exe_release.cjs
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - uses: actions/github-script@v8
+        with:
+          script: await require('./scripts/windows_exe_release.cjs').reserve(github, context)
+  proposal-compatibility:
+    needs: [source, reserve]
+    if: >-
+      !cancelled() && needs.source.result == 'success' && needs.source.outputs.commit != '' &&
+      (needs.reserve.result == 'success' || needs.reserve.result == 'skipped')
+    environment: ${{ (github.event_name != 'workflow_dispatch' || inputs.automatic) && 'windows-exe-preflight' || 'proposal-preflight' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -96,14 +166,17 @@ jobs:
         run: uv run python scripts/dev.py doctor --proposal-version --packaged-client
   package:
     needs: [source, proposal-compatibility]
-    if: github.ref == 'refs/heads/main'
+    # reserve is skipped on the manual route; without a status function that skip would skip this job too.
+    if: >-
+      !cancelled() && needs.proposal-compatibility.result == 'success' &&
+      github.ref == 'refs/heads/main' && needs.source.outputs.artifact-run == ''
     runs-on: windows-latest
     # The two-group comparison of 120 public JUMP images through installed Fiji adds up to an hour.
     timeout-minutes: 150
     permissions:
       contents: read
     env:
-      RELEASE_VERSION: ${{ inputs.version }}
+      RELEASE_VERSION: ${{ needs.source.outputs.version }}
       RELEASE_COMMIT: ${{ needs.source.outputs.commit }}
       NEXT_TELEMETRY_DISABLED: "1"
       PYTHONDONTWRITEBYTECODE: "1"
@@ -313,22 +386,24 @@ jobs:
           retention-days: 14
       - uses: actions/upload-artifact@v6
         with:
-          name: windows-release
+          name: ${{ (github.event_name != 'workflow_dispatch' || inputs.automatic) && format('auto-exe-{0}-{1}', needs.source.outputs.version, needs.source.outputs.commit) || 'windows-release' }}
           path: ${{ env.CYTELLECT_RELEASE_DIR }}/*
           if-no-files-found: error
           retention-days: 7
   draft:
-    needs: [source, package]
+    needs: [source, proposal-compatibility, package]
+    if: >-
+      !cancelled() && needs.proposal-compatibility.result == 'success' &&
+      (needs.package.result == 'success' || needs.source.outputs.artifact-run != '')
     runs-on: ubuntu-latest
-    # The owner approves this job (required reviewer of the release environment); only here is
-    # the update signing key available (docs/release-signing.md).
-    environment: release
+    environment: ${{ (github.event_name != 'workflow_dispatch' || inputs.automatic) && 'windows-exe-publish' || 'release' }}
     permissions:
       contents: write
+      actions: read
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
-      RELEASE_VERSION: ${{ inputs.version }}
+      RELEASE_VERSION: ${{ needs.source.outputs.version }}
       RELEASE_COMMIT: ${{ needs.source.outputs.commit }}
     steps:
       - uses: actions/checkout@v5
@@ -348,7 +423,9 @@ jobs:
       - run: uv sync --locked --no-dev
       - uses: actions/download-artifact@v7
         with:
-          name: windows-release
+          name: ${{ (github.event_name != 'workflow_dispatch' || inputs.automatic) && format('auto-exe-{0}-{1}', needs.source.outputs.version, needs.source.outputs.commit) || 'windows-release' }}
+          github-token: ${{ github.token }}
+          run-id: ${{ needs.source.outputs.artifact-run || github.run_id }}
           path: release
       - name: Require the corresponding-source asset and its checksum before drafting
         shell: bash
@@ -383,6 +460,7 @@ jobs:
           fi
           uv run --no-sync python scripts/update_manifest.py verify --release-dir release --version "$RELEASE_VERSION" --previous-source "$previous"
       - name: Create the exact source tag without overwriting an existing ref
+        if: env.AUTOMATIC != 'true'
         uses: actions/github-script@v8
         with:
           script: |
@@ -399,7 +477,18 @@ jobs:
           printf '%s\n' '## Verification' '' "Source: $RELEASE_COMMIT" '' 'Per-user installer Cytellect-Setup-'"$RELEASE_VERSION"'.exe (bundled Python, packages and Fiji; see its receipt for code-signing status), its signed update manifest Cytellect-update-'"$RELEASE_VERSION"'.json (.sig) for the in-app update, the setup ZIP, and Cytellect-'"$RELEASE_VERSION"'-gpl-sources.zip with the exact source of the bundled components whose license requires it (GPL, LGPL and similar); the components without an attached source are listed with their upstream source location in the installer under licenses/ and in docs/oss.md. Pinned signed Python setup, twenty-seven installed browser cases covering the new workspace with registered BBBC007 originals, an explicit independent-unit comparison and the two-group comparison of registered public JUMP Cell Painting images over three runs (goals C1), public GFP/generic nuclear regions, planning adoption, registration retries, saved source/experimental hierarchy, area-only measurement/planning, exact preview ranges, paginated/recoverable descriptive figures, native recipe/channel guidance, saved field-quality navigation and protected unfinished input, plus common multi-group/rank/association methods and edited vector downloads, and independent generated-pixel comparison/association/replay checks passed. Review the exact-source acceptance receipts and scientific limits before publishing. Public-image segmentation accuracy, private-study validation and human usability are separate gates.' >> "$GITHUB_STEP_SUMMARY"
           previous="$(gh release list --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName // ""')"
           uv run --no-sync python scripts/release_notes.py --release-dir release --version "$RELEASE_VERSION" --commit "$RELEASE_COMMIT" --previous-tag "$previous" --out "$RUNNER_TEMP/release-notes.md" | tee -a "$GITHUB_STEP_SUMMARY"
-          gh release create "v$RELEASE_VERSION" release/* --verify-tag --target "$RELEASE_COMMIT" --draft --prerelease --title "Cytellect $RELEASE_VERSION" --notes-file "$RUNNER_TEMP/release-notes.md"
+          tag="v$RELEASE_VERSION"
+          if [ "$AUTOMATIC" = true ]; then
+            printf '\n<!-- cytellect-windows-exe-auto -->\n' >> "$RUNNER_TEMP/release-notes.md"
+            if gh release view "$tag" --json isDraft,body > "$RUNNER_TEMP/existing-release.json"; then
+              jq -e '.isDraft and (.body | contains("<!-- cytellect-windows-exe-auto -->"))' "$RUNNER_TEMP/existing-release.json"
+            else
+              gh release create "$tag" --verify-tag --target "$RELEASE_COMMIT" --draft --prerelease --title "Cytellect $RELEASE_VERSION" --notes-file "$RUNNER_TEMP/release-notes.md"
+            fi
+            gh release upload "$tag" release/* --clobber
+          else
+            gh release create "$tag" release/* --verify-tag --target "$RELEASE_COMMIT" --draft --prerelease --title "Cytellect $RELEASE_VERSION" --notes-file "$RUNNER_TEMP/release-notes.md"
+          fi
       - name: Stop distribution unless the corresponding source is attached
         shell: bash
         run: |
@@ -414,7 +503,60 @@ jobs:
           done
           if [ "$expected" = missing ] || [ "$(attached)" != "$expected" ]; then
             # The draft must never be published without the source of the GPL software it carries.
-            gh release delete "v$RELEASE_VERSION" --yes
-            echo "Corresponding-source asset not attached; the draft release was deleted" >&2
+            if [ "$AUTOMATIC" != true ]; then gh release delete "v$RELEASE_VERSION" --yes; fi
+            if [ "$AUTOMATIC" = true ]; then
+              echo "Corresponding-source asset not attached; the draft release is kept unpublished for a retry" >&2
+            else
+              echo "Corresponding-source asset not attached; the draft release was deleted" >&2
+            fi
             exit 1
           fi
+      - uses: actions/checkout@v5
+        if: env.AUTOMATIC == 'true'
+        with:
+          path: automation
+          sparse-checkout: scripts/windows_exe_release.cjs
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Verify the attached files and publish the EXE
+        if: env.AUTOMATIC == 'true'
+        uses: actions/github-script@v8
+        with:
+          script: await require('./automation/scripts/windows_exe_release.cjs').publish(github, context, core)
+  channel:
+    needs: [source, draft]
+    if: >-
+      !cancelled() && github.repository == 'genellect/cytellect' && github.ref == 'refs/heads/main' &&
+      ((inputs.channel_only && vars.WINDOWS_EXE_AUTO_RELEASE != 'true') ||
+       (needs.source.result == 'success' && (github.event_name != 'workflow_dispatch' || inputs.automatic)))
+    runs-on: ubuntu-latest
+    environment: windows-exe-channel
+    permissions:
+      contents: read
+    steps:
+      - name: Obtain the current repository's channel writer token
+        id: channel-token
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3
+        with:
+          client-id: ${{ vars.WINDOWS_EXE_CHANNEL_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WINDOWS_EXE_CHANNEL_APP_PRIVATE_KEY }}
+          owner: genellect
+          repositories: cytellect
+          permission-contents: write
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: |
+            scripts/windows_exe_release.cjs
+            services/api/src/cytellect_api/update_signature.py
+          sparse-checkout-cone-mode: false
+          token: ${{ steps.channel-token.outputs.token }}
+          persist-credentials: true
+      - name: Verify the public installer and update the website record
+        uses: actions/github-script@v8
+        env:
+          CHANNEL_ONLY: ${{ inputs.channel_only }}
+        with:
+          script: |
+            await require('./scripts/windows_exe_release.cjs').syncChannel(github, context, core, {
+              seedFromPublished: process.env.CHANNEL_ONLY === 'true',
+            });

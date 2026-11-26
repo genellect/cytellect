@@ -100,16 +100,42 @@ def test_readiness_reports_missing_combinations_and_unconfirmed_independence():
         {"code": "experiment_design_unassigned_fields", "field_ids": ["f9"]},
         {"code": "experiment_design_missing_combination", "run_id": "r2", "group_ids": ["drug"]},
         {"code": "experiment_design_acquisition_dates_missing", "field_ids": ["f3"]},
+        {"code": "experiment_design_acquisition_unconfirmed"},
         {"code": "experiment_design_independence_unconfirmed"},
     ]
     # Run r2 has no imaging date; its fields are reported, never given an invented date.
-    assert readiness(design(), ["f1", "f2", "f3", "f4", "f5"]) == [
+    assert readiness(design(acquisition_confirmed=True), ["f1", "f2", "f3", "f4", "f5"]) == [
         {"code": "experiment_design_acquisition_dates_missing", "field_ids": ["f3", "f4", "f5"]}]
-    dated = design(runs=[{"id": "r1", "label": "2026-10-01", "acquired_on": "2026-10-02"},
-                         {"id": "r2", "label": "2026-10-08", "acquired_on": "2026-10-09"}])
+    dated = design(acquisition_confirmed=True, runs=[{"id": "r1", "label": "2026-10-01", "acquired_on": "2026-10-02"},
+                                                     {"id": "r2", "label": "2026-10-08", "acquired_on": "2026-10-09"}])
     assert readiness(dated, ["f1", "f2", "f3", "f4", "f5"]) == []
+    # Without the acquisition statement (S10, decision 11) a comparison is not ready; nothing infers it.
+    assert {"code": "experiment_design_acquisition_unconfirmed"} in readiness(design(), ["f1", "f2", "f3", "f4", "f5"])
     no_control = design(control_group_id=None)
     assert {"code": "experiment_design_control_required"} in readiness(no_control, ["f1", "f2", "f3", "f4", "f5"])
+
+
+def test_acquisition_statement_is_additive_and_keeps_saved_bytes_and_hash():
+    """genellect/cytellect#257 decision 11: the acquisition statement is declared in 実験. A design saved
+    before it has no such key; it reads as not stated, and its dump and design hash do not change."""
+    import hashlib
+    import json
+
+    from cytellect_analysis.experiment_design import parse_design
+    from cytellect_analysis.experiment_strata import design_sha256
+
+    saved = design().model_dump(mode="json")
+    assert "acquisition_confirmed" not in saved
+    reread = parse_design(saved)
+    assert reread.acquisition_confirmed is False and reread.model_dump(mode="json") == saved
+    # The hash stays the one computed over the document without the key (an existing cohort keeps matching).
+    canonical = json.dumps(saved, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+    assert design_sha256(saved) == hashlib.sha256(canonical).hexdigest()
+    stated = design(acquisition_confirmed=True).model_dump(mode="json")
+    assert stated["acquisition_confirmed"] is True and parse_design(stated).acquisition_confirmed is True
+    assert design_sha256(stated) != design_sha256(saved)
+    with pytest.raises(ValidationError):
+        design(acquisition_confirmed="maybe")
 
 
 def test_derived_metadata_passes_the_existing_paired_ledger_rules():

@@ -33,7 +33,9 @@ export function withMaskCorrections(rows:Record<string,unknown>[],saved?:{fields
 }
 export interface ResultDesign {
   operation: ResultOperation; metric: string; channel: string | null; regionSet: string;
-  paired: boolean; rank: boolean; unit: string; pairing: string; confirmed: boolean;
+  paired: boolean; rank: boolean; unit: string; pairing: string;
+  /** What 実験 and 画像 state (statistics-readiness.ts, genellect/cytellect#257 decision 11); 統計 asks for none of it. */
+  independence: boolean; acquisition: boolean; sampling: boolean; missingness: boolean;
   contrasts: string[][]; xMetric: string; xChannel: string | null;
   gfp?: GfpSelectionChoice | null;
   channelGate?:ChannelGateFilter|null;
@@ -51,7 +53,7 @@ export type RenderPlot = ReturnType<typeof defaultFigureEdits> & {
   presentation?:{version:"1.0.0";observations?:"points"|"violin"|"box"|"none"|null;color_by?:"run"|"group"|null;annotation:"value"|"stars"|"none";size:"panel"|"single-column"|"double-column"|"custom";composition:"quantification"|"images-quantification";image_fields?:Record<string,string>;outlines:boolean};
   axes?:{version:"1.0.0";x_scale:"linear"|"log10"|"log2";y_scale:"linear"|"log10"|"log2";x_min:number|null;x_max:number|null;x_tick_step:number|null};
 };
-const metrics = new Set(["area_px","area_um2","mean","median","integrated","mean_corrected","median_corrected","integrated_corrected","nucleolar_count","nucleolar_area_fraction","log2_nucleoplasm_over_nucleolus","nucleolar_area_px","nucleolar_area_um2","nucleolar_eccentricity",...FIELD_SUMMARY_METRICS]);
+const metrics = new Set(["area_px","area_um2","mean","median","integrated","mean_corrected","median_corrected","integrated_corrected","nucleolar_count","nucleolar_area_fraction","log2_nucleoplasm_over_nucleolus","nucleolar_area_px","nucleolar_area_um2","nucleolar_eccentricity","largest_nucleolus_fraction","solidity","axis_ratio","eccentricity",...FIELD_SUMMARY_METRICS]);
 export function resultSelection(design: Pick<ResultDesign,"regionSet"|"metric"|"channel"|"gfp"|"channelGate">) {
   if (!metrics.has(design.metric)) throw new Error("対応する測定項目を選択してください。");
   return comparisonSelection(design.regionSet, design.metric as ComparisonMetric, metricUsesChannel(design.metric) ? design.channel : null, design.gfp??null,design.channelGate??null);
@@ -101,14 +103,15 @@ export function resultRequest(design: ResultDesign, fields: Record<string, Metad
   if (design.operation === "distribution") return {mode:"descriptive",selection,group_by:"field",figure_policy:{version:"2.0.0",layout:"field-pages"},plot:{...plot,kind:"distribution"}};
   const compared=Object.entries(fields).filter(([fid])=>!(design.channelGate?.control_field_ids??[]).includes(fid)).map(([,value])=>value);
   const conditions = [...new Set(compared.map(value=>value.condition?.trim()).filter((value):value is string=>!!value))];
-  if (!design.confirmed || !design.unit.trim()) throw new Error("独立実験単位と解析条件を確認してください。");
+  if (!design.acquisition || !design.missingness) throw new Error("「実験」で撮影条件を確認してください。");
+  if (!design.unit.trim()) throw new Error("独立実験単位を入力してください。");
   if (compared.some(value=>!value.condition?.trim() || !value.sample?.trim() || !value.experimental_unit?.trim()
     || ((metricUsesChannel(design.metric) || design.metric.startsWith("positive_") || (design.operation === "association" && metricUsesChannel(design.xMetric))) && !value.acquisition_date?.trim())
-    || (design.operation === "comparison" && design.paired && !value.pair?.trim()))) throw new Error("視野の群・試料・独立実験単位と、必要な撮影日・対応ペアを入力してください。");
+    || (design.operation === "comparison" && design.paired && !value.pair?.trim()))) throw new Error("視野の群・試料・実験回と、必要な撮影日・対応ペアを入力してください。");
   if (design.operation === "comparison") {
     const choices: ComparisonChoices = {metric:design.metric as ComparisonMetric,channel:design.channel,regionSet:design.regionSet,
       design:design.paired?"paired":"independent",method:design.rank?"rank":"parametric",unitDefinition:design.unit,pairingBasis:design.pairing,
-      contrasts:design.contrasts,independence:design.confirmed,acquisition:design.confirmed,sampling:design.confirmed,missingness:design.confirmed,
+      contrasts:design.contrasts,independence:design.independence,acquisition:design.acquisition,sampling:design.sampling,missingness:design.missingness,
       kind:comparisonKind(),width:plot.width_inches*25.4,height:plot.height_inches*25.4,yLabel:plot.y_label,gfp:design.gfp,channelGate:design.channelGate,estimates:design.estimates,inference:design.inference!==false&&!exploratoryPositivity(design.metric,design.channelGate)};
     const request = comparisonRequest(choices);
     return {...request,plot:{...request.plot,...plot,kind:comparisonKind()}};
@@ -116,9 +119,11 @@ export function resultRequest(design: ResultDesign, fields: Record<string, Metad
   const x = resultSelection({...design,metric:design.xMetric,channel:design.xChannel});
   if (selection.source !== "region" || x.source !== "region") throw new Error("相関には同じ領域の面積・輝度を選択してください。");
   if (JSON.stringify(x) === JSON.stringify(selection)) throw new Error("横軸と縦軸に異なる測定項目を選択してください。");
+  // An association is always tested: it states the runs' independence and the acquisition settings declared in 実験.
+  if (!design.independence) throw new Error("相関には、実験回の独立性の確認が必要です。");
   const request: AssociationRequest = {mode:"region-association",version:design.gfp||design.channelGate?"1.1.0":"1.0.0",x_selection:x,y_selection:selection,
     design:{kind:"independent",confirmed:true,unit_definition:design.unit.trim(),pairing_basis:null},conditions,
-    acquisition_review:{confirmed:true,basis:"same-settings",field_batches:{},spatial_sampling_confirmed:true},missingness_confirmed:true,
+    acquisition_review:{confirmed:true,basis:"same-settings",field_batches:{},spatial_sampling_confirmed:design.sampling},missingness_confirmed:true,
     method:design.rank?"spearman":"pearson",scope:"per-condition",pooling_confirmed:false,
     aggregation:"field-median_sample-mean_unit-mean-v1",missingness_policy:"require-matched-unexcluded-units-v1",plot:{...plot,kind:"scatter"}};
   return request;

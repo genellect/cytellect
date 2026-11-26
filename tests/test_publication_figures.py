@@ -25,10 +25,15 @@ SNAPSHOT = ROOT / "apps/web/public/showcase/snapshot"
 
 
 def demo_comparison():
-    """The demo's saved NPM1 nuclear mean comparison (all nuclei, 3 runs, descriptive)."""
-    journal = json.loads((SNAPSHOT / "journal.json").read_text(encoding="utf-8"))["entries"]
+    """The opening scene's saved NPM1 nuclear mean comparison (all nuclei, 3 runs, descriptive). The tour's parts
+    are in no fixed scene order, so the opening scene (the first of scenes.json) is named."""
+    from cytellect_showcase.journal_files import read_journal
+
+    journal = read_journal(SNAPSHOT)["entries"]
+    opening = json.loads((SNAPSHOT / "scenes.json").read_text(encoding="utf-8"))["scenes"][0]["id"]
     for entry in journal:
-        if entry["method"] != "GET" or not entry["path"].endswith("/common-statistics"):
+        if (entry["method"] != "GET" or not entry["path"].endswith("/common-statistics")
+                or (entry.get("scene") or "").split(":")[0] != opening):
             continue
         result = json.loads((SNAPSHOT / entry["file"]).read_text(encoding="utf-8"))
         if (result.get("metric") == "mean" and (result.get("channel") or {}).get("channel_id") == "npm1"
@@ -78,6 +83,8 @@ def test_a_request_naming_no_presentation_keeps_its_size(tmp_path):
     # An earlier client (the region workspace's figure settings) or a figure saved before the
     # publication figure: the width and height it asked for, not the panel.
     result = demo_comparison()
+    # The recording's client names a presentation; this request is the earlier one, which did not.
+    result["spec"]["plot"].pop("presentation", None)
     result["spec"]["plot"].update(kind="superplot", preset="custom", width_inches=120 / 25.4, height_inches=70 / 25.4)
     manifest = render_common_statistics(result, tmp_path)
     assert manifest["style"]["width_mm"] == pytest.approx(120) and manifest["style"]["height_mm"] == pytest.approx(70)
@@ -118,6 +125,18 @@ def test_beeswarm_is_deterministic_and_bounded():
     assert np.max(np.abs(first)) <= .3 + 1e-12
     crowded = beeswarm(np.ones(200), dx=.05, dy=.1, half_width=.3)
     assert np.isclose(np.max(np.abs(crowded)), .3)
+
+
+def test_beeswarm_narrows_only_the_rows_that_do_not_fit():
+    # A dense row at 0 and a few sparse values far above it (genellect/cytellect#257, owner decision 2026-11-21).
+    values = np.concatenate([np.zeros(200), [5.0, 5.0, 5.0, 9.0]])
+    natural = beeswarm(values, dx=.05, dy=.1, half_width=np.inf)
+    placed = beeswarm(values, dx=.05, dy=.1, half_width=.3)
+    assert np.max(np.abs(placed)) <= .3 + 1e-12
+    # The dense row is narrowed into the group's width; the sparse values keep their natural spacing.
+    assert np.isclose(np.max(np.abs(placed[:200])), .3)
+    assert np.array_equal(placed[200:], natural[200:])
+    assert len(set(np.round(placed[200:203], 9))) == 3
 
 
 def test_forms_follow_the_experiment():
@@ -201,8 +220,19 @@ def demo_images(result):
     import tifffile
     from cytellect_analysis.figure_images import representative_fields
 
-    seed = zipfile.ZipFile(ROOT / "apps/web/public/showcase/seed.zip")
-    names = seed.namelist()
+    archive = zipfile.ZipFile(ROOT / "apps/web/public/showcase/seed.zip")
+    # The seed stores one copy of identical files; the others are copied from it on boot (showcase.json "regenerate").
+    # Which copy is stored follows the order of the generated identifiers, so a field's labels may be such a copy.
+    copies = {item["path"]: item["copy_of"] for item in json.loads(archive.read("showcase.json"))["regenerate"]
+              if item.get("copy_of")}
+
+    class Seed:
+        @staticmethod
+        def read(name):
+            return archive.read(copies.get(name, name))
+
+    seed = Seed()
+    names = [*archive.namelist(), *copies]
     loaded = {}
     order = result["spec"]["conditions"]
     sources = {s["field_id"]: s for s in result["source_fields"]}
@@ -406,3 +436,131 @@ def test_a_box_records_its_quartiles_and_a_run_line_stays_over_it(tmp_path, monk
     assert run_lines and min(line.get_zorder() for line in run_lines) > box_face
     # Runs read in order: p2 before p10.
     assert natural_order(["p10", "p2", "p1"]) == ["p1", "p2", "p10"]
+
+
+def test_the_fields_behind_a_comparison_read_group_then_run_then_field(tmp_path):
+    from statistics import median
+
+    result = demo_comparison()
+    result["spec"]["plot"] = {**result["spec"]["plot"], "kind": "superplot", "presentation": OPENING}
+    manifest = render_common_statistics(copy.deepcopy(result), tmp_path)
+    assert {"fields.svg", "fields.pdf", "fields.png"} <= set(manifest["source_files"])
+    assert all((tmp_path / name).stat().st_size for name in ("fields.svg", "fields.pdf", "fields.png"))
+    fields = manifest["field_check"]["fields"]
+    order = result["spec"]["plot"]["group_order"] or result["spec"]["conditions"]
+    groups = [field["condition"] for field in fields]
+    # Group by group, run by run within it: the order the comparison summarises its values.
+    assert groups == sorted(groups, key=order.index)
+    for group in order:
+        runs = [field["run"] for field in fields if field["condition"] == group]
+        assert runs == sorted(runs, key=lambda run: [field["run"] for field in fields if field["condition"] == group].index(run))
+        assert len(runs) == len({(r, i) for i, r in enumerate(runs)})
+    # Every saved observation is drawn once, and each line is the median of its field's observations.
+    rows = [row for row in result["plot_data"] if row.get("selection_status", "selected") == "selected" and row.get("value") is not None]
+    assert sum(field["observations"] for field in fields) == len(rows)
+    for field in fields:
+        values = [row["value"] for row in rows if row["field_id"] == field["field_id"]]
+        assert field["median"] == pytest.approx(median(values))
+    # The runs take the colours of the comparison figure.
+    svg = (tmp_path / "fields.svg").read_text(encoding="utf-8")
+    assert "#0072b2" in svg.lower() and "Field median" in svg
+
+
+def test_many_fields_leave_the_numbers_off_and_never_fail_the_comparison(tmp_path):
+    # Forty independent units per group: field numbers cannot fit, and the field check must not cost the figure.
+    report, config = comparison_fixture((("A", list(range(1, 41))), ("B", list(range(2, 42)))))
+    result = analyze_region_comparison(report, config, request_v2(test="welch-t"))
+    result = json.loads(json.dumps(result).replace('"A"', '"Untreated control cells"').replace('"B"', '"Treated with compound X"'))
+    result["spec"]["plot"].update(kind="superplot", presentation=OPENING)
+    manifest = render_common_statistics(result, tmp_path)
+    assert (tmp_path / "figure.svg").is_file()
+    check = manifest["field_check"]
+    assert check.get("skipped") is None, check
+    # An independent design has no runs to group by; every field still appears, without its number.
+    assert check["runs_labelled"] is False and check["numbered"] is False
+    assert len(check["fields"]) == 80 and {field["run"] for field in check["fields"]} == {None}
+    assert set(check["files"]) <= set(manifest["source_files"])
+
+
+def _field_check_source():
+    result = demo_comparison()
+    result["spec"]["plot"] = {**result["spec"]["plot"], "kind": "superplot", "presentation": OPENING}
+    return result, result["spec"]["plot"]["group_order"] or result["spec"]["conditions"]
+
+
+def test_the_field_check_never_writes_a_name_its_typeface_cannot_draw(tmp_path, monkeypatch):
+    from cytellect_analysis import field_check
+    from matplotlib import font_manager
+    from matplotlib.text import Text
+
+    result, order = _field_check_source()
+    named = json.loads(json.dumps(result, ensure_ascii=False).replace(json.dumps(order[0]), '"未処理"'))
+    order = ["未処理", *order[1:]]
+    validate = field_check._validate_text_layout
+    checked: list[str] = []
+
+    def every_glyph_is_drawn(fig, ax):
+        validate(fig, ax)
+        for item in fig.findobj(match=Text):
+            text = item.get_text()
+            if item.get_visible() and text:
+                face = font_manager.get_font(font_manager.findfont(item.get_fontproperties()))
+                assert {ord(c) for c in text if not c.isspace()} <= set(face.get_charmap()), text
+                checked.append(text)
+
+    monkeypatch.setattr(field_check, "_validate_text_layout", every_glyph_is_drawn)
+    # A Japanese group name takes the fallback face, as on the comparison figure; without one the check is
+    # refused (and left out by the renderer) instead of being written with missing glyphs.
+    try:
+        check = field_check.render_field_check(named, order, tmp_path)
+    except ValueError as error:
+        assert str(error) == "figure_font_glyphs_unavailable"
+        assert not (tmp_path / "fields.svg").exists()
+        return
+    assert check is not None and "未処理" in checked
+
+
+def test_the_field_check_leaves_off_run_names_that_would_overlap(tmp_path):
+    from cytellect_analysis.field_check import render_field_check
+
+    result, order = _field_check_source()
+    long = json.loads(json.dumps(result).replace('"Rep1"', '"Experiment 2026-01-14"')
+                      .replace('"Rep2"', '"Experiment 2026-02-03"').replace('"Rep3"', '"Experiment 2026-03-22"'))
+    # Two fields per run: the long run names no longer fit under their fields.
+    fields: dict[tuple, list] = {}
+    for row in long["plot_data"]:
+        seen = fields.setdefault((row["condition"], row.get("pair")), [])
+        if row["field_id"] not in seen:
+            seen.append(row["field_id"])
+    dropped = {seen[-1] for seen in fields.values() if len(seen) > 2}
+    long["plot_data"] = [row for row in long["plot_data"] if row["field_id"] not in dropped]
+    check = render_field_check(long, order, tmp_path)
+    assert check is not None and check["runs_labelled"] is False
+    assert "Experiment 2026-01-14" not in (tmp_path / "fields.svg").read_text(encoding="utf-8")
+    # Short run names on the same fields stay.
+    assert render_field_check(result, order, tmp_path)["runs_labelled"] is True
+
+
+def test_the_field_check_places_its_points_on_the_written_layout(tmp_path, monkeypatch):
+    from cytellect_analysis import field_check
+
+    result, order = _field_check_source()
+    used: list[float] = []
+    written: list[float] = []
+    place, validate = field_check.beeswarm, field_check._validate_text_layout
+
+    def recording(values, *, dx, dy, half_width):
+        used.append(dy)
+        return place(values, dx=dx, dy=dy, half_width=half_width)
+
+    def measuring(fig, ax):
+        validate(fig, ax)
+        inverse = ax.transData.inverted()
+        diameter = np.sqrt(3.2) * 1.05 * fig.dpi / 72
+        written.append(abs(inverse.transform((0, diameter))[1] - inverse.transform((0, 0))[1]))
+
+    monkeypatch.setattr(field_check, "beeswarm", recording)
+    monkeypatch.setattr(field_check, "_validate_text_layout", measuring)
+    field_check.render_field_check(result, order, tmp_path)
+    # One marker diameter along the value axis is the same when the points are placed and when the file is written.
+    assert used and np.allclose(used, written[0], rtol=1e-6)

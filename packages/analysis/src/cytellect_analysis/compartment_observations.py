@@ -27,9 +27,12 @@ LOG2 = "log2_nucleoplasm_over_nucleolus"
 GEOMETRY_KEYS = ("nucleus_area_px", "nucleolar_count", "nucleolar_area_px", "nucleoplasm_area_px")
 SUMMARY_REASONS = frozenset({"no_nucleolus", "no_nucleoplasm", "nonpositive_signal"})
 ECCENTRICITY = "nucleolar_eccentricity"
+LARGEST = "largest_nucleolus_fraction"
+# Metrics read from the per-nucleus nucleolar shapes of the adopted masks (not from compartment-summary.json).
+SHAPE_SUMMARIES = (ECCENTRICITY, LARGEST)
 UNITS = {LOG2: "log2 ratio", "nucleolar_area_fraction": "dimensionless",
          "nucleolar_count": "count", "nucleolar_area_px": "px²", "nucleolar_area_um2": "µm²",
-         ECCENTRICITY: "dimensionless"}
+         ECCENTRICITY: "dimensionless", LARGEST: "dimensionless"}
 DEFINITIONS = {
     LOG2: ("log2(mean nucleoplasm intensity / mean nucleolar-union intensity) per parent nucleus, "
            "raw original pixels, no pseudocount (compartment-summary/1.0.0)"),
@@ -43,6 +46,8 @@ DEFINITIONS = {
                            "one adopted nucleolus (compartment-summary selection 1.1.0)"),
     ECCENTRICITY: ("area-weighted mean over the nucleus's adopted nucleoli of sqrt(1 − λmin/λmax) of each object's "
                    "pixel-centre covariance; one-pixel objects are not measured (compartment-summary selection 1.1.0)"),
+    LARGEST: ("pixel area of the nucleus's largest adopted nucleolus / pixel area of its adopted nucleoli together, per "
+              "nucleus with at least one adopted nucleolus (compartment-summary selection 1.1.0, as the nucleus table)"),
 }
 SAFE_ERROR_CODES = frozenset({
     "compartment_summary_source_required", "compartment_summary_unavailable",
@@ -151,7 +156,7 @@ def prepare_compartment_observations(report, field_snapshot, selector, summaries
     summaries = summaries or {}
     if set(summaries) != {field["field_id"] for field in fields}:
         raise ValueError("compartment_summary_unavailable" if not summaries else "compartment_summary_coverage_mismatch")
-    if selector.metric == ECCENTRICITY and (shapes is None or set(shapes) != set(summaries)):
+    if selector.metric in SHAPE_SUMMARIES and (shapes is None or set(shapes) != set(summaries)):
         raise ValueError("compartment_summary_shape_unavailable")
     by_region = {(row["field_id"], row["region_id"]): row for row in regions}
     field_exclusions = {item["field_id"]: item["reason"] for item in report.get("exclusions", [])
@@ -179,12 +184,15 @@ def prepare_compartment_observations(report, field_snapshot, selector, summaries
             elif row["nucleolar_area_px"] == 0:
                 # A candidate-free parent does not establish zero nucleoli (protocol 1.0.1).
                 value, reason = None, "no_nucleolus"
-            elif selector.metric == ECCENTRICITY:
+            elif selector.metric in SHAPE_SUMMARIES:
                 shape = shapes[fid].get(nid)
                 # The shapes must describe exactly the nucleoli this summary counted.
                 if shape is None or shape["objects"] != row["nucleolar_count"]:
                     raise ValueError("compartment_summary_shape_mismatch")
-                value, reason = shape["nucleolar_eccentricity"], shape["missing_reason"]
+                if selector.metric == ECCENTRICITY:
+                    value, reason = shape["nucleolar_eccentricity"], shape["missing_reason"]
+                else:
+                    value, reason = shape[LARGEST], None
             elif selector.metric == "nucleolar_area_um2":
                 calibration = field["calibration"]
                 if calibration is None:

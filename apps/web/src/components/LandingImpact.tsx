@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
 import lp from "./optical-landing.module.css";
 
 /** The future research can lead to, ending with the patients it is for. */
@@ -7,12 +10,29 @@ const PATH = [
   ["患者へ届ける"],
 ];
 
+/** Once, when the path comes into view, its line runs from the research to the patient and the last step lights
+ *  up. With reduced motion, and until then, the path stands complete. */
 export function LandingImpact() {
+  const path = useRef<HTMLOListElement>(null);
+  const [state, setState] = useState<"still" | "waiting" | "arrived">("still");
+  useEffect(() => {
+    const node = path.current;
+    if (!node || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const box = node.getBoundingClientRect();
+    // A path already on screen (a reload further down the page) stays as it is.
+    if (box.top < innerHeight && box.bottom > 0) return;
+    setState("waiting");
+    // Most of the path should be in view first; on a window shorter than the path, as much as the window can show.
+    const threshold = Math.min(0.6, (innerHeight / Math.max(1, box.height)) * 0.8);
+    const seen = new IntersectionObserver(([entry]) => { if (entry.isIntersecting) { setState("arrived"); seen.disconnect(); } }, { threshold });
+    seen.observe(node);
+    return () => seen.disconnect();
+  }, []);
   return <section id="impact" className={lp.impact} data-tone="dark" aria-labelledby="impact-title">
     <div className={lp.wide}>
       <div className={lp.impactPanel}>
         <h2 id="impact-title" className={lp.impactTitle} aria-label="研究の先に、待っている患者さんがいる。"><span>研究の先に、</span><span><span>待っている</span><span>患者さんがいる。</span></span></h2>
-        <ol className={lp.path} aria-label="研究から患者さんまで">
+        <ol ref={path} className={lp.path} data-state={state} aria-label="研究から患者さんまで">
           {PATH.map(lines => <li key={lines[0]}><b>{lines.map(line => <span key={line}>{line}</span>)}</b></li>)}
         </ol>
       </div>
