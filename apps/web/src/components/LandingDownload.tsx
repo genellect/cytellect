@@ -34,11 +34,11 @@ export async function LandingDownload() {
     <div id="guide" className={[lp.wide, lp.faq].join(" ")}>
       <h2 className={lp.faqTitle}>よくある質問</h2>
       <div className={lp.faqList}>
-        <details><summary>料金は？</summary><p>Windows版は無料です。GPU推論とLLMを使う研究室のクラウドは応相談で、大学内での試験導入は基本無料です。</p></details>
-        <details><summary>画像はPCの外に出ますか？</summary><p>Windows版では出ません。画像も結果も、あなたのPCの中だけに保存します。クラウドのGPUで検出するときは、検出に使う画像だけを送り、クラウドには残しません。LLMに解析を相談するときは、書いた目的、チャンネル名や視野の記録、代表的な視野の縮小画像を、あなたが同意した範囲で送ります。縮小画像は設定で止められます。</p></details>
-        <details><summary>どのPCで使えますか？</summary><p>Windows 10または11（64ビット）、メモリ8 GB以上、空き容量6 GB以上。管理者権限もコマンド入力も要りません。</p></details>
-        <details><summary>GPU推論とLLMを使うには？</summary><p>導入のご相談のあと、研究室のメールアドレスを登録します。あとは作業画面で、メールに届くコードを入れるだけです。</p><a data-lp-event="consult" href={CONTACT_URL} target="_blank" rel="noopener noreferrer">研究室で導入を相談 <Out /></a></details>
-        <details id="launch"><summary>インストール済みの場合は？</summary><p>デスクトップの「Cytellect」から開けます。作業画面が開かないときは、起動画面の「作業画面を開く」を押してください。</p></details>
+        <details><summary>料金</summary><p>Windows版は無料です。GPU推論とLLMを使う研究室のクラウドは応相談で、大学内での試験導入は基本無料です。</p></details>
+        <details><summary>画像とデータの取り扱い</summary><p>Windows版では、画像も結果も、あなたのPCの中だけに保存します。クラウドのGPUで検出するときは、検出に使う画像だけを送り、クラウドには残しません。LLMに解析を相談するときは、書いた目的、チャンネル名や視野の記録、代表的な視野の縮小画像を、あなたが同意した範囲で送ります。縮小画像は設定で止められます。</p></details>
+        <details><summary>動作環境</summary><p>Windows 10または11（64ビット）、メモリ8 GB以上、空き容量6 GB以上。管理者権限もコマンド入力も要りません。</p></details>
+        <details><summary>GPU推論とLLMの利用</summary><p>導入のご相談のあと、研究室のメールアドレスを登録します。あとは作業画面で、メールに届くコードを入れるだけです。</p><a data-lp-event="consult" href={CONTACT_URL} target="_blank" rel="noopener noreferrer">研究室で導入を相談 <Out /></a></details>
+        <details id="launch"><summary>インストール後の起動</summary><p>デスクトップの「Cytellect」から開けます。作業画面が開かないときは、起動画面の「作業画面を開く」を押してください。</p></details>
       </div>
       <p className={lp.faqContact}>ほかのご質問は、<a data-lp-event="contact" href={CONTACT_URL} target="_blank" rel="noopener noreferrer">お問い合わせ <Out /></a>から。</p>
     </div>

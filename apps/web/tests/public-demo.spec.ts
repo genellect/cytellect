@@ -38,7 +38,7 @@ test("unconfigured public build makes no analysis connection",async({page})=>{
   await expect(next).toHaveCount(0);
   // Free and cloud are told apart; the cloud is adopted through the contact form.
   await expect(page.locator("#download").getByRole("link",{name:/研究室で導入を相談/}).first()).toHaveAttribute("href","https://yuto-matsui.com/contact/");
-  await page.getByText("画像はPCの外に出ますか？",{exact:true}).click();
+  await page.getByText("画像とデータの取り扱い",{exact:true}).click();
   await expect(page.getByText(/検出に使う画像だけを送り、クラウドには残しません。/)).toBeVisible();
  }else{
   await expect(page.locator("#download").getByRole("link",{name:/Microsoft Store で入手/})).toBeVisible();

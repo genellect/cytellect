@@ -1,12 +1,13 @@
 import * as THREE from "three";
 
 /** The hero's own 3D space: the visitor stands inside the film. Six screens close into a hexagonal room and all
- *  play the hero film; the one ahead fills most of the view, its neighbours stand at an angle on either side,
- *  and the polished floor and ceiling carry their reflections. Where two screens meet stands a column of light,
- *  blue rising to cyan, and the columns the pointer looks towards burn brighter. The pointer turns the view, a drag or a flick
- *  spins the room with inertia and it settles facing the nearest screen; touch does the same sideways and
- *  leaves vertical scrolling to the page. The footage passes through unchanged (no colour management, no tone
- *  mapping). */
+ *  play the hero film. At rest the screen ahead covers the whole view, so the hero is the film itself, still and
+ *  clean; the pointer only shifts the view by a degree, enough to give the picture depth. The room shows itself
+ *  when the visitor takes hold: a drag or a flick pulls the view back, the neighbouring screens, the polished
+ *  floor and ceiling and the columns of light where two screens meet come into sight, the room spins with
+ *  inertia, settles facing the nearest screen and the view closes on the film again. Touch does the same
+ *  sideways and leaves vertical scrolling to the page. The footage passes through unchanged (no colour
+ *  management, no tone mapping). */
 export type HeroSpace = {
   /** The playing hero film, or null for its poster. */
   film(video: HTMLVideoElement | null): void;
@@ -16,8 +17,9 @@ export type HeroSpace = {
 
 const SIDES = 6, WIDTH = 16, HEIGHT = 9, STEP = (Math.PI * 2) / SIDES;
 const APOTHEM = WIDTH / (2 * Math.tan(Math.PI / SIDES));
-/** How much of the view the screen ahead takes at rest; the rest shows the room around it. */
-const FILL = 0.84;
+/** How much of the view the screen ahead takes: a little more than all of it at rest (the margin is what the
+ *  pointer's look uses, so no seam ever shows), and most of it while the room is held or turning. */
+const REST = 1.06, ROOM = 0.84;
 /** Where the hero's copy leaves the film free: on a narrow screen the view rests a little right of centre. */
 const FOCUS = 0.62;
 const GROUND = 0x05070d;
@@ -109,7 +111,7 @@ export async function mountHeroSpace(host: HTMLElement, surface: HTMLElement, po
   const strip = new THREE.PlaneGeometry(5.2, HEIGHT * 2.6);
   const columns = Array.from({ length: SIDES }, (_, k) => {
     const angle = (k + 0.5) * STEP;
-    const material = new THREE.ShaderMaterial({ vertexShader: VERTEX, fragmentShader: COLUMN, transparent: true, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: { lit, power: { value: 0.6 } } });
+    const material = new THREE.ShaderMaterial({ vertexShader: VERTEX, fragmentShader: COLUMN, transparent: true, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: { lit, power: { value: 0 } } });
     const mesh = new THREE.Mesh(strip, material);
     mesh.position.set(Math.sin(angle) * (RADIUS - 0.2), 0, -Math.cos(angle) * (RADIUS - 0.2));
     mesh.rotation.y = -angle;
@@ -119,19 +121,23 @@ export async function mountHeroSpace(host: HTMLElement, surface: HTMLElement, po
   });
 
   let width = 1, height = 1, active = true, frame = 0, last = performance.now(), rest = 0, spanX = 1;
-  const born = last;
   // The view: where the room has been spun to (yaw), and the look the pointer adds on top of it.
   let yaw = 0, speed = 0, held = false, lastX = 0, lastT = 0;
+  // How far the room is shown: 0 with the film covering the view, 1 with the view pulled back into the room.
+  let shown = 0;
   const look = { x: 0, y: 0, tx: 0, ty: 0 };
   let video: HTMLVideoElement | null = null, videoTexture: THREE.VideoTexture | null = null;
 
   const resize = () => {
     width = Math.max(1, host.clientWidth); height = Math.max(1, host.clientHeight);
     renderer.setSize(width, height, false);
-    const aspect = width / height;
-    camera.aspect = aspect;
-    // The screen ahead takes FILL of the view's height, or of its width on a very wide screen.
-    const half = Math.min(HEIGHT / 2 / FILL, WIDTH / 2 / FILL / aspect);
+    camera.aspect = width / height;
+    view(REST + (ROOM - REST) * shown);
+  };
+  /** Frames the screen ahead so that it takes `fill` of the view (of its height, or of its width on a very wide
+   *  screen). */
+  const view = (fill: number) => {
+    const aspect = width / height, half = Math.min(HEIGHT / 2 / fill, WIDTH / 2 / fill / aspect);
     camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(half / APOTHEM));
     camera.updateProjectionMatrix();
     spanX = 2 * Math.atan(half * aspect / APOTHEM);
@@ -142,29 +148,34 @@ export async function mountHeroSpace(host: HTMLElement, surface: HTMLElement, po
 
   const draw = (now: number) => {
     frame = 0;
-    const dt = Math.min(0.05, (now - last) / 1000), time = (now - born) / 1000;
+    const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
+    const nearest = Math.round(yaw / STEP) * STEP;
     if (!held) {
       // A released room keeps turning, slows, and settles facing the nearest screen.
       yaw += speed * dt;
       speed *= Math.exp(-dt * 2.4);
-      const nearest = Math.round(yaw / STEP) * STEP;
       if (Math.abs(speed) < 0.6) { yaw += (nearest - yaw) * (1 - Math.exp(-dt * 4.5)); speed *= Math.exp(-dt * 6); }
     }
+    // The view pulls back while the room is held or still turning, and closes on the film as it settles.
+    const want = held ? 1 : Math.min(1, Math.abs(yaw - nearest) / (STEP * 0.2) + Math.abs(speed) / 1.2);
+    shown += (want - shown) * (1 - Math.exp(-dt * (want > shown ? 7 : 2.4)));
+    if (shown < 0.0005 && want === 0) shown = 0;
+    const open = shown * shown * (3 - 2 * shown);
+    view(REST + (ROOM - REST) * open);
     look.x += (look.tx - look.x) * (1 - Math.exp(-dt * 3.4)); look.y += (look.ty - look.y) * (1 - Math.exp(-dt * 3.4));
-    // The room swings into place once, as the page opens.
-    const arrive = 1 - Math.min(1, time / 2.2), opening = arrive * arrive * arrive;
-    lit.value = Math.min(1, time / 1.1);
+    lit.value = 1;
     room.rotation.y = yaw;
     camera.position.x = rest;
-    camera.rotation.y = -look.x * 0.34 + opening * 0.95 + Math.sin(time * 0.31) * 0.012;
-    camera.rotation.x = look.y * 0.14 + Math.sin(time * 0.23) * 0.006;
+    // At rest the pointer shifts the view by about a degree; inside the shown room it may look further.
+    camera.rotation.y = -look.x * (0.016 + 0.1 * open);
+    camera.rotation.x = look.y * (0.008 + 0.05 * open);
     eye.value.copy(camera.position);
-    // The columns the view is turned towards burn brighter.
+    // The columns light as the room shows, and the ones the view is turned towards burn brighter.
     const facing = camera.rotation.y - room.rotation.y;
     for (const column of columns) {
       const off = Math.atan2(Math.sin(-column.angle - facing), Math.cos(-column.angle - facing));
-      const target = 0.42 + 0.5 * Math.exp(-off * off * 3.2);
+      const target = (0.42 + 0.5 * Math.exp(-off * off * 3.2)) * open;
       column.material.uniforms.power.value += (target - column.material.uniforms.power.value) * (1 - Math.exp(-dt * 4));
     }
     onLook?.(look.x, look.y);

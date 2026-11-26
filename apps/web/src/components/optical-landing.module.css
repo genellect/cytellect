@@ -390,7 +390,7 @@
 .page [data-tilt]{transform:perspective(1000px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));transition:transform .4s cubic-bezier(.2,.7,.1,1);will-change:transform}
 .page[data-world="dark"] .loop li::after{content:"";position:absolute;inset:-1px;border-radius:inherit;background:radial-gradient(300px circle at var(--lx,50%) var(--ly,50%),#7fb6ff33,#7fb6ff00 70%);opacity:var(--lit,0);pointer-events:none}
 /* The hero's copy stands a little in front of its room. */
-.hero[data-space="ready"] .heroCopy{transform:translate3d(calc(var(--look-x,0) * -14px),calc(var(--look-y,0) * 8px),0)}
+.hero[data-space="ready"] .heroCopy{transform:translate3d(calc(var(--look-x,0) * -5px),calc(var(--look-y,0) * 3px),0)}
 
 /* ── The patient path: once, as it comes into view, the line runs to the patient and the steps follow it. */
 .path[data-state="waiting"] li{opacity:0}
@@ -490,7 +490,10 @@
 .page[data-world="dark"] .invite::before{background:linear-gradient(180deg,var(--ground) 0%,#05070d00 20%),linear-gradient(0deg,var(--ground) 0%,#05070dd1 18%,#05070d8c 40%,#05070d14 72%),linear-gradient(90deg,#05070d80,#05070d00 62%)}
 .page[data-world="dark"] .journey::before{background:linear-gradient(90deg,#4d7cff40,#6fc3ffb3 60%,var(--cyan))}
 .page[data-world="dark"] .stop::before{background:#cfe3ff}
-.page[data-world="dark"] .stop+.stop::before{background:var(--cyan);box-shadow:0 0 48px 14px #42d9ff59}
+.page[data-world="dark"] .stop+.stop::before{background:var(--cyan);box-shadow:0 0 28px 4px #42d9ff40}
+/* The lab's step is a consultation, not the page's main action: a quiet line of text with a rule under it. */
+.page[data-world="dark"] .stop>.secondary{gap:10px;min-height:44px;padding:0;border:0;border-bottom:1px solid #9db8ff80;border-radius:0;background:none;font-size:15px;font-weight:500;transition:border-color .2s,color .2s}
+.page[data-world="dark"] .stop>.secondary:hover{border-color:var(--cyan);background:none;color:#fff!important}
 .page[data-world="dark"] .stop>p{color:#d3d9e6}
 .page[data-world="dark"] .nextSteps{background:#0b101b;box-shadow:0 0 0 1px var(--edge),0 18px 40px #000}
 .page[data-world="dark"] .nextSteps::before{background:#0b101b}
@@ -499,6 +502,7 @@
   .page[data-world="dark"] .header>div>nav{background:#0b101b;border-color:var(--edge)}
 }
 @media(max-width:760px){
+  .page[data-world="dark"] .stop:first-child::after{background:linear-gradient(180deg,#4d7cff40,#6fc3ffb3 60%,var(--cyan))}
   .page[data-world="dark"] .heroShade{background:linear-gradient(180deg,#05070dc2 0%,#05070d8c 46%,#05070d00 78%)}
   .page[data-world="dark"] :is(.hero .primary,.invite .primary){gap:12px;min-height:50px;padding:0 20px;font-size:15px}
   .page[data-world="dark"] .demoBar a{min-height:56px;padding:0 24px}
