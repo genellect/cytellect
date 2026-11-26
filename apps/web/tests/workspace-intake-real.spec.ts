@@ -14,7 +14,7 @@ const inputs = process.env.CYTELLECT_REAL_INPUTS, python = process.env.CYTELLECT
 const api = process.env.CYTELLECT_TEST_API_ORIGIN, origin = process.env.CYTELLECT_WEB_URL;
 const bbbc013 = path.resolve(__dirname, "../../../fixtures/public/bbbc013");
 type Payload = {name:string;mimeType:string;buffer:Buffer};
-interface Entry {id:string;field_id:string|null;intake?:{names:string[];state:string;code?:string;target?:{group_id:string;run_id:string}}}
+interface Entry {id:string;field_id:string|null;intake?:{names:string[];state:string;stage?:string;code?:string;target?:{group_id:string;run_id:string}}}
 
 async function files() {
   const manifest = JSON.parse(await readFile(path.join(inputs!, "manifest.json"), "utf8"));
@@ -29,7 +29,8 @@ async function files() {
   return {
     bbbc007: [tiff("BBBC007-a9-C01.tif", a9dna), tiff("BBBC007-a9-C02.tif", a9actin), tiff("BBBC007-f9620-C01.tif", f9620dna), tiff("BBBC007-f9620-C02.tif", f9620actin)],
     copy: tiff("BBBC007-a9-C01.tif", a9dna), truncated: tiff("test-truncated-DRAQ.tif", truncated),
-    conflict: tiff("BBBC007-a9_c01.tif", truncated), mask: tiff("BBBC007-a9-核の手動輪郭.tif", mask),
+    // A readable image with other bytes under a9's C01 name (BBBC013 A01's DRAQ): a name conflict, not a copy.
+    conflict: tiff("BBBC007-a9_c01.tif", draq), mask: tiff("BBBC007-a9-核の手動輪郭.tif", mask),
     text: {name:"読み方.txt", mimeType:"text/plain", buffer:Buffer.from("BBBC007")}, a01: [tiff("A01-DRAQ.tif", draq), tiff("A01-GFP.tif", gfp)],
   };
 }
@@ -45,32 +46,36 @@ async function signIn(page:Page) {
 const workspaceId = (page:Page) => new URL(page.url()).searchParams.get("id")!;
 async function entries(page:Page):Promise<Entry[]> {return (await (await page.request.get(`${api}/v1/workspaces/${workspaceId(page)}/selection`)).json()).entries;}
 const status = (page:Page, text:string) => page.getByRole("status").filter({hasText:text});
+const list = (page:Page) => page.getByRole("region", {name:"取り込みの一覧"});
+const addListed = (page:Page) => list(page).getByRole("button", {name:"追加", exact:true}).click();
 const fieldCards = (page:Page) => page.getByRole("complementary", {name:"視野一覧"}).getByRole("button").filter({hasText:/BBBC007|A01/});
 
-test.describe("#284 W1 intake against the real API", () => {
+test.describe("#284 W1, W4, W5 intake against the real API", () => {
   test.skip(!inputs || !python || !data || !api || !origin, "Requires the registered public inputs and an isolated API");
   test.beforeEach(() => {test.setTimeout(300000);});
 
-  test("control A and input 5: a copy is not a field, refused images are named and counted, and nothing asks for a reason", async ({page}) => {
+  test("control A and input 5: the list adds up, a copy is not a field, an unreadable file is recorded, and nothing asks for a reason", async ({page}) => {
     const input = await files();await signIn(page);
     await page.getByTestId("file-input").setInputFiles([...input.bbbc007, input.copy, input.truncated, input.mask, input.text]);
-    await page.getByRole("button", {name:/^実験デザインなしで登録/}).click();
-    await expect(status(page, "登録：2 視野 · 読み取れない：1 件 · マスクの候補：1 件 · 同一内容：1 件 · 対象外：1 件")).toBeVisible({timeout:120000});
+    // Judged by the API before anything is registered (W4): the parts add up to the 8 files received.
+    await expect(list(page).getByRole("status")).toHaveText("受け取り：8 · 画像：4（2 視野） · マスクの候補：1 · 同一内容：1 · 読み取れない：1 · 対象外：1", {timeout:120000});
+    await expect(list(page).getByRole("row").filter({hasText:"BBBC007-a9-核の手動輪郭.tif"})).toContainText("寸法の一致：BBBC007-a9");
+    await expect(list(page).getByRole("row").filter({hasText:"test-truncated-DRAQ.tif"})).toContainText("読み取り不可");
+    await expect(list(page).getByRole("row").filter({hasText:"同一内容"})).toContainText("対応先：BBBC007-a9-C01.tif");
+    expect(await entries(page).catch(() => [])).toEqual([]);
+    await addListed(page);
+    await expect(status(page, "登録：2 視野")).toBeVisible({timeout:120000});
     await expect(fieldCards(page)).toHaveCount(2);
     await expect(page.getByRole("alert").filter({hasText:/\S/})).toHaveCount(0);
-    const list = page.locator("details").filter({hasText:/^取込 \d+件/});
-    await expect(list.locator("li").filter({hasText:"BBBC007-a9-C01.tif：同一内容 · BBBC007-a9-C01.tif"})).toBeVisible();
-    await expect(list.locator("li").filter({hasText:"test-truncated-DRAQ.tif：読み取り不可"})).toBeVisible();
-    await expect(list.locator("li").filter({hasText:"BBBC007-a9-核の手動輪郭.tif：マスクの候補 · 32-bit 整数ラベル"})).toBeVisible();
-    await expect(list.locator("li").filter({hasText:"読み方.txt：対象外 · TIFF 以外"})).toBeVisible();
     await expect(page.getByLabel(/除外の理由/)).toHaveCount(0);
     const saved = await entries(page);
     expect(saved.filter(entry => entry.field_id).map(entry => entry.intake?.names).sort()).toEqual([["BBBC007-a9-C01.tif", "BBBC007-a9-C02.tif"], ["BBBC007-f9620-C01.tif", "BBBC007-f9620-C02.tif"]]);
-    expect(saved.filter(entry => !entry.field_id).map(entry => [entry.intake?.names[0], entry.intake?.state, entry.intake?.code]).sort())
-      .toEqual([["BBBC007-a9-核の手動輪郭.tif", "rejected", "region_image_bit_depth_unsupported"], ["test-truncated-DRAQ.tif", "rejected", "unsupported_or_invalid_region_image"]]);
-    // A restart keeps the names and reasons (#284 involvement 3).
+    // Only the unreadable file is a row (stage inspect); the mask candidate is not missing data.
+    expect(saved.filter(entry => !entry.field_id).map(entry => [entry.intake?.names[0], entry.intake?.state, entry.intake?.stage, entry.intake?.code]))
+      .toEqual([["test-truncated-DRAQ.tif", "rejected", "inspect", "unsupported_or_invalid_region_image"]]);
+    // A restart keeps the name and reason (#284 involvement 3).
     await page.reload();
-    await page.getByText("取込 2件", {exact:true}).click();
+    await page.getByRole("button", {name:"取込 1件", exact:true}).click();
     await expect(page.locator("li").filter({hasText:"test-truncated-DRAQ.tif：読み取り不可"})).toBeVisible();
     await expect(page.getByText(/名称不明|名前の記録なし/)).toHaveCount(0);
     await expect(fieldCards(page)).toHaveCount(2);
@@ -79,12 +84,14 @@ test.describe("#284 W1 intake against the real API", () => {
   test("control B: a name conflict holds its own field only, and choosing the right files again registers it", async ({page}) => {
     const input = await files();await signIn(page);
     await page.getByTestId("file-input").setInputFiles([...input.bbbc007, input.conflict]);
-    await page.getByRole("button", {name:/^実験デザインなしで登録/}).click();
+    await expect(list(page).getByRole("status")).toHaveText("受け取り：5 · 画像：5（2 視野）", {timeout:120000});
+    await addListed(page);
     await expect(status(page, "登録：1 視野 · 要確認：1 視野")).toBeVisible({timeout:120000});
     await expect(page.locator("li").filter({hasText:"要確認 · 同じ視野・チャンネルに 2 枚"})).toContainText("BBBC007-a9-C01.tif、BBBC007-a9_c01.tif、BBBC007-a9-C02.tif");
     await expect(fieldCards(page)).toHaveCount(1);
     await expect(fieldCards(page)).toContainText("BBBC007-f9620");
     await page.getByTestId("file-input").setInputFiles(input.bbbc007.slice(0, 2));
+    await addListed(page);
     await expect(status(page, "登録：1 視野")).toBeVisible({timeout:120000});
     await expect(page.getByText(/要確認/)).toHaveCount(0);
     await expect(fieldCards(page)).toHaveCount(2);
@@ -105,8 +112,12 @@ test.describe("#284 W1 intake against the real API", () => {
       await (await chooser).setFiles(payloads);
     };
     await addTo(control.label, [...input.bbbc007, input.truncated]);
-    await expect(status(page, "登録：2 視野 · 読み取れない：1 件")).toBeVisible({timeout:120000});
+    await expect(list(page).getByRole("status")).toHaveText("受け取り：5 · 画像：4（2 視野） · 読み取れない：1", {timeout:120000});
+    await addListed(page);
+    await expect(status(page, "登録：2 視野")).toBeVisible({timeout:120000});
     await addTo(treated.label, input.a01);
+    await expect(list(page).getByRole("status")).toHaveText("受け取り：2 · 画像：2（1 視野）", {timeout:120000});
+    await addListed(page);
     await expect(status(page, "登録：1 視野")).toBeVisible({timeout:120000});
     const placed = async () => {const fields = (await specification()).experiment.fields as Record<string, {group_id:string}>;
       return Object.values(fields).reduce<Record<string, number>>((count, value) => ({...count, [value.group_id]:(count[value.group_id] ?? 0) + 1}), {});};

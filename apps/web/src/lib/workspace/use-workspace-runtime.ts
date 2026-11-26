@@ -641,6 +641,20 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       const row=adapter.selection()?.entries.find(value=>value.id===entry&&!value.field_id);if(!row)throw new Error("差し替えには、保存状態の再読み込みが必要です。");
       return intake(Array.from(list),"automatic",row.intake?.target??null,{entry});
     });},
+    /** Registers a copy the researcher recorded as a separate acquisition (from the list before adding, #284 W5). */
+    importSeparately(list:File[],target?:IntakeTarget|null){return exclusive("別の撮影として追加中",()=>intake(list,"automatic",target??null,{separate:true}));},
+    /** Records files the judgement before adding found unreadable, as rows with their reason (stage inspect, W5). */
+    recordRefused(refused:Array<{names:string[];code:string;target:IntakeTarget|null}>){return exclusive("取り込みの記録を保存中",async()=>{
+      if(!refused.length)return;
+      if(!state.data?.workspaceId){const created=await adapter.create();replaceData({...emptyData(),workspaceId:created.id,title:created.title});}else await checkCurrent();
+      for(const item of refused){if((adapter.selection()?.entries.length??0)>=LEDGER_LIMIT)break;
+        await adapter.registerImport(workspace(),crypto.randomUUID(),{names:item.names,state:"rejected",stage:"inspect",code:item.code,...(item.target?{target:item.target}:{})});}
+      await refresh(workspace());
+    });},
+    /** What the list before adding compares against: the hashes of registered inputs and each field's size. */
+    registeredFacts(){const known=new Map<string,string>(),fields:Array<{name:string;shape:readonly number[]}>=[];
+      for(const field of registered.values()){const name=names.get(field.id)||field.display_name||field.id;fields.push({name,shape:field.image_info.shape});for(const input of Object.values(field.image_info.inputs??{}))known.set(input.sha256,name);}
+      return {known,fields};},
     /** "記録から削除": removes the row of an image that never became a field. Registered fields are not touched. */
     cancelImport(entry:string){return exclusive("取り込みの行を削除中",async()=>{await checkCurrent();await adapter.removeImport(workspace(),entry);forgetEntry(entry);await refresh(workspace());});},
     /** Records that a copy (same pixels as another image) is a separate acquisition, and registers it. */

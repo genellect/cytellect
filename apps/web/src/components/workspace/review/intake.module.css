@@ -1,0 +1,30 @@
+/* #284 W5: the empty image stage and the intake list share the stage of the image viewer. */
+.start{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:32px 24px;background:#0b1220;color:#e8edf4;text-align:center;border:1px dashed #33415a;border-radius:6px;margin:12px}
+.start h1{margin:0;font-size:24px;font-weight:650;letter-spacing:.02em}
+.startActions,.listActions,.rowActions{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.start button{font:inherit;padding:8px 16px;border-radius:6px;border:1px solid #4a5a75;background:#16233a;color:#e8edf4;cursor:pointer}
+.start .primary,.list .primary{background:#2563eb;border-color:#2563eb;color:#fff}
+.start button:disabled{opacity:.5;cursor:default}
+.drop{margin:0;font-size:13px;color:#a9b6c8}
+.samples{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:20px;justify-content:center}
+.samples li{display:flex;align-items:center;gap:10px;text-align:left;font-size:12px;color:#a9b6c8;max-width:200px}
+.samples strong{display:block;font-size:13px;color:#e8edf4;font-weight:600}
+.sample{width:56px;height:56px;border-radius:4px;flex:none;outline:1px solid #33415a}
+.alternatives{display:flex;gap:16px;margin:4px 0 0}
+.start .link{background:none;border:0;padding:0;color:#a9b6c8;text-decoration:underline;font-size:13px}
+.list{flex:1;min-height:0;overflow:auto;margin:12px;padding:12px 14px;background:#fff;border:1px solid var(--line);border-radius:6px;font-size:14px}
+.listHeader{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;margin-bottom:8px}
+.listHeader p{margin:0;font-weight:600;font-variant-numeric:tabular-nums}
+.list button{font:inherit;font-size:13px;padding:5px 10px;border-radius:5px;border:1px solid var(--line);background:#fff;cursor:pointer}
+.list button:disabled{opacity:.5;cursor:default}
+.table{width:100%;border-collapse:collapse}
+.table th,.table td{text-align:left;padding:6px 8px;border-top:1px solid var(--line);vertical-align:middle}
+.table thead th{border-top:0;font-size:12px;font-weight:500;color:#66717f}
+.table tbody th{font-weight:500;overflow-wrap:anywhere}
+.table small{display:block;font-size:12px;color:#66717f;font-weight:400}
+.table tr[data-state="読み取れない"] td:nth-child(4){color:#9a3412}
+.thumb{display:block;width:40px;height:40px;object-fit:cover;border-radius:3px;background:#0b1220}
+.rowActions{justify-content:flex-end}
+.list .remove{border:0;background:none;font-size:16px;line-height:1;padding:2px 6px;color:#66717f}
+.hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+@media(max-width:620px){.samples{flex-direction:column;align-items:flex-start}.table thead{display:none}.table td:nth-child(3){display:none}}

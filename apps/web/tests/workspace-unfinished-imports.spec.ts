@@ -47,6 +47,12 @@ async function serve(page:Page,context:BrowserContext,options:{existing?:boolean
       if(method==="PUT"){const body=request.postDataJSON();if(body.version!==state.specification.version)return json({detail:"analysis_spec_changed"},409);state.specification={version:state.specification.version+1,spec:body.spec};}
       return json(state.specification);
     }
+    // The judgement before adding (W4): the same refusals as registration, read from the file's bytes and name.
+    if(path==="/v1/intake/inspect"){const upload=request.postDataBuffer()!.toString();
+      if(upload.includes("labels"))return json({kind:"native",role:"label",code:"region_image_bit_depth_unsupported",sha256:"1".repeat(64),bytes:4,shape:[32,32],dtype:"int32",channel_names:null,thumbnail_png:null});
+      if(upload.includes("BAD"))return json({kind:"native",role:"unreadable",code:"unsupported_or_invalid_region_image",sha256:"2".repeat(64),bytes:3,shape:null,dtype:null,channel_names:null,thumbnail_png:null});
+      return json({kind:"native",role:"image",code:null,sha256:"3".repeat(64),bytes:4,shape:[32,32],dtype:"uint16",channel_names:null,thumbnail_png:null});}
+    if(path.endsWith("/assistant-messages"))return json({messages:[]});
     if(path.endsWith("/channel-assignments"))return json({version:0,assignments:[],global_field_ids:[],groups:[]});
     if(path.endsWith("/field-links"))return json({version:0,entries:[]});
     if(path.endsWith("/revisions")||path.endsWith("/jobs")||path.endsWith("/runs"))return json([]);
@@ -58,45 +64,44 @@ async function serve(page:Page,context:BrowserContext,options:{existing?:boolean
 }
 const tiff=(name:string,content:string)=>({name,mimeType:"image/tiff",buffer:Buffer.from(content)});
 
-test("a refused image never stops the others, keeps its name and reason after a reload, and is replaced or removed without a reason",async({page,context})=>{
+test("a refused image never stops the others, keeps its name and reason after a reload, and is replaced without a reason",async({page,context})=>{
   const state=await serve(page,context,{existing:true});
   const loaded=page.waitForResponse(response=>new URL(response.url()).pathname.endsWith("/analysis-spec"));
   await page.goto("/workspace?id=w");
   await loaded;
   await page.getByTestId("file-input").setInputFiles([tiff("A01_c1.tif","ok-1"),tiff("A01-labels.tif","mask"),tiff("broken_c1.tif","BAD"),{name:"読み方.txt",mimeType:"text/plain",buffer:Buffer.from("notes")}]);
-  await page.getByRole("button",{name:/^実験デザインなしで登録/}).click();
-  // The result of the choice, item by item; no alert, no reason to type.
-  await expect(page.getByRole("status").filter({hasText:"登録：1 視野 · 読み取れない：1 件 · マスクの候補：1 件 · 対象外：1 件"})).toBeVisible();
+  // Before adding, each file has its role and the parts add up to what was received (#284 input 5).
+  const list=page.getByRole("region",{name:"取り込みの一覧"});
+  await expect(list.getByRole("status")).toHaveText("受け取り：4 · 画像：1（1 視野） · マスクの候補：1 · 読み取れない：1 · 対象外：1");
+  await expect(list.getByRole("row").filter({hasText:"A01-labels.tif"})).toContainText("寸法の一致：A01");
+  await expect(list.getByRole("row").filter({hasText:"broken_c1.tif"})).toContainText("読み取り不可");
+  await expect(list.getByRole("row").filter({hasText:"読み方.txt"})).toContainText("TIFF 以外");
+  expect(state.selection.entries).toEqual([]);
+  await list.getByRole("button",{name:"追加",exact:true}).click();
+  await expect(page.getByRole("status").filter({hasText:"登録：1 視野"})).toBeVisible();
   await expect(page.getByRole("alert").filter({hasText:/\S/})).toHaveCount(0);
-  const list=page.locator("details").filter({hasText:/^取込 \d+件/});
-  await expect(list.locator("li").filter({hasText:"broken_c1.tif：読み取り不可"})).toBeVisible();
-  await expect(list.locator("li").filter({hasText:"A01-labels.tif：マスクの候補 · 32-bit 整数ラベル"})).toBeVisible();
-  await expect(list.locator("li").filter({hasText:"読み方.txt：対象外 · TIFF 以外"})).toBeVisible();
   await expect(page.getByLabel(/除外の理由/)).toHaveCount(0);
   await expect(page.getByText(/import-[0-9a-f]/)).toHaveCount(0);
+  // The unreadable file is recorded with its reason (stage: inspect); the mask candidate is not missing data.
   const rows=()=>state.selection.entries.filter(entry=>!entry.field_id);
-  expect(rows().map(entry=>[entry.intake?.names,entry.intake?.code]).sort()).toEqual([[["A01-labels.tif"],"region_image_bit_depth_unsupported"],[["broken_c1.tif"],"unsupported_or_invalid_region_image"]]);
-  // Statistics are not blocked by the refused images.
+  expect(rows().map(entry=>entry.intake)).toEqual([{names:["broken_c1.tif"],state:"rejected",stage:"inspect",code:"unsupported_or_invalid_region_image"}]);
+  // Statistics are not blocked by the refused image.
   await page.getByRole("button",{name:"統計",exact:true}).click();
   await expect(page.getByText(/比較の前に/)).toHaveCount(0);
-  // After a reload the rows keep their names and reasons (#284 involvement 3).
+  // After a reload the row keeps its name and reason (#284 involvement 3).
   const reloaded=page.waitForResponse(response=>new URL(response.url()).pathname.endsWith("/analysis-spec"));
   await page.reload();
   await reloaded;
-  await page.getByText("取込 2件",{exact:true}).click();
+  await page.getByRole("button",{name:"取込 1件",exact:true}).click();
   await expect(page.getByText("名称不明",{exact:true})).toHaveCount(0);
   const broken=page.locator("li").filter({hasText:"broken_c1.tif"});
   await expect(broken).toContainText("読み取り不可");
   // Replace: the same row is resolved; no new row.
-  const entry=rows().find(value=>value.intake?.names[0]==="broken_c1.tif")!.id;
+  const entry=rows()[0].id;
   await broken.getByRole("button",{name:"差し替え",exact:true}).click();
   await page.getByTestId("replace-input").setInputFiles([tiff("broken_c1.tif","ok-2")]);
   await expect(page.locator("li").filter({hasText:"broken_c1.tif"})).toHaveCount(0);
   expect(state.selection.entries.filter(value=>value.id===entry)).toEqual([expect.objectContaining({field_id:"field-2",intake:{names:["broken_c1.tif"],state:"registered"}})]);
-  // Remove: the mask candidate's row goes; the registered fields stay.
-  await page.getByText("取込 1件",{exact:true}).click();
-  await page.locator("li").filter({hasText:"A01-labels.tif"}).getByRole("button",{name:"記録から削除",exact:true}).click();
-  await expect(page.getByText(/^取込 \d+件$/)).toHaveCount(0);
   expect(state.selection.entries.map(value=>value.field_id)).toEqual(["field-1","field-2"]);
   expect(state.unexpected).toEqual([]);
   expect(state.pageErrors).toEqual([]);
@@ -115,11 +120,15 @@ test("images added in a group's cell go to that group, though another image of t
   const chooser=page.waitForEvent("filechooser");
   await cell.getByRole("button",{name:"画像を追加",exact:true}).click();
   await (await chooser).setFiles([tiff("BBBC007-a9-C01.tif","a9-1"),tiff("BBBC007-a9-C02.tif","a9-2"),tiff("BBBC007-f9620-C01.tif","f-1"),tiff("BBBC007-f9620-C02.tif","f-2"),tiff("test-truncated-DRAQ.tif","BAD")]);
-  await expect(page.getByRole("status").filter({hasText:"登録：2 視野 · 読み取れない：1 件"})).toBeVisible();
+  // The cell's run and group go with the files into the same list; 追加 registers them there.
+  const list=page.getByRole("region",{name:"取り込みの一覧"});
+  await expect(list.getByRole("row").filter({hasText:"BBBC007-a9"}).first()).toContainText(`追加先：${control.label}`);
+  await list.getByRole("button",{name:"追加",exact:true}).click();
+  await expect(page.getByRole("status").filter({hasText:"登録：2 視野"})).toBeVisible();
   await expect.poll(()=>Object.keys(design().fields??{}).sort()).toEqual(["field-1","field-2"]);
   expect(Object.values(design().fields!).every(value=>value.group_id===control.id&&value.run_id===design().runs![0].id)).toBe(true);
   // The refused image keeps its group, so the n breakdown counts it there.
-  expect(state.selection.entries.find(entry=>!entry.field_id)?.intake).toMatchObject({names:["test-truncated-DRAQ.tif"],state:"rejected",target:{group_id:control.id}});
+  expect(state.selection.entries.find(entry=>!entry.field_id)?.intake).toMatchObject({names:["test-truncated-DRAQ.tif"],state:"rejected",stage:"inspect",target:{group_id:control.id}});
   await expect(cell).toContainText("2 視野");
   expect(state.unexpected).toEqual([]);
   expect(state.pageErrors).toEqual([]);

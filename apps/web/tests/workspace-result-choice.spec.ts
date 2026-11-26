@@ -35,7 +35,12 @@ test("#257 SR-06: the chosen condition's own result opens in 統計 and グラ�
     described.push({metric: selection?.metric, channel: selection?.channel_id ?? null});
   });
   await page.getByTestId("file-input").setInputFiles(bytes.map((buffer, index) => ({name: `a9_c${index + 1}.tif`, mimeType: "image/tiff", buffer})));
-  await page.getByRole("button", {name: /^1 画面/}).click();
+  await page.getByRole("region",{name:"取り込みの一覧"}).getByRole("button",{name:"追加",exact:true}).click();
+  // One screen: the experiment view suggests its only run and group, applied by the researcher (#284 W5, W6).
+  await page.getByRole("navigation",{name:"作業の切替"}).getByRole("button",{name:"実験",exact:true}).click();
+  await page.getByRole("button",{name:/^1 画面/}).click();
+  await page.getByRole("region",{name:"群・実験回が未割り当ての視野"}).getByRole("button",{name:"案を適用",exact:true}).click();
+  await page.getByRole("navigation",{name:"作業の切替"}).getByRole("button",{name:"画像",exact:true}).click();
   await expect(page.getByRole("toolbar", {name: "画像の表示"}).getByRole("combobox", {name: "領域", exact: true})).toBeEnabled({timeout: 120_000});
   await page.locator("summary[aria-label='画像の設定']").click();
   await page.getByRole("button", {name: "染色対応", exact: true}).click();

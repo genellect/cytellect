@@ -58,9 +58,24 @@ changes settings or runs a preview, followed by 「解析設定を表示」 and 
 not sent; 「解析案を作る」 asks for a proposal from the images alone. A new workspace starts with an empty conversation and
 input, and reopening a workspace shows its messages again.
 
+An empty workspace opens on adding images ([#284](https://github.com/genellect/cytellect/issues/284) W5): the image
+stage offers 画像を選ぶ, フォルダーを選ぶ and a drop, the accepted formats in one line, and schematic samples of the
+measured fluorescence images, another stain of the same field and an outline mask. Chosen files go to the list first.
+Each file is judged by `POST /v1/intake/inspect` (one at a time; nothing is stored) and listed with its thumbnail
+and role: images grouped into the fields they will make with their channels (追加待ち, 読み込み中 while judged), a mask
+candidate with the fields of its size (寸法の一致), a copy with what it copies (同一内容, 別の撮影として追加), an
+unreadable file with its reason (差し替え), and a file that is not a TIFF (対象外). One line adds up the parts
+(「受け取り：8 · 画像：4（2 視野） · マスクの候補：1 · …」). Choices accumulate across selections, so another stain chosen
+later joins its field; 直前の選択を取り消し takes back the last choice only, and × removes one row. 追加 registers
+the fields (W1) and records the unreadable files as rows with stage `inspect`; 追加して AI に質問 then opens the AI
+input. The names of files not yet added are kept for this tab and come back after a reload as 「再選択」 rows (the
+browser cannot keep the files). Images added from a group's cell are listed with that run and group. The 取込
+button opens the same list with the saved rows. Choosing and judging go on while images register or an analysis runs;
+追加 waits for them. Development builds log the counts a choice delivered (no names or paths).
+
 Analysis progress is counted in fields ([#284](https://github.com/genellect/cytellect/issues/284) W8). Each field in the
 run has one state, shown the same way in the field list and beside the image: 準備中 (from a settings change or 測定 until
-the run is accepted), 待機, 検出中, 候補を確認, 採用中 and 失敗; once adopted the field shows its saved count. The header reads
+the run is accepted), 待機, 検出中, 検出候補 (candidates to review), 採用中 and 失敗; once adopted the field shows its saved count. The header reads
 「視野 1/2 · BBBC007-a9：核小体を検出中」. The run continues in the API, so a lost connection while following it is retried
 (「接続：確認中」) and never starts the same run again. When one field fails, the same run without it is requested
 again (its finished steps are reused, not recomputed) and the fields that succeeded are adopted; the failed field keeps

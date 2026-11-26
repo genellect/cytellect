@@ -28,7 +28,12 @@ test("nuclear and nucleolar candidates retain source identity and explicit adopt
   page.on("request",request=>{const p=new URL(request.url()).pathname;if(request.method()!=="POST")return;if(p.endsWith("/selection")||p.endsWith("/accept"))selectionWrites.push(p);if(p.endsWith("/runs"))runRequests.push(request.postDataJSON());if(p.endsWith("/proposal-drafts"))paidCalls++;});
   const created=page.waitForResponse(response=>new URL(response.url()).pathname==="/v1/workspaces"&&response.request().method()==="POST");
   await page.getByTestId("file-input").setInputFiles(bytes.map((buffer,index)=>({name:`a9_c${index+1}.tif`,mimeType:"image/tiff",buffer})));
+  await page.getByRole("region",{name:"取り込みの一覧"}).getByRole("button",{name:"追加",exact:true}).click();
+  // One screen: the experiment view suggests its only run and group, applied by the researcher (#284 W5, W6).
+  await page.getByRole("navigation",{name:"作業の切替"}).getByRole("button",{name:"実験",exact:true}).click();
   await page.getByRole("button",{name:/^1 画面/}).click();
+  await page.getByRole("region",{name:"群・実験回が未割り当ての視野"}).getByRole("button",{name:"案を適用",exact:true}).click();
+  await page.getByRole("navigation",{name:"作業の切替"}).getByRole("button",{name:"画像",exact:true}).click();
   const wid=(await (await created).json()).id as string;
   await expect(page.getByRole("toolbar",{name:"画像の表示"}).getByRole("combobox",{name:"領域",exact:true})).toBeEnabled();
   expect(runRequests).toHaveLength(0);

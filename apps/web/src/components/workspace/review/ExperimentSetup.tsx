@@ -1,12 +1,15 @@
 "use client";
 import {useEffect,useRef,useState} from "react";
-import {LABEL_LIMIT,savePlan,addRun,withAcquisition,assignFields,assignStratum,emptyDesign,expandToPair,fieldsIn,isStratified,issueText,labelProblem,readiness,removeRun,renameGroup,unassignField,updateRun,type ExperimentDesign} from "@/lib/workspace/experiment-design";
+import {LABEL_LIMIT,savePlan,addRun,withAcquisition,assignStratum,emptyDesign,expandToPair,fieldsIn,isStratified,issueText,labelProblem,readiness,removeRun,renameGroup,unassignField,updateRun,type ExperimentDesign} from "@/lib/workspace/experiment-design";
 import {experimentHeading,statusChips,summaryCounts,type SummaryField} from "@/lib/workspace/experiment-summary";
 import type {ShowcaseDataset} from "@/lib/showcase";
 import {StrataEditor} from "./StrataEditor";
+import {UnassignedFields} from "./UnassignedFields";
+import {suggestAssignments,suggestedGroups} from "@/lib/workspace/assignment-suggestions";
 import styles from "./experiment-setup.module.css";
 
-export interface SetupField extends SummaryField {label:string;preview?:string}
+/** `paths`: the file names the field was added with (folder-relative from a folder or a drop), for W6 suggestions. */
+export interface SetupField extends SummaryField {label:string;preview?:string;paths?:string[];channels?:string[]}
 export interface AddTarget {groupId:string;runId:string;sample:string|null}
 interface Props {
   design:ExperimentDesign|null;
@@ -15,9 +18,6 @@ interface Props {
   readOnly:boolean;
   onSave:(design:ExperimentDesign)=>Promise<void>;
   onAdd:(target:AddTarget,files:FileList,design:ExperimentDesign)=>Promise<unknown>;
-  /** Images added before the form was chosen: one screen takes them at once, two screens ask for their group.
-   * Registering them without a form keeps typing groups and independent units per field in the statistics view. */
-  pending?:{count:number;onPlace:(target:AddTarget,design:ExperimentDesign)=>Promise<void>;onWithoutForm:()=>void;onDiscard:()=>void};
   onOpenField:(fieldId:string)=>void;
   onCsv?:()=>void;
   /** The one next step: the statistics view. */
@@ -34,13 +34,12 @@ function uniqueRunLabel(date:string,taken:string[]){const used=new Set(taken.map
 
 /** Chooses one screen (describe one group) or two screens (compare two groups), then
  * groups, independent runs and samples before images are added (requirements E-01–E-08). */
-export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pending,onOpenField,onCsv,onNext,source,loading=false}:Props){
+export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,onOpenField,onCsv,onNext,source,loading=false}:Props){
   const [draft,setDraft]=useState<ExperimentDesign|null>(design);
   const [labels,setLabels]=useState<Record<string,string>>({});
   const [runDate,setRunDate]=useState(today());
   const [samples,setSamples]=useState<Record<string,string>>({});
   const [error,setError]=useState("");
-  const [pendingTarget,setPendingTarget]=useState("");
   const fileInput=useRef<HTMLInputElement>(null),folderInput=useRef<HTMLInputElement>(null);
   const target=useRef<AddTarget|null>(null);
   // The last plan the API stored: a refused save returns the editor to it instead of keeping the refused edit.
@@ -55,11 +54,8 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pendin
     stored.current=outcome.stored;setDraft(outcome.shown);setError(outcome.error);
     return outcome.ok;
   }
-  async function place(target:AddTarget,next:ExperimentDesign){setError("");try{await pending?.onPlace(target,next);}catch(cause){setError(cause instanceof Error?cause.message:"画像を登録できませんでした。");}}
   async function choose(layout:"single"|"pair"){
-    const next=addRun(emptyDesign(layout),{label:runDate,performed_on:runDate});
-    // One screen has one group and one run, so images that waited for the choice go there; two screens ask which group.
-    if(await save(next)&&pending&&layout==="single")await place({groupId:next.groups[0].id,runId:next.runs![0].id,sample:null},next);
+    await save(addRun(emptyDesign(layout),{label:runDate,performed_on:runDate}));
   }
   function pick(add:AddTarget,folder:boolean){target.current=add;(folder?folderInput:fileInput).current?.click();}
   async function received(list:FileList|null){
@@ -71,9 +67,8 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pendin
   if(!draft)return <section className={styles.choice} aria-label="実験デザイン">
     <h1>実験デザイン</h1>
     <p>実験デザインに合わせて画面の数を選びます。1 画面は後から 2 画面に拡張できます。</p>
-    {pending&&<p className={styles.pending} role="status">受け取ったファイル：{pending.count} 件 · 登録：実験デザインの選択後
-      <button className={styles.link} disabled={busy} title="群・試料・実験回は、統計の画面で視野ごとに入力します" onClick={pending.onWithoutForm}>実験デザインなしで登録</button>
-      <button className={styles.link} disabled={busy} onClick={pending.onDiscard}>取り消し</button></p>}
+    {(()=>{const proposed=suggestAssignments(null,fields.map(field=>({id:field.id,label:field.label,paths:field.paths??[]})));const groups=suggestedGroups(proposed),runs=new Set(proposed.map(value=>value.runLabel));
+      return groups.length>0&&<p className={styles.pending} role="status">フォルダーからの案：{groups.length} 群（{groups.join("、")}） · 実験回 {runs.size}</p>;})()}
     <div className={styles.choices}>
       <button className={styles.choiceCard} disabled={busy||readOnly} onClick={()=>choose("single")}><strong>1 画面</strong><span>1 群の記述</span><small>核の大きさや数の分布を実験回ごとに示します。検定はしません。</small></button>
       <button className={styles.choiceCard} disabled={busy||readOnly} onClick={()=>choose("pair")}><strong>2 画面</strong><span>2 群の比較</span><small>対照と処理（例：WT と変異体、溶媒と薬剤）を、同じ実験回で対にして比較します。</small></button>
@@ -116,15 +111,6 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pendin
       <span><FieldIcon/><strong>{counts.fields}</strong> 視野</span><Arrow/>
       <span><RunIcon/><strong>{counts.runs}</strong> 実験回<small>（n = {counts.runs}）</small></span>
     </p></>}
-    {pending&&!readOnly&&<section className={styles.pendingPlace} aria-label="受け取ったファイルの追加先">
-      <p>受け取ったファイル：{pending.count} 件 · 追加先：1 群・1 実験回</p>
-      <select aria-label="追加先" disabled={locked} value={pendingTarget} onChange={event=>setPendingTarget(event.target.value)}>
-        <option value="">追加先：未選択</option>
-        {runs.flatMap(run=>draft.groups.map(group=><option key={`${run.id}:${group.id}`} value={`${run.id}\u0000${group.id}`}>{run.label} · {group.label}</option>))}
-      </select>
-      <button disabled={locked||!pendingTarget} onClick={()=>{const [runId,groupId]=pendingTarget.split("\u0000");setPendingTarget("");void place({groupId,runId,sample:null},draft);}}>追加</button>
-      <button className={styles.link} disabled={locked} onClick={pending.onDiscard}>取り消し</button>
-    </section>}
     <div className={styles.grid} style={{gridTemplateColumns:`minmax(200px,270px) repeat(${draft.groups.length},minmax(0,1fr))`}} role="table" aria-label="群と実験回">
       <div role="row" className={styles.row}>
         {/* The same n as the status and the figure, hidden with them while the fields are still loading. */}
@@ -185,14 +171,8 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pendin
         the spatial sampling of a comparison. The key is written only while it is stated (an additive field). */}
     {!readOnly&&<label className={styles.independence} title="輝度と画素数：全視野で同じ撮影設定（露光・ゲイン・対物レンズ・画素の大きさ）。面積（µm²）：画素の大きさを較正済み。表示をそろえても、撮影の違いは解消されません。"><input type="checkbox" checked={draft.acquisition_confirmed??false} disabled={locked} onChange={event=>void save(withAcquisition(draft,event.target.checked))}/>群の間で撮影・画素条件を比べられる</label>}
     <StrataEditor design={draft} locked={locked} readOnly={readOnly} onSave={save}/>
-    {unassigned.length>0&&<section className={styles.unassigned} aria-label="群・実験回が未割り当ての視野">
-      <h2>群・実験回が未割り当ての視野</h2>
-      <ul>{unassigned.map(field=><li key={field.id}><button className={styles.link} onClick={()=>onOpenField(field.id)}>{field.label}</button>
-        <select aria-label={`${field.label} の割り当て`} disabled={locked||!runs.length} value="" onChange={event=>{const [runId,groupId]=event.target.value.split("\u0000");if(runId&&groupId)void save(assignFields(draft,[field.id],{group_id:groupId,run_id:runId}));}}>
-          <option value="">割り当てる…</option>
-          {runs.flatMap(run=>draft.groups.map(group=><option key={`${run.id}:${group.id}`} value={`${run.id}\u0000${group.id}`}>{run.label} · {group.label}</option>))}
-        </select></li>)}</ul>
-    </section>}
+    {unassigned.length>0&&<UnassignedFields design={draft} locked={locked} onSave={save} onOpenField={onOpenField}
+      fields={unassigned.map(field=>({id:field.id,label:field.label,preview:field.preview,paths:field.paths??[],channels:field.channels??[]}))}/>}
     {(issues.length>0||error)&&<ul className={styles.issues} aria-label="統計の前の確認事項">
       {error&&<li role="alert">{error}</li>}
       {issues.map((issue,index)=><li key={index}>{issueText(draft,issue,fieldLabel)}</li>)}

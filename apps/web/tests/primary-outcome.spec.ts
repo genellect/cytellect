@@ -65,6 +65,8 @@ async function workspace(context:BrowserContext,page:Page,{declaredAt,calculated
     if(path.endsWith("/revisions/r1"))return json(revision);
     // A comparison saved without a workspace selection (#284 W1: the n breakdown reads it when present).
     if(path.endsWith("/workspace-selection"))return json({detail:"workspace_selection_not_found"},404);
+    // The conversation of the workspace (#284 W2), read when it opens.
+    if(path.endsWith("/assistant-messages"))return json({messages:[]});
     unexpected.push(`${method} ${path}`);return json({detail:"unexpected_transport_route"},404);
   });
   return {unexpected,spec:()=>spec};

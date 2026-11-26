@@ -19,6 +19,7 @@ export function panelReducer(state: PanelState, action: PanelAction): PanelState
 /** The experiment form is shown in one place for a new workspace (image view without fields) and
  * for the experiment view, so moving to the experiment view after the first save keeps what the
  * researcher is typing (requirements E-01–E-03). */
-export function experimentSetupShown(mode: string, hasField: boolean, demo: boolean): boolean {
-  return mode === "experiment" || (mode === "image" && !hasField && !demo);
+/** The experiment view shows only when chosen: an empty workspace opens on adding images (#284 W5, decision 1). */
+export function experimentSetupShown(mode: string): boolean {
+  return mode === "experiment";
 }

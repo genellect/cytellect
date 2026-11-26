@@ -92,21 +92,23 @@ for (const viewport of [{width:1920,height:1080},{width:1440,height:900},{width:
     if (path.endsWith("/revisions/synthetic-revision")) return json(revision());
     // A comparison saved without a workspace selection (#284 W1: the n breakdown reads it when present).
     if(path.endsWith("/workspace-selection"))return json({detail:"workspace_selection_not_found"},404);
+    if(path==="/v1/intake/inspect")return json({kind:"native",role:"image",code:null,sha256:"0".repeat(64),bytes:3,shape:[32,32],dtype:"uint16",channel_names:null,thumbnail_png:null});
+    // The conversation of the workspace (#284 W2), read when it opens.
+    if(path.endsWith("/assistant-messages"))return json({messages:[]});
     unexpected.push(`${method} ${path}`);
     return json({detail: "unexpected_synthetic_route"}, 404);
   });
   const loaded = page.waitForResponse(response => new URL(response.url()).pathname === "/v1/workspaces" && response.request().method() === "GET");
   await page.goto("/workspace");
   await loaded;
-  // A new workspace starts by choosing the form of the experiment (requirements E-01).
-  await expect(page.getByRole("heading", {name: "実験デザイン", exact: true, level: 1})).toBeVisible();
-  await expect(page.getByRole("button", {name: /^1 画面/})).toBeEnabled();
-  await expect(page.getByRole("button", {name: /^2 画面/})).toBeEnabled();
+  // A new workspace opens on adding images (#284 W5, decision 1).
+  await expect(page.getByRole("heading", {name: "画像を追加", exact: true, level: 1})).toBeVisible();
+  await expect(page.getByRole("button", {name: "画像を選ぶ", exact: true})).toBeEnabled();
   await page.getByTestId("file-input").setInputFiles([{name: "A01_c1.tif", mimeType: "image/tiff", buffer: Buffer.from([1, 2, 3])}, {name: "A01_c2.tif", mimeType: "image/tiff", buffer: Buffer.from([4, 5, 6])}]);
-  // Images added before the form is chosen wait for it; one screen takes them and opens on them.
-  await expect(page.getByRole("status").filter({hasText: "受け取ったファイル：2 件 · 登録：実験デザインの選択後"})).toBeVisible();
+  // Chosen files are listed and judged; nothing registers before 追加.
+  await expect(page.getByRole("status").filter({hasText: "受け取り：2 · 画像：2（1 視野）"})).toBeVisible();
   expect(writes.some(value => /region-fields/.test(value))).toBe(false);
-  await page.getByRole("button", {name: /^1 画面/}).click();
+  await page.getByRole("region", {name: "取り込みの一覧"}).getByRole("button", {name: "追加", exact: true}).click();
   await expect(page.getByRole("toolbar",{name:"画像の表示"}).getByRole("combobox",{name:"領域",exact:true})).toBeEnabled();
   await expect(page).toHaveURL(/[?&]id=synthetic-workspace(?:&|$)/);
   expect(runCount).toBe(0);

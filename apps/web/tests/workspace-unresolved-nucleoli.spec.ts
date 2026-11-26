@@ -67,6 +67,8 @@ async function nucleolarWorkspace(context:BrowserContext,page:Page){
     const record=revisions.find(value=>path.endsWith(`/revisions/${value.id}`));if(record)return json(record);
     // A comparison saved without a workspace selection (#284 W1: the n breakdown reads it when present).
     if(path.endsWith("/workspace-selection"))return json({detail:"workspace_selection_not_found"},404);
+    // The conversation of the workspace (#284 W2), read when it opens.
+    if(path.endsWith("/assistant-messages"))return json({messages:[]});
     unexpected.push(`${method} ${path}${url.search}`);return json({detail:"unexpected_transport_route"},404);
   });
   return {writes,unexpected,cohort:()=>cohort,review:()=>review,posted,

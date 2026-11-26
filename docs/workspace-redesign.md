@@ -25,15 +25,16 @@ review.
 
 Three routine operations:
 
-1. **Add images** (files or a folder). A workspace is created automatically.
-   Since 2026-10-25 a new workspace first asks for the form of the experiment
-   (1 screen: describe one group; 2 screens: compare two groups) and then takes
-   images per group and independent run ([group comparison](drafts/group-comparison/requirements.md),
-   E-01–E-08, owner decision amending U01). The first images added before the form
-   is chosen wait for it (2026-10-28 owner decision): 1 screen takes them, 2 screens ask for the
-   run and group, and "実験デザインなしで登録" registers them without a design, with groups
-   typed per field in statistics; images added to a design without a place are listed
-   as unassigned fields.
+1. **Add images** (files or a folder). A workspace is created automatically. The empty
+   workspace's image stage is where images are added, with samples of what to choose (the
+   measured fluorescence images, another stain of the same field, an outline mask). Chosen
+   files are listed and judged before they are added (role, thumbnail, fields and channels,
+   a breakdown that adds up); 追加 registers them, and 追加して AI に質問 continues in the AI
+   panel ([#284](https://github.com/genellect/cytellect/issues/284) W5, decision 1, amending the
+   2026-10-25 and 2026-10-28 owner decisions). The form of the experiment (1 screen or 2 screens)
+   is chosen in 実験 afterwards; registered fields without a run and group are listed there as a
+   table and assigned by a folder suggestion applied with 「案を適用」 or by the researcher's own
+   choice (W6). Images added from a group's cell are listed with that run and group.
 2. **Review the proposal and press 解析を実行.** The analysis goal is optional
    free text; without it, a proposal is built from images and channel names.
 3. **Review results**, correct where needed and export.

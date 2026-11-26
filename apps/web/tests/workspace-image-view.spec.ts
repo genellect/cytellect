@@ -81,6 +81,9 @@ async function imageWorkspace(context:BrowserContext,page:Page,options:{pair?:bo
     const record=revisions.find(value=>path.endsWith(`/revisions/${value.id}`));if(record)return json(record);
     // A comparison saved without a workspace selection (#284 W1: the n breakdown reads it when present).
     if(path.endsWith("/workspace-selection"))return json({detail:"workspace_selection_not_found"},404);
+    if(path==="/v1/intake/inspect")return json({kind:"native",role:"image",code:null,sha256:"0".repeat(64),bytes:3,shape:[32,32],dtype:"uint16",channel_names:null,thumbnail_png:null});
+    // The conversation of the workspace (#284 W2), read when it opens.
+    if(path.endsWith("/assistant-messages"))return json({messages:[]});
     unexpected.push(`${method} ${path}${url.search}`);return json({detail:"unexpected_transport_route"},404);
   });
   return {unexpected,uploads,discussions,checks};
@@ -228,6 +231,8 @@ test("a drop of image files adds them as the 画像 button does",async({page,con
   const main=page.locator("main");
   await main.dispatchEvent("dragover",{dataTransfer:transfer});
   await main.dispatchEvent("drop",{dataTransfer:transfer});
+  // A drop is listed like a choice; 追加 registers it (#284 W5).
+  await page.getByRole("region",{name:"取り込みの一覧"}).getByRole("button",{name:"追加",exact:true}).click();
   await expect.poll(()=>fixture.uploads).toEqual([["A03_c1.tif","A03_c2.tif"]]);
   await expect(cards).toHaveCount(3);
   await expect(page.getByRole("dialog",{name:"画像の追加"})).toHaveCount(0);
