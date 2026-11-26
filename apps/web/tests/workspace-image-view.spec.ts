@@ -485,11 +485,13 @@ test("a resend confirmed above the conversation is answered in view; cancelling 
   const headers=()=>({"Access-Control-Allow-Origin":new URL(page.url()).origin,"Access-Control-Allow-Credentials":"true",
     "Access-Control-Allow-Headers":"content-type,x-cytellect-request","Access-Control-Allow-Methods":"GET,POST,PATCH,OPTIONS"});
   const long=(word:string)=>Array.from({length:40},(_,index)=>`${word} ${index+1}：記録されたチャンネルと染色の説明。`).join("\n");
-  // Two long answers, then a request that failed: the earlier and the last message are both sent again.
+  // A long answer, a request that failed, another long answer and a last request that failed: the last and the
+  // earlier failed message (in the middle of the conversation, out of view from its top) are both sent again.
   const messages:Array<Record<string,unknown>>=[
-    {id:"m1",field_id:"f1",created:1,text:"この画像で何が測れる？",state:"failed",reply:null,applicable:null,reasons:["proposal_service_unavailable"],stage:null,effect:"none"},
-    {id:"m2",field_id:"f1",created:2,text:"チャンネルは何？",state:"answered",reply:long("段落"),applicable:null,reasons:[],stage:null,effect:"none"},
-    {id:"m3",field_id:"f1",created:3,text:"核の面積を測りたい",state:"failed",reply:null,applicable:null,reasons:["proposal_service_unavailable"],stage:null,effect:"none"}];
+    {id:"m0",field_id:"f1",created:1,text:"チャンネルは何？",state:"answered",reply:long("段落"),applicable:null,reasons:[],stage:null,effect:"none"},
+    {id:"m1",field_id:"f1",created:2,text:"この画像で何が測れる？",state:"failed",reply:null,applicable:null,reasons:["proposal_service_unavailable"],stage:null,effect:"none"},
+    {id:"m2",field_id:"f1",created:3,text:"染色は何？",state:"answered",reply:long("記述"),applicable:null,reasons:[],stage:null,effect:"none"},
+    {id:"m3",field_id:"f1",created:4,text:"核の面積を測りたい",state:"failed",reply:null,applicable:null,reasons:["proposal_service_unavailable"],stage:null,effect:"none"}];
   const draft={channels:[],metrics:[],statistics:{kind:"descriptive",test:null,omnibus:null,association:null},figures:[],missing_information:[],reference_ids:[],
     recipe:"none",rationale:"回答。",intent:"answer",answer:"回答。",choices:[]};
   const sent:string[]=[];

@@ -58,11 +58,12 @@ workspace records it, without a model call and also while the AI is not enabled:
 the origin of its name and its role, and the nuclear channel. Below are the workspace's messages, each with its state
 (送信中, 回答, 失敗, 設定を適用済み, 実行済み), its answer and, when its settings cannot be used, the reasons: a place the
 researcher changes (画像, 染色対応, 実験デザイン, 解析設定) or a service-side failure with its code and 「再送」. The
-panel shows the message that was just sent or answered from its first line (the request, its state and the start of the
-answer), and the newest message when the panel opens: an answer of several paragraphs does not leave the next request
-below the visible part, and a resend, confirmed above the conversation, is not answered out of sight. An arriving
-answer moves the panel also while an earlier answer is being read. A confirmation above the conversation comes into
-view and takes the focus when it opens; cancelling it gives the focus back to what opened it. Sending
+panel shows the newest message from its first line (the request, its state and the start of the answer) when the panel
+opens and when a new answer arrives, also while an earlier answer is being read: an answer of several paragraphs does
+not leave the next request below the visible part. A message sent again is shown the same way when its state changes
+(its answer or its failure arrives), the last message or an earlier one, though its confirmation had moved the panel
+to its top; fetching a recorded answer again changes no state and does not move the panel. A confirmation above the
+conversation comes into view and takes the focus when it opens; cancelling it gives the focus back to what opened it. Sending
 changes nothing, and the text leaves the input once the conversation holds the message (a request that never reached
 the API keeps what was typed). 「設定を適用」 and 「適用して試行」 under an answer are the only ways an answer changes
 settings or runs a preview, followed by 「解析設定を表示」 and 「AIによる設定変更を戻す」; when some fields fail, the

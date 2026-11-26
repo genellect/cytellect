@@ -82,11 +82,11 @@ export function targetText(targets: RunTargets): string {
 export function AssistantPanel({field, messages, busy, demo, canApply, canTry, undoable, onApply, onResend, onUndo, onShowSettings, onPlace, onPropose,
   answerOf = () => null, runTargets = () => null, canRun = () => false, onRun, onChoose, confirmationOf = () => [], onConfirm}: Props) {
   const nuclear = field?.channels.find(channel => channel.id === field.nuclearChannelId) ?? field?.channels.find(channel => channel.role === "nuclear");
-  // The message that was just sent or answered starts at the top of the panel, and the newest one when the panel
-  // opens: an answer of a few paragraphs otherwise leaves every later request, its state and its answer below the
-  // visible part, and a resend (confirmed above the conversation) would be answered out of sight. A message is found
-  // by the change of its state, so applying settings (which changes no state) moves nothing. Only the panel's own
-  // scrolling box moves, never the page.
+  // The message whose state just changed (a new answer, or the answer or failure of a resend) starts at the top of the
+  // panel, and the newest one when the panel opens: an answer of a few paragraphs otherwise leaves every later request
+  // below the visible part, and a resend (confirmed above the conversation) would be answered out of sight. A message
+  // is found by the change of its state, so applying settings, and fetching a recorded answer again, move nothing.
+  // Only the panel's own scrolling box moves, never the page.
   const list = useRef<HTMLOListElement>(null), states = useRef<Map<string, string> | null>(null);
   useEffect(() => {
     const before = states.current;

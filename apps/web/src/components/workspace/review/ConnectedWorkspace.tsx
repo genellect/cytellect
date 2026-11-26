@@ -371,7 +371,9 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
   // gives the focus back to what opened it (the input, or a message's 「再送」).
   const confirmationOpener=useRef<HTMLElement|null>(null);
   const reveal=useCallback((element:HTMLElement|null)=>{if(!element)return;
-    const active=document.activeElement;if(active instanceof HTMLElement&&active!==document.body&&!element.contains(active))confirmationOpener.current=active;
+    // What opened this confirmation: never a control of a confirmation (this one or one it follows), and never what
+    // opened an earlier one.
+    const active=document.activeElement;confirmationOpener.current=active instanceof HTMLElement&&active!==document.body&&!active.closest('section[role="group"]')?active:null;
     element.scrollIntoView({block:"nearest"});element.focus({preventScroll:true});},[]);
   const returnFocus=()=>{const opener=confirmationOpener.current;confirmationOpener.current=null;if(opener?.isConnected)opener.focus();};
   // An earlier request of the same instruction failed or timed out and may have been charged: the service sends it
