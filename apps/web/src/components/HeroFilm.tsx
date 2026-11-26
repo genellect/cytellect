@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import styles from "./landing-world.module.css";
+import styles from "./optical-landing.module.css";
 
 const FILMS = [["/marketing/hero-film.webm", "video/webm"], ["/marketing/hero-film.mp4", "video/mp4"]] as const;
 const POSTER = "/marketing/hero-film-poster.webp";
@@ -40,7 +40,7 @@ export function HeroFilm() {
 
   const playing = motion && state !== "error";
   return <>
-    <div ref={host} className={styles.film} data-wall="film" data-testid="hero-film" data-state={playing ? state : state === "error" ? "error" : "poster"} data-paused={paused} aria-hidden="true">
+    <div ref={host} className={styles.film} data-testid="hero-film" data-state={playing ? state : state === "error" ? "error" : "poster"} data-paused={paused} aria-hidden="true">
       <img className={styles.filmPoster} src={POSTER} alt="" width={1920} height={1080} fetchPriority="high" />
       {playing && <video ref={video} className={styles.filmVideo} data-visible={state === "playing"} muted loop playsInline preload="auto" poster={POSTER}>
         {/* VP9 first for browsers without H.264; the error of the last source means neither could load. */}

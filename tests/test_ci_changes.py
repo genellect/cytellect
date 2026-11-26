@@ -48,8 +48,7 @@ def test_the_web_container_context_check_runs_when_the_container_or_the_check_ch
 def test_landing_page_changes_select_only_the_landing_page_checks():
     for path in ["apps/web/src/components/PublicLanding.tsx", "apps/web/src/components/LandingFeatures.tsx",
                  "apps/web/src/components/HeroFilm.tsx", "apps/web/src/components/optical-landing.module.css",
-                 "apps/web/src/components/landing-world.module.css", "apps/web/src/components/SceneWorld.tsx",
-                 "apps/web/src/components/scene-world-engine.ts", "apps/web/src/components/world-bus.ts",
+                 "apps/web/src/components/HeroSpace.tsx", "apps/web/src/components/hero-space-engine.ts",
                  "apps/web/public/lp-metrics.js", "apps/web/tests/marketing.spec.ts", "apps/web/tests/lp-analytics.spec.ts"]:
         assert areas_for(path) == {"lp"}, path
     assert areas_for("apps/web/public/marketing/hero-film.webm") == {"python", "lp"}

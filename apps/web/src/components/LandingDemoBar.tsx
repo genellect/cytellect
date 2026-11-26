@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import lp from "./landing-world.module.css";
+import lp from "./optical-landing.module.css";
 
 /** On phones, from the impact section on, the demo stays one tap away; it steps aside while the invitation is on screen. */
 export function LandingDemoBar() {
