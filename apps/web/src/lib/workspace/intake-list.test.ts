@@ -108,6 +108,17 @@ describe("intake list before adding (#284 W5)", () => {
     list.remove(a9.conflicts[0].items[1].id);
     expect(listedFields(list.getSnapshot().items).find(field => field.name === "BBBC007-a9")?.conflicts).toEqual([]);
   });
+  it("the first opening of a page keeps files chosen while the workspace loaded, beside the names kept from before", async () => {
+    const storage = memoryStorage();storage.setItem("cytellect.intake.v1.w", JSON.stringify(["old_c1.tif", "A01_c1.tif"]));
+    const list = createIntakeList({inspect: async value => judge(value), known: () => new Map(), storage});
+    list.add([file("A01_c1.tif", 1)]);
+    await settled(list);
+    list.open("w", true);
+    expect(list.getSnapshot().items.map(item => [item.name, item.state])).toEqual([["old_c1.tif", "再選択"], ["A01_c1.tif", "追加待ち"]]);
+    // Another workspace's list starts from its own names only.
+    list.open("other");
+    expect(list.getSnapshot().items).toEqual([]);
+  });
   it("a copy whose original is removed from the list is no longer a copy: it becomes the image", async () => {
     const list = createIntakeList({inspect: async value => judge(value), known: () => new Map(), storage: null});
     list.add([file("BBBC007-a9-C01.tif", 1), file("copy/BBBC007-a9-C01.tif", 1)]);

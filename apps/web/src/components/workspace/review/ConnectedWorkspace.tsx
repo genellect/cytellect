@@ -144,7 +144,7 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   // are read (not overwritten by an empty list) and come back as 「再選択」 rows, shown at once (#284 priority 7).
   // Before the first load ends there is no data at all (not even an empty workspace): nothing is opened or renamed.
   useEffect(()=>{if(r.loading||!data)return;const id=data.workspaceId||null;if(listWorkspace.current===id)return;
-    if(listWorkspace.current===null&&id)intakeList.rename(id);else{intakeList.open(id);if(intakeList.getSnapshot().items.length)setIntakeShown(true);}
+    if(listWorkspace.current===null&&id)intakeList.rename(id);else{intakeList.open(id,listWorkspace.current===undefined);if(intakeList.getSnapshot().items.length)setIntakeShown(true);}
     listWorkspace.current=id;},[data?.workspaceId,intakeList,r.loading]);
   // A closed file dialog changes nothing (the earlier choice stays); it is said so, not left silent (#284 input 6).
   const [cancelled,setCancelled]=useState(false);
@@ -572,8 +572,8 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
       r.reportIntake(total);
       // With a field registered, the image is what shows next; what was not registered waits behind 「取込 n件」 and
       // never stands between the researcher and the images that were read (#284: no clean-up before starting). Files
-      // chosen meanwhile, still to be added, keep the list open.
-      if(total.registered.length&&!intakeList.getSnapshot().items.some(item=>item.state==="追加待ち"||item.state==="読み込み中"))setIntakeShown(false);
+      // chosen meanwhile, ready to be added, keep the list open.
+      if(total.registered.length&&!listedFields(intakeList.getSnapshot().items).some(value=>!value.conflicts.length))setIntakeShown(false);
       if(first&&!field)setSelected(first);
     }
     if(askAi){dispatchPanel("open-ai");requestAnimationFrame(()=>document.querySelector<HTMLTextAreaElement>("textarea[aria-label='AIへの指示']")?.focus());}

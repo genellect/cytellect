@@ -109,10 +109,14 @@ export function createIntakeList(dependencies: IntakeDependencies) {
     subscribe(listener: () => void) {listeners.add(listener);return () => {listeners.delete(listener);};},
     getSnapshot: () => state,
     /** Opens the list of a workspace: names chosen there and not added before a reload come back as 「再選択」. */
-    open(id: string | null) {
+    open(id: string | null, keep = false) {
       workspace = id;let names: string[] = [];
       try {names = JSON.parse(dependencies.storage?.getItem(storageKey(id)) ?? "[]");} catch {names = [];}
-      publish(Array.isArray(names) ? names.filter(name => typeof name === "string").map((name, index) => ({...blank(`restored-${index}`, name, 0), state: "再選択" as const})) : [], 0);
+      // `keep`: the first opening of a page. Files chosen while its workspace was still loading stay; the names kept
+      // from before the reload come back beside them.
+      const kept = keep ? state.items.filter(item => item.file) : [], chosen = new Set(kept.map(item => item.name));
+      const restored = Array.isArray(names) ? names.filter(name => typeof name === "string" && !chosen.has(name)).map((name, index) => ({...blank(`restored-${index}`, name, 0), state: "再選択" as const})) : [];
+      publish([...restored, ...kept], keep ? state.selections : 0);
     },
     /** Moves the names kept for a new workspace to the workspace it became. */
     rename(id: string) {const items = state.items;workspace = id;try {dependencies.storage?.removeItem(storageKey(null));} catch {/* convenience */}publish(items);},
