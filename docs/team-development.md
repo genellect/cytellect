@@ -69,7 +69,7 @@ Cytellect の開発に参加するメンバーのためのルール。開発の�
 
 - 非公開データは、コード、ログ、Issue、PR、スクリーンショット、CI、開発用 AI（チャットへの貼り付けを含む）に含めない。開発用 AI の例外は、次の隔離ローカル環境だけ。
 - **隔離ローカル環境の例外。** オーナーが指定した隔離ローカル領域で、オーナーが指定した開発用 AI とそのモデル提供元に限り、指定した目的のために非公開データを扱ってよい（2026-11-09、オーナーの判断）。領域・AI と送信先・目的と条件は[ローカル研究データの利用](drafts/research-measurements/local-data.md#隔離ローカル環境での-ai-の利用)に従い、その外（クラウド開発、Git、PR、CI、公開デモ、ほかの AI）には適用しない。
-- プロダクトの解析支援（解析提案と考察）は、利用者の同意のもとで、[定められた研究データ](../SECURITY.md#研究データ)（目的、チャネル名、視野の名前と記録、代表的な視野の縮小画像、保存した結果）を LLM に示す。この機能は、開発で非公開データを扱ってよい根拠にはならない。
+- プロダクトの解析支援（解析提案と考察）は、利用者の同意のもとで、[定められた研究データ](../SECURITY.md#51-pc-の外部へ送信する情報)（目的、チャネル名、視野の名前と記録、代表的な視野の縮小画像、保存した結果）を LLM に示す。この機能は、開発で非公開データを扱ってよい根拠にはならない。
 - **評価データを分ける。** 検出精度の評価には、学習と条件調整に使わない実験回の画像を使う。分割は実験回の単位で行い、どの画像をどちらに使ったかを記録する。評価データを見て閾値やモデルを調整しない。
 - **学習済みモデルを管理する。** 非公開データで学習した重みを公開・配布する場合は、オーナーとデータ提供元の承認を得る。学習データ、重み、推論条件は組にして版を管理する。
 - **共同研究先のデータ。** 提供元との取り決め（利用目的、保存場所、保存期間）の範囲内で使う。
@@ -155,7 +155,7 @@ Research data falls into these categories.
 
 - Keep private data out of code, logs, issues, PRs, screenshots, CI and development AI, including pasting into chat. The only exception for development AI is the isolated local environment below.
 - **Isolated local environment exception.** Only in an isolated local area the owner designates, and only the development AI the owner designates together with its model provider, may handle private data, and only for the designated purposes (owner's decision, 2026-11-09). The area, AI and recipient, purposes and conditions are in [Local research data](drafts/research-measurements/local-data.md#隔離ローカル環境での-ai-の利用); the exception never extends to cloud development, Git, PRs, CI, public demos or other AI.
-- The product's analysis assistance (proposals and discussions) shows the LLM the [defined research data](../SECURITY.md#research-data) (the goal, channel labels, field names and records, display-scaled previews of a representative field, saved results) with the user's consent. It does not permit handling private data during development.
+- The product's analysis assistance (proposals and discussions) shows the LLM the [defined research data](../SECURITY.en.md#51-information-transmitted-from-the-pc) (the goal, channel labels, field names and records, display-scaled previews of a representative field, saved results) with the user's consent. It does not permit handling private data during development.
 - **Separate evaluation data.** Evaluate detection accuracy on images from experimental runs that were not used for training or parameter tuning. Split by experimental run and record which images were used for which purpose. Do not tune thresholds or models against evaluation data.
 - **Manage trained models.** Publishing or distributing weights trained on private data requires approval from the owner and the data provider. Version training data, weights and inference settings together.
 - **Collaborator data.** Use data from partner labs only within the agreed purpose, storage location and retention period.
