@@ -27,7 +27,16 @@ export interface IntakeItem {
   target: IntakeTarget | null;
 }
 export interface IntakeListState {items: IntakeItem[]; selections: number}
-export interface ListedField {key: string; name: string; channels: string[]; items: IntakeItem[]; loading: boolean; thumbnail: string | null}
+export interface ListedField {
+  key: string; name: string; channels: string[]; items: IntakeItem[]; loading: boolean; thumbnail: string | null;
+  /** A field whose names are already in the list from an earlier selection (or a copy kept as a separate
+   * acquisition): it is added as its own field, never merged into the earlier one. */
+  repeated: boolean;
+  /** Two files of different content for the same channel of this field: the researcher keeps one before it is added. */
+  conflicts: Array<{channel: string; items: IntakeItem[]}>;
+}
+/** The images one call of registration receives together. */
+export interface Addition {items: IntakeItem[]; separate: boolean; repeated: boolean}
 export interface IntakeDependencies {
   inspect: (file: File, kind: IntakeKind) => Promise<Inspection>;
   /** Hashes of the inputs of registered fields, with the field's name (copies are found against them too). */
@@ -131,17 +140,46 @@ function blank(id: string, name: string, selection: number): IntakeItem {
   return {id, name, file: null, size: 0, state: "読み込み中", code: null, shape: null, thumbnail: null, channelNames: [], sha256: null, sameAs: null, separate: false, selection, target: null};
 }
 
-/** The images of the list as the fields they will make: every selection together, so another stain of the same
- * field chosen later joins it (W5 change 4). The grouping is the one registration uses. */
+const added = (item: IntakeItem): AddedFile => ({path: item.name, size: item.size, ...(item.sha256 ? {sha256: item.sha256} : {}), ...(item.channelNames.length ? {omeChannels: item.channelNames} : {})});
+
+/**
+ * The images of the list in the additions registration receives (W5 change 4; the list and registration use this one
+ * split, so the list shows the fields that will be made). Every selection is added together, so another stain of the
+ * same field chosen later joins it. Files whose names are already in the list from an earlier selection (the same file
+ * names in another condition's folder, chosen one folder at a time) are not that field again: with the rest of their
+ * field in that selection they form an addition of their own. A copy kept as a separate acquisition is added alone.
+ */
+export function additions(items: readonly IntakeItem[]): Addition[] {
+  const images = items.filter(item => (item.state === "追加待ち" || item.state === "読み込み中") && item.file), plain = images.filter(item => !item.separate);
+  const grouping = groupFiles([...new Map(plain.map(item => [item.name, added(item)])).values()]), keys = new Map<string, string>();
+  for (const field of grouping.fields) for (const file of Object.values(field.files)) keys.set(file.path, field.key);
+  for (const issue of grouping.issues) if (issue.kind === "duplicate_channel") for (const path of issue.paths) keys.set(path, issue.field);
+  const keyOf = (item: IntakeItem) => keys.get(item.name) ?? item.name;
+  const first: IntakeItem[] = [], later = new Map<number, IntakeItem[]>(), seen = new Set<string>();
+  for (const selection of [...new Set(plain.map(item => item.selection))].sort((a, b) => a - b)) {
+    const mine = plain.filter(item => item.selection === selection), again = new Set(mine.filter(item => seen.has(item.name)).map(keyOf));
+    for (const item of mine) {
+      if (again.has(keyOf(item))) later.set(selection, [...(later.get(selection) ?? []), item]);
+      else first.push(item);
+    }
+    for (const item of mine) seen.add(item.name);
+  }
+  return [{items: first, separate: false, repeated: false}, ...[...later.values()].map(value => ({items: value, separate: false, repeated: true})),
+    ...images.filter(item => item.separate).map(item => ({items: [item], separate: true, repeated: true}))].filter(value => value.items.length);
+}
+
+/** The images of the list as the fields they will make, addition by addition. The grouping is the one registration uses. */
 export function listedFields(items: readonly IntakeItem[]): ListedField[] {
-  const images = items.filter(item => (item.state === "追加待ち" || item.state === "読み込み中") && item.file);
-  // Grouped by the names as chosen (folder-relative when a folder gave them), as registration groups one addition.
-  const named: AddedFile[] = images.map(item => ({path: item.name, size: item.size, ...(item.sha256 ? {sha256: item.sha256} : {}), ...(item.channelNames.length ? {omeChannels: item.channelNames} : {})}));
-  const pathToItem = new Map(named.map((file, index) => [file.path, images[index]]));
-  return groupFiles(named).fields.map(field => {
-    const members = Object.values(field.files).map(file => pathToItem.get(file.path)!).filter(Boolean);
-    return {key: field.key, name: field.key.split("/").at(-1) || field.key, channels: Object.keys(field.files), items: members,
-      loading: members.some(item => item.state === "読み込み中"), thumbnail: members.find(item => item.thumbnail)?.thumbnail ?? null};
+  return additions(items).flatMap((addition, index) => {
+    const pathToItem = new Map(addition.items.map(item => [item.name, item])), grouping = groupFiles(addition.items.map(added));
+    return grouping.fields.map(field => {
+      const conflicts = grouping.issues.flatMap(issue => issue.kind === "duplicate_channel" && issue.field === field.key
+        ? [{channel: issue.token, items: issue.paths.map(path => pathToItem.get(path)!).filter(Boolean)}] : []);
+      const members = [...new Set([...Object.values(field.files).map(file => pathToItem.get(file.path)!), ...conflicts.flatMap(value => value.items)].filter(Boolean))];
+      return {key: `${index}:${field.key}`, name: field.key.split("/").at(-1) || field.key, channels: Object.keys(field.files), items: members,
+        loading: members.some(item => item.state === "読み込み中"), thumbnail: members.find(item => item.thumbnail)?.thumbnail ?? null,
+        repeated: addition.repeated, conflicts};
+    });
   });
 }
 

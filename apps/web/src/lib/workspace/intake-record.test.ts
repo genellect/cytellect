@@ -27,7 +27,7 @@ describe("intake record", () => {
       row("older", {exclusion_reason:"Upload interrupted"}),
     ];
     expect(missingImages({entries}, design)).toEqual([
-      {group:"未処理", run:"Rep1", reason:"読み取り不可", count:1},
+      {group:"未処理", run:"Rep1", reason:"不正または未対応の TIFF", count:1},
       {group:"未処理", run:"Rep1", reason:"登録未完了", count:1},
       {group:"群の指定なし", run:null, reason:"理由の記録なし", count:1},
       {group:"群の指定なし", run:null, reason:"除外の理由：Upload interrupted", count:1},

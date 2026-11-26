@@ -155,7 +155,7 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,onOpen
             {!readOnly&&<div className={styles.addRow}>
               <label className={styles.sample}>試料（任意）<input value={samples[key]??""} maxLength={LABEL_LIMIT} placeholder="例：カバーガラス 1" onChange={event=>setSamples(previous=>({...previous,[key]:event.target.value}))}/></label>
               <button disabled={locked} onClick={()=>pick({groupId:group.id,runId:run.id,sample:samples[key]?.trim()||null},false)}>画像を追加</button>
-              <button disabled={locked} onClick={()=>pick({groupId:group.id,runId:run.id,sample:samples[key]?.trim()||null},true)}>フォルダ</button>
+              <button disabled={locked} onClick={()=>pick({groupId:group.id,runId:run.id,sample:samples[key]?.trim()||null},true)}>フォルダー</button>
             </div>}
           </div>;
         })}

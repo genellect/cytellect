@@ -110,13 +110,15 @@ test("a failed AI instruction can be resent explicitly, with one confirmation an
   const input=page.getByRole("textbox",{name:"AIへの指示"});
   await input.fill("same instruction");
   const send=page.getByRole("button",{name:"AIへ送信",exact:true});
-  await send.click();await expect(appAlerts(page)).toContainText("AI のサービスに接続できません。接続状態を確認してください。");
-  expect(requests).toHaveLength(1);
+  await send.click();
+  await expect.poll(()=>requests.length).toBe(1);
   // The sent text leaves the input; the message keeps it with its state and reason.
   await expect(input).toHaveValue("");await expect(send).toBeDisabled();
   const conversation=page.getByRole("list",{name:"AI との会話"});
   await expect(conversation.getByText("状態：失敗",{exact:true})).toBeVisible();
   await expect(conversation.getByText("AI のサービスへの接続なし",{exact:false})).toBeVisible();
+  // The reason is under the message itself; no banner repeats it above the workspace.
+  await expect(appAlerts(page)).toHaveCount(0);
   const resend=conversation.getByRole("button",{name:"再送",exact:true});
   await resend.click();
   const confirm=page.getByRole("group",{name:"AIへの再送の確認"});
@@ -262,7 +264,7 @@ test("before the first proposal after the scope widened, the AI panel asks once 
   await page.getByRole("button",{name:"AIへ送信"}).click();
   const scope=page.getByRole("group",{name:"AIに送る内容の確認"});
   await expect(scope).toContainText("代表的な視野の縮小画像");
-  await expect(scope).toContainText("追加した画像のフォルダー内の名前、実験回と群の名前");
+  await expect(scope).toContainText("選んだフォルダーの名前と、その中のフォルダー名・ファイル名、実験回と群の名前");
   await scope.getByRole("button",{name:"キャンセル"}).click();
   await expect(scope).toHaveCount(0);
   expect(proposals).toEqual([]);
@@ -440,8 +442,12 @@ test("a resend from a browser that has not confirmed the scope asks what is sent
   await page.getByRole("textbox",{name:"AIへの指示"}).click();
   const conversation=page.getByRole("list",{name:"AI との会話"});
   await conversation.getByRole("button",{name:"再送",exact:true}).click();
+  // Fetching a recorded answer again may call the model: confirmed first, like an unfinished request.
+  const again=page.getByRole("group",{name:"AIへの再送の確認"});
+  await expect(again).toContainText("記録済みの回答の取り直し。再送は課金の対象になり得ます。");
+  await again.getByRole("button",{name:"再送",exact:true}).click();
   const scope=page.getByRole("group",{name:"AIに送る内容の確認"});
-  await expect(scope).toContainText("追加した画像のフォルダー内の名前、実験回と群の名前");
+  await expect(scope).toContainText("選んだフォルダーの名前と、その中のフォルダー名・ファイル名");
   expect(requests).toEqual([]);
   await scope.getByRole("button",{name:"確認して送信",exact:true}).click();
   await expect.poll(()=>requests.length).toBe(1);

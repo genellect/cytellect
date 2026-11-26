@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from "vitest";
-import {breakdown, createIntakeList, listedFields, matchingFields, type Inspection} from "./intake-list";
+import {additions, breakdown, createIntakeList, listedFields, matchingFields, type Inspection} from "./intake-list";
 
 /** Synthetic bytes: the names decide the grouping and the mocked judgement decides the role (W4 is tested on its own). */
 const file = (name: string, byte: number) => new File([new Uint8Array([byte, byte + 1])], name);
@@ -41,6 +41,34 @@ describe("intake list before adding (#284 W5)", () => {
     split.add([file("A01-DRAQ.tif", 31)]);split.add([file("A01-GFP.tif", 33)]);
     await settled(split);
     expect(listedFields(split.getSnapshot().items).map(field => field.channels)).toEqual([["draq", "gfp"]]);
+  });
+  it("the same file names chosen again with other content are their own field, pair kept, and are added on their own (independent review)", async () => {
+    // Two condition folders hold the same file names; the researcher chooses the files of one folder, then the other's.
+    const list = createIntakeList({inspect: async value => judge(value), known: () => new Map(), storage: null});
+    list.add([file("field01-C01.tif", 1), file("field01-C02.tif", 3)]);
+    list.add([file("field01-C01.tif", 5), file("field01-C02.tif", 7), file("field02-C01.tif", 9)]);
+    await settled(list);
+    const items = list.getSnapshot().items, fields = listedFields(items);
+    // What the list counts is what registration makes: three fields, each with its own pair.
+    expect(breakdown(items)).toBe("受け取り：5 · 画像：5（3 視野）");
+    expect(fields.map(field => [field.name, field.channels, field.repeated, field.items.map(item => item.selection)])).toEqual([
+      ["field01", ["c01", "c02"], false, [1, 1]], ["field02", ["c01"], false, [2]], ["field01", ["c01", "c02"], true, [2, 2]]]);
+    expect(new Set(fields.map(field => field.key)).size).toBe(3);
+    expect(additions(items).map(value => [value.repeated, value.items.map(item => `${item.selection}:${item.name}`)])).toEqual([
+      [false, ["1:field01-C01.tif", "1:field01-C02.tif", "2:field02-C01.tif"]], [true, ["2:field01-C01.tif", "2:field01-C02.tif"]]]);
+  });
+  it("shows two files of different content for one channel of a field as a conflict of that field only", async () => {
+    const list = createIntakeList({inspect: async value => judge(value), known: () => new Map(), storage: null});
+    list.add([file("BBBC007-a9-C01.tif", 1), file("BBBC007-a9-C02.tif", 3), file("BBBC007-a9_c01.tif", 5), file("BBBC007-f9620-C01.tif", 7)]);
+    await settled(list);
+    const fields = listedFields(list.getSnapshot().items), a9 = fields.find(field => field.name === "BBBC007-a9")!;
+    expect(a9.conflicts.map(value => [value.channel, value.items.map(item => item.name)])).toEqual([["c01", ["BBBC007-a9-C01.tif", "BBBC007-a9_c01.tif"]]]);
+    // Both candidates and the field's other stain are the field's files; the other field has no conflict.
+    expect(a9.items.map(item => item.name).sort()).toEqual(["BBBC007-a9-C01.tif", "BBBC007-a9-C02.tif", "BBBC007-a9_c01.tif"]);
+    expect(fields.find(field => field.name === "BBBC007-f9620")?.conflicts).toEqual([]);
+    // Keeping one (removing the other from the list) resolves it.
+    list.remove(a9.conflicts[0].items[1].id);
+    expect(listedFields(list.getSnapshot().items).find(field => field.name === "BBBC007-a9")?.conflicts).toEqual([]);
   });
   it("finds a copy of a registered field, replaces an unreadable file in its row, and records a separate acquisition", async () => {
     const digest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array([1, 2]))), value => value.toString(16).padStart(2, "0")).join("");

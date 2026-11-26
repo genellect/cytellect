@@ -3,7 +3,7 @@ import {renderToStaticMarkup} from "react-dom/server";
 import {describe, expect, it} from "vitest";
 import type {AssistantMessage} from "@/lib/workspace/api-adapter";
 import type {AnswerView, RunTargets} from "@/lib/workspace/use-workspace-runtime";
-import {AssistantPanel, targetText} from "./AssistantPanel";
+import {AssistantPanel, resendable, targetText} from "./AssistantPanel";
 
 const message = (id: string): AssistantMessage => ({id, field_id: "f1", created: 1, text: "依頼", state: "answered", reply: "回答", applicable: true, reasons: [], stage: null, effect: "none"});
 const none = () => undefined;
@@ -59,6 +59,23 @@ describe("the actions of an answer follow its kind of request (#284 W7, plan 5.6
     expect(html).toContain("設定の適用には、核染色の指定が必要です。");
     expect(html).toContain("核染色に DRAQ を指定");
     expect(html).not.toContain(">設定を適用<");
+  });
+  it("offers 「再送」 where sending again can help, and never for the request in flight or a question's answer", () => {
+    const answered = message("m");
+    // (service reason, held in this session, busy, demo)
+    expect(resendable({...answered, state: "failed", applicable: null}, false, false, false, false)).toBe(true);
+    // 送信中 left by a session that ended: offered once nothing is in flight.
+    expect(resendable({...answered, state: "pending", applicable: null}, false, false, true, false)).toBe(false);
+    expect(resendable({...answered, state: "pending", applicable: null}, false, false, false, false)).toBe(true);
+    // Settings this session no longer holds (a reload); not while it holds them, and not once applied.
+    expect(resendable(answered, false, false, false, false)).toBe(true);
+    expect(resendable(answered, false, true, false, false)).toBe(false);
+    expect(resendable({...answered, effect: "settings"}, false, false, false, false)).toBe(false);
+    // Refused settings: only for a reason on the service's side; the researcher's own are changed in the workspace.
+    expect(resendable({...answered, applicable: false}, true, false, false, false)).toBe(true);
+    expect(resendable({...answered, applicable: false}, false, false, false, false)).toBe(false);
+    expect(resendable({...answered, applicable: null}, false, false, false, false)).toBe(false);
+    expect(resendable({...answered, state: "failed"}, false, false, false, true)).toBe(false);
   });
   it("states the selected target as one value", () => {
     expect(targetText({scope: "selected", fields: [{id: "a", label: "A01"}], excluded: 0})).toBe("対象：選択した視野 · A01");

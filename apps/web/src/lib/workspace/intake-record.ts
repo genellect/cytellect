@@ -2,7 +2,7 @@
  * technical missing data. Every count comes from the saved rows or the addition's own outcome; nothing is estimated. */
 import type {SelectionEntry} from "./api-adapter";
 import type {ExperimentDesign} from "./experiment-design";
-import {MASK_CANDIDATE_CODE, type IntakeOutcome} from "./use-workspace-runtime";
+import {isMaskRow, MASK_CANDIDATE_CODE, type IntakeOutcome} from "./use-workspace-runtime";
 
 /** Names shown in one line: at most three, then the remainder as a count. */
 export function namesText(names:readonly string[]):string {
@@ -13,7 +13,7 @@ export function namesText(names:readonly string[]):string {
 /** Why an image did not become a field, as a short status value (UC-02). Every code the region readers and
  * the upload return has one; an unknown code is shown as a refusal with its code. */
 const REASONS:Record<string,string> = {
-  unsupported_or_invalid_region_image: "読み取り不可",
+  unsupported_or_invalid_region_image: "不正または未対応の TIFF",
   region_image_not_2d: "2D 以外の画像",
   region_image_not_grayscale: "グレースケール以外の画像",
   region_image_multichannel_requires_ome: "複数チャンネルの TIFF · OME メタデータなし",
@@ -28,8 +28,11 @@ const REASONS:Record<string,string> = {
   region_upload_id_conflict: "登録済みの内容と不一致",
   unregistered_upload: "未登録の画像 · この環境は登録済みの公開画像のみ",
 };
-export function intakeReason(code:string|null):string {
+/** `mask: false` names an image the judgement before adding found unreadable for its sample type (32-bit float,
+ * signed 16-bit): registration answers the mask candidate's code for it, but it is an image, not a label. */
+export function intakeReason(code:string|null, mask = true):string {
   if (!code) return "登録未完了";
+  if (code === MASK_CANDIDATE_CODE && !mask) return "8/16-bit 以外の画像";
   return REASONS[code] ?? `登録不可 · ${code}`;
 }
 
@@ -67,11 +70,11 @@ export function missingImages(selection:{entries:readonly SelectionEntry[]}|null
   for (const entry of selection?.entries ?? []) {
     if (entry.field_id) continue;
     const intake = entry.intake;
-    if (intake?.code === MASK_CANDIDATE_CODE) continue;
+    if (isMaskRow(intake)) continue;
     const group = intake?.target ? groups.get(intake.target.group_id) ?? "群の指定なし" : "群の指定なし";
     const run = intake?.target ? runs.get(intake.target.run_id) ?? null : null;
     const reason = !intake ? (entry.exclusion_reason ? `除外の理由：${entry.exclusion_reason}` : "理由の記録なし")
-      : intake.state === "pending" ? intakeReason(null) : intakeReason(intake.code ?? null);
+      : intake.state === "pending" ? intakeReason(null) : intakeReason(intake.code ?? null, false);
     const key = `${group}\u0000${run ?? ""}\u0000${reason}`;
     const value = counted.get(key) ?? {group, run, reason, count: 0};
     value.count += 1;counted.set(key, value);

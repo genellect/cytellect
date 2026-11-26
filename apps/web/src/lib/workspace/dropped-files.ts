@@ -1,5 +1,5 @@
 /**
- * Files dropped on the workspace, for the same intake as the 画像 and フォルダ buttons. A dropped folder
+ * Files dropped on the workspace, for the same intake as the 画像 and フォルダー buttons. A dropped folder
  * is read recursively, and each of its files keeps its path inside the dropped folder, as the folder
  * button's `webkitRelativePath` does, so grouping reads the same folder names (grouping.ts).
  */

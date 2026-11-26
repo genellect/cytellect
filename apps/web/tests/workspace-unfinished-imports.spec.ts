@@ -74,7 +74,7 @@ test("a refused image never stops the others, keeps its name and reason after a 
   const list=page.getByRole("region",{name:"取り込みの一覧"});
   await expect(list.getByRole("status")).toHaveText("受け取り：4 · 画像：1（1 視野） · マスクの候補：1 · 読み取れない：1 · 対象外：1");
   await expect(list.getByRole("row").filter({hasText:"A01-labels.tif"})).toContainText("寸法の一致：A01");
-  await expect(list.getByRole("row").filter({hasText:"broken_c1.tif"})).toContainText("読み取り不可");
+  await expect(list.getByRole("row").filter({hasText:"broken_c1.tif"})).toContainText("不正または未対応の TIFF");
   await expect(list.getByRole("row").filter({hasText:"読み方.txt"})).toContainText("TIFF 以外");
   expect(state.selection.entries).toEqual([]);
   await list.getByRole("button",{name:"追加",exact:true}).click();
@@ -95,7 +95,7 @@ test("a refused image never stops the others, keeps its name and reason after a 
   await page.getByRole("button",{name:"取込 1件",exact:true}).click();
   await expect(page.getByText("名称不明",{exact:true})).toHaveCount(0);
   const broken=page.locator("li").filter({hasText:"broken_c1.tif"});
-  await expect(broken).toContainText("読み取り不可");
+  await expect(broken).toContainText("不正または未対応の TIFF");
   // Replace: the same row is resolved; no new row.
   const entry=rows()[0].id;
   await broken.getByRole("button",{name:"差し替え",exact:true}).click();

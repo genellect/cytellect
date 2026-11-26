@@ -16,6 +16,19 @@ export function messageState(message: AssistantMessage): string {
   return message.state === "pending" ? "送信中" : message.state === "failed" ? "失敗" : "回答";
 }
 
+/**
+ * Whether a message offers 「再送」: a failed one; one left 送信中 by a session that ended before its answer (never the
+ * request in flight); an answer with settings this session no longer holds (a reload), to apply it; and an answer whose
+ * settings were refused for a reason on the service's side. A question's answer has nothing to send again.
+ */
+export function resendable(message: AssistantMessage, serviceReason: boolean, held: boolean, busy: boolean, demo: boolean): boolean {
+  if (demo) return false;
+  if (message.state === "failed") return true;
+  if (message.state === "pending") return !busy;
+  if (message.applicable === false) return serviceReason;
+  return message.applicable === true && message.effect === "none" && !held;
+}
+
 interface Props {
   field?: ReviewField;
   messages: AssistantMessage[];
@@ -73,7 +86,7 @@ export function AssistantPanel({field, messages, busy, demo, canApply, canTry, u
       <p><strong>核染色のチャンネル：</strong>{nuclear ? nuclear.stain || nuclear.label : "未指定"}</p>
     </section>}
     {onPropose && !demo && <button type="button" disabled={busy} onClick={onPropose}>解析案を作る</button>}
-    <ol className={styles.messages} aria-label="AI との会話">
+    <ol className={styles.messages} aria-label="AI との会話" aria-live="polite">
       {messages.map(message => {
         const reasons = message.reasons.map(reasonView);
         const view = answerOf(message.id), intent = view?.intent ?? null, targets = intent === "run" ? runTargets(message.id) : null;
@@ -89,7 +102,7 @@ export function AssistantPanel({field, messages, busy, demo, canApply, canTry, u
               {reason.kind === "service" && <> <code>{message.reasons[index]}</code></>}
             </li>)}
           </ul>}
-          {view && view.choices.length > 0 && !demo && <div className={styles.messageChoices}>
+          {view && view.choices.length > 0 && !demo && message.id === messages.at(-1)?.id && <div className={styles.messageChoices}>
             {view.choices.map((choice, index) => <div key={index} role="group" aria-label={choice.question}>
               <p>{choice.question}</p>
               {choice.options.map(option => <button key={option} type="button" disabled={busy || !onChoose} onClick={() => onChoose?.(option)}>{option}</button>)}
@@ -97,6 +110,7 @@ export function AssistantPanel({field, messages, busy, demo, canApply, canTry, u
           </div>}
           {view && view.assignments > 0 && <p className={styles.messageState}>割付の案：{view.assignments} 視野 <button type="button" disabled={busy} onClick={() => onPlace("experiment")}>実験</button></p>}
           {targets && <p className={styles.messageState}>{targetText(targets)}</p>}
+          {targets && !targets.fields.length && message.effect === "none" && <p className={styles.messageState}>実行には、対象の視野が必要です。</p>}
           {confirmation.length > 0 && <div className={styles.messageChoices} role="group" aria-label="核染色の指定">
             <p>設定の適用には、核染色の指定が必要です。</p>
             {confirmation.map(item => <button key={item.channel} type="button" disabled={busy || !onConfirm} onClick={() => onConfirm?.(message.id, item.channel)}>核染色に {item.label} を指定</button>)}
@@ -112,7 +126,7 @@ export function AssistantPanel({field, messages, busy, demo, canApply, canTry, u
               <button type="button" disabled={busy} onClick={() => onRun(message.id)}>適用して実行</button>}
             {message.effect !== "none" && <button type="button" disabled={busy} onClick={onShowSettings}>解析設定を表示</button>}
             {message.effect !== "none" && undoable === message.id && <button type="button" disabled={busy} onClick={onUndo}>AIによる設定変更を戻す</button>}
-            {!demo && message.state !== "pending" && (message.state === "failed" || (message.applicable === true && message.effect === "none" && !view)) &&
+            {resendable(message, reasons.some(reason => reason.kind === "service"), !!view, busy, demo) &&
               <button type="button" disabled={busy} onClick={() => onResend(message)}>再送</button>}
           </div>
         </li>;

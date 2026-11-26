@@ -4,7 +4,7 @@ import {nclObjectDetector} from "@/lib/workspace/nucleolar-definition";
 import type {GroupingIssue} from "@/lib/workspace/grouping";
 import {Suspense,useEffect,useEffectEvent,useMemo,useReducer,useRef,useState,useSyncExternalStore,type CSSProperties,type DragEvent,type ReactNode} from "react";
 import {useSearchParams} from "next/navigation";
-import {useWorkspaceRuntime,type RuntimeSettings} from "@/lib/workspace/use-workspace-runtime";
+import {IntakeInterrupted,useWorkspaceRuntime,type RuntimeSettings} from "@/lib/workspace/use-workspace-runtime";
 import type {ReviewField,ReviewTarget} from "@/lib/workspace/review-preview";
 import {metricChoice,metricForSubject,metricStructure,metricTarget,metricUsesChannel,nucleusPositivity} from "@/lib/workspace/metric-catalog";
 import {MetricSelect} from "./MetricSelect";
@@ -37,7 +37,7 @@ import {UnfinishedImports} from "./UnfinishedImports";
 import {AssistantPanel} from "./AssistantPanel";
 import {EmptyStart} from "./EmptyStart";
 import {IntakeList} from "./IntakeList";
-import {createIntakeList} from "@/lib/workspace/intake-list";
+import {additions,createIntakeList,listedFields} from "@/lib/workspace/intake-list";
 import type {IntakeTarget} from "@/lib/workspace/api-adapter";
 import type {ReasonPlace} from "@/lib/workspace/assistant-reasons";
 import {ConnectionNotice,useLocalConnection} from "./ConnectionNotice";
@@ -142,8 +142,11 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   useEffect(()=>{if(needsAttention(r.intake))setIntakeShown(true);},[r.intake]);
   // Each workspace keeps its own list; a new workspace's list moves to the ID it receives at the first addition.
   const listWorkspace=useRef<string|null|undefined>(undefined);
-  useEffect(()=>{const id=data?.workspaceId||null;if(listWorkspace.current===id)return;
-    if(listWorkspace.current===null&&id)intakeList.rename(id);else intakeList.open(id);listWorkspace.current=id;},[data?.workspaceId,intakeList]);
+  // While a saved workspace is still loading there is no ID yet: the list waits, so the names kept for that workspace
+  // are read (not overwritten by an empty list) and come back as 「再選択」 rows, shown at once (#284 priority 7).
+  useEffect(()=>{if(r.loading)return;const id=data?.workspaceId||null;if(listWorkspace.current===id)return;
+    if(listWorkspace.current===null&&id)intakeList.rename(id);else{intakeList.open(id);if(intakeList.getSnapshot().items.length)setIntakeShown(true);}
+    listWorkspace.current=id;},[data?.workspaceId,intakeList,r.loading]);
   // A closed file dialog changes nothing (the earlier choice stays); it is said so, not left silent (#284 input 6).
   const [cancelled,setCancelled]=useState(false);
   const [metric,setMetric]=useState("mean"),[range,setRange]=useState("selected"),[compare,setCompare]=useState(false),[picked,setPicked]=useState<string[]>([]),[picker,setPicker]=useState(false),[table,setTable]=useState(false);
@@ -186,9 +189,10 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   const mergeable=!!field&&compositeLayers(field).length>1,merged=composite&&mergeable&&!compare;
   const transportAvailable=API_CONFIGURED||demo;
   const busy=r.busy||editing||!transportAvailable;
-  const intakeDisabled=!data||r.busy||!transportAvailable;
+  // Choosing and judging files go on while images register or an analysis runs; only 追加 waits (#284 W5 change 1).
+  const intakeDisabled=!data||r.loading||!transportAvailable;
   // The 取込 list: grouping notes, saved rows without a field, and what the last addition did not register.
-  const intakeCount=r.importIssues.length+r.intakeRows.length+(r.intake?r.intake.held.length+r.intake.duplicates.length+r.intake.skipped.length+r.intake.rejected.filter(item=>!item.entry).length:0);
+  const intakeCount=intakeItems.length+r.intakeRows.length+(r.intake?r.intake.held.length+r.intake.duplicates.length+r.intake.skipped.length+r.intake.rejected.filter(item=>!item.entry).length:0);
   const intakeLine=cancelled?"選択：取り消し · 直前の選択を保持":outcomeLine(r.intake);
   const [guide,setGuide]=useState(false);
   // The in-browser API downloads after the recorded view has painted (capable devices only).
@@ -362,7 +366,9 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
   const [scopePending,setScopePending]=useState<{value:string;retry:boolean;message?:string}|null>(null);
   // An earlier request of the same instruction failed or timed out and may have been charged: the service sends it
   // again only when the researcher says so (the same rule as the discussion's 「再生成」).
-  const [retryPending,setRetryPending]=useState<{value:string;message?:string}|null>(null);
+  // `answered`: a recorded answer is fetched again (after a reload, or one refused on the service's side); its settings
+  // may come from the record or from another model call, so it is confirmed like an unfinished request.
+  const [retryPending,setRetryPending]=useState<{value:string;message?:string;retry:boolean;answered:boolean}|null>(null);
   // The message whose applied settings 「AI による設定変更を戻す」 restores.
   const [appliedMessage,setAppliedMessage]=useState<string|null>(null);
   // An answer never changes settings or runs anything (#284 W2, decision 4); in the demo, choosing a recorded example is
@@ -371,21 +377,30 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
     if(!aiAccess.available){dispatchPanel("open-ai");return;}
     dispatchPanel("open-ai");setDemoReply("");setRetryPending(null);
     if(!demo&&!confirmed&&!proposalScopeSeen()){setScopePending({value,retry,message});return;}
-    setScopePending(null);if(!demo)setInstruction("");
+    setScopePending(null);
     if(demo){
       const example=showcase.examples.find(item=>item.instruction===value.trim())??closestExample(value,showcase.examples);
       if(!example){setDemoReply(`${showcase.scene?.assistantScope??"このデモは、記録済みの公開画像の解析にのみ応答します。"}指示の例は下にあります。`);return;}
       await act(async()=>{const response=await r.requestProposal(example.instruction,field?.id);await r.applyAnswer(response.message.id,true,field?.id);setAppliedMessage(response.message.id);});return;
     }
-    await act(()=>r.requestProposal(value,field?.id,retry,message).then(()=>undefined).catch(error=>{
-      if(error instanceof ApiError&&error.code==="proposal_explicit_retry_required"){r.dismissError();setRetryPending({value,message});return;}
+    // The text leaves the input once the conversation holds it (the API records the message): a request that never
+    // reached the API, or one waiting for the resend confirmation, keeps what was typed.
+    const known=new Set(r.messages.map(item=>item.id));
+    const kept=()=>{if(r.getSnapshot().messages.some(item=>!known.has(item.id)||item.id===message))setInstruction(current=>current===value?"":current);};
+    await act(()=>r.requestProposal(value,field?.id,retry,message).then(kept).catch(error=>{
+      if(error instanceof ApiError&&error.code==="proposal_explicit_retry_required"){r.dismissError();setRetryPending({value,message,retry:true,answered:false});return;}
+      kept();
+      // A request the API recorded as failed says why under its own message, with 「再送」; the banner above is for
+      // requests that never became a message (no connection, a refused session).
+      const recorded=r.getSnapshot().messages.find(item=>!known.has(item.id)||item.id===message);
+      if(recorded?.state==="failed"){r.dismissError();return;}
       throw error;}));
   }
   const applyAnswer=(id:string,trial:boolean)=>void act(async()=>{await r.applyAnswer(id,trial,field?.id);setAppliedMessage(id);});
   // 「適用して実行」 of a run request (#284 W7): candidates on its target fields; adopting them stays the researcher's.
   const runAnswer=(id:string)=>void act(async()=>{await r.runAnswer(id,field?.id);setAppliedMessage(id);});
   const placeOf=(place:ReasonPlace)=>{if(place==="channels"){setMode("image");setAssignments(true);}else if(place==="experiment")changeMode("experiment");else if(place==="settings")showSettings();else chooseFiles();};
-  // The 画像 and フォルダ buttons and a drop of files or folders add images the same way. A chosen list is read at once
+  // The 画像 and フォルダー buttons and a drop of files or folders add images the same way. A chosen list is read at once
   // (the input is cleared right after); a drop's files arrive once its folders are read.
   // The first images of a workspace without a form wait for the choice (1 画面, 2 画面 or none), so they never land in a
   // view the researcher did not choose; later images follow the choice already made. A second choice before that adds
@@ -393,7 +408,7 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
   function add(list:FileList|Promise<File[]>|null){
     setCancelled(false);
     if(demo){if(list instanceof Promise)void act(async()=>r.importFiles(await list));else if(list)void act(()=>r.importFiles(list));return;}
-    void (list instanceof Promise?list:Promise.resolve(list?Array.from(list):[])).then(files=>{if(files.length){intakeList.add(files);setIntakeShown(true);}else void act(()=>r.importFiles([]));});
+    void (list instanceof Promise?list:Promise.resolve(list?Array.from(list):[])).then(files=>{if(files.length){intakeList.add(files);setIntakeShown(true);if(mode!=="image"&&mode!=="experiment")setMode("image");}else void act(()=>r.importFiles([]));});
   }
   // Experiment design (requirements E-01–E-08): saving never runs or changes analyses.
   const experiment=r.experiment();
@@ -525,21 +540,37 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
   const targetLabel=(value:IntakeTarget)=>{const run=experiment?.runs?.find(item=>item.id===value.run_id)?.label,group=experiment?.groups.find(item=>item.id===value.group_id)?.label;return `追加先：${[group,run].filter(Boolean).join(" · ")||"未設定"}`;};
   // 追加: the listed fields register together per run and group (so another stain chosen later joins its field), copies
   // kept as separate acquisitions register on their own, and unreadable files become rows with their reason (W1).
-  const addListed=(askAi:boolean)=>void act(async()=>{
-    const ready=intakeItems.filter(item=>item.state==="追加待ち"&&item.file),refused=intakeItems.filter(item=>item.state==="読み取れない"&&item.file);
-    const groups=new Map<string,{target:IntakeTarget|null;files:File[]}>();
-    for(const item of ready.filter(value=>!value.separate)){const key=item.target?`${item.target.run_id}\u0000${item.target.group_id}\u0000${item.target.sample??""}`:"";const group=groups.get(key)??{target:item.target,files:[]};group.files.push(item.file!);groups.set(key,group);}
-    let first:string|undefined,attention=false;
-    for(const group of groups.values()){const outcome=await r.importFiles(group.files,"automatic",group.target);first??=outcome.registered[0]?.fieldId;attention||=needsAttention(outcome);}
-    for(const item of ready.filter(value=>value.separate)){const outcome=await r.importSeparately([item.file!],item.target);first??=outcome.registered[0]?.fieldId;attention||=needsAttention(outcome);}
-    await r.recordRefused(refused.map(item=>({names:[item.name],code:item.code??"unsupported_or_invalid_region_image",target:item.target})));
-    intakeList.clear([...ready,...refused].map(item=>item.id));
-    // The list stays open while it holds rows or the addition needs a look (refused, held, copies).
-    if(!intakeList.getSnapshot().items.length&&!attention&&!refused.length)setIntakeShown(false);
-    // The first added field is selected; the view stays where the researcher is (they may have moved on meanwhile).
-    if(first&&!field)setSelected(first);
+  const addListed=(askAi:boolean)=>{setCancelled(false);void act(async()=>{
+    // A field with two files for one channel waits in the list until the researcher keeps one; the others are added.
+    const held=new Set(listedFields(intakeItems).filter(value=>value.conflicts.length).flatMap(value=>value.items.map(item=>item.id)));
+    const refused=intakeItems.filter(item=>item.state==="読み取れない"&&item.file);
+    let first:string|undefined,registered=0;const done:string[]=[];
+    try{
+      for(const addition of additions(intakeItems)){
+        const ready=addition.items.filter(item=>item.state==="追加待ち"&&!held.has(item.id));
+        const groups=new Map<string,typeof ready>();
+        for(const item of ready){const key=item.target?`${item.target.run_id}\u0000${item.target.group_id}\u0000${item.target.sample??""}`:"";groups.set(key,[...(groups.get(key)??[]),item]);}
+        for(const group of groups.values()){
+          const files=group.map(item=>item.file!),target=group[0].target;
+          try{const outcome=await (addition.separate?r.importSeparately(files,target):r.importFiles(files,"automatic",target));
+            first??=outcome.registered[0]?.fieldId;registered+=outcome.registered.length;done.push(...group.map(item=>item.id));}
+          catch(error){
+            // An interrupted addition: what was registered leaves the list; the rest stays to be added again.
+            if(error instanceof IntakeInterrupted){const names=new Set(error.outcome.registered.flatMap(item=>item.names));done.push(...group.filter(item=>names.has(item.name)).map(item=>item.id));registered+=error.outcome.registered.length;}
+            throw error;}
+        }
+      }
+      await r.recordRefused(refused.map(item=>({names:[item.name],code:item.code??"unsupported_or_invalid_region_image",target:item.target})));
+      done.push(...refused.map(item=>item.id));
+    }finally{
+      intakeList.clear(done);
+      // With a field registered, the image is what shows next; what was not registered waits behind 「取込 n件」 and
+      // never stands between the researcher and the images that were read (#284: no clean-up before starting).
+      if(registered)setIntakeShown(false);
+      if(first&&!field)setSelected(first);
+    }
     if(askAi){dispatchPanel("open-ai");requestAnimationFrame(()=>document.querySelector<HTMLTextAreaElement>("textarea[aria-label='AIへの指示']")?.focus());}
-  });
+  });};
   // Each field's adopted nuclei (null: not measured) and whether it is measured, for n and the summary figure.
   // The names each field was added with (folder-relative from a folder or a drop), for the W6 suggestions.
   const addedNames=new Map((r.adapter.selection()?.entries??[]).filter(entry=>entry.field_id&&entry.intake).map(entry=>[entry.field_id!,entry.intake!.names]));
@@ -549,11 +580,14 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
     busy={r.busy||!transportAvailable} readOnly={demo} onSave={saveExperiment} onAdd={addToExperiment} onOpenField={id=>{setSelected(id);changeMode("image");}} onCsv={()=>changeMode("statistics")}/>;
   const setupShown=experimentSetupShown(mode);
   // The saved rows and last outcome of W1 belong to the same list (W5 change 6).
-  const intakeSaved=r.importIssues.length+r.intakeRows.length+(r.intake?r.intake.held.length+r.intake.duplicates.length+r.intake.skipped.length+r.intake.rejected.filter(item=>!item.entry).length:0)>0;
+  // Notes on registered fields (a stain one field has and another lacks) are not images that failed: listed apart.
+  const intakeNotes=r.importIssues.length>0;
+  const intakeSaved=r.intakeRows.length+(r.intake?r.intake.held.length+r.intake.duplicates.length+r.intake.skipped.length+r.intake.rejected.filter(item=>!item.entry).length:0)>0;
   const intakeView=<IntakeList items={intakeItems} registered={r.registeredFacts().fields} busy={busy} targetLabel={targetLabel}
     onAdd={addListed} onMore={()=>chooseFiles()} onUndoLast={()=>intakeList.undoLast()} onRemove={ids=>intakeList.clear(ids)}
-    onReplace={(id,file)=>intakeList.replace(id,file)} onSeparate={id=>intakeList.keepSeparately(id)} onClose={()=>{intakeList.clear();setIntakeShown(false);}}>
-    {intakeSaved&&<ul className={styles.intakeSaved} aria-label="登録できなかった画像の記録">{r.importIssues.map((issue,index)=><li key={index}>{importIssueText(issue)}</li>)}<UnfinishedImports rows={r.intakeRows} outcome={r.intake} disabled={busy} onReplace={(entry,files)=>void act(()=>r.replaceImport(entry,files))} onCancel={entry=>void act(()=>r.cancelImport(entry))} onSeparate={id=>void act(()=>r.addSeparately(id))} onChoose={()=>chooseFiles()}/></ul>}
+    onReplace={(id,file)=>intakeList.replace(id,file)} onSeparate={id=>intakeList.keepSeparately(id)} onClose={()=>setIntakeShown(false)}
+    notes={intakeNotes?<ul className={styles.intakeSaved} aria-label="チャンネルの構成の違い">{r.importIssues.map((issue,index)=><li key={index}>{importIssueText(issue)}</li>)}</ul>:undefined}>
+    {intakeSaved&&<ul className={styles.intakeSaved} aria-label="登録できなかった画像の記録"><UnfinishedImports rows={r.intakeRows} outcome={r.intake} disabled={busy} onReplace={(entry,files)=>void act(()=>r.replaceImport(entry,files))} onCancel={entry=>void act(()=>r.cancelImport(entry))} onSeparate={id=>void act(()=>r.addSeparately(id))} onChoose={()=>chooseFiles()}/></ul>}
   </IntakeList>;
   // The nucleus table step shows one field's nuclei (the table lists one field's nuclei) with its table open.
   // The view the visitor had before the guide's nucleus-table step, restored when the guide leaves that step or closes.
@@ -576,7 +610,7 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
     onDrop:(event:DragEvent)=>{if(!event.dataTransfer.types.includes("Files"))return;event.preventDefault();if(demo)showcase.requestUpload("image");else if(!intakeDisabled)add(droppedFiles(event.dataTransfer));}};
   return <main className={styles.workspace} data-mode={mode} data-panel={ai||(mode==="image"&&!!field&&panel)} data-ai={ai} {...dropFiles}>
     <header className={styles.header}><a className={styles.brand} href={demo?"/":"/workspace"}>cytellect</a>{demo&&<DemoBadge dataset={showcase.dataset} onGuide={()=>setGuide(true)}/>}{demo&&<SceneSwitcher scenes={showcase.scenes} scene={showcase.scene}/>}{demo&&showcase.scene&&<SceneIntroButton intro={intro} dataset={showcase.dataset}/>}<nav aria-label="作業の切替">{([["experiment","実験"],["image","画像"],["statistics","統計"],["figure","グラフ"]] as const).filter(([value])=>value!=="experiment"||!demo||!!experiment).map(([value,label])=><button key={value} disabled={editing} aria-current={mode===value?"page":undefined} data-lp-event={demo?`demo_${value}`:undefined} onClick={()=>changeMode(value)}>{label}</button>)}</nav><span className={styles.status} role="status">{r.operation}</span><CloudPhase running={r.busy&&!r.loading&&cellposeChosen}/>{demo&&<LiveStatus/>}{r.busy&&!r.loading&&<button className={styles.icon} aria-label="実行を中止" onClick={()=>r.stop()}><Icon name="stop"/></button>}{mode==="image"&&<><select className={styles.range} aria-label="測定する視野" value={range} onChange={e=>setRange(e.target.value)}><option value="selected">選択視野</option><option value="all">全視野</option></select><button className={styles.primary} disabled={busy||!field||field.kind==="reference"} onClick={()=>void measure()}>測定</button></>}<AccountIndicator/><button className={styles.settingsButton} aria-label="設定パネル" title="検出と測定の設定" aria-pressed={panel} onClick={showSettings}><Icon name="settings"/><span>設定</span></button>{demo&&<><button className={showcaseStyles.guideButton} aria-pressed={guide} data-lp-event="demo_guide" onClick={()=>guide?closeGuide():setGuide(true)}>使い方</button><a className={showcaseStyles.download} href={DOWNLOAD_HREF} data-lp-event="demo_download">ダウンロード</a></>}</header>
-    <aside className={styles.sidebar} aria-label={mode==="image"||mode==="experiment"?"視野一覧":"解析対象"}><div className={styles.sideHeading}>{/* The demo keeps its registered example; a new workspace could not be filled without uploads. */}{!demo&&<button className={styles.icon} disabled={busy} title="新しいワークスペース" aria-label="新しいワークスペース" onClick={newWorkspace}><Icon name="plus"/></button>}{mode==="image"||mode==="experiment"?`視野 ${fields.length}`:targets[checkedTarget]}</div>{mode==="image"||mode==="experiment"?<><input className={styles.search} aria-label="視野を検索" placeholder="検索" value={search} onChange={e=>setSearch(e.target.value)}/><div className={styles.fieldList}>{fields.filter(value=>value.label.toLowerCase().includes(search.toLowerCase())).map((value,index)=>{const ch=value.nuclearChannelId||value.channels[0]?.id;const current=r.currentResult(value.id,target);return <button className={styles.fieldCard} disabled={editing} aria-pressed={value.id===field?.id} data-shown={pairActive&&!!pairDisplay?.fields?.includes(value.id)} key={value.id} onClick={()=>openField(value.id)} title={value.label}>{value.previews[ch]&&<img src={value.previews[ch]} alt={value.label}/>}<span>{index+1} {value.label}</span><small>{value.kind==="reference"?"補助画像":value.exclusionReason?"対象外":shownProgress(r.progressOf(value.id,target))?shownProgress(r.progressOf(value.id,target)):current?`${targets[target]} ${new Set(current.masks.regions.map(region=>region.id)).size}`:"未測定"}</small></button>;})}</div>{demo&&showcase.dataset&&<SideCredit dataset={showcase.dataset}/>}<div className={styles.addMenu}><button disabled={intakeDisabled} onClick={()=>chooseFiles()}><Icon name="plus"/>画像</button><button disabled={intakeDisabled} onClick={()=>chooseFiles(true)}>フォルダ</button></div></>:<div className={styles.resultOptions}><SubjectMetricSelect metric={metric} target={target} calibrated={calibrated} offered={resultMetricOffered} onSubject={chooseSubject} onMetric={chooseMetric} declaration={demo?undefined:{declared:declaredNow,disabled:r.busy,onToggle:()=>void declare()}}/>{<NucleolarStressList stains={(field?.channels||data?.channels||[]).map(ch=>({id:ch.id,name:ch.stain||ch.id}))} marker={r.settings.nucleolarDefinition.marker||null} unavailable={demo?"公開デモに記録のない組み合わせです":"このワークスペースでは、まだ選べません"} chosen={row=>rowVariants(row).includes(metric)&&metricStructure(metric,target)===row.subject&&(row.channel===null||row.channel===actualChannel)} offered={row=>!!themeVariant(row)} onChoose={row=>{const chosenVariant=themeVariant(row);if(!chosenVariant)return;chooseMetric(chosenVariant,row.subject);if(row.channel)setChannel(row.channel);}}/>}{metricUsesChannel(metric)&&<label>染色<select value={actualChannel} onChange={e=>setChannel(e.target.value)}>{(field?.channels||data?.channels)?.filter(ch=>resultChannelOffered(ch.id)).map(ch=><option value={ch.id} key={ch.id}>{channelLabel(ch,field?.channels||data?.channels||[])}</option>)}</select></label>}</div>}</aside>
+    <aside className={styles.sidebar} aria-label={mode==="image"||mode==="experiment"?"視野一覧":"解析対象"}><div className={styles.sideHeading}>{/* The demo keeps its registered example; a new workspace could not be filled without uploads. */}{!demo&&<button className={styles.icon} disabled={busy} title="新しいワークスペース" aria-label="新しいワークスペース" onClick={newWorkspace}><Icon name="plus"/></button>}{mode==="image"||mode==="experiment"?`視野 ${fields.length}`:targets[checkedTarget]}</div>{mode==="image"||mode==="experiment"?<><input className={styles.search} aria-label="視野を検索" placeholder="検索" value={search} onChange={e=>setSearch(e.target.value)}/><div className={styles.fieldList}>{fields.filter(value=>value.label.toLowerCase().includes(search.toLowerCase())).map((value,index)=>{const ch=value.nuclearChannelId||value.channels[0]?.id;const current=r.currentResult(value.id,target);return <button className={styles.fieldCard} disabled={editing} aria-pressed={value.id===field?.id} data-shown={pairActive&&!!pairDisplay?.fields?.includes(value.id)} key={value.id} onClick={()=>openField(value.id)} title={value.label}>{value.previews[ch]&&<img src={value.previews[ch]} alt={value.label}/>}<span>{index+1} {value.label}</span><small>{value.kind==="reference"?"補助画像":value.exclusionReason?"対象外":shownProgress(r.progressOf(value.id,target))?shownProgress(r.progressOf(value.id,target)):current?`${targets[target]} ${new Set(current.masks.regions.map(region=>region.id)).size}`:"未測定"}</small></button>;})}</div>{demo&&showcase.dataset&&<SideCredit dataset={showcase.dataset}/>}<div className={styles.addMenu}><button disabled={intakeDisabled} onClick={()=>chooseFiles()}><Icon name="plus"/>画像</button><button disabled={intakeDisabled} onClick={()=>chooseFiles(true)}>フォルダー</button></div></>:<div className={styles.resultOptions}><SubjectMetricSelect metric={metric} target={target} calibrated={calibrated} offered={resultMetricOffered} onSubject={chooseSubject} onMetric={chooseMetric} declaration={demo?undefined:{declared:declaredNow,disabled:r.busy,onToggle:()=>void declare()}}/>{<NucleolarStressList stains={(field?.channels||data?.channels||[]).map(ch=>({id:ch.id,name:ch.stain||ch.id}))} marker={r.settings.nucleolarDefinition.marker||null} unavailable={demo?"公開デモに記録のない組み合わせです":"このワークスペースでは、まだ選べません"} chosen={row=>rowVariants(row).includes(metric)&&metricStructure(metric,target)===row.subject&&(row.channel===null||row.channel===actualChannel)} offered={row=>!!themeVariant(row)} onChoose={row=>{const chosenVariant=themeVariant(row);if(!chosenVariant)return;chooseMetric(chosenVariant,row.subject);if(row.channel)setChannel(row.channel);}}/>}{metricUsesChannel(metric)&&<label>染色<select value={actualChannel} onChange={e=>setChannel(e.target.value)}>{(field?.channels||data?.channels)?.filter(ch=>resultChannelOffered(ch.id)).map(ch=><option value={ch.id} key={ch.id}>{channelLabel(ch,field?.channels||data?.channels||[])}</option>)}</select></label>}</div>}</aside>
 
     <div className={styles.body}>
       {demo&&showcase.scene&&<SceneIntro intro={intro} dataset={showcase.dataset}/>}
@@ -584,9 +618,9 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
       <ConnectionNotice onReconnected={()=>void act(()=>r.reconnected())}/>
       {(r.error||localError)&&connected&&(isShowcaseNotice(localError||r.error)?<div className={`${styles.error} ${showcaseStyles.notice}`} role="status">{localError||r.error}<button aria-label="案内を閉じる" onClick={()=>{setLocalError("");r.dismissError();}}>閉じる</button></div>:<div className={styles.error} role="alert">{localError||r.error}<button aria-label="保存状態を再読み込み" disabled={busy} onClick={()=>void act(()=>r.reload())}>再読み込み</button></div>)}
       {/* One instance for both views: the first save switches to the experiment view (E-01). */}
-      <section hidden={!setupShown} className={styles.imageWork}>{setupShown&&!demo&&intakeShown&&intakeItems.some(item=>item.target)&&intakeView}{setupShown&&setup}</section>
+      <section hidden={!setupShown} className={styles.imageWork}>{setupShown&&!demo&&intakeShown&&(intakeItems.length>0||intakeSaved||intakeNotes)&&intakeView}{setupShown&&setup}</section>
       <section hidden={mode!=="image"||setupShown} className={styles.imageWork}>
-        {!demo&&intakeShown&&(intakeItems.length>0||intakeSaved)?intakeView:!field&&demo&&!fields.length&&!r.error?<div className={styles.start}><p role="status">読み込み中…</p></div>:!field&&!demo?<EmptyStart disabled={intakeDisabled} onFiles={()=>chooseFiles()} onFolder={()=>chooseFiles(true)} onExperiment={()=>changeMode("experiment")} onMeasured={()=>changeMode("statistics")}/>:!field?<div className={styles.start}><h1>画像解析</h1><div className={styles.startActions}><button className={styles.primary} disabled={intakeDisabled} onClick={()=>chooseFiles()}>画像を追加</button><button disabled={intakeDisabled} onClick={()=>chooseFiles(true)}>フォルダを追加</button></div><p>TIFF・OME-TIFF</p><button onClick={()=>changeMode("statistics")}>測定済みデータを使用</button></div>:<>
+        {!demo&&intakeShown&&(intakeItems.length>0||intakeSaved||intakeNotes)?intakeView:!field&&demo&&!fields.length&&!r.error?<div className={styles.start}><p role="status">読み込み中…</p></div>:!field&&!demo?<EmptyStart disabled={intakeDisabled} onFiles={()=>chooseFiles()} onFolder={()=>chooseFiles(true)} onExperiment={()=>changeMode("experiment")} onMeasured={()=>changeMode("statistics")}/>:!field?<div className={styles.start}><h1>画像解析</h1><div className={styles.startActions}><button className={styles.primary} disabled={intakeDisabled} onClick={()=>chooseFiles()}>画像を追加</button><button disabled={intakeDisabled} onClick={()=>chooseFiles(true)}>フォルダーを追加</button></div><p>TIFF・OME-TIFF</p><button onClick={()=>changeMode("statistics")}>測定済みデータを使用</button></div>:<>
           {/* What the image shows on the left (region, stain, colour mode), how it is laid out on the right (MV-08). */}
           <div className={styles.channelBar} role="toolbar" aria-label="画像の表示">
             <div className={styles.barGroup} role="group" aria-label="表示対象">{returnMode&&<button className={styles.icon} aria-label="元の結果へ戻る" disabled={editing} onClick={returnToResult}><Icon name="back"/></button>}{!pairActive&&<strong title={field.label}>{field.label}</strong>}
@@ -625,14 +659,14 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
           <div><button disabled={busy} onClick={()=>{markProposalScopeSeen();void sendInstruction(scopePending.value,true,scopePending.retry,scopePending.message);}}>確認して送信</button>
             <button disabled={busy} onClick={()=>{setIncludePreviews(false);markProposalScopeSeen();void sendInstruction(scopePending.value,true,scopePending.retry,scopePending.message);}}>縮小画像なしで送信</button>
             <button disabled={busy} onClick={()=>setScopePending(null)}>キャンセル</button></div></section>}
-        {retryPending!==null&&<section role="group" aria-label="AIへの再送の確認"><p>前回の依頼：未完了。再送は課金の対象になり得ます。</p>
-          <div><button disabled={busy} onClick={()=>void sendInstruction(retryPending.value,false,true,retryPending.message)}>再送</button>
+        {retryPending!==null&&<section role="group" aria-label="AIへの再送の確認"><p>{retryPending.answered?"記録済みの回答の取り直し。再送は課金の対象になり得ます。":"前回の依頼：未完了。再送は課金の対象になり得ます。"}</p>
+          <div><button disabled={busy} onClick={()=>void sendInstruction(retryPending.value,false,retryPending.retry,retryPending.message)}>再送</button>
             <button disabled={busy} onClick={()=>setRetryPending(null)}>キャンセル</button></div></section>}
         {demoReply&&<p>{demoReply}</p>}
         <AssistantPanel field={field} messages={r.messages} busy={busy} demo={demo} canApply={id=>r.canApply(id,field?.id)} canTry={id=>r.canTry(id,field?.id)}
           confirmationOf={id=>r.confirmationOf(id,field?.id)} onConfirm={(id,channel)=>void act(()=>r.confirmNuclear(id,channel,field?.id))}
           undoable={r.canUndoProposal()?appliedMessage:null} onApply={applyAnswer} onShowSettings={showSettings} onPlace={placeOf}
-          onUndo={()=>void act(()=>r.undoProposal())} onResend={message=>{if(message.state==="failed")setRetryPending({value:message.text,message:message.id});else void sendInstruction(message.text,false,false,message.id);}}
+          onUndo={()=>void act(()=>r.undoProposal())} onResend={message=>setRetryPending({value:message.text,message:message.id,retry:message.state!=="answered",answered:message.state==="answered"})}
           onPropose={fields.length&&aiAccess.available?()=>void sendInstruction(""):undefined}
           answerOf={id=>r.answerOf(id)} runTargets={id=>r.runTargets(id,field?.id)} canRun={id=>r.canRun(id,field?.id)} onRun={runAnswer}
           onChoose={option=>void sendInstruction(option)}/>
@@ -653,7 +687,7 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
         <section><h3>測定</h3><MetricSelect value={metric} onChange={setMetric} calibrated={calibrated} offered={metricOffered}/><label>背景補正<select value={r.settings.background} disabled={busy} onChange={e=>setSetting("background",e.target.value as RuntimeSettings["background"])}><option value="raw">なし（原値）</option><option value="automatic">自動推定</option><option value="confirmed_roi">背景ROI</option></select></label>{r.settings.background==="confirmed_roi"&&field&&<ConnectedBackground fieldId={field.id} fieldLabel={field.label} channels={field.channels.map(ch=>({...ch,role:ch.role||undefined}))} backgrounds={backgrounds} confirmedChannelIds={storedSpec?.confirmed_channel_ids||[]} disabled={r.busy} drawing={!!backgroundDraw} onDraw={channels=>{setCompare(false);setBackgroundDraw({field:field.id,channels,id:crypto.randomUUID()});}} onRemove={async channels=>{const updated={...backgrounds,[field.id]:{...backgrounds[field.id]}};for(const ch of channels)delete updated[field.id][ch];await r.saveBackgrounds(updated,storedSpec?.confirmed_channel_ids||[]);}}/>}</section>
       </>}
     </div></aside>}
-    <footer className={styles.composer}><AiAvailabilityHint onSettings={()=>dispatchPanel("open-ai")}/>{intakeCount>0&&<button type="button" className={styles.importIssues} aria-expanded={intakeShown} onClick={()=>{setIntakeShown(!intakeShown);if(mode!=="image"&&mode!=="experiment")setMode("image");}}>取込 {intakeCount}件</button>}{intakeLine&&<p role="status" className={styles.intakeResult}>{intakeLine}</p>}<button className={styles.icon} aria-label="AIの会話を開く" aria-pressed={ai} onClick={()=>dispatchPanel("toggle-ai")}><Icon name="ai"/></button><textarea disabled={!aiAccess.available} aria-label="AIへの指示" placeholder={demo&&showcase.examples.length?"AIに指示（例から選択）":"AIに指示"} value={instruction} onFocus={!ai?()=>dispatchPanel("open-ai"):undefined} onChange={e=>setInstruction(e.target.value)} rows={1}/><button className={styles.send} aria-label="AIへ送信" disabled={busy||!aiAccess.available||!instruction.trim()} onClick={()=>void send()}><Icon name="send"/></button></footer>
+    <footer className={styles.composer}><AiAvailabilityHint onSettings={()=>dispatchPanel("open-ai")}/>{(intakeCount>0||r.importIssues.length>0)&&<button type="button" className={styles.importIssues} aria-expanded={intakeShown} onClick={()=>{setIntakeShown(!intakeShown);if(mode!=="image"&&mode!=="experiment")setMode("image");}}>{intakeCount>0?`取込 ${intakeCount}件`:"取込"}</button>}{intakeLine&&<p role="status" className={styles.intakeResult}>{intakeLine}</p>}<button className={styles.icon} aria-label="AIの会話を開く" aria-pressed={ai} onClick={()=>dispatchPanel("toggle-ai")}><Icon name="ai"/></button><textarea disabled={!aiAccess.available} aria-label="AIへの指示" placeholder={demo&&showcase.examples.length?"AIに指示（例から選択）":"AIに指示"} value={instruction} onFocus={!ai?()=>dispatchPanel("open-ai"):undefined} onChange={e=>setInstruction(e.target.value)} rows={1}/><button className={styles.send} aria-label="AIへ送信" disabled={busy||!aiAccess.available||!instruction.trim()} onClick={()=>void send()}><Icon name="send"/></button></footer>
     {demo&&<DemoGuide open={guide} onClose={closeGuide} onStep={guideStep} dataset={showcase.dataset}/>}
     <input hidden type="file" multiple accept=".tif,.tiff" ref={fileInput} data-testid="file-input" disabled={intakeDisabled} onChange={e=>{setCancelled(false);add(e.target.files);e.target.value="";}}/><input hidden type="file" multiple ref={folderInput} data-testid="folder-input" disabled={intakeDisabled} onChange={e=>{setCancelled(false);add(e.target.files);e.target.value="";}}/>
   </main>;

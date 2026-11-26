@@ -26,7 +26,7 @@ export function UnfinishedImports({rows, outcome, disabled, onReplace, onCancel,
   const unrecorded = outcome?.rejected.filter(item => !item.entry) ?? [];
   return <>
     {rows.map(row => <li key={row.entry} className={styles.unfinishedImport}>
-      <span>{row.state === "legacy" ? <>名前の記録なし：{intakeReason(null)}</> : <><strong>{namesText(row.names)}</strong>：{intakeReason(row.state === "pending" ? null : row.code)}</>}</span>
+      <span>{row.state === "legacy" ? <>名前の記録なし：{intakeReason(null)}</> : <><strong>{namesText(row.names)}</strong>：{intakeReason(row.state === "pending" ? null : row.code, row.mask)}</>}</span>
       <span className={styles.intakeActions}>
         {row.state !== "legacy" && !row.mask && <button type="button" disabled={disabled} onClick={() => replace(row.entry)}>差し替え</button>}
         <button type="button" disabled={disabled} onClick={() => onCancel(row.entry)}>記録から削除</button>

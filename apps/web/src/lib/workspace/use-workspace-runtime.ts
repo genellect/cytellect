@@ -3,7 +3,7 @@ import {useEffect, useState, useSyncExternalStore} from "react";
 import {ApiError, errorCodeMessage, errorMessage, request} from "../api";
 import type {Point} from "../types";
 import type {PrimaryOutcome} from "./primary-outcome";
-import {automaticBackground, createApiAdapter, nuclearRecipe, rawMeasurement, type ChannelAssignment, type ChannelAssignments, type AssistantMessage, type ImportedField, type IntakeTarget, type SelectionEntry, type MaskOperation, type Recipe, type SavedResult, type ValidatedProposal, type WorkspaceRun} from "./api-adapter";
+import {automaticBackground, createApiAdapter, nuclearRecipe, rawMeasurement, type ChannelAssignment, type ChannelAssignments, type AssistantMessage, type ImportedField, type IntakeRecord, type IntakeTarget, type SelectionEntry, type MaskOperation, type Recipe, type SavedResult, type ValidatedProposal, type WorkspaceRun} from "./api-adapter";
 import {rememberGoal} from "./ai-settings";
 import type {Suggestion} from "./assignment-suggestions";
 import {effectiveChannelAssignments} from "./channel-assignments";
@@ -70,6 +70,11 @@ export interface IntakeOutcome {
   empty?: "nothing" | "no_images";
 }
 /** The addition could not go on (no answer, ended session, changed workspace); the outcome holds what was done. */
+/** A row is a mask candidate only when registration refused a 32-bit image the judgement before adding did not
+ * see. A file that judgement found unreadable (a float or signed image shares the reason code) is a missing image. */
+export function isMaskRow(intake:IntakeRecord|undefined|null):boolean{return !!intake&&intake.code===MASK_CANDIDATE_CODE&&intake.stage!=="inspect";}
+/** A name as a row can hold it (255 characters, no control characters): a longer folder-relative path keeps its file name. */
+function recordedName(name:string):string{const clean=name.replace(/[\u0000-\u001f\u007f]/g,"_");return clean.length<=255?clean:(clean.split("/").at(-1)||clean).slice(-255);}
 export class IntakeInterrupted extends Error {constructor(public outcome:IntakeOutcome, public cause:unknown){super(message(cause));}}
 /** The bit depth the API refuses as an image: a 32-bit integer label image (a mask), not missing data (#284 input 5). */
 export const MASK_CANDIDATE_CODE="region_image_bit_depth_unsupported";
@@ -477,7 +482,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   }
   function intakeRows(entries:readonly SelectionEntry[]):IntakeRow[]{
     return entries.filter(entry=>!entry.field_id&&!entry.exclusion_reason).map(entry=>({entry:entry.id,names:entry.intake?.names??[],
-      state:entry.intake?(entry.intake.state==="rejected"?"rejected":"pending"):"legacy",code:entry.intake?.code??null,mask:entry.intake?.code===MASK_CANDIDATE_CODE,target:entry.intake?.target??null}));
+      state:entry.intake?(entry.intake.state==="rejected"?"rejected":"pending"):"legacy",code:entry.intake?.code??null,mask:isMaskRow(entry.intake),target:entry.intake?.target??null}));
   }
   /** Puts registered fields where the researcher asked (the row's target), once, then forgets the target (#284 control C).
    * Run after every addition and when a workspace opens, so an interrupted addition is placed after a restart. */
@@ -539,13 +544,20 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     const ledgerSize=()=>adapter.selection()?.entries.length??0;
     try{
       const send=async(key:string,paths:string[],refusal:string|null,upload:(entry:string)=>Promise<ImportedField>)=>{
-        const shown=paths.map(shownPath);
+        const shown=paths.map(path=>recordedName(shownPath(path)));
         if(options.entry)uploadKeys.set(key,options.entry);
-        if(!uploadKeys.has(key)){if(ledgerSize()>=LEDGER_LIMIT){outcome.rejected.push({entry:null,names:shown,code:"ledger_full"});dropImport(key,paths);return;}uploadKeys.set(key,crypto.randomUUID());}
+        if(!uploadKeys.has(key)){
+          // Images added again under the names of a row that never became a field (interrupted, or refused before)
+          // resolve that row instead of leaving it beside the new field as a missing image.
+          const taken=new Set(uploadKeys.values()),wanted=[...shown].sort().join("\u0000");
+          const earlier=adapter.selection()?.entries.find(value=>!value.field_id&&!value.exclusion_reason&&!taken.has(value.id)&&!!value.intake&&[...value.intake.names].sort().join("\u0000")===wanted);
+          if(earlier)uploadKeys.set(key,earlier.id);
+          else{if(ledgerSize()>=LEDGER_LIMIT){outcome.rejected.push({entry:null,names:shown,code:"ledger_full"});dropImport(key,paths);return;}uploadKeys.set(key,crypto.randomUUID());}
+        }
         const entry=uploadKeys.get(key)!;
-        // A field retried after an interruption keeps the target and decision its row recorded, not this call's.
+        // This addition's run and group; a row sent again without one keeps what it recorded.
         const recorded=options.entry?undefined:adapter.selection()?.entries.find(value=>value.id===entry)?.intake;
-        const rowTarget=recorded?recorded.target:target,separate=recorded?recorded.separate:options.separate;
+        const rowTarget=target??recorded?.target??null,separate=options.separate??recorded?.separate;
         await adapter.registerImport(workspace(),entry,{names:shown,state:"pending",...(rowTarget?{target:rowTarget}:{}),...(separate?{separate:true}:{})});
         let saved:ImportedField;
         try{if(refusal)throw new ApiError(refusal,422);saved=await upload(entry);}
@@ -561,7 +573,11 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
         await send(field.key,paths,refusal,entry=>adapter.upload(workspace(),field,present,files,entry));}
       for(const key of batchOme){if(stopped||closed)break;const file=omeFiles.get(key)!;await send(key,[key],null,entry=>adapter.uploadOme(workspace(),file,entry));}
     }catch(error){
-      // What was registered stays; rows not answered stay "pending" and are named after a restart (#284 W1).
+      // What was registered stays; rows not answered stay "pending" and are named after a restart (#284 W1). Nothing
+      // unsent is kept here: a later addition never sends it on its own, into that addition's run and group. The
+      // list before adding still holds the files, and adding them again resolves the pending row by its names.
+      for(const field of groupFiles(added,mode).fields)if(!uploaded.has(field.key))dropImport(field.key,Object.values(field.files).map(file=>file.path));
+      for(const key of [...omeFiles.keys()])if(!uploaded.has(key))dropImport(key,[key]);
       try{await refresh(workspace());await applyTargets();}catch{/* the interruption is what is reported */}
       publish({intake:outcome});throw new IntakeInterrupted(outcome,error);
     }

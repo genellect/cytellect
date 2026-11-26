@@ -61,7 +61,7 @@ test.describe("#284 W1, W4, W5 intake against the real API", () => {
     // Judged by the API before anything is registered (W4): the parts add up to the 8 files received.
     await expect(list(page).getByRole("status")).toHaveText("受け取り：8 · 画像：4（2 視野） · マスクの候補：1 · 同一内容：1 · 読み取れない：1 · 対象外：1", {timeout:120000});
     await expect(list(page).getByRole("row").filter({hasText:"BBBC007-a9-核の手動輪郭.tif"})).toContainText("寸法の一致：BBBC007-a9");
-    await expect(list(page).getByRole("row").filter({hasText:"test-truncated-DRAQ.tif"})).toContainText("読み取り不可");
+    await expect(list(page).getByRole("row").filter({hasText:"test-truncated-DRAQ.tif"})).toContainText("不正または未対応の TIFF");
     await expect(list(page).getByRole("row").filter({hasText:"同一内容"})).toContainText("対応先：BBBC007-a9-C01.tif");
     await addListed(page);
     await expect(status(page, "登録：2 視野")).toBeVisible({timeout:120000});
@@ -78,7 +78,7 @@ test.describe("#284 W1, W4, W5 intake against the real API", () => {
     // A restart keeps the name and reason (#284 involvement 3).
     await page.reload();
     await page.getByRole("button", {name:"取込 1件", exact:true}).click();
-    await expect(page.locator("li").filter({hasText:"test-truncated-DRAQ.tif：読み取り不可"})).toBeVisible();
+    await expect(page.locator("li").filter({hasText:"test-truncated-DRAQ.tif：不正または未対応の TIFF"})).toBeVisible();
     await expect(page.getByText(/名称不明|名前の記録なし/)).toHaveCount(0);
     await expect(fieldCards(page)).toHaveCount(2);
   });

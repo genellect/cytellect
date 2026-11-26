@@ -106,7 +106,7 @@ measurements, statistics and figures. Earlier results stay visible and marked
 「更新中」 while recalculating. Figure styling never reruns image analysis or
 tests.
 
-Wording uses operation names: 画像を追加／フォルダを追加, 解析案／解析条件,
+Wording uses operation names: 画像を追加／フォルダーを追加, 解析案／解析条件,
 解析を実行／中断／再実行, 領域を修正／対象から除外, 測定値／グラフ／比較条件,
 書き出し／SVG／PDF／CSV. No slogans in the application. Light neutral working
 surface, dark image area, blue for emphasis, Inter/Noto Sans JP, 16 px body and
@@ -195,7 +195,8 @@ Methods and input/mask identities.
 - **Proposals show the model what the researcher recorded.** Since the
   2026-11-16 redesign ([LLM assistance redesign](drafts/llm-assistant/plan.md)),
   requests send the goal, channel labels, every field's name and records, the
-  names its files were added with (relative to the folder the researcher chose),
+  names its files were added with (the chosen folder's own name and the folder and
+  file names inside it),
   the run and group names, and up to six display-scaled previews of one
   representative field unless the researcher turns previews off (requirement
   L03). Paths above the chosen folder and measured values are not sent.

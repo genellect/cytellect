@@ -65,7 +65,7 @@ not sent; 「解析案を作る」 asks for a proposal from the images alone. A 
 input, and reopening a workspace shows its messages again.
 
 An empty workspace opens on adding images ([#284](https://github.com/genellect/cytellect/issues/284) W5): the image
-stage offers 画像を選ぶ, フォルダーを選ぶ and a drop, the accepted formats in one line, and schematic samples of the
+stage offers 画像を選択, フォルダーを選択 and a drop, the accepted formats in one line, and schematic samples of the
 measured fluorescence images, another stain of the same field and an outline mask. Chosen files go to the list first.
 Each file is judged by `POST /v1/intake/inspect` (one at a time; nothing is stored) and listed with its thumbnail
 and role: images grouped into the fields they will make with their channels (追加待ち, 読み込み中 while judged), a mask
@@ -155,9 +155,8 @@ review route `/workspace-review` (the workspace without its session gate) redire
   (owner decisions 15 and 19, 2026-11-21); a measure is named the same way on the side panel, the saved
   comparisons and the result (「核小体の平均輝度（NPM1）」, by the recorded stain); the settings panel starts
   closed and opens with 設定. In production a drop of files or folders adds images as the 画像 and
-  フォルダ buttons do; the first images of a workspace without a form wait for the choice of the form
-  (1 画面 takes them, 2 画面 asks which run and group, 実験デザインなしで登録 keeps typing groups per field
-  in statistics, 取り消す drops them), so they never open in a view the researcher did not choose.
+  フォルダー buttons do: the files go to the list of chosen files, and nothing is registered or placed in a
+  group before the researcher adds them there (the list of chosen files, above).
 - Production only, 統計 has no confirmations (owner decision 11, 2026-11-21, genellect/cytellect#257): the
   regions and fields are those adopted in 画像, the acquisition and pixel settings (群の間で撮影・画素条件を比べられる)
   and the runs' independence are declared in 実験 beside each other and shown there as status marks (撮影条件、

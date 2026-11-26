@@ -23,8 +23,8 @@ export function EmptyStart({disabled, onFiles, onFolder, onExperiment, onMeasure
   return <section className={styles.start} aria-labelledby="empty-start-heading">
     <h1 id="empty-start-heading">画像を追加</h1>
     <div className={styles.startActions}>
-      <button type="button" className={styles.primary} disabled={disabled} onClick={onFiles}>画像を選ぶ</button>
-      <button type="button" disabled={disabled} onClick={onFolder}>フォルダーを選ぶ</button>
+      <button type="button" className={styles.primary} disabled={disabled} onClick={onFiles}>画像を選択</button>
+      <button type="button" disabled={disabled} onClick={onFolder}>フォルダーを選択</button>
     </div>
     <p className={styles.drop}>ここにドロップ · TIFF・OME-TIFF · 8/16-bit · 2D</p>
     <ul className={styles.samples} aria-label="選ぶ画像の見本">
@@ -33,7 +33,7 @@ export function EmptyStart({disabled, onFiles, onFolder, onExperiment, onMeasure
       <li><Sample kind="mask"/><span><strong>輪郭のマスク</strong>マスクの候補 · 測定の対象外</span></li>
     </ul>
     <p className={styles.alternatives}>
-      <button type="button" className={styles.link} onClick={onExperiment}>実験デザインから始める</button>
+      <button type="button" className={styles.link} onClick={onExperiment}>実験デザインから開始</button>
       <button type="button" className={styles.link} onClick={onMeasured}>測定済みデータを使用</button>
     </p>
   </section>;

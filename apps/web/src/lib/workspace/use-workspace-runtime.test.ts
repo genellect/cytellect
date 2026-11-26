@@ -301,18 +301,57 @@ describe("functional workspace runtime",()=>{
     expect(Object.keys(writeSpecification.mock.calls.at(-1)![1].spec!.experiment!.fields!).sort()).toEqual(["f-BBBC007-a9","f-BBBC007-f9620"]);
     expect(runtime.getSnapshot().intakeRows).toEqual([]);
   });
-  it("retries an interrupted field under its own row and group when the next images go elsewhere",async()=>{
+  it("never sends an interrupted field with a later addition; adding it again resolves its own row (#284 independent review)",async()=>{
     const design={version:"1.0.0",layout:"pair",control_group_id:"c",independence_confirmed:false,groups:[{id:"t",label:"処理"},{id:"c",label:"対照"}],runs:[{id:"r1",label:"実験回1"}],fields:{}};
     const {runtime,adapter,writeSpecification}=fixture(true,{version:1,spec:{channel_assignment_version:1,target:"nuclei",settings:defaultRuntimeSettings(),processing:null,measurement:null,experiment:design as never}});
     await runtime.load("w");const ledger=withLedger(adapter);
+    const a01=()=>[new File([new Uint8Array([40])],"A01_c1.tif")],a06=()=>[new File([new Uint8Array([41])],"A06_c1.tif")];
+    // 対照: A01 is registered, a9's upload meets no answer (its row stays pending), f9620 was never reached (no row).
     let calls=0;adapter.upload.mockImplementation(async(_workspace,field,_channels,_files,entry)=>{if(++calls===2)throw new TypeError("Failed to fetch");return ledger.accept(entry!,`f-${field.key.split("/").at(-1)}`);});
-    await runtime.importFiles(bbbc007(),"automatic",{run_id:"r1",group_id:"c",sample:null}).catch(()=>undefined);
+    await runtime.importFiles([...bbbc007(),...a01()],"automatic",{run_id:"r1",group_id:"c",sample:null}).catch(()=>undefined);
     const pending=ledger.entries().find(entry=>!entry.field_id)!;
-    // The next images go to the other group; the interrupted f9620 is sent again under its own row and stays in 対照.
-    await runtime.importFiles([new File([new Uint8Array([40])],"A01_c1.tif")],"automatic",{run_id:"r1",group_id:"t",sample:null});
-    expect(adapter.upload.mock.calls.filter(call=>call[4]===pending.id)).toHaveLength(2);
+    expect(pending.intake).toMatchObject({state:"pending",names:["BBBC007-a9-C01.tif","BBBC007-a9-C02.tif"],target:{group_id:"c"}});
+    expect(ledger.entries().filter(entry=>entry.intake).map(entry=>entry.intake!.names[0]).sort()).toEqual(["A01_c1.tif","BBBC007-a9-C01.tif"]);
+    // The next images go to 処理. Nothing of the interrupted addition goes with them: not a9, not the unreached f9620.
+    const sent=adapter.upload.mock.calls.length;
+    const next=await runtime.importFiles(a06(),"automatic",{run_id:"r1",group_id:"t",sample:null});
+    expect(next.registered.map(item=>item.fieldId)).toEqual(["f-A06"]);
+    expect(adapter.upload).toHaveBeenCalledTimes(sent+1);
+    expect(ledger.entries().find(entry=>entry.id===pending.id)?.field_id).toBeNull();
+    // Adding them again (the list still holds them, with their cell): neither is a copy of itself, a9 resolves its
+    // own row and f9620 gets its first.
+    const rows=ledger.entries().length;
+    const again=await runtime.importFiles(bbbc007(),"automatic",{run_id:"r1",group_id:"c",sample:null});
+    expect(again.duplicates).toEqual([]);
+    expect(again.registered.map(item=>item.fieldId).sort()).toEqual(["f-BBBC007-a9","f-BBBC007-f9620"]);
+    expect(adapter.upload.mock.calls.find(call=>(call[1] as {key:string}).key.endsWith("BBBC007-a9")&&call[4]===pending.id)).toBeTruthy();
+    expect(ledger.entries()).toHaveLength(rows+1);
     const fields=writeSpecification.mock.calls.at(-1)![1].spec!.experiment!.fields as Record<string,{group_id:string}>;
-    expect(Object.fromEntries(Object.entries(fields).map(([id,value])=>[id,value.group_id]))).toEqual({"f-BBBC007-a9":"c","f-BBBC007-f9620":"c","f-A01":"t"});
+    expect(Object.fromEntries(Object.entries(fields).map(([id,value])=>[id,value.group_id]))).toEqual({"f-BBBC007-a9":"c","f-BBBC007-f9620":"c","f-A01":"c","f-A06":"t"});
+  });
+  it("images added again after a restart resolve the row their names left pending, so it is not counted as missing",async()=>{
+    const {runtime,adapter}=fixture();await runtime.load("w");const ledger=withLedger(adapter);
+    adapter.upload.mockImplementationOnce(async()=>{throw new TypeError("Failed to fetch");});
+    await runtime.importFiles(bbbc007().slice(0,2)).catch(()=>undefined);
+    const pending=ledger.entries().find(entry=>!entry.field_id)!;
+    // A restart: this session no longer holds the files; the researcher chooses the same images again.
+    const restarted=createWorkspaceRuntime({adapter:adapter as never,loadPreview:vi.fn(async()=>({workspaceId:"w",title:"fixture",channels:[],fields:[]})) as never,releasePreview:vi.fn(),readSpecification:async()=>({version:0,spec:null}),writeSpecification:vi.fn(async(_id:string,value:import("./use-workspace-runtime").RuntimeSpecification)=>({...value,version:1}))});
+    await restarted.load("w");
+    adapter.upload.mockImplementation(async(_workspace,field,_channels,_files,entry)=>ledger.accept(entry!,`f-${field.key.split("/").at(-1)}`));
+    const rows=ledger.entries().length;
+    const outcome=await restarted.importFiles(bbbc007().slice(0,2));
+    expect(outcome.registered).toHaveLength(1);
+    expect(ledger.entries()).toHaveLength(rows);
+    expect(ledger.entries().find(entry=>entry.id===pending.id)?.field_id).toBe("f-BBBC007-a9");
+    expect(restarted.getSnapshot().intakeRows).toEqual([]);
+  });
+  it("records a folder-relative name too long for a row by its file name, without stopping the addition",async()=>{
+    const {runtime,adapter}=fixture();await runtime.load("w");const ledger=withLedger(adapter);
+    adapter.upload.mockImplementation(async(_workspace,field,_channels,_files,entry)=>ledger.accept(entry!,`f-${field.key.split("/").at(-1)}`));
+    const deep=new File([new Uint8Array([50])],"deep_c1.tif");Object.defineProperty(deep,"webkitRelativePath",{value:`${"階層/".repeat(90)}deep_c1.tif`});
+    const outcome=await runtime.importFiles([deep,new File([new Uint8Array([51])],"near_c1.tif")]);
+    expect(outcome.registered).toHaveLength(2);
+    expect(ledger.entries().map(entry=>entry.intake?.names).filter(Boolean)).toEqual(expect.arrayContaining([["deep_c1.tif"],["near_c1.tif"]]));
   });
   it("replaces a refused row in place, removes a row on request, and reports a full record and an empty choice",async()=>{
     const {runtime,adapter}=fixture();await runtime.load("w");const ledger=withLedger(adapter);
