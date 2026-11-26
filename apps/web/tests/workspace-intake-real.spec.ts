@@ -64,7 +64,8 @@ test.describe("#284 W1, W4, W5 intake against the real API", () => {
     await expect(list(page).getByRole("row").filter({hasText:"test-truncated-DRAQ.tif"})).toContainText("不正または未対応の TIFF");
     await expect(list(page).getByRole("row").filter({hasText:"同一内容"})).toContainText("対応先：BBBC007-a9-C01.tif");
     await addListed(page);
-    await expect(status(page, "登録：2 視野")).toBeVisible({timeout:120000});
+    // One line for the whole 追加, once the unreadable file has its row.
+    await expect(status(page, "登録：2 視野 · 読み取れない：1 件")).toBeVisible({timeout:120000});
     await expect(fieldCards(page)).toHaveCount(2);
     // With fields registered, the image shows next; what was not added waits behind 「取込」, also when the addition
     // created the workspace (#284 input 5: nothing read stands behind a clean-up).
@@ -129,7 +130,7 @@ test.describe("#284 W1, W4, W5 intake against the real API", () => {
     await addTo(control.label, [...input.bbbc007, input.truncated]);
     await expect(list(page).getByRole("status")).toHaveText("受け取り：5 · 画像：4（2 視野） · 読み取れない：1", {timeout:120000});
     await addListed(page);
-    await expect(status(page, "登録：2 視野")).toBeVisible({timeout:120000});
+    await expect(status(page, "登録：2 視野 · 読み取れない：1 件")).toBeVisible({timeout:120000});
     await addTo(treated.label, input.a01);
     await expect(list(page).getByRole("status")).toHaveText("受け取り：2 · 画像：2（1 視野）", {timeout:120000});
     await addListed(page);

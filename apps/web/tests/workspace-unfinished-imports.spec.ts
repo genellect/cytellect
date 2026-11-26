@@ -78,7 +78,8 @@ test("a refused image never stops the others, keeps its name and reason after a 
   await expect(list.getByRole("row").filter({hasText:"読み方.txt"})).toContainText("TIFF 以外");
   expect(state.selection.entries).toEqual([]);
   await list.getByRole("button",{name:"追加",exact:true}).click();
-  await expect(page.getByRole("status").filter({hasText:"登録：1 視野"})).toBeVisible();
+  // The line counts the whole 追加, once the unreadable file has its row.
+  await expect(page.getByRole("status").filter({hasText:"登録：1 視野 · 読み取れない：1 件"})).toBeVisible();
   await expect(page.getByRole("alert").filter({hasText:/\S/})).toHaveCount(0);
   await expect(page.getByLabel(/除外の理由/)).toHaveCount(0);
   await expect(page.getByText(/import-[0-9a-f]/)).toHaveCount(0);
@@ -125,7 +126,7 @@ test("images added in a group's cell go to that group, though another image of t
   const list=page.getByRole("region",{name:"取り込みの一覧"});
   await expect(list.getByRole("row").filter({hasText:"BBBC007-a9"}).first()).toContainText(`追加先：${control.label}`);
   await list.getByRole("button",{name:"追加",exact:true}).click();
-  await expect(page.getByRole("status").filter({hasText:"登録：2 視野"})).toBeVisible();
+  await expect(page.getByRole("status").filter({hasText:"登録：2 視野 · 読み取れない：1 件"})).toBeVisible();
   await expect.poll(()=>Object.keys(design().fields??{}).sort()).toEqual(["field-1","field-2"]);
   expect(Object.values(design().fields!).every(value=>value.group_id===control.id&&value.run_id===design().runs![0].id)).toBe(true);
   // The refused image keeps its group, so the n breakdown counts it there.
