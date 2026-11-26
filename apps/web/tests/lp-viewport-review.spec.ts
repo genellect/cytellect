@@ -9,7 +9,7 @@ test('hero actions remain reachable and the film frame stands inside the hero in
  await page.setViewportSize({width,height});await page.evaluate(()=>scrollTo(0,0));const hero=page.getByRole('region',{name:'Get your microscopy publication-ready.',exact:true});
  const heroBox=(await hero.boundingBox())!;
  for(const locator of [hero.getByRole('heading'),hero.getByRole('link',{name:'ダウンロード',exact:true}),hero.getByRole('link',{name:'デモを体験する',exact:true})]){const b=await locator.boundingBox();expect(b).not.toBeNull();expect(b!.y).toBeGreaterThanOrEqual(68);expect(b!.y+b!.height).toBeLessThanOrEqual(heroBox.height+1);if(height>=600)expect(b!.y+b!.height).toBeLessThanOrEqual(height+1);await locator.scrollIntoViewIfNeeded();await expect(locator).toBeInViewport();await page.evaluate(()=>scrollTo({top:0,behavior:'instant'}));}
- // Without the 3D world the film stands as a still frame beside the headline (above it on a narrow screen).
+ // Without the 3D stage the film stands as a still picture in the same frame, inset from the edge of the page.
  const composition=await page.getByTestId('hero-film').evaluate((frame,box)=>{const b=frame.getBoundingClientRect();return {fit:getComputedStyle(frame.querySelector('img')!).objectFit,top:b.top,bottom:b.bottom-box.height,shown:Math.min(b.right,innerWidth)-Math.max(b.left,0),height:b.height};},heroBox);expect(composition.fit).toBe('cover');expect(composition.top).toBeGreaterThanOrEqual(0);expect(composition.bottom).toBeLessThanOrEqual(1);expect(composition.shown).toBeGreaterThan(width*.3);expect(composition.height).toBeGreaterThan(100);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);if(dir)await page.screenshot({path:path.join(dir,`hero-${width}x${height}.png`)});
  }

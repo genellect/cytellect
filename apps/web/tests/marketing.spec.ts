@@ -17,7 +17,7 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
  await expect(hero.getByRole("link",{name:"デモを体験する",exact:true})).toHaveAttribute("href","/demo");
  await expect(hero.getByRole("button",{name:/領域/})).toHaveCount(0);
  // What Cytellect does is split into tabs, detection and measurement first, so the page stays short. Without the
- // 3D world (reduced motion here) each tab shows its demo captures as plates in the page and opens the same demo screen.
+ // 3D stage (reduced motion here) each tab shows its demo captures as images in the page and opens the same demo screen.
  await expect(page.locator("[data-lp-world] canvas")).toHaveCount(0);
  const experience=page.locator("#workflow");
  await expect(experience).toHaveAttribute("data-mode","plates");
@@ -97,13 +97,13 @@ test("immersive LP keeps outcomes readable across viewports and routes to the re
  expect(errors).toEqual([]);
 });
 
-test("on a wide screen the page stands in one 3D world, and the tabs fly its camera to the demo's screens",async({page})=>{
+test("with motion allowed the page stands on one 3D stage, and the tabs turn its wall to the demo's screens",async({page})=>{
  const errors:string[]=[];page.on("pageerror",error=>errors.push(error.message));
  await page.setViewportSize({width:1440,height:900});await page.emulateMedia({reducedMotion:"no-preference"});
  await page.goto("/");
  test.skip(!(await page.evaluate(()=>!!document.createElement("canvas").getContext("webgl2"))),"No WebGL 2 in this browser");
  const experience=page.locator("#workflow");
- // One canvas behind the whole page draws the film, the demo's screens and the bench photograph.
+ // One canvas behind the whole page carries the film, the demo's screens and the bench photograph on walls of prisms.
  await expect(experience).toHaveAttribute("data-mode","space");
  await expect(page.locator("[data-lp-world] canvas")).toHaveCount(1);
  await expect(page.locator("main canvas")).toHaveCount(0);
@@ -128,7 +128,7 @@ test("on a wide screen the page stands in one 3D world, and the tabs fly its cam
  await expect(page.locator("#workflow span[data-running]")).toHaveCount(0);
  const panel=page.getByRole("tabpanel");
  await expect(panel.getByRole("link",{name:"この図をデモで開く",exact:true})).toBeVisible();
- // The plates stay in the page for assistive technology, drawn by the 3D world instead.
+ // The captures stay in the page for assistive technology, drawn by the 3D stage instead.
  await expect(panel.getByAltText(/^グラフの設定。幅/)).toHaveCount(1);
  await page.emulateMedia({reducedMotion:"reduce"});
  await expect(experience).toHaveAttribute("data-mode","plates");await expect(page.locator("[data-lp-world] canvas")).toHaveCount(0);

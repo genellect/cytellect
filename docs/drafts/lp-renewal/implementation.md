@@ -4,7 +4,7 @@
 
 判定は、Vercel のプレビューでオーナーが行う。マージと本番への反映は、オーナーが指示した場合だけ行う。
 
-2026-11-25 のダーク系の刷新（ブランチ `feat/lp-dark-redesign`、オーナーの判定待ち）では、この文書の `experience-scene.ts` と `LightField.tsx` を、ページ全体の 3D 空間（`scene-world-engine.ts`、`SceneWorld.tsx`）に置き換えた。経緯は[美術方針 §2](../../lp-art-direction.md#2-これまでの試みと届かなかった理由)にある。この文書は 2026-11-13 の版の記録として残す。
+2026-11-25 のダーク系の刷新（ブランチ `feat/lp-dark-redesign`、オーナーの判定待ち）では、この文書の `experience-scene.ts` と `LightField.tsx` を、ページ全体の 3D の舞台（`scene-world-engine.ts`、`SceneWorld.tsx`）に置き換えた。経緯は[美術方針 §2](../../lp-art-direction.md#2-これまでの試みと届かなかった理由)にある。この文書は 2026-11-13 の版の記録として残す。
 
 ## 1. 目的
 

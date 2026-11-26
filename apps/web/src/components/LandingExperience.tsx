@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { showShot, worldState, WORLD_STATE } from "./world-bus";
+import { showScreen, worldState, WORLD_STATE } from "./world-bus";
 import lp from "./landing-world.module.css";
 
 const Forward = () => <span aria-hidden="true">→</span>;
@@ -20,14 +20,12 @@ type Chapter = {
   id: string; number: string; label: string;
   /** The title in phrases: a line breaks only between them. */
   title: string[]; lead: string; extra?: ReactNode; link: ReactNode;
-  /** The shot of the 3D world (scene-world-engine) the camera flies to, and an optional slower second one. */
-  shot: number; then?: number;
   back?: Plate; front: Plate[]; kind: "layers" | "strip";
 };
 
 const chapters = (links: FeatureLinks): Chapter[] => [
   {
-    id: "measure", number: "01", label: "検出と測定", shot: 2, then: 3, kind: "strip",
+    id: "measure", number: "01", label: "検出と測定", kind: "strip",
     title: ["測りたい値が、", "細胞ひとつひとつに", "並びます。"],
     lead: "汎用のAIでは見つからない構造まで、輪郭を一つも描かずに。測った値は、細胞ごとに一行に並びます。",
     extra: <>
@@ -43,7 +41,7 @@ const chapters = (links: FeatureLinks): Chapter[] => [
     front: [{ file: "lp-focus-table.webp", alt: "核ごとの表。1 つの核の行に、核面積、3 つの染色それぞれの積算・平均と背景補正値、核小体の数・面積・核に占める割合・離心率が並ぶ", width: 1750, height: 373 }],
   },
   {
-    id: "discussion", number: "02", label: "要約と考察", shot: 4, kind: "layers",
+    id: "discussion", number: "02", label: "要約と考察", kind: "layers",
     title: ["結果を読み解く時間を、", "次の実験を考える時間に。"],
     lead: "解析が終わると、結論の一文と考察が並びます。解釈も、ほかの説明も、次に確かめることも。",
     link: <Link data-lp-event="demo_statistics" href={links.discussion} className={lp.button}>この結果をデモで開く <Forward /></Link>,
@@ -54,7 +52,7 @@ const chapters = (links: FeatureLinks): Chapter[] => [
     ],
   },
   {
-    id: "ask", number: "03", label: "AIによる設定", shot: 1, kind: "layers",
+    id: "ask", number: "03", label: "AIによる設定", kind: "layers",
     title: ["やりたいことを一文で。", "解析の設定は、", "AIが組み立てます。"],
     lead: "どの値を、どの群で、どう比べるか。メニューを一つずつ選ぶ必要はありません。",
     link: <Link data-lp-event="example" href={links.ask} className={lp.button}>デモで指示する <Forward /></Link>,
@@ -62,7 +60,7 @@ const chapters = (links: FeatureLinks): Chapter[] => [
     front: [{ file: "lp-focus-ai.webp", alt: "AI への指示「核の数と面積を視野ごとに確認したい」と、組み立てた設定の説明", width: 320, height: 132 }],
   },
   {
-    id: "figure", number: "04", label: "統計と論文の図", shot: 5, kind: "layers",
+    id: "figure", number: "04", label: "統計と論文の図", kind: "layers",
     title: ["統計の検定も、", "論文に載せる図も、", "クリックだけで。"],
     lead: "結果に合った検定で比べ、論文の体裁で図を組みます。幅も、レイアウトも、文字の大きさも。",
     link: <Link data-lp-event="demo_figure" href={links.figure} className={lp.button}>この図をデモで開く <Forward /></Link>,
@@ -74,10 +72,10 @@ const chapters = (links: FeatureLinks): Chapter[] => [
   },
 ];
 
-/** What Cytellect does, one tab at a time: detection and measurement first, then the summary and discussion. Where
- *  the page's 3D world carries the demo's screens (a wide screen with a mouse and motion allowed), the camera
- *  flies to the screen of the chosen tab; elsewhere (phones, reduced motion, no WebGL) the chosen tab shows the
- *  same captures as plates in the page. */
+/** What Cytellect does, one tab at a time: detection and measurement first, then the summary and discussion. Each
+ *  tab's screen fills a stage across the page. Where the page's 3D stage is drawing (SceneWorld), the screen is
+ *  carried by a wall of glass prisms that turns to the screen of the chosen tab; elsewhere (reduced motion, no
+ *  WebGL) the same captures stand in the same frames as images. The close-ups float over the stage either way. */
 export function LandingExperience({ links }: { links: FeatureLinks }) {
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
   const [mode, setMode] = useState<"plates" | "space">("plates");
@@ -87,9 +85,9 @@ export function LandingExperience({ links }: { links: FeatureLinks }) {
 
   useEffect(() => {
     const sync = () => {
-      const space = worldState() === "tour";
+      const space = worldState() === "live";
       setMode(space ? "space" : "plates");
-      if (space) { const chapter = chapters(links)[activeRef.current]; showShot(chapter.shot, chapter.then); }
+      if (space) showScreen(activeRef.current);
     };
     sync();
     addEventListener(WORLD_STATE, sync);
@@ -136,7 +134,7 @@ export function LandingExperience({ links }: { links: FeatureLinks }) {
     // On a phone the bar scrolls sideways; bring the chosen tab into view.
     const rail = tab?.parentElement;
     if (tab && rail && rail.scrollWidth > rail.clientWidth) rail.scrollTo({ left: tab.offsetLeft - rail.clientWidth / 2 + tab.offsetWidth / 2, behavior: "smooth" });
-    if (mode === "space") showShot(list[next].shot, list[next].then);
+    if (mode === "space") showScreen(next);
   };
   const onKeyDown = (event: KeyboardEvent) => {
     const last = list.length - 1;
@@ -156,7 +154,7 @@ export function LandingExperience({ links }: { links: FeatureLinks }) {
     </header>
     {/* Keyboard focus anywhere in the bar or the open panel stops the tour for good, so a focused link is never
         hidden by the next tab. */}
-    <div className={lp.tour} data-station="tour" onFocusCapture={() => setAuto(false)}>
+    <div className={lp.tour} onFocusCapture={() => setAuto(false)}>
       <div ref={bar} className={lp.switcher} onPointerEnter={() => setHover(true)} onPointerLeave={() => setHover(false)}>
         <div role="tablist" aria-label="Cytellectでできること" aria-orientation="horizontal" className={lp.tablist} onKeyDown={onKeyDown}
           onScroll={event => { const rail = event.currentTarget; rail.dataset.end = String(Math.ceil(rail.scrollLeft + rail.clientWidth) >= rail.scrollWidth); }}>
@@ -175,18 +173,22 @@ export function LandingExperience({ links }: { links: FeatureLinks }) {
       </div>
       {list.map((chapter, index) => <div key={chapter.id} role="tabpanel" id={`feature-${chapter.id}`} aria-labelledby={`feature-tab-${chapter.id}`}
         hidden={index !== active} className={lp.chapter} data-chapter={chapter.id}>
-        <div className={lp.chapterText}>
+        <div className={lp.chapterHead}>
           <h3 className={lp.chapterTitle} aria-label={chapter.title.join("")}>{chapter.title.map(phrase => <span key={phrase}>{phrase}</span>)}</h3>
           <p className={lp.chapterLead}>{chapter.lead}</p>
+        </div>
+        <figure className={lp.plates} data-kind={chapter.kind}>
+          {chapter.kind === "strip"
+            ? <div className={lp.plateScroll} data-wall="screen"><Img plate={chapter.front[0]} className={lp.plateWide} /></div>
+            : <>
+              <div className={lp.stage} data-wall="screen">{chapter.back && <Img plate={chapter.back} className={lp.plateBack} />}</div>
+              <div className={lp.plateFront}>{chapter.front.map(plate => <Img key={plate.file} plate={plate} className={lp.plate} />)}</div>
+            </>}
+        </figure>
+        <div className={lp.chapterFoot}>
           {chapter.extra}
           {chapter.link}
         </div>
-        <figure className={lp.plates} data-kind={chapter.kind}>
-          {chapter.back && <Img plate={chapter.back} className={lp.plateBack} />}
-          {chapter.kind === "strip"
-            ? <div className={lp.plateScroll}><Img plate={chapter.front[0]} className={lp.plateWide} /></div>
-            : <div className={lp.plateFront}>{chapter.front.map(plate => <Img key={plate.file} plate={plate} className={lp.plate} />)}</div>}
-        </figure>
       </div>)}
     </div>
   </section>;

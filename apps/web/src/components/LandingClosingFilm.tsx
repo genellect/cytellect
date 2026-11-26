@@ -16,7 +16,7 @@ export function LandingClosingFilm() {
     observer.observe(node);
     return () => observer.disconnect();
   }, []);
-  return <div ref={ref} className={lp.closingFilm} aria-hidden="true">
+  return <div ref={ref} className={lp.closingFilm} data-wall="closing" aria-hidden="true">
     <img src="/marketing/hero-film-poster.webp" alt="" width={1920} height={1080} loading="lazy" decoding="async" />
     {play && <video autoPlay muted loop playsInline preload="none" poster="/marketing/hero-film-poster.webp">
       <source src="/marketing/hero-film.webm" type="video/webm" /><source src="/marketing/hero-film.mp4" type="video/mp4" />

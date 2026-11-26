@@ -171,6 +171,12 @@ CI でインストーラーを試すだけのビルド（`ci.yml` の `windows-i
 | `OpticalHero.tsx`、`optical-scene-engine.ts` | `founder/ProductSculpture.tsx`、`founder/product-sculpture-engine.ts` | 表示時の WebGL の初期化、世代の確認、照明の環境、描画資源の明示的な解放。Cytellect の Blender の光学背景 |
 | `product.module.css` | `founder/founder.module.css` | ヘッダー、ナビゲーション、本文の組版を Cytellect の構成に合わせた |
 
+次の部品は、オーナーのポートフォリオサイト（`genellect/yuto-matsui-site`、コミット `2590f33db4b138c18065ae67e2f8704723d0a58f`）の EN 版の 3D 演出を、著作権者であるオーナーの明示的な許可（2026-11-25）を得て Cytellect 用に改変した。元の著作権と改変の表示はソースファイルに残している。この許可は、ポートフォリオのリポジトリのライセンスや、その第三者の素材の条件を変えない。LP のこの版はプレビューのブランチにあり、オーナーの判定待ちである。
+
+| Cytellect のファイル | ポートフォリオの元のファイル | 改変の内容 |
+|---|---|---|
+| `scene-world-engine.ts` | `src/en/hero-prism-engine.ts`、`src/en/hero-light-engine.ts`、`src/en/page-light-engine.ts` | プリズムの壁を、ページの中の複数の枠に 1 枚のキャンバスで立てる。スクロールで回す。映像を載せる。光の色を Cytellect の配色にした |
+
 ## English
 
 Cytellect's own code is licensed under Apache-2.0. That license does not replace the licenses of Fiji, Java, plugins, model weights, dependencies or datasets; each component keeps its own license.
@@ -341,3 +347,9 @@ The following COMPASS components were adapted for Cytellect with the copyright o
 | `ProductMenu.tsx` | `founder/MobileExternalMenu.tsx` | Outside-click, Escape and focus restoration; product navigation |
 | `OpticalHero.tsx`, `optical-scene-engine.ts` | `founder/ProductSculpture.tsx`, `founder/product-sculpture-engine.ts` | Visibility-triggered WebGL setup, generation guards, lighting environment and explicit resource disposal; Cytellect Blender optical background |
 | `product.module.css` | `founder/founder.module.css` | Header, navigation and editorial typography adapted to Cytellect |
+
+The following component adapts the 3D effects of the EN version of the owner's portfolio site (`genellect/yuto-matsui-site`, commit `2590f33db4b138c18065ae67e2f8704723d0a58f`) for Cytellect, with the express permission of the owner as copyright holder (2026-11-25). Original copyright and adaptation notices remain in the source file. This permission does not change the license of the portfolio repository or the terms of its third-party assets. This version of the landing page is on a preview branch, awaiting the owner's judgment.
+
+| Cytellect file | Portfolio source | Adaptation |
+|---|---|---|
+| `scene-world-engine.ts` | `src/en/hero-prism-engine.ts`, `src/en/hero-light-engine.ts`, `src/en/page-light-engine.ts` | Prism walls standing in several frames of the page on one canvas; turned by scrolling; carrying footage; the light recoloured for Cytellect |

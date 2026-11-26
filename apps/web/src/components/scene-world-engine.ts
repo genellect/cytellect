@@ -1,435 +1,361 @@
 import * as THREE from "three";
 
-/** The landing page's 3D world: one dark hall with a polished floor, fixed behind every section. Nothing in it
- *  is modelled; everything in it is Cytellect's own material standing as a sheet of light: the hero film, the
- *  demo's screens, the bench photograph, and the film again at the far end. Each sheet lights the hall with the
- *  colour it is showing (the film's light changes with its cuts), lies mirrored in the floor, and the page's
- *  scroll walks the camera down the hall from one to the next. In the product tour the camera flies to the
- *  screen of the chosen tab. Captures and footage pass through unchanged: no colour management, no tone
- *  mapping, nothing drawn over the interface. */
-export type PanelId = "stats" | "ai" | "figure" | "ask" | "table" | "conclusion" | "discussion" | "layout" | "size";
-export type WorldPanel = { id: PanelId; src: string };
-export type StationId = "hero" | "mission" | "product" | "tour" | "reasons" | "impact" | "invite";
-/** A station holds between `from` and `to` (scroll offsets in px); the camera travels between stations. */
-export type Station = { id: StationId; from: number; to: number };
+// The prism wall and the light field are adapted from the owner's portfolio (yuto-matsui-site,
+// src/en/hero-prism-engine.ts, hero-light-engine.ts and page-light-engine.ts).
+// Copyright (c) 2026 Yuto Matsui. All rights reserved.
+// Reuse and adaptation expressly authorized by the owner for Cytellect.
+
+/** The landing page's 3D stage: one canvas fixed behind every section.
+ *
+ *  Every picture on the page (the hero film, the demo's screens, the bench photograph) is carried by a wall of
+ *  glass prisms that stands exactly where its frame sits in the page. At rest the front faces line up into the
+ *  flat picture, drawn without shading, so footage and captures read exactly as delivered. A wall turns in a
+ *  wave: into its picture as it scrolls into view, away from it as it leaves, and from one screen to the next
+ *  when a tab is chosen; light from behind passes through the gaps that open while it turns. Behind the walls,
+ *  ribbons of light drift through the dark, lean towards the pointer and move more slowly than the page. */
+export type WallSpec = {
+  id: string;
+  /** The frame in the page this wall stands in (looked up again whenever the page changes). */
+  element: () => HTMLElement | null;
+  /** The pictures the wall can show. */
+  sources: string[];
+  /** Shows the page's film while one is playing; its first source is the poster. */
+  film?: boolean;
+  /** Indices of pictures wider than the frame, which glide sideways instead of being cropped. */
+  glide?: number[];
+  /** A wall at the top of the page opens by itself once, instead of with the scroll. */
+  opens?: boolean;
+};
 export type SceneWorld = {
-  stations(list: Station[]): void;
-  scroll(y: number): void;
-  pointer(x: number, y: number, inside: boolean): void;
-  /** The playing hero film, or null for its poster. */
+  /** Turn a wall to another of its pictures. */
+  show(id: string, index: number): void;
+  /** The playing film, or null for the poster. */
   film(video: HTMLVideoElement | null): void;
-  /** The tour's shot (see SHOTS); `then` continues to a slower second one. */
-  shot(index: number, then?: number): void;
+  pointer(x: number, y: number, inside: boolean): void;
   running(value: boolean): void;
   dispose(): void;
 };
-type Options = { poster: string; bench: string; panels: WorldPanel[] };
+type Options = { walls: WallSpec[]; compact: boolean };
 
-type V3 = [number, number, number];
-type Pose = { p: V3; ry: number; o: number };
-type View = { cam: V3; look: V3; shift: number };
-
-const VOID = [0.018, 0.02, 0.027] as const;
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-const lerp3 = (a: V3, b: V3, t: number): V3 => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+const TURN = (-2 * Math.PI) / 3;
+const APOTHEM = 1 / (2 * Math.sqrt(3));
 const clamp01 = (t: number) => Math.min(1, Math.max(0, t));
-const smooth = (t: number) => { const x = clamp01(t); return x * x * x * (x * (x * 6 - 15) + 10); };
-const ease = (t: number) => t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
-const add = (a: V3, b: V3): V3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
-const along = (c: V3, ry: number, forward: number, right: number, up: number): V3 =>
-  [c[0] + Math.sin(ry) * forward + Math.cos(ry) * right, c[1] + up, c[2] + Math.cos(ry) * forward - Math.sin(ry) * right];
+// Close to cubic-bezier(.2, .76, .2, 1): quick departure, long settle.
+const easeTurn = (t: number) => { const inv = 1 - t; return 1 - inv * inv * inv * (1 - 0.35 * t); };
+const smooth = (t: number) => { const x = clamp01(t); return x * x * (3 - 2 * x); };
 
-/* The hall. The floor is y = 0 and the page walks towards -z. */
-const FILM = { p: [7.4, 4.52, 0] as V3, ry: -0.6, w: 16, h: 9 };
-const CLUSTER: V3 = [0, 4.25, -62];
-const BENCH = { p: [-7.4, 4.52, -118] as V3, ry: 0.6, w: 13.5, h: 9 };
-const END = { p: [0, 5.7, -236] as V3, ry: 0, w: 19.2, h: 10.8 };
-
-/** World width of each plate of the tour; the height follows the capture. */
-const WIDTH: Record<PanelId, number> = { stats: 4.2, ai: 4.2, figure: 4.2, ask: 1.55, table: 4.9, conclusion: 2.5, discussion: 2.5, layout: 1.2, size: 1.2 };
-const SCREENS: PanelId[] = ["stats", "ai", "figure"];
-const AI: Pose = { p: [-4.9, 0.35, -2.6], ry: 0.5, o: 1 };
-const FIGURE: Pose = { p: [4.9, -0.15, -2.6], ry: -0.5, o: 1 };
-const HOME: Record<PanelId, Pose> = {
-  stats: { p: [0, 0, 0], ry: 0, o: 1 },
-  ai: AI,
-  figure: FIGURE,
-  ask: { p: along(AI.p, AI.ry, 1.2, 0.95, -0.42), ry: AI.ry, o: 1 },
-  table: { p: [0.3, -2.75, 1.1], ry: 0, o: 1 },
-  conclusion: { p: [1.0, 0.92, 1.55], ry: -0.05, o: 1 },
-  discussion: { p: [1.2, -0.86, 1.9], ry: -0.05, o: 1 },
-  layout: { p: along(FIGURE.p, FIGURE.ry, 1.3, 1.0, 0.5), ry: FIGURE.ry, o: 1 },
-  size: { p: along(FIGURE.p, FIGURE.ry, 1.45, 1.05, -0.62), ry: FIGURE.ry, o: 1 },
-};
-type Shot = View & { show: PanelId[]; move?: Partial<Record<PanelId, Partial<Pose>>> };
-const facing = (pose: Pose, distance: number, right = 0, up = 0): Pick<Shot, "cam" | "look"> => {
-  const look = along(pose.p, pose.ry, 0, right, up);
-  return { look, cam: along(look, pose.ry, distance, 0, 0.12) };
-};
-/** The overview, then one shot per tab (LandingExperience). Measurement has two shots, so the wide table
- *  glides across the frame after the camera arrives. Positions are relative to CLUSTER. */
-const TABLE: Partial<Pose> = { p: [2.4, -0.9, 1.2], ry: -0.38 };
-const SHOTS: Shot[] = [
-  { cam: [-1.9, 1.35, 9.6], look: [1.3, 0.2, -1.5], shift: 0.33, show: [...SCREENS] },
-  { ...facing(AI, 7.8, 0.45, 0.3), shift: 0.24, show: [...SCREENS, "ask"], move: { stats: { o: 0 }, figure: { o: 0 } } },
-  { cam: [0.2, -0.8, 7], look: [2, -0.9, 1.2], shift: 0.38, show: [...SCREENS, "table"], move: { table: TABLE, stats: { o: 0 }, ai: { o: 0 }, figure: { o: 0 } } },
-  { cam: [0.55, -0.8, 6.8], look: [2.25, -0.9, 1.2], shift: 0.38, show: [...SCREENS, "table"], move: { table: TABLE, stats: { o: 0 }, ai: { o: 0 }, figure: { o: 0 } } },
-  { cam: [0.7, 0.1, 10.2], look: [0.95, 0.2, 1.6], shift: 0.24, show: [...SCREENS, "conclusion", "discussion"], move: { stats: { p: [0.2, 0.05, -1.3], o: 0.42 }, ai: { o: 0 } } },
-  { ...facing(FIGURE, 7.6, 0.35, 0.3), shift: 0.24, show: [...SCREENS, "layout", "size"], move: { stats: { o: 0 }, ai: { o: 0 } } },
-];
-const hidden = (id: PanelId): Pose => {
-  const home = HOME[id];
-  return SCREENS.includes(id) ? { ...home, o: 0.25 } : { p: along(home.p, home.ry, -1.2, 0, -0.5), ry: home.ry, o: 0 };
-};
-const poseIn = (shot: Shot, id: PanelId): Pose => shot.show.includes(id) ? { ...HOME[id], ...shot.move?.[id] } : hidden(id);
-type Tour = View & { poses: Record<PanelId, Pose> };
-const IDS = Object.keys(HOME) as PanelId[];
-const tourOf = (shot: Shot): Tour => ({ cam: add(CLUSTER, shot.cam), look: add(CLUSTER, shot.look), shift: shot.shift,
-  poses: Object.fromEntries(IDS.map(id => [id, poseIn(shot, id)])) as Record<PanelId, Pose> });
-const mixTour = (a: Tour, b: Tour, t: number): Tour => ({ cam: lerp3(a.cam, b.cam, t), look: lerp3(a.look, b.look, t), shift: lerp(a.shift, b.shift, t),
-  poses: Object.fromEntries(IDS.map(id => { const x = a.poses[id], y = b.poses[id]; return [id, { p: lerp3(x.p, y.p, t), ry: lerp(x.ry, y.ry, t), o: lerp(x.o, y.o, t) }]; })) as Record<PanelId, Pose> });
-
-/** Where the camera stands at each station. */
-function stationView(id: StationId, aspect: number, tour: View): View {
-  // The distance from which a sheet fills the whole view.
-  const cover = (sheet: { w: number; h: number }) => Math.min(sheet.h / 2 / Math.tan(THREE.MathUtils.degToRad(16)), sheet.w / 2 / Math.tan(THREE.MathUtils.degToRad(16)) / aspect) * 0.96;
-  switch (id) {
-    case "hero": return { cam: [-5.2, 3.4, 18.5], look: [0.6, 4.3, 0], shift: 0 };
-    case "mission": return { cam: [-1.2, 3.5, -16], look: [-11, 9.2, -62], shift: 0 };
-    case "product": return { cam: add(CLUSTER, [-1.5, 1.0, 27]), look: add(CLUSTER, [0.6, 2.6, -1.5]), shift: 0.33 };
-    case "tour": return tour;
-    case "reasons": return { cam: [5.2, 3.4, -99.5], look: [-0.6, 4.3, -118], shift: 0 };
-    case "impact": return { cam: [0, 3.1, -150], look: [-22, -3.6, -236], shift: 0 };
-    case "invite": return { cam: [0, END.p[1], END.p[2] + cover(END)], look: [0, END.p[1], END.p[2]], shift: 0 };
+function prismGeometry() {
+  const corners: [number, number][] = [[-0.5, APOTHEM], [0.5, APOTHEM], [0, -2 * APOTHEM]];
+  const position: number[] = [], normal: number[] = [], local: number[] = [], face: number[] = [];
+  for (let k = 0; k < 3; k++) {
+    const [px, pz] = corners[k], [qx, qz] = corners[(k + 1) % 3];
+    const nx = qz - pz, nz = -(qx - px), length = Math.hypot(nx, nz);
+    const quad: [number, number, number, number, number][] = [
+      [px, -0.5, pz, 0, 0], [qx, -0.5, qz, 1, 0], [qx, 0.5, qz, 1, 1],
+      [px, -0.5, pz, 0, 0], [qx, 0.5, qz, 1, 1], [px, 0.5, pz, 0, 1],
+    ];
+    for (const [x, y, z, u, v] of quad) { position.push(x, y, z); normal.push(nx / length, 0, nz / length); local.push(u, v); face.push(k); }
   }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(position, 3));
+  geometry.setAttribute("normal", new THREE.Float32BufferAttribute(normal, 3));
+  geometry.setAttribute("aLocal", new THREE.Float32BufferAttribute(local, 2));
+  geometry.setAttribute("aFace", new THREE.Float32BufferAttribute(face, 1));
+  return geometry;
 }
 
-const VERTEX = /* glsl */`
-varying vec2 vUv;varying vec3 vWorld;
-void main(){vUv=uv;vec4 w=modelMatrix*vec4(position,1.);vWorld=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}`;
-const COMMON = /* glsl */`
-uniform vec3 eye;uniform vec2 fog;varying vec2 vUv;varying vec3 vWorld;
+const PRISM_VERTEX = /* glsl */`
+attribute vec2 aLocal;attribute float aFace;
+varying vec2 vLocal;varying float vFace;varying vec3 vNormal;varying vec3 vWorld;
+void main(){vLocal=aLocal;vFace=aFace;vNormal=normalize(mat3(modelMatrix)*normal);vec4 world=modelMatrix*vec4(position,1.);vWorld=world.xyz;gl_Position=projectionMatrix*viewMatrix*world;}`;
+/** One prism: two faces carry the current and the next picture, the third is dark glass. Shading and the
+ *  hairline of light along the edges exist only while the prism is turned. */
+const PRISM_FRAGMENT = /* glsl */`
+uniform sampler2D uTexA;uniform sampler2D uTexB;uniform vec4 uCoverA;uniform vec4 uCoverB;
+uniform float uIndex;uniform float uCount;uniform float uActivity;uniform float uFacePx;uniform vec2 uSize;uniform float uRadius;uniform vec3 uLight;
+varying vec2 vLocal;varying float vFace;varying vec3 vNormal;varying vec3 vWorld;
 float box(vec2 p,vec2 b,float r){vec2 q=abs(p)-b+r;return length(max(q,0.))+min(max(q.x,q.y),0.)-r;}
-float hash(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
-float haze(){return smoothstep(fog.x,fog.y,distance(eye,vWorld));}`;
-/** A sheet of light: the capture or footage inside a thin glass edge that catches a rim of light. */
-const FACE = /* glsl */`
-uniform sampler2D map;uniform vec2 size;uniform float radius;uniform float bezel;uniform float opacity;uniform float dim;uniform vec3 rim;
-${COMMON}
 void main(){
-  vec2 p=(vUv-.5)*size;float outer=box(p,size*.5,radius);float aa=fwidth(outer)*1.2;
-  float shape=1.-smoothstep(-aa,aa,outer);
-  vec2 inner=size*.5-bezel;float inside=1.-smoothstep(-aa,aa,box(p,inner,max(radius-bezel,.004)));
-  vec3 tex=texture2D(map,(p+inner)/(2.*inner)).rgb;
-  vec3 glass=vec3(.06,.062,.068)+.04*vUv.y;
-  float edge=1.-smoothstep(0.,aa*3.,abs(outer+aa*1.6));
-  vec3 color=mix(glass,tex,inside)+rim*edge*.14;
-  color=mix(color,vec3(${VOID.join(",")}),dim);
-  gl_FragColor=vec4(color,shape*opacity*(1.-haze()));
+  vec2 canvasUv=vec2((uIndex+vLocal.x)/uCount,vLocal.y);
+  // The wall keeps the rounded corners of its frame.
+  if(box((canvasUv-.5)*uSize,uSize*.5,uRadius)>0.)discard;
+  float face=floor(vFace+.5);vec3 color;
+  if(face<.5)color=texture2D(uTexA,canvasUv*uCoverA.xy+uCoverA.zw).rgb;
+  else if(face<1.5)color=texture2D(uTexB,canvasUv*uCoverB.xy+uCoverB.zw).rgb;
+  else color=mix(vec3(.008,.014,.013),vec3(.03,.06,.055),smoothstep(0.,1.,vLocal.y));
+  vec3 n=normalize(vNormal);vec3 view=normalize(cameraPosition-vWorld);
+  float lambert=.18+.82*max(dot(n,normalize(uLight)),0.);
+  color*=mix(1.,lambert,uActivity);
+  float spec=pow(max(dot(reflect(-normalize(uLight),n),view),0.),36.);
+  color+=vec3(.9,1.,.97)*spec*.5*uActivity;
+  float edge=exp(-min(vLocal.x,1.-vLocal.x)*uFacePx*1.15);
+  color+=mix(vec3(.25,.85,.7),vec3(.95,.74,.66),vLocal.y)*edge*uActivity*1.2;
+  gl_FragColor=vec4(color,1.);
 }`;
-/** The same sheet lying in the polished floor: sharp where it meets the floor, softer and fainter with height. */
-const MIRROR = /* glsl */`
-uniform sampler2D map;uniform vec2 size;uniform float radius;uniform float opacity;uniform float dim;uniform float lift;
-${COMMON}
+/** The light behind a wall: a column of warm white falling off into the green and the pink of the page. */
+const BACKLIGHT_FRAGMENT = /* glsl */`
+uniform float uLight;uniform vec2 uSize;uniform float uRadius;varying vec2 vUv;
+float box(vec2 p,vec2 b,float r){vec2 q=abs(p)-b+r;return length(max(q,0.))+min(max(q.x,q.y),0.)-r;}
 void main(){
-  float h=vUv.y*size.y+lift;
-  // The mirrored edges soften with height, as they do in a floor that is polished but not a mirror.
-  float feather=.03+h*.2;
-  vec2 p=(vUv-.5)*size;float shape=1.-smoothstep(-feather,.02,box(p,size*.5,radius));
-  vec2 r=vec2(.0025,.006)*(1.+h*2.2);
-  vec3 c=vec3(0.);float n=0.;
-  for(int i=-3;i<=3;i++)for(int j=-2;j<=2;j++){float w=exp(-float(i*i)*.22-float(j*j)*.35);c+=texture2D(map,clamp(vUv+vec2(float(j),float(i))*r,0.,1.)).rgb*w;n+=w;}
-  c/=n;
-  // A polished floor mirrors most at a grazing angle and least straight down.
-  float graze=1.-abs(normalize(eye-vWorld).y);
-  float fade=exp(-h*.7)*(.1+.9*pow(graze,2.4))*.5;
-  float g=(hash(gl_FragCoord.xy)-.5)/255.;
-  gl_FragColor=vec4(c*fade*shape*opacity*(1.-dim)*(1.-haze())+g,1.);
+  // The light stays inside the frame of the wall: it is seen only through the gaps between turning prisms.
+  if(box((vUv-.5)*uSize,uSize*.5,uRadius)>0.)discard;
+  float column=exp(-pow((vUv.x-.5)*1.6,2.))*smoothstep(0.,.55,vUv.y)*smoothstep(1.05,.4,vUv.y);
+  vec3 spectrum=mix(mix(vec3(.1,.62,.5),vec3(.2,.5,.95),smoothstep(.1,.55,vUv.y)),vec3(.95,.72,.64),smoothstep(.55,.98,vUv.y));
+  gl_FragColor=vec4(mix(spectrum,vec3(1.,.98,.95),column*column*.8)*(.3+column)*uLight,1.);
 }`;
-/** The light a sheet throws into the air around it. */
-const HALO = /* glsl */`
-uniform vec2 size;uniform float spread;uniform vec3 tint;uniform float opacity;
-${COMMON}
-void main(){vec2 p=(vUv-.5)*(size+spread*2.);float d=max(box(p,size*.5,.3),0.);float a=exp(-d*d/(spread*spread*.2))*.5+exp(-d/(spread*.16))*.5;
-  float g=(hash(gl_FragCoord.xy)-.5)*1.5/255.;
-  gl_FragColor=vec4(tint*a*a*.1*opacity*(1.-haze())+g,1.);}`;
-/** The polished floor: each sheet's light pools in front of it and falls off with distance. */
-const FLOOR = /* glsl */`
-#define N 5
-uniform vec3 lamp[N];uniform vec3 lampDir[N];uniform vec3 lampColor[N];
-${COMMON}
+const FLAT_VERTEX = /* glsl */`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`;
+/** The light of the page: ribbons drifting through the dark, pulled towards the pointer, gathered into a source
+ *  under it. Drawn small and stretched: the field is soft by nature. */
+const FIELD_FRAGMENT = /* glsl */`
+precision highp float;
+uniform vec2 uRes;uniform float uTime;uniform vec2 uPointer;uniform float uPresence;uniform float uScroll;varying vec2 vUv;
+float hash(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
+float noise(vec2 p){vec2 i=floor(p),f=fract(p);vec2 u=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1.,0.)),u.x),mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),u.x),u.y);}
+float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*noise(p);p=p*2.02+vec2(3.1,7.7);a*=.5;}return v;}
+vec3 spectrum(float t){
+  vec3 c0=vec3(.012,.03,.027),c1=vec3(.03,.3,.26),c2=vec3(.09,.34,.66),c3=vec3(.62,.5,.6);
+  t=clamp(t,0.,1.);
+  if(t<.45)return mix(c0,c1,t/.45);
+  if(t<.85)return mix(c1,c2,(t-.45)/.4);
+  return mix(c2,c3,(t-.85)/.15);
+}
 void main(){
-  vec3 c=vec3(0.);
-  for(int i=0;i<N;i++){vec2 d=vWorld.xz-lamp[i].xz;float l=length(d);vec2 n=d/max(l,.001);
-    float facing=pow(max(dot(n,lampDir[i].xz),0.),1.4)*.92+.08;
-    float reach=lamp[i].y;
-    c+=lampColor[i]*facing/(1.+l*l/(reach*reach))*exp(-l/(reach*5.));}
-  float view=distance(eye,vWorld);
-  // Grazing light: the floor shows more of it towards the horizon.
-  float graze=1.-abs(normalize(eye-vWorld).y);
-  c*=.2+.62*pow(graze,3.);
-  c*=1.-smoothstep(fog.x,fog.y,view);
-  float g=(hash(gl_FragCoord.xy)-.5)*1.5/255.;
-  gl_FragColor=vec4(c+g,1.);
+  float aspect=uRes.x/uRes.y;
+  // The far layer moves more slowly than the page.
+  vec2 p=vec2(vUv.x*aspect,vUv.y-uScroll*.22);
+  vec2 m=vec2(uPointer.x*aspect,uPointer.y-uScroll*.22);
+  float t=uTime*.03;
+  vec2 toPointer=m-p;
+  float pull=exp(-dot(toPointer,toPointer)*2.2)*uPresence;
+  vec2 warped=p+toPointer*pull*.35;
+  vec2 q=vec2(fbm(warped*1.2+vec2(0.,t)),fbm(warped*1.2+vec2(4.3,-t)));
+  float f=fbm(warped*vec2(1.,2.4)+q*2.+vec2(t*.8,0.));
+  float ribbon=pow(smoothstep(.36,.86,f),1.4);
+  // Light keeps to the edges of the stage; the middle, where the copy sits, stays deeper.
+  float edge=smoothstep(.1,.7,abs(vUv.x-.5)*2.);
+  float field=ribbon*(.34+.66*edge);
+  float d=length(toPointer);
+  float spot=(exp(-d*d*9.)*.6+exp(-d*3.2)*.22)*uPresence;
+  vec3 color=vec3(.018,.036,.032)+spectrum(field*.86+q.x*.1)*field*.55+spectrum(.5+q.y*.4)*spot*.5;
+  color+=(hash(gl_FragCoord.xy+uTime)-.5)*.012;
+  gl_FragColor=vec4(color,1.);
 }`;
 
-type Sheet = {
-  group: THREE.Group; mirror: THREE.Mesh; face: THREE.ShaderMaterial; reflection: THREE.ShaderMaterial; halo: THREE.ShaderMaterial;
-  size: THREE.Vector2; tint: THREE.Color; power: number; lit: number; seed: number;
+type Prism = { mesh: THREE.Mesh; material: THREE.ShaderMaterial };
+type Wall = {
+  spec: WallSpec; group: THREE.Group; prisms: Prism[]; backlight: THREE.Mesh; light: THREE.ShaderMaterial;
+  element: HTMLElement | null; width: number; height: number; face: number;
+  current: number; target: number | null; start: number; opened: number | null; tiltX: number; tiltY: number;
 };
 
 export async function mountSceneWorld(host: HTMLElement, options: Options, signal: AbortSignal): Promise<SceneWorld | null> {
   let renderer: THREE.WebGLRenderer;
   try {
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: options.compact ? "default" : "high-performance" });
   } catch {
     return null;
   }
   renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  renderer.setClearColor(new THREE.Color(...VOID), 1);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, options.compact ? 1.5 : 2));
+  renderer.setClearColor(0x050908, 1);
   renderer.domElement.setAttribute("aria-hidden", "true");
 
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 400);
-  const eye = { value: new THREE.Vector3() }, fog = { value: new THREE.Vector2(34, 150) };
-  const mirrors = new THREE.Group();
-  mirrors.scale.y = -1;
-  scene.add(mirrors);
-
   const loader = new THREE.TextureLoader();
-  const anisotropy = renderer.capabilities.getMaxAnisotropy();
-  const sources = [options.poster, options.bench, ...options.panels.map(panel => panel.src)];
-  let textures: THREE.Texture[];
+  const anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  const urls = [...new Set(options.walls.flatMap(wall => wall.sources))];
+  let loaded: THREE.Texture[];
   try {
-    textures = await Promise.all(sources.map(src => loader.loadAsync(src)));
+    loaded = await Promise.all(urls.map(url => loader.loadAsync(url)));
   } catch {
     renderer.dispose();
     return null;
   }
-  if (signal.aborted) { textures.forEach(texture => texture.dispose()); renderer.dispose(); return null; }
-  for (const texture of textures) { texture.colorSpace = THREE.NoColorSpace; texture.anisotropy = anisotropy; }
+  if (signal.aborted) { loaded.forEach(texture => texture.dispose()); renderer.dispose(); return null; }
+  const textures = new Map<string, THREE.Texture>();
+  loaded.forEach((texture, index) => { texture.colorSpace = THREE.NoColorSpace; texture.anisotropy = anisotropy; textures.set(urls[index], texture); });
 
-  // The colour a sheet is showing, read from a thumbnail of it: this is the colour of its light.
-  const probe = document.createElement("canvas");
-  probe.width = 16; probe.height = 9;
-  const pen = probe.getContext("2d", { willReadFrequently: true });
-  const colourOf = (image: CanvasImageSource, out: THREE.Color) => {
-    if (!pen) return out;
-    try {
-      pen.drawImage(image, 0, 0, 16, 9);
-      const data = pen.getImageData(0, 0, 16, 9).data;
-      let r = 0, g = 0, b = 0;
-      for (let i = 0; i < data.length; i += 4) { r += data[i]; g += data[i + 1]; b += data[i + 2]; }
-      const n = data.length / 4 * 255;
-      out.setRGB(r / n, g / n, b / n);
-    } catch { /* a frame that cannot be read keeps the last colour */ }
-    return out;
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(36, 1, 1, 20000);
+  const geometry = prismGeometry(), plane = new THREE.PlaneGeometry(1, 1);
+
+  // The light field is drawn at a third of the size and becomes the scene's background.
+  const fieldTarget = new THREE.WebGLRenderTarget(8, 8, { depthBuffer: false });
+  const fieldMaterial = new THREE.ShaderMaterial({ vertexShader: FLAT_VERTEX, fragmentShader: FIELD_FRAGMENT, depthTest: false, depthWrite: false,
+    uniforms: { uRes: { value: new THREE.Vector2(1, 1) }, uTime: { value: 0 }, uPointer: { value: new THREE.Vector2(0.5, 0.5) }, uPresence: { value: 0 }, uScroll: { value: 0 } } });
+  const fieldScene = new THREE.Scene(), fieldCamera = new THREE.OrthographicCamera(-0.5, 0.5, 0.5, -0.5, 0, 1);
+  fieldScene.add(new THREE.Mesh(plane, fieldMaterial));
+  scene.background = fieldTarget.texture;
+
+  let video: HTMLVideoElement | null = null, videoTexture: THREE.VideoTexture | null = null;
+  const pictureOf = (wall: Wall, index: number): THREE.Texture => (wall.spec.film && videoTexture) ? videoTexture : textures.get(wall.spec.sources[index])!;
+  const sizeOf = (texture: THREE.Texture): [number, number] => {
+    const image = texture.image as { videoWidth?: number; videoHeight?: number; naturalWidth?: number; naturalHeight?: number; width: number; height: number };
+    return [image.videoWidth || image.naturalWidth || image.width || 16, image.videoHeight || image.naturalHeight || image.height || 9];
+  };
+  /** The part of a picture a wall shows: centred and cropped to fill, or its left end when it glides. */
+  const cover = (wall: Wall, index: number, out: THREE.Vector4, glide = 0) => {
+    const [iw, ih] = sizeOf(pictureOf(wall, index));
+    const frame = wall.width / Math.max(1, wall.height), image = iw / ih;
+    const fx = Math.min(1, frame / image), fy = Math.min(1, image / frame);
+    return out.set(fx, fy, wall.spec.glide?.includes(index) ? (1 - fx) * glide : (1 - fx) * 0.5, (1 - fy) * 0.5);
   };
 
-  const geometry = new THREE.PlaneGeometry(1, 1);
-  const sheets: Sheet[] = [];
-  const sheet = (texture: THREE.Texture, width: number, height: number, style: { radius: number; bezel: number; spread: number; power: number }): Sheet => {
-    const size = new THREE.Vector2(width, height);
-    const tint = colourOf(texture.image as CanvasImageSource, new THREE.Color(0.8, 0.8, 0.8));
-    const shared = { eye, fog, map: { value: texture }, size: { value: size }, radius: { value: style.radius } };
-    const face = new THREE.ShaderMaterial({ vertexShader: VERTEX, fragmentShader: FACE, transparent: true, depthWrite: false,
-      uniforms: { ...shared, bezel: { value: style.bezel }, opacity: { value: 0 }, dim: { value: 0 }, rim: { value: new THREE.Color(0.95, 0.9, 0.88) } } });
-    const reflection = new THREE.ShaderMaterial({ vertexShader: VERTEX, fragmentShader: MIRROR, transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
-      uniforms: { ...shared, opacity: { value: 0 }, dim: { value: 0 }, lift: { value: 0 } } });
-    const halo = new THREE.ShaderMaterial({ vertexShader: VERTEX, fragmentShader: HALO, transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending,
-      uniforms: { eye, fog, size: { value: size }, spread: { value: style.spread }, tint: { value: tint }, opacity: { value: 0 } } });
-    const group = new THREE.Group();
-    const glow = new THREE.Mesh(geometry, halo);
-    glow.scale.set(width + style.spread * 2, height + style.spread * 2, 1);
-    glow.position.z = -0.05;
-    glow.renderOrder = 2;
-    const plane = new THREE.Mesh(geometry, face);
-    plane.scale.set(width, height, 1);
-    plane.renderOrder = 3;
-    group.add(glow, plane);
+  const walls: Wall[] = options.walls.map(spec => {
+    const light = new THREE.ShaderMaterial({ vertexShader: FLAT_VERTEX, fragmentShader: BACKLIGHT_FRAGMENT, depthWrite: false, uniforms: { uLight: { value: 0 }, uSize: { value: new THREE.Vector2(1, 1) }, uRadius: { value: 0 } } });
+    const group = new THREE.Group(), backlight = new THREE.Mesh(plane, light);
+    group.add(backlight);
+    group.visible = false;
     scene.add(group);
-    const mirror = new THREE.Mesh(geometry, reflection);
-    mirror.renderOrder = 1;
-    mirrors.add(mirror);
-    const item = { group, mirror, face, reflection, halo, size, tint, power: style.power, lit: 0, seed: sheets.length * 1.7 };
-    sheets.push(item);
-    return item;
-  };
-  const place = (item: Sheet, p: V3, ry: number) => {
-    item.group.position.set(p[0], p[1], p[2]);
-    item.group.rotation.y = ry;
-    item.mirror.position.copy(item.group.position);
-    item.mirror.rotation.y = ry;
-    item.mirror.scale.set(item.size.x, item.size.y, 1);
-    item.reflection.uniforms.lift.value = Math.max(0, p[1] - item.size.y / 2) * 2;
-  };
-
-  const film = sheet(textures[0], FILM.w, FILM.h, { radius: 0.14, bezel: 0, spread: 7, power: 1 });
-  const bench = sheet(textures[1], BENCH.w, BENCH.h, { radius: 0.14, bezel: 0, spread: 6.5, power: 0.85 });
-  const end = sheet(textures[0], END.w, END.h, { radius: 0.2, bezel: 0, spread: 16, power: 1.6 });
-  end.tint = film.tint; end.halo.uniforms.tint.value = film.tint;
-  place(film, FILM.p, FILM.ry); place(bench, BENCH.p, BENCH.ry); place(end, END.p, END.ry);
-  const plates = options.panels.map((panel, index) => {
-    const texture = textures[index + 2], image = texture.image as { width: number; height: number };
-    const screen = SCREENS.includes(panel.id), width = WIDTH[panel.id], bezel = screen ? 0.03 : 0.02;
-    const item = sheet(texture, width, (width - bezel * 2) * image.height / image.width + bezel * 2, { radius: screen ? 0.09 : 0.06, bezel, spread: screen ? 1.5 : 0.8, power: screen ? 0.5 : 0.22 });
-    // Interface captures are white; their light is a cool lab white rather than their average grey.
-    item.tint.setRGB(0.78, 0.84, 0.95);
-    return { id: panel.id, item, screen };
+    return { spec, group, prisms: [], backlight, light, element: null, width: 0, height: 0, face: 1, current: 0, target: null, start: 0, opened: null, tiltX: 0, tiltY: 0 };
   });
 
-  const lamps = { lamp: { value: Array.from({ length: 5 }, () => new THREE.Vector3(0, 1, 9999)) }, lampDir: { value: Array.from({ length: 5 }, () => new THREE.Vector3(0, 0, 1)) }, lampColor: { value: Array.from({ length: 5 }, () => new THREE.Color(0, 0, 0)) } };
-  const floorMaterial = new THREE.ShaderMaterial({ vertexShader: VERTEX, fragmentShader: FLOOR, transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, uniforms: { eye, fog, ...lamps } });
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), floorMaterial);
-  floor.rotation.x = -Math.PI / 2;
-  floor.scale.set(700, 700, 1);
-  floor.renderOrder = 0;
-  scene.add(floor);
-
-  host.appendChild(renderer.domElement);
-
-  let stations: Station[] = [{ id: "hero", from: 0, to: 0 }];
-  const born = performance.now();
-  let target = 0, shown = 0, active = true, frame = 0, last = born;
-  let width = 0, height = 0;
-  let tour = tourOf(SHOTS[0]);
-  let flight: { from: Tour; to: Tour; start: number; duration: number; then?: number } | null = null;
-  const pointer = { x: 0, y: 0, tx: 0, ty: 0 };
-  let video: HTMLVideoElement | null = null, videoTexture: THREE.VideoTexture | null = null, sampled = 0;
-  const filmTint = new THREE.Color().copy(film.tint), lookAt = new THREE.Vector3();
-  const still = matchMedia("(prefers-reduced-motion: reduce)");
-
-  /** The camera at a scroll offset, and how far it has arrived at the tour (0 to 1). */
-  const viewAt = (y: number, aspect: number): View & { arrive: number } => {
-    const view = (station: Station) => stationView(station.id, aspect, tour);
-    const at = (station: Station) => ({ ...view(station), arrive: station.id === "tour" ? 1 : 0 });
-    let previous = stations[0];
-    for (const station of stations) {
-      if (y <= station.from) {
-        if (station === previous) return at(station);
-        const t = smooth((y - previous.to) / Math.max(1, station.from - previous.to));
-        const a = at(previous), b = at(station);
-        return { cam: lerp3(a.cam, b.cam, t), look: lerp3(a.look, b.look, t), shift: lerp(a.shift, b.shift, t), arrive: lerp(a.arrive, b.arrive, t) };
-      }
-      if (y <= station.to) return at(station);
-      previous = station;
+  const assign = (wall: Wall) => {
+    const a = pictureOf(wall, wall.current), b = wall.target === null ? a : pictureOf(wall, wall.target);
+    for (const prism of wall.prisms) {
+      const u = prism.material.uniforms;
+      u.uTexA.value = a; u.uTexB.value = b;
+      cover(wall, wall.current, u.uCoverA.value); cover(wall, wall.target ?? wall.current, u.uCoverB.value);
     }
-    return at(previous);
   };
-  const overview = tourOf(SHOTS[0]);
+  /** Rebuild a wall for the size of its frame: about one prism for every 64 px. */
+  const build = (wall: Wall, width: number, height: number) => {
+    const count = Math.min(options.compact ? 16 : 26, Math.max(7, Math.round(width / (options.compact ? 46 : 64))));
+    if (count !== wall.prisms.length) {
+      for (const prism of wall.prisms) { wall.group.remove(prism.mesh); prism.material.dispose(); }
+      wall.prisms = Array.from({ length: count }, (_, index) => {
+        const material = new THREE.ShaderMaterial({ vertexShader: PRISM_VERTEX, fragmentShader: PRISM_FRAGMENT,
+          uniforms: { uTexA: { value: null }, uTexB: { value: null }, uCoverA: { value: new THREE.Vector4(1, 1, 0, 0) }, uCoverB: { value: new THREE.Vector4(1, 1, 0, 0) },
+            uIndex: { value: index }, uCount: { value: count }, uActivity: { value: 0 }, uFacePx: { value: 40 }, uSize: { value: new THREE.Vector2(1, 1) }, uRadius: { value: 0 },
+            uLight: { value: new THREE.Vector3(-0.45, 0.35, 1) } } });
+        const mesh = new THREE.Mesh(geometry, material);
+        wall.group.add(mesh);
+        return { mesh, material };
+      });
+    }
+    wall.width = width; wall.height = height; wall.face = width / count;
+    const radius = wall.element ? parseFloat(getComputedStyle(wall.element).borderTopLeftRadius) || 0 : 0;
+    wall.prisms.forEach((prism, index) => {
+      prism.mesh.position.x = -width / 2 + wall.face * (index + 0.5);
+      prism.material.uniforms.uFacePx.value = wall.face;
+      prism.material.uniforms.uSize.value.set(width, height);
+      prism.material.uniforms.uRadius.value = radius;
+    });
+    wall.backlight.scale.set(width * 0.94, height * 0.94, 1);
+    wall.backlight.position.z = -wall.face * 1.6;
+    wall.light.uniforms.uSize.value.set(width * 0.94, height * 0.94);
+    wall.light.uniforms.uRadius.value = radius;
+    assign(wall);
+  };
+
+  let width = 1, height = 1, active = true, frame = 0, last = performance.now();
+  const born = last;
+  const pointer = { x: 0.5, y: 0.5, tx: 0.5, ty: 0.5, presence: 0, target: 0 };
 
   const resize = () => {
-    width = host.clientWidth; height = host.clientHeight;
-    if (!width || !height) return;
+    width = Math.max(1, host.clientWidth); height = Math.max(1, host.clientHeight);
     renderer.setSize(width, height, false);
     camera.aspect = width / height;
+    // The resting plane at z = 0 maps one to one onto the page; the lens gives the turning prisms perspective.
+    camera.position.set(0, 0, height / 2 / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
+    camera.far = camera.position.z * 4;
     camera.updateProjectionMatrix();
-  };
-
-  const setLamp = (index: number, item: Sheet, reach: number) => {
-    const p = item.group.position, ry = item.group.rotation.y;
-    lamps.lamp.value[index].set(p.x, reach, p.z);
-    lamps.lampDir.value[index].set(Math.sin(ry), 0, Math.cos(ry));
-    lamps.lampColor.value[index].copy(item.tint).multiplyScalar(item.power * item.lit);
+    fieldTarget.setSize(Math.max(8, Math.round(width / 3)), Math.max(8, Math.round(height / 3)));
+    fieldMaterial.uniforms.uRes.value.set(width, height);
   };
 
   const draw = (now: number) => {
     frame = 0;
     const dt = Math.min(0.05, (now - last) / 1000), time = (now - born) / 1000;
     last = now;
-    // The camera follows the page with a little weight.
-    shown += (target - shown) * (1 - Math.exp(-dt * 7));
-    if (Math.abs(target - shown) < 0.2) shown = target;
+    pointer.x += (pointer.tx - pointer.x) * (1 - Math.exp(-dt * 4)); pointer.y += (pointer.ty - pointer.y) * (1 - Math.exp(-dt * 4));
+    pointer.presence += (pointer.target - pointer.presence) * (1 - Math.exp(-dt * 3));
 
-    if (flight) {
-      const t = Math.min(1, (now - flight.start) / flight.duration);
-      tour = mixTour(flight.from, flight.to, ease(t));
-      if (t >= 1) { const next = flight.then; flight = null; if (next !== undefined) fly(next, 7000); }
-    }
-    const view = viewAt(shown, camera.aspect);
-    pointer.x += (pointer.tx - pointer.x) * (1 - Math.exp(-dt * 3.2)); pointer.y += (pointer.ty - pointer.y) * (1 - Math.exp(-dt * 3.2));
-    camera.position.set(view.cam[0] + pointer.x * 0.5, view.cam[1] + pointer.y * 0.22 + Math.sin(time * 0.3) * 0.03, view.cam[2]);
-    camera.lookAt(lookAt.set(view.look[0] + pointer.x * 0.12, view.look[1], view.look[2]));
-    if (view.shift) camera.setViewOffset(width, height, -width * view.shift, 0, width, height); else camera.clearViewOffset();
-    eye.value.copy(camera.position);
+    for (const wall of walls) {
+      const element = wall.spec.element();
+      const box = element?.getBoundingClientRect();
+      if (!element || !box || box.width < 2 || box.height < 2 || box.bottom < -height * 0.5 || box.top > height * 1.5) { wall.group.visible = false; wall.element = element; continue; }
+      if (element !== wall.element || Math.abs(box.width - wall.width) > 0.5 || Math.abs(box.height - wall.height) > 0.5) { wall.element = element; build(wall, box.width, box.height); }
+      wall.group.visible = true;
+      wall.group.position.set(box.left + box.width / 2 - width / 2, height / 2 - (box.top + box.height / 2), 0);
+      // The whole wall leans a little towards the pointer; the picture itself is never cut by it.
+      const lean = pointer.presence * 0.045;
+      wall.tiltY += ((pointer.x - (box.left + box.width / 2) / width) * lean - wall.tiltY) * (1 - Math.exp(-dt * 5));
+      wall.tiltX += ((pointer.y - (1 - (box.top + box.height / 2) / height)) * lean * 0.6 - wall.tiltX) * (1 - Math.exp(-dt * 5));
+      wall.group.rotation.set(wall.tiltX, wall.tiltY, 0);
 
-    // The film's light follows its footage.
-    if (videoTexture && video && now - sampled > 320) { sampled = now; colourOf(video, filmTint); }
-    film.tint.lerp(filmTint, 1 - Math.exp(-dt * 2.5));
+      if (wall.opened === null) wall.opened = now;
+      // How far the wall has turned into its picture (with the scroll, or by itself at the top of the page),
+      // and how far it has turned away again above the screen.
+      const enter = wall.spec.opens ? clamp01((now - wall.opened - 250) / 1500) : clamp01((height - box.top) / (height * 0.72));
+      const leave = clamp01((-box.top - box.height * 0.12) / (box.height * 0.62));
+      const count = wall.prisms.length, spread = 0.7;
+      const delay = wall.spec.opens ? 46 : 21, duration = 780;
+      if (wall.target !== null && now - wall.start >= (count - 1) * delay + duration) { wall.current = wall.target; wall.target = null; assign(wall); }
+      if (wall.spec.glide?.length) {
+        const swing = 0.5 - 0.5 * Math.cos(time * 0.16);
+        for (const prism of wall.prisms) { cover(wall, wall.current, prism.material.uniforms.uCoverA.value, swing); if (wall.target !== null) cover(wall, wall.target, prism.material.uniforms.uCoverB.value, swing); }
+      }
+      let lit = 0;
+      wall.prisms.forEach((prism, index) => {
+        const along = count > 1 ? index / (count - 1) : 0;
+        const opened = easeTurn(clamp01(enter * (1 + spread) - spread * along));
+        const closed = smooth(leave * (1 + spread) - spread * (1 - along));
+        const away = Math.min(1, 1 - opened + closed);
+        const progress = wall.target === null ? 0 : clamp01((now - wall.start - index * delay) / duration);
+        const wave = Math.max(Math.sin(Math.PI * away), Math.sin(Math.PI * progress));
+        prism.mesh.rotation.y = -TURN * away + TURN * easeTurn(progress);
+        // Mid-turn each prism narrows and steps towards the viewer, opening gaps for the light behind.
+        prism.mesh.scale.set(wall.face * (1 - 0.16 * wave), wall.height, wall.face * (1 - 0.16 * wave));
+        prism.mesh.position.z = -APOTHEM * wall.face + wave * wall.face * 0.7;
+        prism.material.uniforms.uActivity.value = Math.max(wave, away);
+        lit = Math.max(lit, wave);
+      });
+      wall.light.uniforms.uLight.value = Math.min(1, lit * 1.6) * 1.7;
+    }
 
-    // The hall lights up once, as the page opens.
-    const power = still.matches ? 1 : smooth((time - 0.15) / 1.6);
-    film.lit = power;
-    // Away from the tour the screens stand as the overview; the chosen tab's close-ups come out on arrival.
-    const poses = mixTour(overview, tour, view.arrive).poses;
-    for (const { id, item, screen } of plates) {
-      const pose = poses[id];
-      const p = add(CLUSTER, pose.p);
-      place(item, [p[0], p[1] + Math.sin(time * 0.45 + item.seed) * 0.025, p[2]], pose.ry);
-      // The screens sleep in the distance and wake as the camera reaches them; one it passes through lets it by.
-      const distance = camera.position.distanceTo(item.group.position);
-      const awake = smooth((52 - distance) / 26), near = smooth((distance - 1.2) / 2.2) * smooth((74 - distance) / 14);
-      const shownPlate = (screen ? Math.min(1, pose.o * 1.4) : THREE.MathUtils.smoothstep(pose.o, 0.6, 1)) * near;
-      item.lit = power * shownPlate * (screen ? Math.min(1, pose.o) : 1) * (0.16 + 0.84 * awake);
-      item.face.uniforms.opacity.value = shownPlate * power;
-      item.face.uniforms.dim.value = Math.max(screen ? 1 - Math.min(1, pose.o) : 0, (1 - awake) * 0.72);
-      item.group.visible = item.mirror.visible = shownPlate > 0.005;
-    }
-    for (const item of sheets) {
-      if (item !== film && item !== bench && item !== end) { item.reflection.uniforms.opacity.value = item.face.uniforms.opacity.value; item.reflection.uniforms.dim.value = item.face.uniforms.dim.value; item.halo.uniforms.opacity.value = item.lit; continue; }
-      const distance = camera.position.distanceTo(item.group.position), z = camera.position.z;
-      // Each sheet comes into view once the camera has passed the one before it.
-      const near = item === end ? smooth((-120 - z) / 12) : smooth((distance - 2) / 5) * (item === bench ? smooth((-74 - z) / 14) : 1);
-      if (item !== film) item.lit = power * near;
-      item.face.uniforms.opacity.value = power * near;
-      item.reflection.uniforms.opacity.value = power * near;
-      item.halo.uniforms.opacity.value = item.lit * item.power;
-    }
-    setLamp(0, film, 11); setLamp(1, bench, 10.5); setLamp(2, end, 15);
-    if (plates.length) {
-      const screen = plates.find(plate => plate.id === "stats")!.item;
-      setLamp(3, screen, 6);
-      lamps.lampColor.value[3].multiplyScalar(2.2);
-    }
-    floor.position.set(camera.position.x, 0, camera.position.z - 120);
+    fieldMaterial.uniforms.uTime.value = time;
+    fieldMaterial.uniforms.uPointer.value.set(pointer.x, pointer.y);
+    fieldMaterial.uniforms.uPresence.value = pointer.presence;
+    fieldMaterial.uniforms.uScroll.value = scrollY / Math.max(1, height);
+    renderer.setRenderTarget(fieldTarget);
+    renderer.render(fieldScene, fieldCamera);
+    renderer.setRenderTarget(null);
     renderer.render(scene, camera);
-    if (active && !still.matches) frame = requestAnimationFrame(draw);
+    if (active) frame = requestAnimationFrame(draw);
   };
   const request = () => { if (!frame && active) { last = performance.now(); frame = requestAnimationFrame(draw); } };
-  function fly(index: number, duration = 1600, then?: number) {
-    const to = tourOf(SHOTS[Math.min(SHOTS.length - 1, Math.max(0, index))]);
-    if (still.matches) { tour = to; flight = null; } else flight = { from: tour, to, start: performance.now(), duration, then };
-    request();
-  }
 
   const observer = new ResizeObserver(() => { resize(); request(); });
   observer.observe(host);
   resize();
+  host.appendChild(renderer.domElement);
   request();
 
   return {
-    stations(list) { if (list.length) stations = list; request(); },
-    scroll(y) { target = y; if (still.matches) shown = y; request(); },
-    pointer(x, y, inside) { pointer.tx = inside ? x * 2 - 1 : 0; pointer.ty = inside ? y * 2 - 1 : 0; },
+    show(id, index) {
+      const wall = walls.find(item => item.spec.id === id);
+      if (!wall || index === wall.target || (index === wall.current && wall.target === null) || !wall.spec.sources[index]) return;
+      if (wall.target !== null) wall.current = wall.target;
+      wall.target = index; wall.start = performance.now();
+      assign(wall);
+      request();
+    },
     film(element) {
       if (element === video) return;
       videoTexture?.dispose();
       video = element; videoTexture = null;
       if (element) { videoTexture = new THREE.VideoTexture(element); videoTexture.colorSpace = THREE.NoColorSpace; videoTexture.anisotropy = anisotropy; }
-      const map = videoTexture ?? textures[0];
-      for (const item of [film, end]) { item.face.uniforms.map.value = map; item.reflection.uniforms.map.value = map; }
-      if (!element) colourOf(textures[0].image as CanvasImageSource, filmTint);
+      for (const wall of walls) if (wall.spec.film && wall.prisms.length) assign(wall);
       request();
     },
-    shot(index, then) { fly(index, 1600, then); },
+    pointer(x, y, inside) { if (inside) { pointer.tx = x; pointer.ty = y; } pointer.target = inside ? 1 : 0; },
     running(value) { active = value; if (value) request(); else if (frame) { cancelAnimationFrame(frame); frame = 0; } },
     dispose() {
       active = false;
       if (frame) cancelAnimationFrame(frame);
       observer.disconnect();
-      for (const item of sheets) { item.face.dispose(); item.reflection.dispose(); item.halo.dispose(); }
-      geometry.dispose(); floor.geometry.dispose(); floorMaterial.dispose();
+      for (const wall of walls) { for (const prism of wall.prisms) prism.material.dispose(); wall.light.dispose(); }
+      geometry.dispose(); plane.dispose(); fieldMaterial.dispose(); fieldTarget.dispose();
       textures.forEach(texture => texture.dispose()); videoTexture?.dispose();
       renderer.dispose();
       renderer.domElement.remove();

@@ -1,19 +1,23 @@
 /* The landing page. No styles cross into the analysis workspace.
  *
- * One dark hall from top to bottom (SceneWorld, scene-world-engine): the hero film, the demo's screens and the
- * bench photograph stand in it as sheets of light, and the copy is set on the dark beside them. Where the 3D
- * world cannot run (phones, reduced motion, no WebGL) the same pictures stand as still frames in the page.
+ * A dark stage lit from behind (SceneWorld, scene-world-engine). The pictures are the protagonists: the hero
+ * film, the demo's screens and the bench photograph each fill a stage across the page, and where the 3D stage is
+ * drawing, each is carried by a wall of glass prisms standing in exactly that frame. The copy is set around the
+ * stages, never the other way round. Without the 3D stage (reduced motion, no WebGL) the same pictures stand in
+ * the same frames as images.
  *
- * Measures: every distance is a step of one scale (--s1 … --s8), on a 1440 px frame that grows and shrinks with
- * the window (--px). One left axis (--m) carries the wordmark, every heading and every paragraph. Type stays in
- * the product's Inter and Noto Sans JP, one colour for headings and one for running text. */
+ * Measures: every distance is a step of one scale (--s1 … --s8) on a 1440 px frame that grows and shrinks with
+ * the window (--px). The copy keeps one left axis (--m); the stages run to the edge of the page (--edge). Type
+ * stays in the product's Inter and Noto Sans JP: headings at weight 400, large, in one colour. */
 .page{
-  --void:#050507;--chalk:#f4f4f2;--body:#c9cbd1;--steel:#9a9da6;--line:#f4f4f224;--line-strong:#f4f4f252;--glow:#e7b8a4;--plate:#0d0e12;
+  --void:#050908;--chalk:#f4f5f2;--body:#c8ccc9;--steel:#98a09c;--line:#f4f5f224;--line-strong:#f4f5f252;--glow:#e7b8a4;--plate:#0b1110;
   --px:clamp(.72px,calc(100vw / 1440),1.3px);
-  --m:calc(96 * var(--px));
-  --s1:calc(8 * var(--px));--s2:calc(16 * var(--px));--s3:calc(24 * var(--px));--s4:calc(40 * var(--px));--s5:calc(64 * var(--px));--s6:calc(104 * var(--px));--s7:calc(168 * var(--px));--s8:calc(272 * var(--px));
-  --t-display:calc(68 * var(--px));--t-statement:calc(48 * var(--px));--t-title:calc(32 * var(--px));--t-lead:max(17px,calc(19 * var(--px)));--t-body:max(16px,calc(17 * var(--px)));--t-small:max(14px,calc(14 * var(--px)));
-  position:relative;min-height:100vh;overflow-x:clip;background:var(--void);color:var(--body);
+  --m:calc(96 * var(--px));--edge:12px;--round:calc(20 * var(--px));
+  --s1:calc(8 * var(--px));--s2:calc(16 * var(--px));--s3:calc(24 * var(--px));--s4:calc(40 * var(--px));--s5:calc(64 * var(--px));--s6:calc(104 * var(--px));--s7:calc(168 * var(--px));--s8:calc(256 * var(--px));
+  --t-display:calc(92 * var(--px));--t-statement:calc(56 * var(--px));--t-title:calc(32 * var(--px));--t-lead:max(17px,calc(19 * var(--px)));--t-body:max(16px,calc(17 * var(--px)));--t-small:max(14px,calc(14 * var(--px)));
+  position:relative;min-height:100vh;overflow-x:clip;color:var(--body);
+  /* The light of the page where the 3D stage is not drawing. */
+  background:radial-gradient(90vw 70vh at 100% 0,#0a3b3359,#0000 70%),radial-gradient(80vw 80vh at 0 38%,#12306657,#0000 70%),radial-gradient(70vw 60vh at 90% 78%,#5a2f2a40,#0000 70%),var(--void);
   font-family:Inter,"Noto Sans JP",sans-serif;font-size:var(--t-body);font-weight:400;line-height:1.85;font-feature-settings:"palt";-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
 }
 .page>main,.page>.footer{position:relative;z-index:1}
@@ -24,20 +28,31 @@
 .page :where(img){display:block;max-width:100%}
 .page :where(figure){margin:0;min-width:0}
 .page :where(button){font:inherit}
-.page :where(h1,h2,h3){margin:0;color:var(--chalk);font-weight:500;text-wrap:balance}
+.page :where(h1,h2,h3){margin:0;color:var(--chalk);font-weight:400;text-wrap:balance}
 .page :where(p,ul,ol){margin:0}
 .shell{width:calc(100% - 2 * var(--m));margin-inline:auto}
 .mobileBreak{display:none}
 
-/* ── The world: one fixed canvas behind everything. It fades in once it can draw. */
-.world{position:fixed;z-index:0;inset:0;opacity:0;pointer-events:none;transition:opacity 1.1s cubic-bezier(.3,0,.2,1)}
+/* ── The 3D stage: one fixed canvas behind everything. It fades in once it can draw. */
+.world{position:fixed;z-index:0;inset:0;opacity:0;pointer-events:none;transition:opacity 1s cubic-bezier(.3,0,.2,1)}
 .world canvas{display:block;width:100%;height:100%}
-.page[data-world-state="tour"] .world{opacity:1}
+.page[data-world-state="live"] .world{opacity:1}
+/* The frames of the pictures. With the 3D stage drawing them, the images inside step aside (they stay in the page
+   for the film's controls and for assistive technology). Before the page knows whether the stage will draw, they
+   wait, so a stage that is about to load never flashes them. */
+.film,.closingFilm,.stage,.plateScroll,.reasonsSheet{overflow:hidden;border-radius:var(--round);background:var(--plate)}
+@media(prefers-reduced-motion:no-preference){
+  .page:not([data-world-state]) :is(.film,.closingFilm,.stage,.reasonsSheet)>*{animation:lpFrameIn .6s 3s both}
+  .page:is([data-world-state="loading"],[data-world-state="live"]) :is(.film,.closingFilm,.stage,.reasonsSheet,.experience .plateScroll)>*{opacity:0}
+  .page:is([data-world-state="loading"],[data-world-state="live"]) :is(.film,.closingFilm,.stage,.reasonsSheet,.experience .plateScroll){background:none}
+}
+@keyframes lpFrameIn{from{opacity:0}}
 
-/* ── Header: the wordmark and the links on the dark itself, and the demo as the one outlined action. */
+/* ── Header: the wordmark and the links on the page itself, and the demo as the one outlined action. */
 .header{position:fixed;z-index:50;top:0;left:0;right:0;height:calc(88 * var(--px));min-height:68px;padding:0 var(--m);display:flex;align-items:center;justify-content:space-between;gap:var(--s4);color:var(--chalk)}
 /* Copy that scrolls up under the header fades into the dark before it reaches the links. */
-.header::before{content:"";position:absolute;z-index:-1;inset:0 0 -50% 0;background:linear-gradient(180deg,#050507f5 30%,#050507b8 66%,#05050700);pointer-events:none}
+.header::before{content:"";position:absolute;z-index:-1;inset:0 0 -50% 0;background:linear-gradient(180deg,#050908eb 30%,#050908a6 66%,#05090800);pointer-events:none;opacity:0;transition:opacity .5s}
+.header[data-tone="light"]::before{opacity:1}
 .wordmark,.footerBrand{font-size:max(22px,calc(24 * var(--px)));font-weight:650;letter-spacing:-.055em;line-height:1;color:var(--chalk)}
 .navigation{display:flex;align-items:center;gap:calc(36 * var(--px))}
 .navigation a{font-size:max(14px,calc(15 * var(--px)));font-weight:450;line-height:1;white-space:nowrap;color:var(--chalk);transition:opacity .25s}
@@ -57,53 +72,41 @@
 .primary span,.secondary span,.button span,.heroSecondary span{transition:transform .3s}
 .primary:hover span,.secondary:hover span,.button:hover span{transform:translateX(3px)}
 
-/* ── Still frames: the pictures as they stand without the 3D world. */
-.film,.reasonsSheet{position:absolute;overflow:hidden;border-radius:calc(14 * var(--px));background:#0c0d10;pointer-events:none}
-.film{z-index:0;top:50%;right:calc(-130 * var(--px));width:calc(940 * var(--px));aspect-ratio:16/9;transform:translateY(-52%) perspective(1500px) rotateY(-17deg);transform-origin:100% 50%;box-shadow:0 0 calc(180 * var(--px)) calc(8 * var(--px)) #e7b8a433}
+/* ── Hero: the film fills the stage; the headline stands along its foot, the two actions opposite. */
+.hero{position:relative;height:100svh;min-height:calc(520 * var(--px));color:var(--chalk)}
+.film{position:absolute;z-index:0;inset:var(--edge);pointer-events:none}
 .filmPoster,.page .filmPoster,.filmVideo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .filmVideo{opacity:0;transition:opacity 900ms}
 .filmVideo[data-visible="true"]{opacity:1}
-.motionToggle{position:absolute;z-index:3;right:var(--m);bottom:var(--s4);width:40px;height:40px;display:grid;place-items:center;padding:0;border:1px solid var(--line-strong);border-radius:50%;background:#05050799;color:var(--chalk);font-size:13px;cursor:pointer}
-.motionToggle:hover{border-color:var(--chalk)}
-/* With the world drawing them, the frames step aside (they stay in the page for the film's controls and for
-   assistive technology). They show only where the world is off; before the page knows, they wait, so a world
-   that is about to load never flashes them. */
-@media(prefers-reduced-motion:no-preference){
-  .page:not([data-world-state]) :is(.film,.reasonsSheet,.closingFilm){animation:lpFrameIn .6s 3s both}
-  .page:is([data-world-state="loading"],[data-world-state="tour"]) :is(.film,.reasonsSheet,.closingFilm){opacity:0}
-  .page[data-world-state="off"] :is(.film,.reasonsSheet,.closingFilm){transition:opacity .6s}
-}
-@keyframes lpFrameIn{from{opacity:0}}
-
-/* ── Hero: the headline on the dark, the film standing beside it. */
-.hero{position:relative;min-height:100svh;display:grid;align-items:center;padding:calc(88 * var(--px)) var(--m) 0}
-.heroCopy{position:relative;z-index:2;width:calc(600 * var(--px))}
-.hero h1{font-size:var(--t-display);font-weight:500;line-height:1.04;letter-spacing:-.04em}
+.hero::after{content:"";position:absolute;z-index:1;inset:var(--edge);border-radius:var(--round);background:linear-gradient(0deg,#050908d1,#05090866 24%,#05090800 50%),linear-gradient(180deg,#05090880,#05090800 18%);pointer-events:none}
+.heroCopy{position:absolute;z-index:2;left:var(--m);right:var(--m);bottom:calc(72 * var(--px));display:flex;align-items:flex-end;justify-content:space-between;gap:var(--s5)}
+.hero h1{font-size:min(var(--t-display),14svh);font-weight:400;line-height:.98;letter-spacing:-.045em}
 .hero h1>span{display:block}
-.hero h1>span>span{display:block}
-.heroActions{display:flex;align-items:center;gap:var(--s3);margin-top:var(--s5)}
+.heroActions{flex:none;display:flex;align-items:center;gap:var(--s3);padding-bottom:calc(6 * var(--px))}
+.motionToggle{position:absolute;z-index:3;right:var(--m);top:calc(112 * var(--px));width:40px;height:40px;display:grid;place-items:center;padding:0;border:1px solid var(--line-strong);border-radius:50%;background:#05090880;color:var(--chalk);font-size:13px;cursor:pointer}
+.motionToggle:hover{border-color:var(--chalk)}
 
-/* ── Mission: one sentence, alone in the hall. */
-.mission{min-height:104vh;display:grid;align-items:center}
-.manifesto{font-size:var(--t-statement);line-height:1.42;letter-spacing:.005em}
+/* ── Mission: one sentence, alone in the light. */
+.mission{padding:var(--s8) 0}
+.manifesto{font-size:var(--t-statement);line-height:1.45;letter-spacing:.005em}
 .manifesto>span{display:block}
 .manifesto>span>span{display:inline-block}
 
-/* ── Product. */
-.experience{position:relative;padding-top:var(--s6)}
-.experienceIntro{width:calc(100% - 2 * var(--m));margin-inline:auto}
-.eyebrow{display:flex;align-items:baseline;gap:var(--s2);margin-bottom:var(--s3);font-size:var(--t-small);line-height:1.4;color:var(--steel)}
+/* ── Product: a heading and its sentence, then one screen across the page for the chosen tab. */
+.experience{position:relative}
+.experienceIntro{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,4fr);column-gap:var(--s5);align-items:end;width:calc(100% - 2 * var(--m));margin-inline:auto}
+.eyebrow{grid-column:1 / -1;display:flex;align-items:baseline;gap:var(--s2);margin-bottom:var(--s3);font-size:var(--t-small);line-height:1.4;color:var(--steel)}
 .eyebrow span{color:var(--chalk);font-weight:600;letter-spacing:-.02em}
-.statement{font-size:var(--t-statement);line-height:1.42;letter-spacing:.005em}
+.statement{font-size:var(--t-statement);line-height:1.45;letter-spacing:.005em}
 .statement>span{display:block}
-.experienceLead{margin-top:var(--s4);max-width:34em;font-size:var(--t-lead);line-height:1.9}
+.experienceLead{padding-bottom:calc(12 * var(--px));font-size:var(--t-lead);line-height:1.9}
 .experienceLead span{display:inline-block}
 /* Japanese running text breaks between phrases where the browser can tell them apart. */
 .chapterLead,.reasonsLead,.stop>p,.experienceLead span{word-break:auto-phrase;text-wrap:pretty}
 
-.tour{position:relative;height:100vh;min-height:calc(760 * var(--px));margin-top:var(--s7);padding:calc(104 * var(--px)) var(--m) var(--s6);display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr;gap:var(--s4)}
-.switcher{display:flex;align-items:center;justify-content:space-between;gap:var(--s2);width:100%}
-.tablist{position:relative;display:inline-flex;min-width:0;max-width:100%;padding:5px;gap:2px;border:1px solid var(--line);border-radius:12px;background:#0d0e12cc;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);overflow-x:auto;scrollbar-width:none}
+.tour{position:relative;margin-top:var(--s6);display:grid;grid-template-columns:minmax(0,1fr);row-gap:var(--s4)}
+.switcher{display:flex;align-items:center;justify-content:space-between;gap:var(--s2);width:calc(100% - 2 * var(--m));margin-inline:auto}
+.tablist{position:relative;display:inline-flex;min-width:0;max-width:100%;padding:5px;gap:2px;border:1px solid var(--line);border-radius:12px;background:#0b1110cc;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);overflow-x:auto;scrollbar-width:none}
 .tablist::-webkit-scrollbar{display:none}
 .tabPill{position:absolute;z-index:0;top:5px;bottom:5px;left:0;overflow:hidden;border-radius:8px;background:var(--chalk);transition:transform .5s cubic-bezier(.2,.7,.1,1),width .5s cubic-bezier(.2,.7,.1,1)}
 .tabSweep{position:absolute;left:16px;right:16px;bottom:6px;height:2px;border-radius:2px;background:#08090b;transform:scaleX(0);transform-origin:0 50%;animation:lpTabSweep 7s linear forwards}
@@ -116,75 +119,75 @@
 .switchNav{flex:none;display:flex;align-items:center;gap:8px}
 .switchCount{margin-right:var(--s1);font-size:14px;font-variant-numeric:tabular-nums;color:var(--steel)}
 .switchCount b{font-weight:500;color:var(--chalk)}
-.switchArrow{display:grid;place-items:center;width:48px;height:48px;padding:0;border:1px solid var(--line);border-radius:50%;background:#0d0e12cc;color:var(--chalk);cursor:pointer;transition:background .25s,color .25s,border-color .25s}
+.switchArrow{display:grid;place-items:center;width:48px;height:48px;padding:0;border:1px solid var(--line);border-radius:50%;background:#0b1110cc;color:var(--chalk);cursor:pointer;transition:background .25s,color .25s,border-color .25s}
 .switchArrow svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .switchArrow:hover{border-color:var(--chalk);background:var(--chalk);color:#08090b}
 
-.chapter{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:var(--s5);align-items:center;min-height:0}
+.chapter{display:grid;grid-template-columns:minmax(0,1fr);min-width:0}
 .chapter[hidden]{display:none}
-.chapterText{max-width:calc(408 * var(--px));padding-bottom:var(--s4)}
-.chapterTitle{font-size:calc(30 * var(--px));line-height:1.5;letter-spacing:.005em}
+.chapterHead{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,4fr);column-gap:var(--s5);align-items:end;width:calc(100% - 2 * var(--m));margin-inline:auto;min-height:calc(96 * var(--px))}
+.chapterTitle{font-size:var(--t-title);line-height:1.5;letter-spacing:.005em}
 .chapterTitle span{display:inline-block}
-.chapterLead{margin-top:var(--s3);font-size:var(--t-body);line-height:1.9}
-.chapterText>.button{margin-top:var(--s4)}
-.params{display:flex;flex-wrap:wrap;gap:8px;margin:var(--s3) 0 0;padding:0;list-style:none}
+.chapterLead{padding-bottom:calc(6 * var(--px));font-size:var(--t-body);line-height:1.85}
+/* The stage: the tab's screen across the page, and its close-ups floating over the lower right of it. */
+.plates{position:relative;margin:var(--s4) var(--edge) 0}
+.stage,.experience[data-mode="space"] .plateScroll{aspect-ratio:2400 / 1185}
+.plateBack,.page .plateBack{width:100%;height:100%;object-fit:cover}
+.plateFront{position:absolute;z-index:2;right:calc(var(--m) - var(--edge));bottom:calc(-1 * var(--s5));width:calc(376 * var(--px));display:grid;gap:var(--s2);perspective:1200px}
+.plate{width:100%;height:auto;padding:4px;border:1px solid #ffffff38;border-radius:calc(12 * var(--px));background:#0b1110;box-shadow:0 calc(40 * var(--px)) calc(90 * var(--px)) calc(-20 * var(--px)) #000,0 0 0 1px #0000;transform:rotateY(-7deg) rotateX(2deg);transform-origin:100% 50%;animation:lpPlateIn .9s cubic-bezier(.2,.76,.2,1) both}
+.plate+.plate{animation-delay:.12s}
+@keyframes lpPlateIn{from{opacity:0;transform:rotateY(-38deg) rotateX(4deg) translateZ(-120px)}}
+.plateScroll{overflow-x:auto;scrollbar-width:thin;scrollbar-color:#f4f5f240 transparent}
+.experience[data-mode="space"] .plateScroll{overflow:hidden}
+.page .plateWide{width:max(100%,1100px);max-width:none;height:auto}
+.chapterFoot{display:flex;align-items:flex-start;gap:var(--s5);width:calc(100% - 2 * var(--m));margin:var(--s4) auto 0;min-height:calc(120 * var(--px))}
+.chapterFoot>.button{margin-left:0;order:-1}
+.params{display:flex;flex-wrap:wrap;align-content:flex-start;gap:8px;max-width:calc(360 * var(--px));padding:0;list-style:none}
 .params li{padding:5px 13px;border:1px solid var(--line);border-radius:999px;font-size:14px;line-height:1.5;color:var(--chalk)}
-.example{margin-top:var(--s3);padding-top:var(--s3);border-top:1px solid var(--line)}
 .numbers{display:grid;grid-template-columns:repeat(2,max-content);gap:var(--s2) var(--s5)}
 .numbers strong{display:block;font-size:calc(44 * var(--px));font-weight:400;line-height:1.1;letter-spacing:-.03em;white-space:nowrap;color:var(--chalk)}
 .numbers span{display:block;margin-top:10px;font-size:var(--t-small);line-height:1.6;color:var(--steel)}
-/* The captures, as plates in the page. */
-.plates{position:relative}
-.plateBack,.plate,.plateWide{border:1px solid var(--line);background:var(--plate)}
-.plateBack{width:88%;margin-left:auto;padding:5px;border-radius:14px;opacity:.5}
-.plateFront{position:absolute;left:0;top:50%;width:52%;display:grid;gap:var(--s2);transform:translateY(-50%)}
-.plate{width:100%;height:auto;padding:4px;border-radius:12px;box-shadow:0 30px 70px -20px #000}
-.plateScroll{overflow-x:auto;border-radius:12px;scrollbar-width:thin;scrollbar-color:#f4f4f240 transparent}
-.page .plateWide{width:max(100%,1100px);max-width:none;height:auto;padding:4px;border-radius:12px}
-/* In the world the plates are drawn in 3D; the ones in the page stay for assistive technology. */
-.experience[data-mode="space"] .plates{opacity:0;pointer-events:none}
-.experience[data-mode="space"] .chapter{align-items:center}
 
-/* ── Reasons: the bench on the left, the four reasons as rows beside it. */
-.reasons{position:relative;min-height:124vh;display:grid;align-items:center;padding:var(--s6) var(--m)}
-.reasonsSheet{z-index:0;top:50%;left:calc(-130 * var(--px));width:calc(860 * var(--px));aspect-ratio:3/2;transform:translateY(-50%) perspective(1500px) rotateY(17deg);transform-origin:0 50%;box-shadow:0 0 calc(160 * var(--px)) calc(6 * var(--px)) #dfe6f026}
+/* ── Reasons: the heading and its sentence, the bench across the page, the four reasons in a row beneath. */
+.reasons{position:relative;padding-top:var(--s8)}
+.reasonsHead{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,4fr);column-gap:var(--s5);align-items:end;width:calc(100% - 2 * var(--m));margin-inline:auto}
+.reasonsLead{padding-bottom:calc(12 * var(--px));font-size:var(--t-lead);line-height:1.9}
+.reasonsSheet{margin:var(--s5) var(--edge) 0;aspect-ratio:1416 / 640}
 .reasonsPhoto,.page .reasonsPhoto{width:100%;height:100%;object-fit:cover}
-.reasonsCopy{position:relative;z-index:1;width:calc(600 * var(--px));margin-left:auto}
-.reasonsLead{margin-top:var(--s3);font-size:var(--t-lead);line-height:1.9}
-.loop{margin:var(--s4) 0 0;padding:0;list-style:none;border-top:1px solid var(--line)}
-.loop li{display:grid;grid-template-columns:calc(184 * var(--px)) minmax(0,1fr);gap:var(--s3);padding:calc(20 * var(--px)) 0;border-bottom:1px solid var(--line)}
-.loop b{font-size:var(--t-body);font-weight:500;line-height:1.6;color:var(--chalk)}
+.loop{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--s4);width:calc(100% - 2 * var(--m));margin:var(--s5) auto 0;padding:0;list-style:none}
+.loop li{padding-top:var(--s3);border-top:1px solid var(--line-strong)}
+.loop b{display:block;font-size:var(--t-lead);font-weight:500;line-height:1.6;color:var(--chalk)}
 .loop b span{display:inline-block;font:inherit;color:inherit}
-.loop li>span{font-size:max(15px,calc(15 * var(--px)));line-height:1.8}
+.loop li>span{display:block;margin-top:var(--s2);font-size:max(15px,calc(15 * var(--px)));line-height:1.85}
 
-/* ── Impact: the light at the end of the hall, and the one line that reaches it. */
-.impact{min-height:112vh;display:grid;align-items:center}
-.impactTitle{font-size:var(--t-statement);line-height:1.42;letter-spacing:.005em}
+/* ── Impact: the sentence, and the one line that reaches the patient. */
+.impact{padding:var(--s8) 0}
+.impactTitle{font-size:var(--t-statement);line-height:1.45;letter-spacing:.005em}
 .impactTitle>span{display:block}
 .impactTitle>span>span{display:inline-block}
 .path{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin:var(--s7) 0 0;padding:var(--s4) 0 0;list-style:none}
-.path::before{content:"";position:absolute;left:0;right:calc(100% / 3 - 9px);top:-5px;height:11px;background:linear-gradient(90deg,#f4f4f233,#f4f4f266 55%,var(--glow));clip-path:polygon(0 46%,100% 0,100% 100%,0 54%)}
+.path::before{content:"";position:absolute;left:0;right:calc(100% / 3 - 9px);top:-5px;height:11px;background:linear-gradient(90deg,#f4f5f233,#f4f5f266 55%,var(--glow));clip-path:polygon(0 46%,100% 0,100% 100%,0 54%)}
 .path li{position:relative}
 .path li::before{content:"";position:absolute;left:0;top:calc(-1 * var(--s4) - 3px);width:7px;height:7px;border-radius:50%;background:var(--chalk)}
 .path li:last-child::before{top:calc(-1 * var(--s4) - 9px);left:-9px;width:19px;height:19px;background:var(--glow);box-shadow:0 0 28px 6px #e7b8a466}
-.path b{text-shadow:0 0 20px var(--void),0 0 6px var(--void);display:block;font-size:max(17px,calc(19 * var(--px)));font-weight:450;line-height:1.6;color:var(--body);font-feature-settings:"palt"}
+.path b{display:block;font-size:max(17px,calc(19 * var(--px)));font-weight:400;line-height:1.6;color:var(--body);font-feature-settings:"palt"}
 .path b span{display:block}
-.path li:last-child b{font-size:calc(34 * var(--px));font-weight:500;line-height:1.3;color:var(--chalk)}
+.path li:last-child b{font-size:calc(40 * var(--px));line-height:1.3;color:var(--chalk)}
 
-/* ── Invitation: the film again, the whole view. */
-.invite{position:relative;min-height:112vh;display:grid;align-items:end;padding:0 var(--m) calc(24vh)}
-.invite::before{content:"";position:absolute;z-index:0;inset:0;background:linear-gradient(0deg,var(--void),#05050700 24%),linear-gradient(90deg,#050507a6,#0505074d 38%,#05050700 62%),linear-gradient(0deg,#05050780,#05050700 44%);pointer-events:none}
-.closingFilm{position:absolute;z-index:-1;inset:0;background:#0c0d10}
+/* ── Invitation: the film again, across the page, with the invitation in its centre. */
+.invite{position:relative;height:100svh;min-height:calc(560 * var(--px));display:grid;place-items:center;color:var(--chalk)}
+.closingFilm{position:absolute;z-index:0;inset:var(--edge)}
 .closingFilm :is(img,video){position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.inviteInner{position:relative;z-index:1}
-.inviteTitle{font-size:var(--t-display);line-height:1.3;letter-spacing:.005em}
+.invite::before{content:"";position:absolute;z-index:1;inset:var(--edge);border-radius:var(--round);background:radial-gradient(60% 56% at 50% 50%,#0509089e,#05090852 62%,#0509081f);pointer-events:none}
+.inviteInner{position:relative;z-index:2;display:grid;justify-items:center;text-align:center;padding:0 var(--m)}
+.inviteTitle{font-size:calc(72 * var(--px));line-height:1.3;letter-spacing:.005em}
 .inviteTitle>span{display:block}
-.inviteLead{margin-top:var(--s3);font-size:var(--t-lead);color:var(--chalk)}
+.inviteLead{margin-top:var(--s3);font-size:var(--t-lead)}
 .inviteActions{display:flex;align-items:center;gap:var(--s3);margin-top:var(--s5)}
-.inviteMark{position:absolute;right:0;bottom:calc(14 * var(--px));font-size:max(22px,calc(24 * var(--px)));font-weight:650;letter-spacing:-.055em;line-height:1;color:var(--chalk)}
+.inviteMark{margin-top:var(--s6);font-size:max(22px,calc(24 * var(--px)));font-weight:650;letter-spacing:-.055em;line-height:1}
 
 /* ── Download and questions: on the plain dark, past the last light. */
-.download{position:relative;padding:var(--s6) 0 var(--s6);background:var(--void)}
+.download{position:relative;padding:var(--s8) 0 var(--s6)}
 .journey{position:relative;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 var(--s6);margin:var(--s6) 0 0;padding:0;list-style:none}
 .journey::before{content:"";position:absolute;left:0;right:calc(50% - var(--s6) / 2 - 9px);top:-5px;height:11px;background:linear-gradient(90deg,#f4f4f233,#f4f4f266 55%,var(--glow));clip-path:polygon(0 46%,100% 0,100% 100%,0 54%)}
 .stop{position:relative;padding-top:var(--s4)}
@@ -221,7 +224,7 @@
 .faqContact a{color:var(--chalk);text-decoration:underline}
 
 /* ── Footer. */
-.footer{padding:var(--s5) 0 var(--s4);background:var(--void);border-top:1px solid var(--line);font-size:var(--t-small);color:var(--steel)}
+.footer{padding:var(--s5) 0 var(--s4);border-top:1px solid var(--line);font-size:var(--t-small);color:var(--steel)}
 .footerPrimary{display:flex;align-items:flex-end;justify-content:space-between;gap:var(--s4)}
 .footerPrimary>div{display:grid;gap:var(--s2)}
 .footerPrimary nav{display:flex;gap:var(--s4);color:var(--chalk)}
@@ -233,46 +236,36 @@
 .copyright{margin-top:var(--s3)}
 .demoBar{display:none}
 
-/* ── Narrower than the 3D tour: the menu folds, the product shows its plates in the page. */
+/* ── Where the headline and its actions no longer fit side by side, the actions go beneath it. */
+@media(max-width:1180px){
+  .heroCopy{flex-direction:column;align-items:flex-start;gap:var(--s4)}
+  .heroActions{padding:0}
+}
+/* ── Narrower screens: the menu folds, and each heading sits above its sentence. */
 @media(max-width:1023px){
   .navigation{display:none}
   .header>div{display:block;position:relative}
-  .header>div>button{display:grid;place-items:center;width:42px;height:42px;border:1px solid var(--line-strong);border-radius:50%;background:#05050766;color:var(--chalk)}
+  .header>div>button{display:grid;place-items:center;width:42px;height:42px;border:1px solid var(--line-strong);border-radius:50%;background:#05090866;color:var(--chalk)}
   .header>div>button svg{width:19px;height:19px;fill:currentColor}
-  .header>div>nav{position:absolute;top:54px;right:0;display:grid;width:min(310px,calc(100vw - 48px));padding:12px 22px 16px;border:1px solid var(--line);border-radius:14px;background:#0d0e12;color:var(--chalk)}
+  .header>div>nav{position:absolute;top:54px;right:0;display:grid;width:min(310px,calc(100vw - 48px));padding:12px 22px 16px;border:1px solid var(--line);border-radius:14px;background:#0b1110;color:var(--chalk)}
   .header>div>nav a{padding:15px 0;border-bottom:1px solid var(--line);font-size:16px}
   .header>div>nav .navDownload{justify-content:space-between;height:48px;margin:14px 0 0;padding:0 20px;border:0;border-radius:8px;background:var(--chalk);color:#08090b!important}
-  .chapter{grid-template-columns:minmax(0,1fr);gap:var(--s5);align-items:start}
-  .chapterText{max-width:34em;padding-bottom:0}
-  .tour{height:auto;min-height:0}
-  /* The frames stand above their copy. */
-  .hero{align-items:end;padding:0 var(--m) 88px}
-  .heroCopy{width:100%}
-  .film{top:92px;right:-30vw;width:min(128vw,calc(46svh * 16 / 9));transform:perspective(900px) rotateY(-15deg);box-shadow:0 0 120px 4px #e7b8a42e}
-  .reasons{min-height:0;display:block;padding:var(--s7) var(--m) var(--s6)}
-  .reasonsSheet{position:relative;top:auto;left:-30vw;width:min(128vw,820px);transform:perspective(900px) rotateY(15deg);box-shadow:0 0 120px 4px #dfe6f01f}
-  .reasonsCopy{width:100%;max-width:640px;margin:var(--s5) 0 0}
-}
-/* A phone on its side: the frame beside the headline again, both small. */
-@media(max-width:1023px) and (max-height:520px){
-  .hero{align-items:center;padding:68px var(--m) 12px}
-  .heroCopy{width:52%}
-  .hero h1{font-size:30px}
-  .hero .mobileBreak{display:none}
-  .heroActions{margin-top:20px}
-  .film{top:50%;right:-6vw;width:50vw;transform:translateY(-44%) perspective(900px) rotateY(-15deg)}
+  .experienceIntro,.chapterHead,.reasonsHead{grid-template-columns:minmax(0,1fr);row-gap:var(--s3)}
+  .plateFront{width:42%}
+  .loop{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 
-/* ── Phones. Fixed measures; the frames stand above their copy. */
+/* ── Phones. Fixed measures; the headline and its actions stack. */
 @media(max-width:760px){
-  .page{--m:24px;--s1:8px;--s2:14px;--s3:20px;--s4:32px;--s5:48px;--s6:80px;--s7:120px;--s8:160px;
-    --t-display:clamp(36px,11vw,50px);--t-statement:clamp(22px,6.3vw,30px);--t-title:clamp(22px,6vw,26px);--t-lead:17px;--t-body:16px;--t-small:14px}
+  .page{--m:24px;--edge:8px;--round:14px;--s1:8px;--s2:14px;--s3:20px;--s4:32px;--s5:48px;--s6:72px;--s7:104px;--s8:136px;
+    --t-display:clamp(36px,11vw,50px);--t-statement:clamp(22px,6.3vw,30px);--t-title:clamp(21px,5.8vw,26px);--t-lead:17px;--t-body:16px;--t-small:14px}
   .mobileBreak{display:inline}
   .header{height:68px}
-  .heroActions{flex-wrap:wrap;gap:8px 20px;margin-top:var(--s4)}
-  .motionToggle{right:var(--m);bottom:24px}
-  .mission{min-height:86vh}
-  .tour{margin-top:var(--s5);padding:0 var(--m) var(--s5);gap:var(--s4)}
+  .heroCopy{bottom:40px}
+  .hero h1{font-size:min(var(--t-display),11svh)}
+  .heroActions{flex-wrap:wrap;gap:8px 20px}
+  .motionToggle{top:84px}
+  .tour{margin-top:var(--s5)}
   .switcher{gap:8px}
   .tablist{flex:1}
   .tablist:not([data-end="true"]){-webkit-mask-image:linear-gradient(90deg,#000 80%,#0000);mask-image:linear-gradient(90deg,#000 80%,#0000)}
@@ -280,24 +273,26 @@
   .switchArrow{width:44px;height:44px}
   .switchNav .switchArrow:first-of-type{display:none}
   .tab{min-height:42px;padding:0 15px}
+  .chapterHead{min-height:0}
+  .plates{margin-top:var(--s3)}
+  .stage,.experience[data-mode="space"] .plateScroll{aspect-ratio:4 / 3}
+  .plateBack,.page .plateBack{object-position:0 0}
+  .plateFront{position:relative;right:auto;bottom:auto;width:auto;margin:calc(-1 * var(--s5)) calc(var(--m) - var(--edge)) 0 22%}
+  .chapterFoot{flex-direction:column;gap:var(--s3);min-height:0}
+  .chapterFoot>.button{order:0}
+  .params{max-width:none}
   .numbers strong{font-size:clamp(30px,8.4vw,38px)}
-  .plateBack{width:100%;opacity:.42}
-  .plateFront{position:relative;top:auto;width:86%;margin:-28% 0 0 auto;transform:none}
-  .plates[data-kind="strip"] .plateFront{margin:0}
-  .loop li{grid-template-columns:1fr;gap:6px}
-  .impact{min-height:0;padding:var(--s7) 0}
+  .reasonsSheet{aspect-ratio:4 / 3}
+  .loop{grid-template-columns:minmax(0,1fr);gap:var(--s3)}
   .path{grid-template-columns:1fr;gap:var(--s4);margin-top:var(--s6);padding:0 0 0 36px}
-  .path::before{left:1px;right:auto;top:10px;bottom:20px;width:11px;height:auto;background:linear-gradient(180deg,#f4f4f233,#f4f4f266 55%,var(--glow));clip-path:polygon(46% 0,54% 0,100% 100%,0 100%)}
+  .path::before{left:1px;right:auto;top:10px;bottom:20px;width:11px;height:auto;background:linear-gradient(180deg,#f4f5f233,#f4f5f266 55%,var(--glow));clip-path:polygon(46% 0,54% 0,100% 100%,0 100%)}
   .path li::before{left:-36px;top:.72em}
   .path li:last-child::before{left:-40px;top:.5em}
   .path li:last-child b{font-size:28px}
-  .invite{min-height:100svh;padding-bottom:var(--s6)}
-  .invite::before{background:linear-gradient(0deg,#050507e0,#05050780 52%,#05050700 82%)}
   .inviteTitle{font-size:clamp(28px,8.4vw,40px)}
-  .inviteActions{flex-wrap:wrap;gap:8px 20px}
-  .inviteMark{display:none}
+  .inviteActions{flex-direction:column;gap:8px}
   .journey{grid-template-columns:1fr;gap:var(--s6);padding-left:36px}
-  .journey::before{left:1px;right:auto;top:12px;bottom:auto;width:11px;height:calc(50% + var(--s6) / 2);background:linear-gradient(180deg,#f4f4f233,#f4f4f266 55%,var(--glow));clip-path:polygon(46% 0,54% 0,100% 100%,0 100%)}
+  .journey::before{left:1px;right:auto;top:12px;bottom:auto;width:11px;height:calc(50% + var(--s6) / 2);background:linear-gradient(180deg,#f4f5f233,#f4f5f266 55%,var(--glow));clip-path:polygon(46% 0,54% 0,100% 100%,0 100%)}
   .stop{padding-top:0}
   .stop::before{left:-36px;top:.9em}
   .stop+.stop::before{left:-40px;top:.6em}
@@ -309,6 +304,12 @@
   .demoBar[data-shown="true"]{transform:none}
   .demoBar a{display:flex;align-items:center;justify-content:space-between;min-height:54px;padding:14px 22px;border-radius:8px;background:var(--chalk);color:#08090b!important;font-size:15px;font-weight:550;box-shadow:0 20px 50px -10px #000}
   .demoBar a span{font-size:20px}
+}
+/* A phone on its side. */
+@media(max-width:1023px) and (max-height:520px){
+  .heroCopy{bottom:24px;flex-direction:row;align-items:flex-end}
+  .hero h1{font-size:30px}
+  .hero .mobileBreak{display:none}
 }
 
 @media(prefers-reduced-motion:reduce){

@@ -48,7 +48,7 @@ export default function PublicLanding() {
         </div>
       </section>
 
-      <section className={lp.mission} data-station="mission" aria-labelledby="mission-title">
+      <section className={lp.mission} aria-labelledby="mission-title">
         <div className={lp.shell}>
           <h2 id="mission-title" className={lp.manifesto} aria-label="画像解析を、一部の専門家の技術から、すべての生命科学研究者が使える研究基盤に。"><span><span>画像解析を、</span><span>一部の専門家の技術から、</span></span><span><span>すべての生命科学研究者が</span><span>使える研究基盤に。</span></span></h2>
         </div>
@@ -56,18 +56,18 @@ export default function PublicLanding() {
 
       <LandingExperience links={FEATURE_LINKS} />
 
-      <section className={lp.reasons} data-station="reasons" aria-labelledby="loop-title">
-        <div className={lp.reasonsSheet}><img className={lp.reasonsPhoto} src="/marketing/lp-pipetting.webp" alt="白い実験台でマルチチャンネルピペットを使う手元" width={2400} height={1600} loading="lazy" decoding="async" /></div>
-        <div className={lp.reasonsCopy}>
+      <section className={lp.reasons} aria-labelledby="loop-title">
+        <header className={lp.reasonsHead}>
           <h2 id="loop-title" className={lp.statement} aria-label="どんな研究の画像も、入れるだけで、自動で。"><span>どんな研究の画像も、</span><span>入れるだけで、自動で。</span></h2>
           <p className={lp.reasonsLead}>汎用のAIでは見つからない構造まで、輪郭を一つも描かずに測れます。</p>
-          <ul className={lp.loop} aria-label="自動で測れる理由">
-            <li><b><span>研究ごとに、</span><span>専用のAI</span></b><span>測りたいものは、研究ごとに違う。それぞれの研究に合わせたAIが、細胞を一つずつ切り分けます。</span></li>
-            <li><b><span>どのPCでも、</span><span>GPUの速さで</span></b><span>検出はクラウドの高性能なGPUで。研究室のノートPCのままで、GPUを買う必要はありません。</span></li>
-            <li><b><span>何度やっても、</span><span>同じ結果</span></b><span>同じ画像からは、いつも同じ輪郭と数値。使ったAIの版まで記録します。</span></li>
-            <li><b><span>すべての数値が、</span><span>元の画像に戻れる</span></b><span>測定は元の画素値から。グラフの点から、その細胞の輪郭へ戻れます。</span></li>
-          </ul>
-        </div>
+        </header>
+        <div className={lp.reasonsSheet} data-wall="bench"><img className={lp.reasonsPhoto} src="/marketing/lp-pipetting.webp" alt="白い実験台でマルチチャンネルピペットを使う手元" width={2400} height={1600} loading="lazy" decoding="async" /></div>
+        <ul className={lp.loop} aria-label="自動で測れる理由">
+          <li><b><span>研究ごとに、</span><span>専用のAI</span></b><span>測りたいものは、研究ごとに違う。それぞれの研究に合わせたAIが、細胞を一つずつ切り分けます。</span></li>
+          <li><b><span>どのPCでも、</span><span>GPUの速さで</span></b><span>検出はクラウドの高性能なGPUで。研究室のノートPCのままで、GPUを買う必要はありません。</span></li>
+          <li><b><span>何度やっても、</span><span>同じ結果</span></b><span>同じ画像からは、いつも同じ輪郭と数値。使ったAIの版まで記録します。</span></li>
+          <li><b><span>すべての数値が、</span><span>元の画像に戻れる</span></b><span>測定は元の画素値から。グラフの点から、その細胞の輪郭へ戻れます。</span></li>
+        </ul>
       </section>
 
       <LandingImpact />
