@@ -179,6 +179,24 @@ proposal_drafts = Table(
     Index("uq_proposal_workspace_key", "workspace_id", "cache_key", unique=True),
 )
 # Model-drafted discussions of one saved comparison, with the result job they discuss (requirements AC-06).
+# The researcher's messages to the AI and what came back, per workspace (#284 W2). The text is research data:
+# it stays in this database, is never logged, and is shown again without calling the model.
+assistant_messages = Table(
+    "assistant_messages", meta,
+    Column("id", String, primary_key=True),
+    Column("workspace_id", String, nullable=False, index=True),
+    Column("field_id", String),
+    Column("created", Float, nullable=False),
+    Column("text", String, nullable=False),
+    Column("state", String, nullable=False),
+    Column("reply", String),
+    Column("applicable", Boolean),
+    Column("reasons", JSON),
+    Column("stage", String),
+    Column("request_id", String),
+    Column("draft_id", String),
+    Column("effect", String, nullable=False),
+)
 result_discussions = Table(
     "result_discussions", meta,
     Column("id", String, primary_key=True),

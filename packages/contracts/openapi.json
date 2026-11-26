@@ -2886,6 +2886,104 @@
         }
       }
     },
+    "/v1/workspaces/{wid}/assistant-messages": {
+      "get": {
+        "summary": "List Messages",
+        "operationId": "list_messages_v1_workspaces__wid__assistant_messages_get",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantMessages"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{wid}/assistant-messages/{mid}": {
+      "patch": {
+        "summary": "Record Effect",
+        "description": "What the researcher did with an answer (applied its settings, ran it). The answer never does it.",
+        "operationId": "record_effect_v1_workspaces__wid__assistant_messages__mid__patch",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          },
+          {
+            "name": "mid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Mid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistantEffect"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantMessage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/workspaces/{wid}/proposal-drafts": {
       "post": {
         "summary": "Draft Proposal",
@@ -4425,6 +4523,146 @@
         "additionalProperties": false,
         "type": "object",
         "title": "AreaBackgroundProvenance"
+      },
+      "AssistantEffect": {
+        "properties": {
+          "effect": {
+            "type": "string",
+            "enum": [
+              "none",
+              "settings",
+              "run"
+            ],
+            "title": "Effect"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "effect"
+        ],
+        "title": "AssistantEffect"
+      },
+      "AssistantMessage": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "field_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field Id"
+          },
+          "created": {
+            "type": "number",
+            "title": "Created"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "answered",
+              "failed"
+            ],
+            "title": "State"
+          },
+          "reply": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reply"
+          },
+          "applicable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applicable"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "context",
+                  "service",
+                  "validation"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage"
+          },
+          "effect": {
+            "type": "string",
+            "enum": [
+              "none",
+              "settings",
+              "run"
+            ],
+            "title": "Effect"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "field_id",
+          "created",
+          "text",
+          "state",
+          "reply",
+          "applicable",
+          "reasons",
+          "stage",
+          "effect"
+        ],
+        "title": "AssistantMessage",
+        "description": "One message of the researcher to the AI and what came back (#284 W2). `applicable` is false when the\nanswer could not be turned into settings; `reasons` and `stage` say why. Nothing here changes settings."
+      },
+      "AssistantMessages": {
+        "properties": {
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantMessage"
+            },
+            "type": "array",
+            "title": "Messages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "messages"
+        ],
+        "title": "AssistantMessages"
       },
       "AssociationPlot": {
         "properties": {
@@ -13403,6 +13641,20 @@
               }
             ],
             "title": "Previous Proposal"
+          },
+          "message_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message Id"
           }
         },
         "additionalProperties": false,
@@ -13413,7 +13665,14 @@
       "ProposalDraftResponse": {
         "properties": {
           "proposal": {
-            "$ref": "#/components/schemas/ValidatedProposal"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ValidatedProposal"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "channels": {
             "items": {
@@ -13421,6 +13680,16 @@
             },
             "type": "array",
             "title": "Channels"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantMessage"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",

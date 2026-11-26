@@ -995,6 +995,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/workspaces/{wid}/assistant-messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Messages */
+        get: operations["list_messages_v1_workspaces__wid__assistant_messages_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/workspaces/{wid}/assistant-messages/{mid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Record Effect
+         * @description What the researcher did with an answer (applied its settings, ran it). The answer never does it.
+         */
+        patch: operations["record_effect_v1_workspaces__wid__assistant_messages__mid__patch"];
+        trace?: never;
+    };
     "/v1/workspaces/{wid}/proposal-drafts": {
         parameters: {
             query?: never;
@@ -1478,6 +1515,52 @@ export interface components {
              * @constant
              */
             reason: "not_required_for_area";
+        };
+        /** AssistantEffect */
+        AssistantEffect: {
+            /**
+             * Effect
+             * @enum {string}
+             */
+            effect: "none" | "settings" | "run";
+        };
+        /**
+         * AssistantMessage
+         * @description One message of the researcher to the AI and what came back (#284 W2). `applicable` is false when the
+         *     answer could not be turned into settings; `reasons` and `stage` say why. Nothing here changes settings.
+         */
+        AssistantMessage: {
+            /** Id */
+            id: string;
+            /** Field Id */
+            field_id: string | null;
+            /** Created */
+            created: number;
+            /** Text */
+            text: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "pending" | "answered" | "failed";
+            /** Reply */
+            reply: string | null;
+            /** Applicable */
+            applicable: boolean | null;
+            /** Reasons */
+            reasons: string[];
+            /** Stage */
+            stage: ("context" | "service" | "validation") | null;
+            /**
+             * Effect
+             * @enum {string}
+             */
+            effect: "none" | "settings" | "run";
+        };
+        /** AssistantMessages */
+        AssistantMessages: {
+            /** Messages */
+            messages: components["schemas"]["AssistantMessage"][];
         };
         /** AssociationPlot */
         AssociationPlot: {
@@ -4923,12 +5006,15 @@ export interface components {
             previous_proposal?: {
                 [key: string]: unknown;
             } | null;
+            /** Message Id */
+            message_id?: string | null;
         };
         /** ProposalDraftResponse */
         ProposalDraftResponse: {
-            proposal: components["schemas"]["ValidatedProposal"];
+            proposal: components["schemas"]["ValidatedProposal"] | null;
             /** Channels */
             channels: components["schemas"]["ProposalChannelLink"][];
+            message?: components["schemas"]["AssistantMessage"] | null;
         };
         /** PublicationPackageRequest */
         PublicationPackageRequest: {
@@ -9463,6 +9549,73 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AiCompatibility"];
+                };
+            };
+        };
+    };
+    list_messages_v1_workspaces__wid__assistant_messages_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantMessages"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_effect_v1_workspaces__wid__assistant_messages__mid__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+                mid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssistantEffect"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantMessage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

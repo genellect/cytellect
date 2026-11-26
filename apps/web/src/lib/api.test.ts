@@ -2,9 +2,11 @@ import { afterEach,describe,expect,it,vi } from "vitest";
 import {readFileSync} from "node:fs";
 import { ApiError,errorCodeMessage,post,request } from "./api";
 afterEach(()=>vi.unstubAllGlobals());
-it("keeps a structured rejection code without echoing its reasons",async()=>{
- vi.stubGlobal("fetch",vi.fn().mockResolvedValue(new Response(JSON.stringify({detail:{code:"proposal_rejected",reasons:["not displayed"]}}),{status:502})));
- await expect(post("/v1/probe",{})).rejects.toEqual(new ApiError("proposal_rejected",502));
+it("keeps a structured rejection code and its reason codes, without putting them in the message (#284 W2)",async()=>{
+ vi.stubGlobal("fetch",vi.fn().mockResolvedValue(new Response(JSON.stringify({detail:{code:"proposal_rejected",reasons:["proposal_shape_invalid",3]}}),{status:502})));
+ const error=await post("/v1/probe",{}).catch((value:unknown)=>value);
+ expect(error).toEqual(new ApiError("proposal_rejected",502,["proposal_shape_invalid"]));
+ expect((error as ApiError).message).toBe("proposal_rejected");
 });
 describe("private API transport",()=>{
  it("uses credentials/no-store/CSRF without persisting data",async()=>{

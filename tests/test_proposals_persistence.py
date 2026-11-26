@@ -74,7 +74,8 @@ def test_cached_proposal_survives_restart_and_checks_ownership(tmp_path, monkeyp
     app = create_app(client.app.state.settings)
     restarted = TestClient(app)
     restarted.cookies.update(client.cookies)
-    assert restarted.post(path, json=BODY, headers=HEADERS).json() == first.json()
+    resent = restarted.post(path, json=BODY, headers=HEADERS).json()
+    assert resent["proposal"] == first.json()["proposal"] and resent["message"]["state"] == "answered"  # from the record, after a restart
     assert len(calls) == 1
     stranger = TestClient(app)
     stranger.post("/v1/invitations/redeem", json={"token": app.state.store.invite()}, headers=HEADERS)
@@ -224,3 +225,19 @@ def test_saved_proposal_axes_cannot_change_region(additional):
     assert AnalysisSpecView.model_validate({"version": 1, "spec": body}).spec is not None
     with pytest.raises(ValueError, match="proposal_association_same_region_required"):
         AnalysisSpecWrite.model_validate({"version": 1, "spec": body})
+
+
+def test_an_older_app_does_not_open_a_database_of_a_newer_schema(tmp_path):
+    """#284 W2 adds migration 0013; a version that does not know a revision refuses to start and changes nothing."""
+    import sqlite3
+
+    import pytest
+    from alembic.util import CommandError
+    from cytellect_api.db import Store
+    Store(tmp_path).engine.dispose()
+    with sqlite3.connect(tmp_path / "cytellect.sqlite") as conn:
+        conn.execute("UPDATE alembic_version SET version_num = '9999'")
+    before = (tmp_path / "cytellect.sqlite").read_bytes()
+    with pytest.raises(CommandError):
+        Store(tmp_path)
+    assert (tmp_path / "cytellect.sqlite").read_bytes() == before

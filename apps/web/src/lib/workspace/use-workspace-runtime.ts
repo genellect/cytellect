@@ -3,7 +3,7 @@ import {useEffect, useState, useSyncExternalStore} from "react";
 import {ApiError, errorCodeMessage, errorMessage, request} from "../api";
 import type {Point} from "../types";
 import type {PrimaryOutcome} from "./primary-outcome";
-import {automaticBackground, createApiAdapter, nuclearRecipe, rawMeasurement, type ChannelAssignment, type ChannelAssignments, type ImportedField, type IntakeTarget, type SelectionEntry, type MaskOperation, type Recipe, type SavedResult, type ValidatedProposal, type WorkspaceRun} from "./api-adapter";
+import {automaticBackground, createApiAdapter, nuclearRecipe, rawMeasurement, type ChannelAssignment, type ChannelAssignments, type AssistantMessage, type ImportedField, type IntakeTarget, type SelectionEntry, type MaskOperation, type Recipe, type SavedResult, type ValidatedProposal, type WorkspaceRun} from "./api-adapter";
 import {rememberGoal} from "./ai-settings";
 import {effectiveChannelAssignments} from "./channel-assignments";
 import {intakePath} from "./dropped-files";
@@ -36,6 +36,8 @@ export interface RuntimeSnapshot {
   intakeRows: IntakeRow[];
   /** What the last addition of images did, including what it did not register (no saved row). */
   intake: IntakeOutcome | null;
+  /** The researcher's messages to the AI in this workspace and what came back (#284 W2), oldest first. */
+  messages: AssistantMessage[];
 }
 /** A saved row without a field. `legacy` rows come from before rows carried names (#284). */
 export interface IntakeRow {entry:string; names:string[]; state:"pending"|"rejected"|"legacy"; code:string|null; mask:boolean; target:IntakeTarget|null}
@@ -166,7 +168,7 @@ export function runtimeProposalProcessing(channel:ChannelDefinition,settings:Run
 }
 export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   const adapter=dependencies.adapter ?? createApiAdapter(), loadPreview=dependencies.loadPreview ?? loadReviewPreview, releasePreview=dependencies.releasePreview ?? releaseReviewPreview;
-  let state:RuntimeSnapshot={data:null,busy:false,loading:false,operation:"",error:"",assignments:{version:0,assignments:[]},activeTarget:"nuclei",settings:defaultRuntimeSettings(),proposal:null,processing:null,importIssues:[],intakeRows:[],intake:null};
+  let state:RuntimeSnapshot={data:null,busy:false,loading:false,operation:"",error:"",assignments:{version:0,assignments:[]},activeTarget:"nuclei",settings:defaultRuntimeSettings(),proposal:null,processing:null,importIssues:[],intakeRows:[],intake:null,messages:[]};
   const readSpecification=dependencies.readSpecification ?? ((id:string)=>request<RuntimeSpecification>(`/v1/workspaces/${id}/analysis-spec`));
   // Only the version and the spec are written: read-only fields of the response (e.g. experiment_sha256) are never sent back.
   const writeSpecification=dependencies.writeSpecification ?? ((id:string,value:RuntimeSpecification)=>request<RuntimeSpecification>(`/v1/workspaces/${id}/analysis-spec`,{method:"PUT",body:JSON.stringify({version:value.version,spec:value.spec})}));
@@ -180,6 +182,12 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   // Hashes of files waiting to be sent (copies are found by content, #284 control A) and copies kept for
   // "別の撮影として追加" until the researcher decides or the workspace changes.
   const hashes=new Map<string,string>(),copies=new Map<string,{file:File;name:string}>();
+  // Answers received in this session, by message: only these can be applied (a reload shows the text; applying it
+  // again needs the message's 「再送」, answered from the record without a model call). The latest applicable answer and
+  // the message that produced it continue the conversation (previous_goal, previous_proposal).
+  const answers=new Map<string,ValidatedProposal>();let lastApplicable:{goal:string;proposal:ValidatedProposal}|null=null;
+  const withMessage=(message:AssistantMessage)=>state.messages.some(value=>value.id===message.id)?state.messages.map(value=>value.id===message.id?message:value):[...state.messages,message];
+  async function readMessages(id:string){try{return await adapter.listMessages(id);}catch{return state.messages;}}
   const candidateStore=new Map<string,Partial<Record<ReviewTarget,RuntimeCandidate>>>();
   const histories=new Map<string,{undo:TargetResult[];redo:TargetResult[]}>(),listeners=new Set<()=>void>();
   function publish(patch:Partial<RuntimeSnapshot>){if(closed)return;state={...state,...patch};for(const listener of listeners)listener();}
@@ -497,13 +505,13 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     async load(id?:string){closed=false;publish({busy:true,loading:true,error:"",operation:"画像と保存結果を読み込み中"});
       // What is shown first loads first: a two-group design opens side by side on the first run's field
       // of each group (V-01), both together; any other design on its first field. The others follow.
-      try{const opening=await openingFields(id);await refresh(id,true,opening?undefined:1,opening);}catch(error){publish({busy:false,loading:false,operation:"",error:message(error)});throw error;}
+      try{const opening=await openingFields(id);await refresh(id,true,opening?undefined:1,opening);if(state.data?.workspaceId)publish({messages:await readMessages(state.data.workspaceId)});}catch(error){publish({busy:false,loading:false,operation:"",error:message(error)});throw error;}
       try{
         if(registered.size>(state.data?.fields.length??0)){publish({operation:"残りの視野を読み込み中"});await painted();await refresh(workspace());}if(await placeAfterRestart())await refresh(workspace());await recoverRun();}catch(error){publish({error:message(error)});throw error;}finally{publish({busy:false,loading:false,operation:""});}},
     reload(){return exclusive("保存結果を再読み込み中",async()=>{await refresh(workspace(),true);if(await placeAfterRestart())await refresh(workspace());await recoverRun();});},
     /** Hide the last message (used for demo notices, which need no reload). */
     dismissError(){if(state.error)publish({error:""});},
-    newWorkspace(){if(state.busy)throw new Error("現在の処理が終わるまでお待ちください。");++epoch;beforeProposal=null;runRequests.clear();added.length=0;omeFiles.clear();files.clear();uploadKeys.clear();uploaded.clear();names.clear();hashes.clear();copies.clear();histories.clear();candidateStore.clear();currentTargets.clear();registered.clear();specification={version:0,spec:null};publish({assignments:{version:0,assignments:[]},activeTarget:"nuclei",settings:defaultRuntimeSettings(),processing:null,proposal:null,error:"",importIssues:[],intakeRows:[],intake:null});replaceData(emptyData());},
+    newWorkspace(){if(state.busy)throw new Error("現在の処理が終わるまでお待ちください。");++epoch;beforeProposal=null;runRequests.clear();added.length=0;omeFiles.clear();files.clear();uploadKeys.clear();uploaded.clear();names.clear();hashes.clear();copies.clear();histories.clear();candidateStore.clear();currentTargets.clear();registered.clear();specification={version:0,spec:null};publish({assignments:{version:0,assignments:[]},activeTarget:"nuclei",settings:defaultRuntimeSettings(),processing:null,proposal:null,error:"",importIssues:[],intakeRows:[],intake:null,messages:[]});answers.clear();lastApplicable=null;replaceData(emptyData());},
     dispose(){closed=true;++epoch;if(state.data)releasePreview(state.data);},
     nclDetector(field:string){
       try {const recipe=runtimeNucleolarRecipe(nuclearChannel(field),state.settings,currentTargets.get(field)??{},state.processing);return recipe.detector?.engine==="cytellect-ncl-objects"?recipe.detector:undefined;}catch{return undefined;}
@@ -627,7 +635,39 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     excludeField(field:string,reason:string|null){return exclusive("解析対象を更新中",async()=>{await checkCurrent();const entry=adapter.selection()?.entries.find(value=>value.field_id===field);if(!entry)throw new Error("保存した視野の登録状態を確認できません。");await adapter.excludeField(workspace(),entry.id,reason);await refresh(workspace());});},
     applyProposal,canUndoProposal:()=>beforeProposal!==null,
     undoProposal(){return exclusive("AI適用前の条件に戻しています",async()=>{await checkCurrent();if(!beforeProposal)return;const previous=beforeProposal;publish({settings:previous.settings,processing:previous.processing,activeTarget:previous.specification.spec?.target??"nuclei"});specificationDirty=true;specification={...specification,spec:previous.specification.spec};await persistSpecification(state.activeTarget);beforeProposal=null;candidateStore.clear();publish({});});},
-    requestProposal(goal:string,selectedFieldId?:string,retryFailed=false){return exclusive("AIが解析条件を確認中",async()=>{if(!state.data?.fields.length&&!goal.trim())throw new Error("画像を追加するか、解析したいことを入力してください。");if(!state.data?.workspaceId){const created=await adapter.create();replaceData({...emptyData(),workspaceId:created.id,title:created.title});}await checkCurrent();await persistSpecification(state.activeTarget);const field=selectedFieldId||state.data?.fields.find(value=>!value.exclusionReason)?.id;let currentProcessing:ProposalProcessing|null=null;if(field){try{currentProcessing=runtimeProposalProcessing(nuclearChannel(field),state.settings,currentTargets.get(field)??{},state.processing);}catch{const cell=state.settings.cellDefinition?.channel;const channel=definitions(field).find(ch=>ch.token===cell);currentProcessing=channel&&state.settings.cellDefinition?.source==="cellpose"?savedProcessing(undefined,undefined,undefined,runtimeRecipe("cell",channel,state.settings,currentTargets.get(field)??{},state.processing)):null;}}const response=await adapter.draft(workspace(),goal,retryFailed,{current_processing:currentProcessing,previous_goal:"",previous_proposal:state.proposal?.draft??null,...(selectedFieldId?{field_id:selectedFieldId}:{})});rememberGoal(workspace(),goal);publish({proposal:response.proposal});if(!state.data?.fields.length||response.proposal.draft.recipe==="none"){applyProposal(field);await persistSpecification(state.activeTarget);return response.proposal;}if(!field)throw new Error("プレビューする画像を選択してください。");applyProposal(field);await runInternal(state.activeTarget,field,true);return response.proposal;});},
+    /** Sends a message to the AI and shows the answer (#284 W2). It changes no setting and runs nothing: the answer
+     * is applied, or applied and tried, only by `applyAnswer`, from the researcher's own action (decision 4). */
+    requestProposal(goal:string,selectedFieldId?:string,retryFailed=false,messageId?:string){return exclusive("AIに送信中",async()=>{
+      if(!state.data?.fields.length&&!goal.trim())throw new Error("AI への送信には、画像または指示が必要です。");
+      if(!state.data?.workspaceId){const created=await adapter.create();replaceData({...emptyData(),workspaceId:created.id,title:created.title});}
+      await checkCurrent();await persistSpecification(state.activeTarget);
+      const field=selectedFieldId||state.data?.fields.find(value=>!value.exclusionReason)?.id;let currentProcessing:ProposalProcessing|null=null;
+      if(field){try{currentProcessing=runtimeProposalProcessing(nuclearChannel(field),state.settings,currentTargets.get(field)??{},state.processing);}catch{const cell=state.settings.cellDefinition?.channel;const channel=definitions(field).find(ch=>ch.token===cell);currentProcessing=channel&&state.settings.cellDefinition?.source==="cellpose"?savedProcessing(undefined,undefined,undefined,runtimeRecipe("cell",channel,state.settings,currentTargets.get(field)??{},state.processing)):null;}}
+      let response:Awaited<ReturnType<typeof adapter.draft>>;
+      try{response=await adapter.draft(workspace(),goal,retryFailed,{current_processing:currentProcessing,previous_goal:lastApplicable?.goal??"",previous_proposal:lastApplicable?.proposal.draft??null,...(selectedFieldId?{field_id:selectedFieldId}:{})},messageId);}
+      catch(error){publish({messages:await readMessages(workspace())});throw error;}
+      rememberGoal(workspace(),goal);
+      if(response.proposal){answers.set(response.message.id,response.proposal);if(response.message.applicable!==false)lastApplicable={goal,proposal:response.proposal};}
+      publish({messages:withMessage(response.message)});
+      return response;
+    });},
+    /** True when the applicable answer proposes an analysis that can be tried on an image. */
+    canTry(messageId:string){return this.canApply(messageId)&&!!state.data?.fields.length&&answers.get(messageId)?.draft.recipe!=="none";},
+    /** True when this session holds the applicable answer of the message. */
+    canApply(messageId:string){const message=state.messages.find(value=>value.id===messageId);return answers.has(messageId)&&message?.applicable!==false;},
+    /** Applies the answer's settings and, with `trial`, previews them on the selected field (the researcher's action). */
+    applyAnswer(messageId:string,trial:boolean,selectedFieldId?:string){return exclusive(trial?"AIの解析案を試行中":"AIの解析案を適用中",async()=>{
+      const proposal=answers.get(messageId),message=state.messages.find(value=>value.id===messageId);
+      if(!proposal||!message||message.applicable===false)throw new Error("解析案の適用には、この発言の再送が必要です。");
+      await checkCurrent();publish({proposal});
+      const field=selectedFieldId||state.data?.fields.find(value=>!value.exclusionReason)?.id;
+      const run=trial&&!!state.data?.fields.length&&proposal.draft.recipe!=="none";
+      if(run&&!field)throw new Error("試行には、視野の選択が必要です。");
+      applyProposal(field);
+      if(run)await runInternal(state.activeTarget,field!,true);else await persistSpecification(state.activeTarget);
+      const recorded=await adapter.recordEffect(workspace(),messageId,run?"run":"settings");
+      publish({messages:withMessage(recorded??{...message,effect:run?"run":"settings"})});
+    });},
   };
 }
 

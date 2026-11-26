@@ -1,7 +1,7 @@
 import {describe, expect, it, vi} from "vitest";
 import {ApiError} from "../api";
 import {createWorkspaceRuntime, defaultRuntimeSettings, IntakeInterrupted, runtimeRecipe, sameRuntimeRecipe} from "./use-workspace-runtime";
-import type {createApiAdapter, ImportedField, IntakeRecord, Recipe, SavedResult, SelectionEntry, ValidatedProposal} from "./api-adapter";
+import type {AssistantMessage, createApiAdapter, ImportedField, IntakeRecord, Recipe, SavedResult, SelectionEntry, ValidatedProposal} from "./api-adapter";
 import type {ReviewData, ReviewTarget} from "./review-preview";
 import type {ChannelDefinition} from "./grouping";
 const nuclear:ChannelDefinition={token:"c4",stain:"DAPI",role:"nuclear",evidence:"user"};
@@ -21,8 +21,8 @@ function fixture(withResult=true,initialSpecification:import("./use-workspace-ru
     run:vi.fn(async(_workspace:string,_field:string,recipe:Recipe,_progress?:unknown,_measurement?:unknown,options?:{adopt?:boolean})=>{const saved=result(`run${++serial}`);revisions.set(saved.revision,recipe);const key=target(recipe);if(options?.adopt!==false){adopted.set(key,saved);if(key==="nuclei"){adopted.delete("nucleoli");adopted.delete("nucleoplasm");}}return saved;}),
     editMask:vi.fn(async(_workspace:string,_source:SavedResult,recipe:Recipe)=>{const saved=result(`edit${++serial}`);revisions.set(saved.revision,recipe);adopted.set(target(recipe),saved);return saved;}),
     selectRevision:vi.fn(async(_workspace:string,id:string)=>{const saved=result(id);adopted.set(target(revisions.get(id)!),saved);return saved;}),
-    draft:vi.fn(async()=>({proposal:{draft:{recipe:"nuclear-intensity",channels:[],metrics:[],statistics:{kind:"descriptive",test:null,omnibus:null,association:null},figures:[],missing_information:[],reference_ids:[],rationale:"fixture",processing:{version:"1.0.0",nuclei:{channel:"c4",detection_max_side_px:null,detector:{engine:"fiji-stardist-2d",model:"Versatile (fluorescent nuclei)",probability:.65,nms:.3,percentile_low:1,percentile_high:99.8}},nucleoli:null,signal:null}},needs_confirmation:[]} as ValidatedProposal})),
-    registerImport:vi.fn<(workspace:string,id:string,intake?:IntakeRecord)=>Promise<void>>(),recordImport:vi.fn<(workspace:string,id:string,intake:Partial<IntakeRecord>)=>Promise<void>>(),removeImport:vi.fn<(workspace:string,id:string)=>Promise<void>>(),clearTargets:vi.fn<(workspace:string,ids:string[])=>Promise<void>>(),excludeField:vi.fn<(workspace:string,id:string,reason:string|null)=>Promise<void>>(),uploadOme:vi.fn(async()=>input),upload:vi.fn<(workspace:string,field:{key:string},channels?:unknown,files?:unknown,entry?:string)=>Promise<ImportedField>>(async()=>input),create:vi.fn(async()=>({id:"w",title:"fixture"})),selection:vi.fn(():{version:number;entries:SelectionEntry[]}|null=>({version:1,entries:[]})),
+    draft:vi.fn(async()=>({proposal:{draft:{recipe:"nuclear-intensity",channels:[],metrics:[],statistics:{kind:"descriptive",test:null,omnibus:null,association:null},figures:[],missing_information:[],reference_ids:[],rationale:"fixture",processing:{version:"1.0.0",nuclei:{channel:"c4",detection_max_side_px:null,detector:{engine:"fiji-stardist-2d",model:"Versatile (fluorescent nuclei)",probability:.65,nms:.3,percentile_low:1,percentile_high:99.8}},nucleoli:null,signal:null}},needs_confirmation:[]} as ValidatedProposal,message:message()})),
+    registerImport:vi.fn<(workspace:string,id:string,intake?:IntakeRecord)=>Promise<void>>(),recordImport:vi.fn<(workspace:string,id:string,intake:Partial<IntakeRecord>)=>Promise<void>>(),removeImport:vi.fn<(workspace:string,id:string)=>Promise<void>>(),clearTargets:vi.fn<(workspace:string,ids:string[])=>Promise<void>>(),excludeField:vi.fn<(workspace:string,id:string,reason:string|null)=>Promise<void>>(),uploadOme:vi.fn(async()=>input),upload:vi.fn<(workspace:string,field:{key:string},channels?:unknown,files?:unknown,entry?:string)=>Promise<ImportedField>>(async()=>input),create:vi.fn(async()=>({id:"w",title:"fixture"})),recordEffect:vi.fn<(workspace:string,id:string,effect:string)=>Promise<null>>(async()=>null),listMessages:vi.fn<(workspace:string)=>Promise<AssistantMessage[]>>(async()=>[]),selection:vi.fn(():{version:number;entries:SelectionEntry[]}|null=>({version:1,entries:[]})),
   };
   let spec=initialSpecification;
   const writeSpecification=vi.fn(async(_id:string,value:import("./use-workspace-runtime").RuntimeSpecification)=>{spec={...value,version:spec.version+1};return spec;});
@@ -58,6 +58,9 @@ function withLedger(adapter:ReturnType<typeof fixture>["adapter"]){
     },
   };
 }
+/** Sends a message and applies its answer as the researcher's 「適用して試行」 (#284 W2: an answer alone changes nothing). */
+const message=(id="m1")=>({id,field_id:null,created:1,text:"",state:"answered" as const,reply:null,applicable:true,reasons:[],stage:null,effect:"none" as const});
+async function ask(runtime:ReturnType<typeof createWorkspaceRuntime>,goal:string,field?:string,trial=true){const response=await runtime.requestProposal(goal,field);await runtime.applyAnswer(response.message.id,trial,field);return response;}
 describe("functional workspace runtime",()=>{
   it("resends a failed proposal only after an explicit retry, with the same instruction",async()=>{
     const {runtime,adapter}=fixture();await runtime.load("w");
@@ -68,7 +71,7 @@ describe("functional workspace runtime",()=>{
     expect(runtime.getSnapshot().error).toBe("");
     await runtime.requestProposal("same instruction","f1",true);
     expect(adapter.draft).toHaveBeenCalledTimes(2);
-    expect(adapter.draft).toHaveBeenLastCalledWith("w","same instruction",true,expect.anything());
+    expect(adapter.draft).toHaveBeenLastCalledWith("w","same instruction",true,expect.anything(),undefined);
   });
   it("shows the first field before loading the others, and loads a single field once",async()=>{
     const calls=(mock:ReturnType<typeof fixture>["loadPreview"])=>mock.mock.calls as unknown as Array<[string|undefined,string[]|undefined,{limit?:number;reuse?:ReviewData|null}|undefined]>;
@@ -138,7 +141,7 @@ describe("functional workspace runtime",()=>{
     await runtime.run("nuclei","f1");expect(startWorkspaceRun).toHaveBeenCalledTimes(1);expect(acceptWorkspaceRun).toHaveBeenCalledWith("w","durable");expect(runtime.canUndo("f1","nuclei")).toBe(true);
   });
   it("undoes AI settings without changing corrected mask adoption",async()=>{
-    const {runtime,adopted}=fixture();await runtime.load("w");await runtime.requestProposal("","f1");expect(runtime.getSnapshot().settings.nuclearProbability).toBe(.65);
+    const {runtime,adopted}=fixture();await runtime.load("w");await ask(runtime,"","f1");expect(runtime.getSnapshot().settings.nuclearProbability).toBe(.65);
     expect(runtime.canUndoProposal()).toBe(true);await runtime.undoProposal();expect(runtime.getSnapshot().settings.nuclearProbability).toBe(.5);
     expect(adopted.get("nuclei")?.revision).toBe("corrected");expect(runtime.candidateResult("f1","nuclei")).toBeUndefined();expect(runtime.specification().spec?.settings.nuclearProbability).toBe(.5);
   });
@@ -207,7 +210,9 @@ describe("functional workspace runtime",()=>{
   });
   it("never requests AI or starts analysis on import, but explicitly sent empty text applies and previews",async()=>{
     const {runtime,adapter,loadPreview}=fixture();await runtime.load("w");await runtime.importFiles([new File([new Uint8Array(4)],"view_c4.tif")]);expect(adapter.draft).not.toHaveBeenCalled();expect(adapter.run).not.toHaveBeenCalled();expect(loadPreview).toHaveBeenCalledWith("w",["f1"]);
-    await runtime.requestProposal("","f1");expect(adapter.draft.mock.calls[0]).toBeDefined();expect(adapter.run).toHaveBeenCalledTimes(1);expect(adapter.run.mock.calls[0][1]).toBe("f1");
+    // Sending changes nothing and runs nothing; the researcher's 「適用して試行」 applies and previews (#284 W2).
+    const answered=await runtime.requestProposal("","f1");expect(adapter.draft.mock.calls[0]).toBeDefined();expect(adapter.run).not.toHaveBeenCalled();expect(runtime.getSnapshot().proposal).toBeNull();
+    await runtime.applyAnswer(answered.message.id,true,"f1");expect(adapter.run).toHaveBeenCalledTimes(1);expect(adapter.run.mock.calls[0][1]).toBe("f1");
   });
   it("names a rejected file, keeps its row with the reason, never resends it and never asks for an exclusion",async()=>{
     const {runtime,adapter}=fixture();await runtime.load("w");const ledger=withLedger(adapter);
@@ -336,6 +341,44 @@ describe("functional workspace runtime",()=>{
     expect(outcome.registered.map(item=>item.names)).toEqual([["small_c1.tif"]]);
     expect(adapter.upload).toHaveBeenCalledTimes(1);
   });
+  it("keeps the conversation per workspace, applies only on request, never applies a refused answer, and continues from the last applicable one (#284 W2)",async()=>{
+    const {runtime,adapter,writeSpecification}=fixture();
+    const saved=[{...message("old"),text:"前の質問",reply:"前の回答"}];
+    adapter.listMessages.mockResolvedValueOnce(saved);
+    await runtime.load("w");
+    expect(runtime.getSnapshot().messages).toEqual(saved);
+    // A saved answer is shown but cannot be applied without sending it again (no model call: answered from the record).
+    expect(runtime.canApply("old")).toBe(false);
+    const writes=writeSpecification.mock.calls.length,settings=runtime.getSnapshot().settings;
+    const first=await runtime.requestProposal("DRAQ を核染色にする","f1");
+    expect(adapter.run).not.toHaveBeenCalled();expect(runtime.getSnapshot().settings).toEqual(settings);expect(writeSpecification.mock.calls.length).toBeLessThanOrEqual(writes+1);
+    expect(runtime.canApply(first.message.id)).toBe(true);
+    // A refused answer is shown with its reasons; its settings are never applied.
+    const refused={...message("refused"),applicable:false,reasons:["proposal_channels_mismatch"],reply:"ch1 は DRAQ"};
+    adapter.draft.mockResolvedValueOnce({proposal:null,message:refused} as never);
+    await runtime.requestProposal("チャンネル名を教えて。まだ測定しない","f1");
+    expect(runtime.canApply("refused")).toBe(false);
+    await expect(runtime.applyAnswer("refused",true,"f1")).rejects.toThrow("再送");
+    expect(adapter.run).not.toHaveBeenCalled();
+    // The next message continues from the last applicable answer and the message that produced it.
+    adapter.draft.mockImplementationOnce(async()=>({proposal:null,message:{...message("next"),applicable:false}}) as never);
+    await runtime.requestProposal("正常な全視野の核を数えて","f1");
+    expect((adapter.draft.mock.calls.at(-1) as unknown[]|undefined)?.[3]).toMatchObject({previous_goal:"DRAQ を核染色にする",previous_proposal:expect.objectContaining({recipe:"nuclear-intensity"})});
+    expect(runtime.getSnapshot().messages.map(value=>value.id)).toEqual(["old","m1","refused","next"]);
+    // Applying is the researcher's action and is recorded on the message.
+    await runtime.applyAnswer(first.message.id,false,"f1");
+    expect(adapter.recordEffect).toHaveBeenCalledWith("w","m1","settings");expect(adapter.run).not.toHaveBeenCalled();
+    expect(runtime.getSnapshot().messages.find(value=>value.id==="m1")?.effect).toBe("settings");
+    // A failed request re-reads the record, so the failed message shows its reasons.
+    const failed={...message("failed"),state:"failed" as const,applicable:null,reasons:["proposal_shape_invalid"]};
+    adapter.draft.mockRejectedValueOnce(new ApiError("proposal_rejected",502,["proposal_shape_invalid"]));
+    adapter.listMessages.mockResolvedValueOnce([...runtime.getSnapshot().messages,failed]);
+    await expect(runtime.requestProposal("x","f1")).rejects.toMatchObject({reasons:["proposal_shape_invalid"]});
+    expect(runtime.getSnapshot().messages.at(-1)).toEqual(failed);
+    // Another workspace starts with no conversation and no previous answer.
+    runtime.newWorkspace();
+    expect(runtime.getSnapshot().messages).toEqual([]);expect(runtime.canApply("m1")).toBe(false);
+  });
   it("retains separate file identities when later images have the same filename",async()=>{
     const {runtime,adapter}=fixture();await runtime.load("w");
     await runtime.importFiles([new File([new Uint8Array([1])],"view_c4.tif")]);
@@ -343,7 +386,7 @@ describe("functional workspace runtime",()=>{
     expect(adapter.upload).toHaveBeenCalledTimes(2);expect(adapter.draft).not.toHaveBeenCalled();expect(adapter.run).not.toHaveBeenCalled();
   });
   it("allows a text-only consultation in a new workspace without analysis",async()=>{
-    const {runtime,adapter}=fixture();runtime.newWorkspace();adapter.getChannelAssignments.mockResolvedValue({version:0,assignments:[]});await runtime.requestProposal("Plan an experiment");
+    const {runtime,adapter}=fixture();runtime.newWorkspace();adapter.getChannelAssignments.mockResolvedValue({version:0,assignments:[]});await ask(runtime,"Plan an experiment");
     expect(adapter.create).toHaveBeenCalledTimes(1);expect(adapter.draft).toHaveBeenCalledTimes(1);expect(adapter.run).not.toHaveBeenCalled();expect(runtime.specification()).toMatchObject({version:2,spec:{processing:null,metrics:[],statistics:{method:{kind:"descriptive"}},channel_assignment_version:0}});expect(runtime.canUndoProposal()).toBe(true);
   });
   it("persists manual settings with channel identity and reloads the same specification",async()=>{

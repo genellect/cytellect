@@ -46,6 +46,16 @@ its result in one line beside 取込, including an empty folder, a choice withou
 workspace) is shown as an error; what it registered stays. Images chosen before the experiment form
 is chosen accumulate until they are registered.
 
+The AI panel ([#284](https://github.com/genellect/cytellect/issues/284) W2) first shows the selected field as the
+workspace records it, without a model call and also while the AI is not enabled: its name and size, each channel with
+the origin of its name and its role, and the nuclear channel. Below are the workspace's messages, each with its state
+(送信中, 回答, 失敗, 設定を適用済み, 実行済み), its answer and, when its settings cannot be used, the reasons: a place the
+researcher changes (画像, 染色対応, 実験デザイン, 解析設定) or a service-side failure with its code and 「再送」. Sending
+clears the input and changes nothing; 「設定を適用」 and 「適用して試行」 under an answer are the only ways an answer
+changes settings or runs a preview, followed by 「解析設定を表示」 and 「AIによる設定変更を戻す」. An empty instruction is
+not sent; 「解析案を作る」 asks for a proposal from the images alone. A new workspace starts with an empty conversation and
+input, and reopening a workspace shows its messages again.
+
 Statistics display cells/fields/independent units separately. The paired option is
 initially selected because synthetic controls and treatments share pair IDs. Confirm
 the experimental units explicitly. Matplotlib figures and source CSVs are downloaded

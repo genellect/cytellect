@@ -25,10 +25,73 @@ FORBIDDEN_TEXT = re.compile(
     r"\bmacro\b|\bsubprocess\b|\bos\.system\b|javascript:)", re.IGNORECASE)
 
 
+# Every reason a draft can be refused for (#284 W2): the workspace maps each to a place the researcher can
+# change or to a service-side failure, and a test keeps this list and the checks below in step.
+REJECTION_CODES: frozenset[str] = frozenset({
+    "proposal_acquisition_dates_required",
+    "proposal_association_axes_identical",
+    "proposal_association_axes_required",
+    "proposal_association_axes_unexpected",
+    "proposal_association_invalid",
+    "proposal_association_same_region_required",
+    "proposal_background_not_available",
+    "proposal_channels_mismatch",
+    "proposal_comparison_invalid",
+    "proposal_descriptive_has_test",
+    "proposal_design_requires_paired",
+    "proposal_figure_analysis_invalid",
+    "proposal_figure_association_axis_mismatch",
+    "proposal_figure_design_mismatch",
+    "proposal_figure_metric_not_proposed",
+    "proposal_gfp_channel_not_established",
+    "proposal_gfp_controls_not_registered",
+    "proposal_images_not_registered",
+    "proposal_independent_units_insufficient",
+    "proposal_measured_table_absent",
+    "proposal_measurements_required",
+    "proposal_metric_channel_invalid",
+    "proposal_metric_duplicate",
+    "proposal_metric_region_invalid",
+    "proposal_metric_region_required",
+    "proposal_model_not_selected",
+    "proposal_model_selection_changed",
+    "proposal_ncl_channel_not_acquired",
+    "proposal_ncl_metric_invalid",
+    "proposal_none_has_analysis",
+    "proposal_omnibus_design_mismatch",
+    "proposal_omnibus_required",
+    "proposal_one_nuclear_channel_required",
+    "proposal_paired_condition_count_unsupported",
+    "proposal_pairing_required",
+    "proposal_processing_cell_channel_invalid",
+    "proposal_processing_marker_not_established",
+    "proposal_processing_ncl_channel_invalid",
+    "proposal_processing_nuclear_channel_invalid",
+    "proposal_processing_nucleoli_channel_invalid",
+    "proposal_processing_nucleoli_recipe_invalid",
+    "proposal_processing_recipe_invalid",
+    "proposal_processing_signal_channel_invalid",
+    "proposal_reference_duplicate",
+    "proposal_role_conflicts_with_user",
+    "proposal_shape_invalid",
+    "proposal_stain_changed",
+    "proposal_stain_not_established",
+    "proposal_supplied_regions_absent",
+    "proposal_text_not_allowed",
+    "proposal_units_required",
+})
+
+
 class ProposalRejected(ValueError):
-    def __init__(self, codes: list[str]):
+    """A refused draft. When the draft was well formed and its text passed the text check, the answer it wrote
+    (`rationale`, `missing_information`) travels with the codes so the researcher still reads it (#284 W2); the
+    settings it proposed are never applied."""
+
+    def __init__(self, codes: list[str], rationale: str | None = None, missing_information: tuple[str, ...] = ()):
         super().__init__(",".join(codes))
         self.codes = codes
+        self.rationale = rationale
+        self.missing_information = missing_information
 
 
 def context_sha256(context: ProposalContext) -> str:
@@ -246,9 +309,12 @@ def validate_draft(context: ProposalContext, raw: object, *, model: str, prompt_
         codes.append("proposal_measurements_required")
     if len(set(draft.reference_ids)) != len(draft.reference_ids):
         codes.append("proposal_reference_duplicate")
-    if any(FORBIDDEN_TEXT.search(text) for text in _texts(draft)):
+    text_allowed = not any(FORBIDDEN_TEXT.search(text) for text in _texts(draft))
+    if not text_allowed:
         codes.append("proposal_text_not_allowed")
     if codes:
+        if text_allowed:
+            raise ProposalRejected(sorted(set(codes)), draft.rationale, tuple(draft.missing_information))
         raise ProposalRejected(sorted(set(codes)))
     return ValidatedProposal(draft=draft, needs_confirmation=needs_confirmation, model=model,
                              prompt_version=prompt_version, context_sha256=context_sha256(context))

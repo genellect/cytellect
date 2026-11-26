@@ -69,6 +69,24 @@ revision. Mixed input modes or incomplete channel coverage require cohort correc
 The minimum unit counts are computational prerequisites, not a claim of adequate
 statistical power or confirmed biological independence.
 
+Each message the researcher sends is kept (#284 W2, migration `0013`, `assistant_messages`): its text,
+the selected field, its state (`pending`, `answered`, `failed`), the answer, whether it can be applied,
+the reason codes and the stage that stopped it (`context`, `service`, `validation`), and what the
+researcher did with it (`effect`: `none`, `settings`, `run`). `GET /v1/workspaces/{wid}/assistant-messages`
+lists them in order and `PATCH /v1/workspaces/{wid}/assistant-messages/{id}` records the effect (only for
+an applicable answer). A message is made for every request that reaches the model or the cache, and for one
+the workspace context refuses; none is made without the transmission confirmation, for a request already in
+progress or for one that needs an explicit resend. A resend names its message (`message_id`) and reuses it.
+When the model's draft is well formed and its text passes the text check but its settings are refused, the
+route answers 200 with `proposal: null` and the message carries the answer (`rationale` and
+`missing_information`), `applicable: false` and the reasons; a malformed draft or a refused text keeps only
+the reasons and the route answers 502 as before. The workspace shows the answer, and the reason codes in two
+kinds: something the researcher changes, with the place to change it, or a service-side failure, with 「再送」.
+Sending never changes settings or runs anything; applying is the researcher's action (requirement L02). After a
+reload the messages and answers are shown again without a model call; applying a reloaded answer resends its
+message, which the cache answers without the model when the context is unchanged. The text of messages and
+answers stays in the workspace database and is never logged.
+
 Private SQLite migration `0003` stores validated drafts and atomic request claims
 under the workspace. Reuse survives restart and is invalidated by local input/design,
 recipe, protocol, model, prompt, or service changes. Presentation changes alone do

@@ -1,5 +1,6 @@
 /** Real workspace transport. Pixels, masks, summaries and figures remain server-owned. */
-import { API, ApiError, errorCodeMessage, fetchBlob, post, request } from "../api";
+import { API, API_CONFIGURED, ApiError, errorCodeMessage, fetchBlob, post, request } from "../api";
+import { showcaseActive } from "../showcase";
 import { descriptiveFigureView, type DescriptiveResult } from "../descriptive-view";
 import type { components } from "../generated";
 import type { Job, Point, Workspace } from "../types";
@@ -455,15 +456,31 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
     async draftDiscussion(job: string, experiment: ExperimentNote, retryFailed = false, summary?: ShownSummary): Promise<DiscussionView> {
       return client.post<DiscussionView>(`/v1/jobs/${job}/discussion`, {transmission_confirmed: true, experiment, ...(summary ? {summary} : {}), ...(retryFailed ? {retry_failed: true} : {})});
     },
-    async draft(workspace: string, goal: string, retryFailed = false, continuation?: {current_processing: ProposalProcessing | null; previous_goal: string; previous_proposal: ProposalDraft | null;field_id?:string}) {
+    async draft(workspace: string, goal: string, retryFailed = false, continuation?: {current_processing: ProposalProcessing | null; previous_goal: string; previous_proposal: ProposalDraft | null;field_id?:string}, messageId?: string): Promise<{proposal: ValidatedProposal | null; message: AssistantMessage}> {
       // Called only after the one-time scope notice has been accepted in this workspace. Previews are on by
       // default in the API; only turning them off is sent, so the default request body is unchanged.
-      const response = await client.post<{proposal: ValidatedProposal; channels: ProposalChannelLink[]}>(`/v1/workspaces/${workspace}/proposal-drafts`, {goal, transmission_confirmed: true, ...(includePreviews() ? {} : {include_previews: false}), ...(retryFailed ? {retry_failed: true} : {}), ...continuation});
-      return {proposal: localProposal(response.proposal,response.channels)};
+      const response = await client.post<{proposal: ValidatedProposal | null; channels: ProposalChannelLink[]; message?: AssistantMessage | null}>(`/v1/workspaces/${workspace}/proposal-drafts`, {goal, transmission_confirmed: true, ...(includePreviews() ? {} : {include_previews: false}), ...(retryFailed ? {retry_failed: true} : {}), ...continuation, ...(messageId ? {message_id: messageId} : {})});
+      const proposal = response.proposal ? localProposal(response.proposal,response.channels) : null;
+      // A recorded demo answer (the earlier response shape) carries no message: it is shown as answered and applicable.
+      const message: AssistantMessage = response.message ?? {id: `local-${crypto.randomUUID()}`, field_id: continuation?.field_id ?? null, created: Date.now() / 1000, text: goal,
+        state: "answered", reply: proposal ? [proposal.draft.rationale, ...(proposal.draft.missing_information ?? [])].join("\n") : null, applicable: !!proposal, reasons: [], stage: null, effect: "none"};
+      return {proposal, message};
+    },
+    /** The researcher's messages to the AI in this workspace, oldest first. The public demo records none. */
+    async listMessages(workspace: string): Promise<AssistantMessage[]> {
+      if (!API_CONFIGURED && showcaseActive()) return [];
+      return (await client.request<{messages: AssistantMessage[]}>(`/v1/workspaces/${workspace}/assistant-messages`)).messages;
+    },
+    /** Records what the researcher did with an answer (applied its settings, or applied and ran them). */
+    async recordEffect(workspace: string, id: string, effect: "none" | "settings" | "run") {
+      if (id.startsWith("local-") || (!API_CONFIGURED && showcaseActive())) return null;
+      return client.request<AssistantMessage>(`/v1/workspaces/${workspace}/assistant-messages/${id}`, {method: "PATCH", body: JSON.stringify({effect})});
     },
   };
 }
 export type ApiAdapter = ReturnType<typeof createApiAdapter>;
+/** One message to the AI and what came back (#284 W2); see the API's AssistantMessage. */
+export type AssistantMessage = components["schemas"]["AssistantMessage"];
 export type DiscussionView = components["schemas"]["DiscussionView"];
 export type ExperimentNote = components["schemas"]["ExperimentNote"];
 export type ShownSummary = components["schemas"]["ShownSummary"];

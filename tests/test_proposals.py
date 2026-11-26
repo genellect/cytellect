@@ -154,7 +154,12 @@ def test_only_a_goal_is_asked_and_the_context_is_derived_from_the_workspace(tmp_
     first = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": "細胞ごとのアクチン輝度", "transmission_confirmed": True}, headers=HEADERS)
     second = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": "細胞ごとのアクチン輝度", "transmission_confirmed": True}, headers=HEADERS)
     assert first.status_code == 200, first.text
-    assert first.json() == second.json() and len(calls) == 1
+    # The same question in the same context is answered from the record: the model is called once, and each
+    # sending is its own message (#284 W2).
+    without = lambda value: {key: item for key, item in value.items() if key != "message"}  # noqa: E731
+    assert without(first.json()) == without(second.json()) and len(calls) == 1
+    assert first.json()["message"]["id"] != second.json()["message"]["id"]
+    assert second.json()["message"] | {"id": None, "created": None} == first.json()["message"] | {"id": None, "created": None}
     assert first.json()["channels"] == [{"token": "ch1", "channel_id": "actin", "stain": None}]
     assert first.json()["proposal"]["needs_confirmation"] == []
     sent = calls[0]["context"]
@@ -194,6 +199,57 @@ def test_route_rejects_invalid_drafts_and_maps_service_failures(tmp_path, monkey
     client, wid, _ = configured(tmp_path / "q", monkeypatch, quota)
     response = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"transmission_confirmed": True}, headers=HEADERS)
     assert (response.status_code, response.json()["detail"]) == (429, "proposal_quota_exhausted")
+
+
+def test_a_refused_draft_still_answers_and_every_message_is_recorded_without_its_text_in_logs(tmp_path, monkeypatch, caplog):
+    """#284 W2 (judgement 1 and 3, synthetic provider): a well-formed draft refused for its settings returns its
+    answer with the reasons; a malformed one or a refused text keeps only the reasons. Nothing is applied."""
+    refused_draft = {**ACTIN_DRAFT, "channels": [], "rationale": "ch1 は Actin と記録されています。核染色のチャンネルはありません。",
+                     "missing_information": ["核染色のチャンネル"]}
+    replies = iter([refused_draft, {"recipe": "nonsense"}, {**ACTIN_DRAFT, "rationale": "see https://x"}])
+    client, wid, calls = configured(tmp_path, monkeypatch, lambda request: FakeResponse(json.dumps(
+        {"draft": next(replies), "model": "gpt-6.1-sol", "prompt_version": PROPOSAL_PROMPT_VERSION}).encode()))
+    question = "この画像のチャンネル名を教えてください。まだ測定を実行しないでください。"
+    answered = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": question, "transmission_confirmed": True}, headers=HEADERS)
+    assert answered.status_code == 200, answered.text
+    body = answered.json()
+    assert body["proposal"] is None
+    assert body["message"] | {"id": None, "created": None} == {
+        "id": None, "created": None, "field_id": None, "text": question, "state": "answered",
+        "reply": "ch1 は Actin と記録されています。核染色のチャンネルはありません。\n核染色のチャンネル",
+        "applicable": False, "reasons": ["proposal_channels_mismatch", "proposal_metric_channel_invalid"], "stage": "validation", "effect": "none"}
+    # Applying a refused answer is refused.
+    effect = client.patch(f"/v1/workspaces/{wid}/assistant-messages/{body['message']['id']}", json={"effect": "settings"}, headers=HEADERS)
+    assert effect.status_code == 409 and effect.json()["detail"] == "assistant_message_not_applicable"
+    # A malformed draft and a refused text keep no text, only the reasons; each is resent under its own message.
+    malformed = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": question, "transmission_confirmed": True, "retry_failed": True}, headers=HEADERS)
+    assert malformed.status_code == 502 and malformed.json()["detail"] == {"code": "proposal_rejected", "reasons": ["proposal_shape_invalid"]}
+    listed = client.get(f"/v1/workspaces/{wid}/assistant-messages", headers=HEADERS).json()["messages"]
+    failed = listed[-1]
+    assert (failed["state"], failed["reply"], failed["reasons"], failed["stage"]) == ("failed", None, ["proposal_shape_invalid"], "validation")
+    again = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": question, "transmission_confirmed": True,
+                                                                         "retry_failed": True, "message_id": failed["id"]}, headers=HEADERS)
+    assert again.status_code == 502 and again.json()["detail"]["reasons"] == ["proposal_text_not_allowed"]
+    listed = client.get(f"/v1/workspaces/{wid}/assistant-messages", headers=HEADERS).json()["messages"]
+    assert [(item["state"], item["reasons"]) for item in listed] == [("answered", ["proposal_channels_mismatch", "proposal_metric_channel_invalid"]), ("failed", ["proposal_text_not_allowed"])]
+    assert len(calls) == 3
+    # The researcher's text and the model's text never reach the logs.
+    assert question not in caplog.text and "Actin と記録" not in caplog.text
+    # Without the confirmation nothing is sent and no message is made; another workspace's message cannot be resent.
+    assert client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": "x"}, headers=HEADERS).status_code == 428
+    other = client.post("/v1/workspaces", json={"title": "o"}, headers=HEADERS).json()["id"]
+    assert client.post(f"/v1/workspaces/{other}/proposal-drafts", json={"goal": "x", "transmission_confirmed": True,
+                                                                         "message_id": failed["id"]}, headers=HEADERS).status_code in (404, 409)
+    assert len(client.get(f"/v1/workspaces/{wid}/assistant-messages", headers=HEADERS).json()["messages"]) == 2
+
+
+def test_every_rejection_code_is_listed():
+    import re
+    from pathlib import Path
+
+    from cytellect_analysis import proposal_validation
+    source = Path(proposal_validation.__file__).read_text(encoding="utf-8")
+    assert set(re.findall(r'"(proposal_[a-z_]+)"', source)) == set(proposal_validation.REJECTION_CODES)
 
 
 def test_route_needs_images_is_disabled_without_configuration_and_checks_ownership(tmp_path, monkeypatch):

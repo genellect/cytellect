@@ -42,7 +42,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool
 from sqlalchemy import select, update
 
 from .channel_assignments import apply_channel_assignments
-from .db import fields, proposal_drafts, revisions, workspaces
+from .db import assistant_messages, fields, proposal_drafts, revisions, workspaces
 from .regions import is_region
 
 MAX_RESPONSE_BYTES = 64 * 1024
@@ -219,6 +219,35 @@ class ProposalDraftRequest(BaseModel):
     current_processing: Annotated[dict, Field(max_length=4)] | None = None
     previous_goal: Annotated[str, Field(max_length=2000)] = ""
     previous_proposal: Annotated[dict, Field(max_length=13)] | None = None
+    # The message this request sends again (its 「再送」); a new message otherwise (#284 W2).
+    message_id: Annotated[str, Field(min_length=1, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")] | None = None
+
+
+MessageEffect = Literal["none", "settings", "run"]
+
+
+class AssistantMessage(BaseModel):
+    """One message of the researcher to the AI and what came back (#284 W2). `applicable` is false when the
+    answer could not be turned into settings; `reasons` and `stage` say why. Nothing here changes settings."""
+    id: str
+    field_id: str | None
+    created: float
+    text: str
+    state: Literal["pending", "answered", "failed"]
+    reply: str | None
+    applicable: bool | None
+    reasons: list[str]
+    stage: Literal["context", "service", "validation"] | None
+    effect: MessageEffect
+
+
+class AssistantMessages(BaseModel):
+    messages: list[AssistantMessage]
+
+
+class AssistantEffect(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    effect: MessageEffect
 
 
 class ProposalChannelLink(BaseModel):
@@ -228,8 +257,21 @@ class ProposalChannelLink(BaseModel):
 
 
 class ProposalDraftResponse(BaseModel):
-    proposal: ValidatedProposal
+    # None when the model answered but its settings cannot be applied: the answer is in `message.reply`.
+    proposal: ValidatedProposal | None
     channels: list[ProposalChannelLink]
+    message: AssistantMessage | None = None
+
+
+def message_view(row) -> AssistantMessage:
+    return AssistantMessage(id=row["id"], field_id=row["field_id"], created=row["created"], text=row["text"],
+                            state=row["state"], reply=row["reply"], applicable=row["applicable"],
+                            reasons=list(row["reasons"] or []), stage=row["stage"], effect=row["effect"])
+
+
+def answer_text(rationale: str, missing: tuple[str, ...] | list[str]) -> str:
+    """The answer as the researcher reads it: the rationale, then each item the model needs confirmed."""
+    return "\n".join([rationale, *missing]).strip()
 
 
 class AiStatus(BaseModel):
@@ -571,6 +613,49 @@ def register_proposal_routes(api, store, settings, owner, workspace, credentials
             return AiCompatibility(state="incompatible")
         return AiCompatibility(state="unavailable")
 
+    def open_message(conn, wid: str, body: ProposalDraftRequest, now: float) -> str:
+        """Writes the message as sent (or reopens it for its 「再送」) before the model is called (#284 W2)."""
+        values = {"state": "pending", "reply": None, "applicable": None, "reasons": [], "stage": None,
+                  "request_id": None, "draft_id": None}
+        if body.message_id:
+            found = conn.execute(select(assistant_messages.c.id).where(assistant_messages.c.id == body.message_id,
+                assistant_messages.c.workspace_id == wid)).first()
+            if found is None:
+                raise HTTPException(404, "assistant_message_not_found")
+            conn.execute(update(assistant_messages).where(assistant_messages.c.id == body.message_id).values(**values))
+            return body.message_id
+        mid = str(uuid.uuid4())
+        conn.execute(assistant_messages.insert().values(id=mid, workspace_id=wid, field_id=body.field_id, created=now,
+            text=body.goal, effect="none", **values))
+        return mid
+
+    def close_message(mid: str, **values):
+        with store.transaction() as conn:
+            conn.execute(update(assistant_messages).where(assistant_messages.c.id == mid).values(**values))
+            return message_view(conn.execute(select(assistant_messages).where(assistant_messages.c.id == mid)).mappings().one())
+
+    @api.get("/v1/workspaces/{wid}/assistant-messages", response_model=AssistantMessages)
+    def list_messages(wid: str, who: Owner):
+        workspace(wid, who)
+        with store.engine.connect() as conn:
+            rows = conn.execute(select(assistant_messages).where(assistant_messages.c.workspace_id == wid)
+                                .order_by(assistant_messages.c.created, assistant_messages.c.id)).mappings().all()
+        return AssistantMessages(messages=[message_view(row) for row in rows])
+
+    @api.patch("/v1/workspaces/{wid}/assistant-messages/{mid}", response_model=AssistantMessage)
+    def record_effect(wid: str, mid: str, body: AssistantEffect, who: Owner):
+        """What the researcher did with an answer (applied its settings, ran it). The answer never does it."""
+        workspace(wid, who)
+        with store.transaction() as conn:
+            row = conn.execute(select(assistant_messages).where(assistant_messages.c.id == mid,
+                assistant_messages.c.workspace_id == wid)).mappings().first()
+            if row is None:
+                raise HTTPException(404, "assistant_message_not_found")
+            if body.effect != "none" and not (row["state"] == "answered" and row["applicable"]):
+                raise HTTPException(409, "assistant_message_not_applicable")
+            conn.execute(update(assistant_messages).where(assistant_messages.c.id == mid).values(effect=body.effect))
+            return message_view(conn.execute(select(assistant_messages).where(assistant_messages.c.id == mid)).mappings().one())
+
     @api.post("/v1/workspaces/{wid}/proposal-drafts", response_model=ProposalDraftResponse)
     def draft_proposal(wid: str, body: ProposalDraftRequest, who: Owner):
         workspace(wid, who)
@@ -579,8 +664,14 @@ def register_proposal_routes(api, store, settings, owner, workspace, credentials
         try:
             context, links = build_context(store, wid, body.goal, body.field_id)
             context = _continuation_context(context, links, body)
-        except ValueError:
-            raise HTTPException(409, "proposal_context_unsupported") from None
+        except (ValueError, HTTPException) as error:
+            # The message is kept with why it could not be sent, under the message itself.
+            code = error.detail if isinstance(error, HTTPException) and isinstance(error.detail, str) else "proposal_context_unsupported"
+            status = error.status_code if isinstance(error, HTTPException) else 409
+            with store.transaction() as conn:
+                mid = open_message(conn, wid, body, time.time())
+            close_message(mid, state="failed", reasons=[code], stage="context")
+            raise HTTPException(status, code) from None
         source_stamp = _source_stamp(store, wid)
         service = effective_settings(settings, credentials)
         identity = {"context": context_sha256(context), "protocol": PROPOSAL_PROTOCOL,
@@ -597,21 +688,33 @@ def register_proposal_routes(api, store, settings, owner, workspace, credentials
             cached = conn.execute(select(proposal_drafts).where(
                 proposal_drafts.c.workspace_id == wid, proposal_drafts.c.cache_key == key)).mappings().first()
             if cached and cached["state"] == "complete":
-                return ProposalDraftResponse(proposal=ValidatedProposal.model_validate(cached["proposal"]), channels=links)
+                # The same question in the same context: answered from the record, the model is not called.
+                mid = open_message(conn, wid, body, now)
+                cached_proposal = ValidatedProposal.model_validate(cached["proposal"])
+                conn.execute(update(assistant_messages).where(assistant_messages.c.id == mid).values(
+                    state="answered", applicable=True, draft_id=cached["id"], request_id=cached["request_id"],
+                    reply=answer_text(cached_proposal.draft.rationale, cached_proposal.draft.missing_information)))
+                row = conn.execute(select(assistant_messages).where(assistant_messages.c.id == mid)).mappings().one()
+                return ProposalDraftResponse(proposal=cached_proposal, channels=links, message=message_view(row))
             if cached:
                 if cached["state"] == "pending" and cached["lease_until"] > now:
                     raise HTTPException(409, "proposal_request_in_progress")
                 if not body.retry_failed and cached["state"] != "unbilled":
                     # A timeout may already have incurred cost; never silently pay again.
                     raise HTTPException(409, "proposal_explicit_retry_required")
+                draft_id = cached["id"]
                 conn.execute(update(proposal_drafts).where(proposal_drafts.c.id == cached["id"]).values(
                     request_id=request_id, state="pending", lease_until=now + settings.proposal_timeout_seconds + 30))
             else:
-                conn.execute(proposal_drafts.insert().values(id=str(uuid.uuid4()), workspace_id=wid, cache_key=key,
+                draft_id = str(uuid.uuid4())
+                conn.execute(proposal_drafts.insert().values(id=draft_id, workspace_id=wid, cache_key=key,
                     request_id=request_id, state="pending", created=now,
                     lease_until=now + settings.proposal_timeout_seconds + 30))
+            mid = open_message(conn, wid, body, now)
+            conn.execute(update(assistant_messages).where(assistant_messages.c.id == mid).values(request_id=request_id))
         proposal = None
         unbilled = False
+        refused: ProposalRejected | None = None
         try:
             try:
                 previews = representative_previews(store, wid, links, body.field_id) if body.include_previews else []
@@ -625,27 +728,41 @@ def register_proposal_routes(api, store, settings, owner, workspace, credentials
                                       prompt_version=payload["prompt_version"])
         except ProposalServiceError as error:
             unbilled = not error.may_have_charged
+            close_message(mid, state="failed", reasons=[error.code], stage="service")
             raise HTTPException(error.status, error.code) from None
         except ProposalRejected as error:
             # Codes only: the draft text itself is never echoed into logs.
-            if "proposal_association_same_region_required" in error.codes:
-                raise HTTPException(502, "proposal_association_same_region_required") from None
-            raise HTTPException(502, {"code": "proposal_rejected", "reasons": error.codes}) from None
+            if error.rationale is None:
+                close_message(mid, state="failed", reasons=error.codes, stage="validation")
+                if "proposal_association_same_region_required" in error.codes:
+                    raise HTTPException(502, "proposal_association_same_region_required") from None
+                raise HTTPException(502, {"code": "proposal_rejected", "reasons": error.codes}) from None
+            refused = error
         except ValueError:
+            close_message(mid, state="failed", reasons=["proposal_service_misconfigured"], stage="service")
             raise HTTPException(503, "proposal_service_misconfigured") from None
+        except Exception:
+            close_message(mid, state="failed", reasons=["proposal_internal_error"], stage="service")
+            raise
         finally:
             if proposal is None:
                 with store.transaction() as conn:
                     conn.execute(update(proposal_drafts).where(proposal_drafts.c.workspace_id == wid,
                         proposal_drafts.c.cache_key == key, proposal_drafts.c.request_id == request_id,
                         proposal_drafts.c.state == "pending").values(state="unbilled" if unbilled else "failed"))
+        if refused is not None:
+            # The answer is shown; its settings are not applicable. The cached request stays failed, so the same
+            # question needs an explicit resend as before (the answer is already in the message).
+            message = close_message(mid, state="answered", applicable=False, reasons=refused.codes, stage="validation",
+                                    reply=answer_text(refused.rationale or "", refused.missing_information))
+            return ProposalDraftResponse(proposal=None, channels=links, message=message)
         workspace(wid, who)  # Revocation/expiry during the external call blocks publication.
         try:
             refreshed, refreshed_links = build_context(store, wid, body.goal, body.field_id)
             refreshed = _continuation_context(refreshed, refreshed_links, body)
             changed = (context_sha256(refreshed) != context_sha256(context) or refreshed_links != links
                        or _source_stamp(store, wid) != source_stamp)
-        except ValueError:
+        except (ValueError, HTTPException):
             changed = True
         if changed:
             # Release the request instead of leaving it pending until the lease ends.
@@ -653,11 +770,16 @@ def register_proposal_routes(api, store, settings, owner, workspace, credentials
                 conn.execute(update(proposal_drafts).where(proposal_drafts.c.workspace_id == wid,
                     proposal_drafts.c.cache_key == key, proposal_drafts.c.request_id == request_id,
                     proposal_drafts.c.state == "pending").values(state="failed"))
+            close_message(mid, state="failed", reasons=["proposal_context_changed"], stage="context")
             raise HTTPException(409, "proposal_context_changed")
         with store.transaction() as conn:
             result = conn.execute(update(proposal_drafts).where(proposal_drafts.c.workspace_id == wid,
                 proposal_drafts.c.cache_key == key, proposal_drafts.c.request_id == request_id).values(
                     state="complete", proposal=proposal.model_dump(mode="json")))
-            if result.rowcount != 1:
-                raise HTTPException(409, "proposal_request_superseded")
-        return ProposalDraftResponse(proposal=proposal, channels=links)
+            superseded = result.rowcount != 1
+        if superseded:
+            close_message(mid, state="failed", reasons=["proposal_request_superseded"], stage="service")
+            raise HTTPException(409, "proposal_request_superseded")
+        message = close_message(mid, state="answered", applicable=True, draft_id=draft_id,
+                                reply=answer_text(proposal.draft.rationale, proposal.draft.missing_information))
+        return ProposalDraftResponse(proposal=proposal, channels=links, message=message)

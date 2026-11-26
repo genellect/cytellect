@@ -10,7 +10,8 @@ export const PUBLIC_SHOWCASE = !API_CONFIGURED;
 export const LOCAL_UNREACHABLE_TEXT = "Cytellect に接続できません。小さな「Cytellect」の画面が閉じている場合は、デスクトップの「Cytellect」をもう一度開いてください。";
 /** Local mode: the PC reaches no cloud service. University networks often restrict it; name the host to allow. */
 export const CLOUD_NETWORK_HINT = "大学や研究室のネットワークでは、接続が制限されている場合があります。続く場合は、ネットワーク管理者に api.cytellect.app への接続の許可を依頼してください。";
-export class ApiError extends Error { constructor(public code: string, public status: number) { super(code); } }
+/** `reasons`: the machine-readable reasons a refusal carries (for example a refused AI draft, #284 W2). */
+export class ApiError extends Error { constructor(public code: string, public status: number, public reasons: string[] = []) { super(code); } }
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
  const showcase = !API_CONFIGURED && showcaseActive();
  if(!API_CONFIGURED && !showcase) throw new ApiError("server_not_configured",503);
@@ -20,10 +21,11 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
  if (options.method && !["GET", "HEAD"].includes(options.method)) headers.set("X-Cytellect-Request", "1");
  const result = showcase ? await showcaseTransport()!.fetch(path, {...options, headers}) : await fetch(API + path, {...options, headers, credentials: "include", cache: "no-store"});
  if (!result.ok) {
-   let code = "request_failed";
+   let code = "request_failed", reasons: string[] = [];
    try { const value = await result.json(); if (typeof value.detail === "string") code = value.detail;
-     else if (value.detail && typeof value.detail.code === "string") code = value.detail.code; } catch {}
-   throw new ApiError(code, result.status);
+     else if (value.detail && typeof value.detail.code === "string") {code = value.detail.code;
+       if (Array.isArray(value.detail.reasons)) reasons = value.detail.reasons.filter((item: unknown): item is string => typeof item === "string");} } catch {}
+   throw new ApiError(code, result.status, reasons);
  }
  return result.json() as Promise<T>;
 }
