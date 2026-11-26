@@ -15,6 +15,7 @@ import {loadReviewPreview, newestWorkspaceId, releaseReviewPreview, type ReviewD
 import {validTargetResults, type TargetResult} from "./target-results";
 import {tiffInputMode,tiffHasOmeMetadata} from "./tiff-intake";
 import {assignFields,openingPair,type ExperimentDesign} from "./experiment-design";
+import {completedFields,fieldProgress,progressLine,type FieldProgress} from "./run-progress";
 
 export interface RuntimeSettings {
   nuclearMaxSide: number | null; nuclearProbability: number; nuclearNms: number;
@@ -38,6 +39,8 @@ export interface RuntimeSnapshot {
   intake: IntakeOutcome | null;
   /** The researcher's messages to the AI in this workspace and what came back (#284 W2), oldest first. */
   messages: AssistantMessage[];
+  /** Each field's state in the current or last analysis run (#284 W8); absent for fields outside it. */
+  progress: Record<string, FieldProgress>;
 }
 /** A saved row without a field. `legacy` rows come from before rows carried names (#284). */
 export interface IntakeRow {entry:string; names:string[]; state:"pending"|"rejected"|"legacy"; code:string|null; mask:boolean; target:IntakeTarget|null}
@@ -168,7 +171,7 @@ export function runtimeProposalProcessing(channel:ChannelDefinition,settings:Run
 }
 export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   const adapter=dependencies.adapter ?? createApiAdapter(), loadPreview=dependencies.loadPreview ?? loadReviewPreview, releasePreview=dependencies.releasePreview ?? releaseReviewPreview;
-  let state:RuntimeSnapshot={data:null,busy:false,loading:false,operation:"",error:"",assignments:{version:0,assignments:[]},activeTarget:"nuclei",settings:defaultRuntimeSettings(),proposal:null,processing:null,importIssues:[],intakeRows:[],intake:null,messages:[]};
+  let state:RuntimeSnapshot={data:null,busy:false,loading:false,operation:"",error:"",assignments:{version:0,assignments:[]},activeTarget:"nuclei",settings:defaultRuntimeSettings(),proposal:null,processing:null,importIssues:[],intakeRows:[],intake:null,messages:[],progress:{}};
   const readSpecification=dependencies.readSpecification ?? ((id:string)=>request<RuntimeSpecification>(`/v1/workspaces/${id}/analysis-spec`));
   // Only the version and the spec are written: read-only fields of the response (e.g. experiment_sha256) are never sent back.
   const writeSpecification=dependencies.writeSpecification ?? ((id:string,value:RuntimeSpecification)=>request<RuntimeSpecification>(`/v1/workspaces/${id}/analysis-spec`,{method:"PUT",body:JSON.stringify({version:value.version,spec:value.spec})}));
@@ -312,23 +315,51 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     const latest=runs.filter(run=>(run.spec_version===specification.version||run.spec_current===true)&&["queued","running","succeeded","failed","cancelled"].includes(run.state)).sort((a,b)=>b.created-a.created)[0];
     if(!latest)return;
     activeRunId=latest.id;
-    try{const run=!["queued","running"].includes(latest.state)?latest:await adapter.waitWorkspaceRun(workspace(),latest.id,value=>publish({operation:`保存した処理を再開中：${value.steps.filter(step=>step.state==="succeeded"||step.state==="reused").length}/${value.steps.length}`}));await readCandidates(run);}
+    try{const run=!["queued","running"].includes(latest.state)?latest:await adapter.waitWorkspaceRun(workspace(),latest.id,value=>publish({operation:`保存した処理を再開中 · ${progressLine(value,fieldName,targetName)}`,progress:{...state.progress,...fieldProgress(value)}}),attempt=>publish({operation:`接続：確認中 · 再試行 ${attempt}`}));publish({progress:{...state.progress,...fieldProgress(run)}});await readCandidates(run);}
     finally{activeRunId=null;}
+  }
+  const fieldName=(id:string)=>names.get(id)||state.data?.fields.find(value=>value.id===id)?.label||"視野";
+  const targetName=(value:string)=>labels[value as keyof typeof labels]??value;
+  const progressOf=(ids:readonly string[],value:FieldProgress)=>({...state.progress,...Object.fromEntries(ids.map(id=>[id,value]))});
+  /** Starts a run for the fields and follows it per field; a lost connection while following is retried, not failed. */
+  async function followRun(target:ReviewTarget,ids:string[],preview:boolean){
+    const key=fingerprint({workspace:workspace(),version:specification.version,target,purpose:preview?"preview":"measurement",fields:ids.map(id=>({id,signature:candidateSignature(id)}))});
+    if(!runRequests.has(key))runRequests.set(key,crypto.randomUUID());
+    const created=await adapter.startWorkspaceRun(workspace(),{request_id:runRequests.get(key)!,spec_version:specification.version,target,field_ids:ids,purpose:preview?"preview":"measurement"});
+    activeRunId=created.id;publish({progress:{...state.progress,...fieldProgress(created)}});
+    const run=await adapter.waitWorkspaceRun(workspace(),created.id,value=>publish({operation:progressLine(value,fieldName,targetName),progress:{...state.progress,...fieldProgress(value)}}),
+      attempt=>publish({operation:`接続：確認中 · 再試行 ${attempt} · ${Object.values(state.progress).filter(value=>value==="候補を確認"||value==="保存済み").length} 視野 完了`}));
+    publish({progress:{...state.progress,...fieldProgress(run)}});
+    return {run,key};
   }
   async function runServer(target:ReviewTarget,fieldId?:string,preview=false){
     const chosen=state.data!.fields.filter(field=>!field.exclusionReason&&(!fieldId||field.id===fieldId));if(!chosen.length)throw new Error("解析する画像を選択してください。");
     if(!preview&&chosen.length===1&&candidate(chosen[0].id,target)?.runId&&candidate(chosen[0].id,target)?.runState==="succeeded"&&!candidate(chosen[0].id,target)?.backgroundPending){await acceptPrepared(chosen[0].id,target);return;}
+    publish({progress:progressOf(chosen.map(field=>field.id),"準備中")});
     await persistSpecification(target);if(!preview)publish({activeTarget:target});stopped=false;
-    const key=fingerprint({workspace:workspace(),version:specification.version,target,purpose:preview?"preview":"measurement",fields:chosen.map(field=>({id:field.id,signature:candidateSignature(field.id)}))});
-    if(!runRequests.has(key))runRequests.set(key,crypto.randomUUID());
-    const created=await adapter.startWorkspaceRun(workspace(),{request_id:runRequests.get(key)!,spec_version:specification.version,target,field_ids:chosen.map(field=>field.id),purpose:preview?"preview":"measurement"});
     const signatures=new Map(chosen.map(field=>[field.id,candidateSignature(field.id)]));
-    activeRunId=created.id;
-    try{const run=await adapter.waitWorkspaceRun(workspace(),created.id,value=>publish({operation:`${value.steps.filter(step=>step.state==="succeeded"||step.state==="reused").length}/${value.steps.length}：検出・測定中`}));
+    try{let {run,key}=await followRun(target,chosen.map(field=>field.id),preview);
       await readCandidates(run,signatures);
       if(run.state==="cancelled"){runRequests.delete(key);throw new Error("処理を中止しました。採用済みの領域は保持されています。");}
-      if(run.state==="failed"){runRequests.delete(key);throw new Error(run.steps.filter(step=>step.error).map(step=>`${state.data?.fields.find(field=>field.id===step.field_id)?.label||"視野"}：${errorCodeMessage(step.error!)} 実行条件を確認してください。`).join("\n"));}
-      if(!preview){await adapter.acceptWorkspaceRun(workspace(),run.id);rememberRunAdoption(run);for(const field of chosen)candidateStore.delete(field.id);await refresh(workspace());}
+      const failure=()=>run.steps.filter(step=>step.error).map(step=>`${fieldName(step.field_id)}：${errorCodeMessage(step.error!)}`).join("\n");
+      if(run.state==="failed"){runRequests.delete(key);
+        // One field's failure does not hold the others back (#284 W8): the same run without the failed fields reuses
+        // their finished steps, and its fields are adopted. The failed fields keep 「失敗」 and their reason.
+        const done=completedFields(run).filter(id=>signatures.has(id));
+        if(preview||!done.length)throw new Error(failure());
+        const failed=failure(),again=await followRun(target,done,preview);run=again.run;key=again.key;
+        await readCandidates(run,signatures);
+        if(run.state!=="succeeded"){runRequests.delete(key);throw new Error(failed);}
+        publish({error:failed});
+      }
+      if(!preview){const adopted=run.steps.map(step=>step.field_id).filter((id,index,all)=>all.indexOf(id)===index);
+        publish({progress:progressOf(adopted,"採用中")});
+        await adapter.acceptWorkspaceRun(workspace(),run.id);rememberRunAdoption(run);for(const id of adopted)candidateStore.delete(id);
+        const progress={...state.progress};for(const id of adopted)delete progress[id];publish({progress});
+        await refresh(workspace());}
+    }catch(error){
+      // A field still marked 準備中 or 待機 did not start: the request itself failed.
+      const progress={...state.progress};for(const field of chosen)if(progress[field.id]==="準備中")delete progress[field.id];publish({progress});throw error;
     }finally{activeRunId=null;}
   }
   async function runInternal(target:ReviewTarget,fieldId?:string,preview=false){
@@ -511,7 +542,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     reload(){return exclusive("保存結果を再読み込み中",async()=>{await refresh(workspace(),true);if(await placeAfterRestart())await refresh(workspace());await recoverRun();});},
     /** Hide the last message (used for demo notices, which need no reload). */
     dismissError(){if(state.error)publish({error:""});},
-    newWorkspace(){if(state.busy)throw new Error("現在の処理が終わるまでお待ちください。");++epoch;beforeProposal=null;runRequests.clear();added.length=0;omeFiles.clear();files.clear();uploadKeys.clear();uploaded.clear();names.clear();hashes.clear();copies.clear();histories.clear();candidateStore.clear();currentTargets.clear();registered.clear();specification={version:0,spec:null};publish({assignments:{version:0,assignments:[]},activeTarget:"nuclei",settings:defaultRuntimeSettings(),processing:null,proposal:null,error:"",importIssues:[],intakeRows:[],intake:null,messages:[]});answers.clear();lastApplicable=null;replaceData(emptyData());},
+    newWorkspace(){if(state.busy)throw new Error("現在の処理が終わるまでお待ちください。");++epoch;beforeProposal=null;runRequests.clear();added.length=0;omeFiles.clear();files.clear();uploadKeys.clear();uploaded.clear();names.clear();hashes.clear();copies.clear();histories.clear();candidateStore.clear();currentTargets.clear();registered.clear();specification={version:0,spec:null};publish({assignments:{version:0,assignments:[]},activeTarget:"nuclei",settings:defaultRuntimeSettings(),processing:null,proposal:null,error:"",importIssues:[],intakeRows:[],intake:null,messages:[],progress:{}});answers.clear();lastApplicable=null;replaceData(emptyData());},
     dispose(){closed=true;++epoch;if(state.data)releasePreview(state.data);},
     nclDetector(field:string){
       try {const recipe=runtimeNucleolarRecipe(nuclearChannel(field),state.settings,currentTargets.get(field)??{},state.processing);return recipe.detector?.engine==="cytellect-ncl-objects"?recipe.detector:undefined;}catch{return undefined;}
@@ -651,6 +682,10 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       publish({messages:withMessage(response.message)});
       return response;
     });},
+    /** Shows 準備中 on fields whose preview or measurement is about to be requested (#284 W8). */
+    markPreparing(ids:string[]){if(!state.busy)publish({progress:progressOf(ids,"準備中")});},
+    /** Removes 準備中 that no request followed (a preview that did not start, or one that ran without a server run). */
+    clearPreparing(ids:string[]){if(!ids.some(id=>state.progress[id]==="準備中"))return;const progress={...state.progress};for(const id of ids)if(progress[id]==="準備中")delete progress[id];publish({progress});},
     /** True when the applicable answer proposes an analysis that can be tried on an image. */
     canTry(messageId:string){return this.canApply(messageId)&&!!state.data?.fields.length&&answers.get(messageId)?.draft.recipe!=="none";},
     /** True when this session holds the applicable answer of the message. */

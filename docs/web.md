@@ -56,6 +56,14 @@ changes settings or runs a preview, followed by 「解析設定を表示」 and 
 not sent; 「解析案を作る」 asks for a proposal from the images alone. A new workspace starts with an empty conversation and
 input, and reopening a workspace shows its messages again.
 
+Analysis progress is counted in fields ([#284](https://github.com/genellect/cytellect/issues/284) W8). Each field in the
+run has one state, shown the same way in the field list and beside the image: 準備中 (from a settings change or 測定 until
+the run is accepted), 待機, 検出中, 候補を確認, 採用中 and 失敗; once adopted the field shows its saved count. The header reads
+「視野 1/2 · BBBC007-a9：核小体を検出中」. The run continues in the API, so a lost connection while following it is retried
+(「接続：確認中」) and never starts the same run again. When one field fails, the same run without it is requested
+again (its finished steps are reused, not recomputed) and the fields that succeeded are adopted; the failed field keeps
+「失敗」, its reason and 「再試行」.
+
 Statistics display cells/fields/independent units separately. The paired option is
 initially selected because synthetic controls and treatments share pair IDs. Confirm
 the experimental units explicitly. Matplotlib figures and source CSVs are downloaded

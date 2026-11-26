@@ -379,6 +379,43 @@ describe("functional workspace runtime",()=>{
     runtime.newWorkspace();
     expect(runtime.getSnapshot().messages).toEqual([]);expect(runtime.canApply("m1")).toBe(false);
   });
+  it("measures in fields, adopts the fields that succeeded when another fails, and marks the failed one (#284 W8)",async()=>{
+    const {runtime,adapter,recipe,loadPreview}=fixture();
+    const preview=loadPreview.getMockImplementation()!;
+    loadPreview.mockImplementation(async(...args:Parameters<typeof preview>)=>{const value=await preview(...args);return {...value,fields:[value.fields[0],{...value.fields[0],id:"f2",label:"View 2"}]};});
+    const restore=adapter.restore.getMockImplementation()!;
+    adapter.restore.mockImplementation(async(...args:Parameters<typeof restore>)=>{const value=await restore(...args);return {...value,fields:[...value.fields,{...value.fields[0],id:"f2"}],selection:{version:1,entries:[...value.selection.entries,{id:"f2",field_id:"f2",revision_id:null}]}} as unknown as typeof value;});
+    type Run=import("./api-adapter").WorkspaceRun;type Step=Run["steps"][number];
+    const step=(field_id:string,state:Step["state"],extra:Partial<Step>={}):Step=>({field_id,target:"nuclei",state,revision_id:state==="failed"?null:`rev-${field_id}`,job_id:null,recipe:state==="failed"?null:recipe,error:state==="failed"?"field_image_unreadable":null,...extra});
+    const first:Run={id:"both",workspace_id:"w",spec_version:1,target:"nuclei",state:"failed",created:1,updated:1,steps:[step("f1","succeeded"),step("f2","failed")]};
+    const again:Run={...first,id:"f1-only",state:"succeeded",steps:[step("f1","reused")]};
+    const seen:Array<Record<string,string>>=[];
+    const startWorkspaceRun=vi.fn(async(_w:string,body:{field_ids:string[]})=>body.field_ids.length===2?{...first,state:"running" as const,steps:[step("f1","queued"),step("f2","pending")]}:again);
+    const waitWorkspaceRun=vi.fn(async(_w:string,id:string,onState?:(run:Run)=>void)=>{const run=id==="both"?first:again;if(id==="both"){onState?.({...run,state:"running",steps:[step("f1","succeeded"),step("f2","queued")]});seen.push({...runtime.getSnapshot().progress});}return run;});
+    const acceptWorkspaceRun=vi.fn(async()=>({...again,state:"adopted" as const}));
+    Object.assign(adapter,{startWorkspaceRun,waitWorkspaceRun,acceptWorkspaceRun,listWorkspaceRuns:vi.fn(async()=>[]),readResult:vi.fn(async(revision:string,field:string)=>result(revision,field))});
+    await runtime.load("w");
+    await runtime.run("nuclei");
+    // While running, each field has its own state and the header counts fields (not field × target steps).
+    expect(seen[0]).toEqual({f1:"候補を確認",f2:"検出中"});
+    expect(startWorkspaceRun.mock.calls.map(call=>call[1].field_ids)).toEqual([["f1","f2"],["f1"]]);
+    expect(acceptWorkspaceRun).toHaveBeenCalledWith("w","f1-only");
+    expect(runtime.getSnapshot().progress).toEqual({f2:"失敗"});
+    expect(runtime.getSnapshot().error).toContain("View 2");
+  });
+  it("keeps following a run while the connection is lost for a moment, and reports a longer loss",async()=>{
+    const {createApiAdapter}=await import("./api-adapter");
+    const run={id:"r",state:"succeeded",steps:[]};let calls=0;
+    const request=vi.fn(async()=>{if(++calls<=2)throw new TypeError("Failed to fetch");return run;});
+    const adapter=createApiAdapter({request:request as never,wait:async()=>{}});
+    const retries:number[]=[];
+    expect(await adapter.waitWorkspaceRun("w","r",undefined,attempt=>retries.push(attempt))).toEqual(run);
+    expect(retries).toEqual([1,2]);
+    const lost=createApiAdapter({request:vi.fn(async()=>{throw new TypeError("Failed to fetch");}) as never,wait:async()=>{}});
+    await expect(lost.waitWorkspaceRun("w","r")).rejects.toThrow("Failed to fetch");
+    const refused=createApiAdapter({request:vi.fn(async()=>{throw new ApiError("workspace_not_found",404);}) as never,wait:async()=>{}});
+    await expect(refused.waitWorkspaceRun("w","r",undefined,()=>{throw new Error("not retried");})).rejects.toMatchObject({code:"workspace_not_found"});
+  });
   it("retains separate file identities when later images have the same filename",async()=>{
     const {runtime,adapter}=fixture();await runtime.load("w");
     await runtime.importFiles([new File([new Uint8Array([1])],"view_c4.tif")]);

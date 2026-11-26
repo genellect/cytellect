@@ -169,6 +169,9 @@ export function savedDistribution(figure: SavedFigure): {points: DistributionPoi
     excluded: figure.result.selection.excluded, median: row.median, q1: row.q1, q3: row.q3}))};
 }
 
+/** No answer reached the browser (the service stopped or the network failed), as opposed to a refusal. */
+export const connectionLost = (error: unknown) => error instanceof TypeError || (error instanceof ApiError && (error.status === 0 || error.code === "network_unavailable"));
+
 export function createApiAdapter(overrides: Partial<Transport> = {}) {
   const transport = {...defaults, ...overrides};
   const check = () => {if (typeof window !== "undefined") assertWorkspaceConnection(window.location.hostname, API);};
@@ -351,7 +354,17 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
     },
     startWorkspaceRun(workspace:string,body:{request_id:string;spec_version:number;target:RunTarget;field_ids:string[];purpose?:"preview"|"measurement"}){return client.post<WorkspaceRun>(`/v1/workspaces/${workspace}/runs`,body);},
     listWorkspaceRuns(workspace:string){return client.request<WorkspaceRun[]>(`/v1/workspaces/${workspace}/runs`);},
-    async waitWorkspaceRun(workspace:string,id:string,onState?:(run:WorkspaceRun)=>void){for(;;){const run=await client.request<WorkspaceRun>(`/v1/workspaces/${workspace}/runs/${id}`);onState?.(run);if(run.state!=="queued"&&run.state!=="running")return run;await client.wait();}},
+    /** Follows a run. The run continues in the API, so a lost connection while reading it is retried with a growing
+     * wait (up to about two minutes) before it is reported; the same run is never started again (#284 W8). */
+    async waitWorkspaceRun(workspace:string,id:string,onState?:(run:WorkspaceRun)=>void,onRetry?:(attempt:number)=>void){
+      let failures=0;
+      for(;;){
+        let run:WorkspaceRun;
+        try{run=await client.request<WorkspaceRun>(`/v1/workspaces/${workspace}/runs/${id}`);failures=0;}
+        catch(error){if(!connectionLost(error)||++failures>8)throw error;onRetry?.(failures);for(let wait=0;wait<Math.min(failures,4);wait++)await client.wait();continue;}
+        onState?.(run);if(run.state!=="queued"&&run.state!=="running")return run;await client.wait();
+      }
+    },
     async acceptWorkspaceRun(workspace:string,id:string){const run=await client.post<WorkspaceRun>(`/v1/workspaces/${workspace}/runs/${id}/accept`,{});await loadSelection(workspace);return run;},
     cancelWorkspaceRun(workspace:string,id:string){return client.post<WorkspaceRun>(`/v1/workspaces/${workspace}/runs/${id}/cancel`,{});},
     readResult,
