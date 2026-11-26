@@ -2113,7 +2113,7 @@
       }
     },
     "additionalProperties": false,
-    "description": "What the proposal service's model reads: the goal, channels with their labels, the fields with their names\nand recorded metadata, counts and current settings. Paths and measured values are not part of it; downscaled\npreviews travel next to it.",
+    "description": "What the proposal service's model reads: the goal, channels with their labels, the fields with their names\nand recorded metadata, counts and current settings. From 1.3.0 a field also carries the names its files were\nadded with, as paths that start at the folder the researcher chose. Locations on the PC above that folder and\nmeasured values are not part of it; downscaled previews travel next to it.",
     "properties": {
       "acquired_dates_known": {
         "default": false,
