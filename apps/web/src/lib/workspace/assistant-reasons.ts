@@ -43,7 +43,6 @@ const SERVICE: Record<string, string> = {
   proposal_request_superseded: "同じ依頼の重複",
   proposal_internal_error: "アプリ内の処理の失敗",
   // The kind of request and its parts (#284 W7): the model's answer did not keep the contract.
-  proposal_answer_has_settings: "AI の回答に含まれた設定の変更",
   proposal_answer_missing: "AI の回答の本文なし",
   proposal_assignment_field_unknown: "割付の案と視野の不一致",
   proposal_assignment_duplicate: "割付の案の視野の重複",

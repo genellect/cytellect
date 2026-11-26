@@ -222,7 +222,9 @@ def test_a_refused_draft_still_answers_and_every_message_is_recorded_without_its
     assert body["message"] | {"id": None, "created": None} == {
         "id": None, "created": None, "field_id": None, "text": question, "state": "answered",
         "reply": "ch1 は Actin と記録されています。核染色のチャンネルはありません。\n核染色のチャンネル",
-        "applicable": False, "reasons": ["proposal_channels_mismatch", "proposal_metric_channel_invalid"], "stage": "validation", "effect": "none"}
+        "applicable": False, "reasons": ["proposal_channels_mismatch", "proposal_metric_channel_invalid"], "stage": "validation", "effect": "none",
+        # A refused answer records no proposal, so a reload has nothing more to read for it.
+        "restorable": False}
     # Applying a refused answer is refused.
     effect = client.patch(f"/v1/workspaces/{wid}/assistant-messages/{body['message']['id']}", json={"effect": "settings"}, headers=HEADERS)
     assert effect.status_code == 409 and effect.json()["detail"] == "assistant_message_not_applicable"

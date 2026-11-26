@@ -14,6 +14,8 @@ from .experiment_design import _clean as _clean_label
 from .proposal_contracts import (
     INTENSITY_METRICS,
     NCL_METRICS,
+    DraftChannel,
+    DraftStatistics,
     ProposalContext,
     ProposalDraft,
     ValidatedProposal,
@@ -30,7 +32,6 @@ FORBIDDEN_TEXT = re.compile(
 # change or to a service-side failure, and a test keeps this list and the checks below in step.
 REJECTION_CODES: frozenset[str] = frozenset({
     "proposal_acquisition_dates_required",
-    "proposal_answer_has_settings",
     "proposal_answer_missing",
     "proposal_assignment_duplicate",
     "proposal_assignment_field_unknown",
@@ -106,8 +107,8 @@ class ProposalRejected(ValueError):
         self.answer = answer
 
 
-# What a question's answer may hold (#284 W7, finding 14): its text, the items to confirm and assignment suggestions.
-# Everything below is a setting, so an answer leaves it empty; any other answer is accepted.
+# What a question's answer holds (#284 W7, finding 14): its text, the items to confirm and assignment suggestions.
+# Everything else is a setting, and an answer has no way to apply one (decision 4), so validation leaves it out.
 CHOICE_LIMIT, OPTION_LIMIT = 4, 6
 QUESTION_CHARS, OPTION_CHARS, LABEL_CHARS = 200, 80, 24
 
@@ -118,7 +119,9 @@ def reply_text(draft: ProposalDraft) -> str:
                      if text and text.strip())
 
 
-def _carries_settings(context: ProposalContext, draft: ProposalDraft) -> bool:
+def carries_settings(context: ProposalContext, draft: ProposalDraft) -> bool:
+    """Whether a draft holds anything the workspace could apply: an analysis, a measurement, a statistic, a figure,
+    processing, or a channel whose stain or role differs from what the workspace records."""
     known = {channel.token: channel for channel in context.channels}
     statistics = draft.statistics
     changed_channel = any(
@@ -131,6 +134,24 @@ def _carries_settings(context: ProposalContext, draft: ProposalDraft) -> bool:
                 or statistics.x is not None or statistics.y is not None or draft.processing is not None
                 or draft.background is not None or draft.gfp_selection is not None
                 or draft.figure_presentation is not None or changed_channel)
+
+
+def _without_settings(context: ProposalContext, draft: ProposalDraft) -> ProposalDraft:
+    """A question's answer as it is kept: its text, choices and assignment suggestions, and no setting. Each channel
+    the answer lists stays with the stain and role the workspace records (`unused` without a recorded role); a stain
+    or a role the answer added, and a channel the workspace does not have, are left out. What the model would
+    propose reaches the researcher as text and as choices, never as a setting that nothing could apply."""
+    known = {channel.token: channel for channel in context.channels}
+    channels: dict[str, DraftChannel] = {}
+    for channel in draft.channels:
+        recorded = known.get(channel.token)
+        if recorded is not None and channel.token not in channels:
+            channels[channel.token] = DraftChannel(token=channel.token, stain=recorded.stain,
+                                                   role=recorded.role or "unused", reason=channel.reason)
+    return draft.model_copy(update={
+        "recipe": "none", "channels": list(channels.values()), "metrics": [], "figures": [], "additional_analyses": [],
+        "statistics": DraftStatistics(kind="descriptive", test=None, omnibus=None, association=None),
+        "processing": None, "background": None, "gfp_selection": None, "figure_presentation": None})
 
 
 def _label_valid(value: str) -> bool:
@@ -193,10 +214,10 @@ def _refuse(draft: ProposalDraft, codes: list[str]):
 
 
 def _validate_answer(context: ProposalContext, draft: ProposalDraft, *, model: str, prompt_version: str) -> ValidatedProposal:
-    """A question's answer (#284 W7): valid whatever the workspace holds, unless it carries a setting."""
+    """A question's answer (#284 W7): valid whatever the workspace holds. Settings it carries are left out rather than
+    refused, so its text, choices and assignment suggestions reach the researcher. The text check reads the draft as
+    the model wrote it, the parts left out included."""
     codes = _request_codes(context, draft)
-    if _carries_settings(context, draft):
-        codes.append("proposal_answer_has_settings")
     if not reply_text(draft):
         codes.append("proposal_answer_missing")
     if len(set(draft.reference_ids)) != len(draft.reference_ids):
@@ -205,8 +226,8 @@ def _validate_answer(context: ProposalContext, draft: ProposalDraft, *, model: s
         codes.append("proposal_text_not_allowed")
     if codes:
         _refuse(draft, codes)
-    return ValidatedProposal(draft=draft, needs_confirmation=[], model=model, prompt_version=prompt_version,
-                             context_sha256=context_sha256(context))
+    return ValidatedProposal(draft=_without_settings(context, draft), needs_confirmation=[], model=model,
+                             prompt_version=prompt_version, context_sha256=context_sha256(context))
 
 
 def validate_draft(context: ProposalContext, raw: object, *, model: str, prompt_version: str) -> ValidatedProposal:

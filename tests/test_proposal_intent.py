@@ -10,9 +10,15 @@ from cytellect_analysis.proposal_contracts import (
     FIGURE_PROMPT_VERSION,
     PROPOSAL_PROMPT_VERSION,
     ProposalContext,
+    ProposalDraft,
     context_protocol,
 )
-from cytellect_analysis.proposal_validation import ProposalRejected, reply_text, validate_draft
+from cytellect_analysis.proposal_validation import (
+    ProposalRejected,
+    carries_settings,
+    reply_text,
+    validate_draft,
+)
 from cytellect_api.db import jobs
 from test_api_worker import HEADERS
 from test_proposals import ACTIN_DRAFT, FakeResponse, configured
@@ -58,20 +64,74 @@ def test_a_question_is_answered_whatever_the_workspace_holds():
     validate_draft(empty, answer(choices=[]), model="m", prompt_version="p")
 
 
+NO_STATISTICS = {"kind": "descriptive", "test": None, "omnibus": None, "association": None, "x": None, "y": None}
+
+
 @pytest.mark.parametrize("change", [
     {"recipe": "nuclear-intensity"},
     {"metrics": [{"metric": "area", "channel": None, "region": "nucleus"}]},
     {"statistics": {"kind": "comparison", "test": "welch-t", "omnibus": None, "association": None}},
+    {"additional_analyses": [{"kind": "comparison", "test": "welch-t", "omnibus": None, "association": None}]},
+    {"figures": [{"kind": "field-distribution", "metric": "area", "channel": None, "region": "nucleus"}]},
+    {"processing": {"nuclei": {"channel": "ch1"}, "nucleoli": None, "signal": None}},
     {"background": {"mode": "automatic"}},
+    {"gfp_selection": {"channel": "ch2", "method": "batch_otsu"}},
     {"figure_presentation": {"composition": "quantification", "legend_terms": None}},
     {"channels": [{"token": "ch1", "stain": None, "role": "nuclear", "reason": "核染色の候補"},
                   {"token": "ch2", "stain": None, "role": "unused", "reason": "x"}]},
     {"channels": [{"token": "ch1", "stain": "DRAQ5", "role": "unused", "reason": "名前から"}]},
+    {"channels": [{"token": "ch9", "stain": None, "role": "measure", "reason": "登録にないチャンネル"}]},
+    # Everything at once, as a model that drafted a whole proposal for a question would write it.
+    {"recipe": "nuclear-intensity", "metrics": [{"metric": "area", "channel": None, "region": "nucleus"}],
+     "channels": [{"token": "ch1", "stain": "DRAQ5", "role": "nuclear", "reason": "核染色の候補"},
+                  {"token": "ch2", "stain": "GFP", "role": "measure", "reason": "測定の候補"}],
+     "processing": {"nuclei": {"channel": "ch1"}, "nucleoli": None, "signal": None}, "background": {"mode": "automatic"}},
 ])
-def test_an_answer_carries_no_settings_and_keeps_its_text_when_it_does(change):
-    error = refused(answer(**change))
-    assert error.codes == ["proposal_answer_has_settings"]
-    assert error.answer == answer()["answer"]
+def test_settings_in_an_answer_are_left_out_and_its_text_choices_and_suggestions_stay(change):
+    """A question's answer has no way to apply a setting (decision 4). A setting it carries is left out instead of
+    refusing the answer, so the choices and the suggestions the researcher asked for still arrive."""
+    suggestions = [{"field": "f1", "run": "Rep1", "group": "未処理"}, {"field": "f2", "run": "Rep1", "group": "ActD"}]
+    raw = answer(assignments=suggestions, **change)
+    assert carries_settings(CONTEXT, ProposalDraft.model_validate(raw))
+    result = validate_draft(CONTEXT, raw, model="m", prompt_version=PROPOSAL_PROMPT_VERSION)
+    kept = result.draft
+    # The invariant after validation: an answer holds nothing the workspace could apply.
+    assert not carries_settings(CONTEXT, kept) and result.needs_confirmation == []
+    assert (kept.recipe, kept.metrics, kept.figures, kept.additional_analyses) == ("none", [], [], [])
+    assert kept.statistics.model_dump() == NO_STATISTICS
+    assert (kept.processing, kept.background, kept.gfp_selection, kept.figure_presentation) == (None, None, None, None)
+    assert all((channel.stain, channel.role) == (None, "unused") for channel in kept.channels)
+    assert {channel.token for channel in kept.channels} <= {"ch1", "ch2"}
+    assert kept.intent == "answer" and reply_text(kept) == answer()["answer"]
+    assert [choice.model_dump() for choice in kept.choices] == answer()["choices"]
+    assert [assignment.model_dump() for assignment in kept.assignments] == suggestions
+
+
+def test_an_answers_channels_keep_only_the_stain_and_role_the_workspace_records():
+    recorded = ProposalContext(goal="核染色はどれですか。", field_count=2, fields=FIELDS, channels=[
+        {"token": "ch1", "stain": "DAPI", "role": "nuclear", "label": "DAPI"},
+        {"token": "ch2", "stain": None, "role": None, "label": "GFP"}])
+    listed = [{"token": "ch1", "stain": None, "role": "unused", "reason": "DAPI と記録"},
+              {"token": "ch2", "stain": "GFP", "role": "measure", "reason": "名前から GFP の候補"},
+              {"token": "ch2", "stain": None, "role": "nuclear", "reason": "同じチャンネルの 2 行目"},
+              {"token": "ch9", "stain": None, "role": "measure", "reason": "登録にないチャンネル"}]
+    kept = validate_draft(recorded, answer(channels=listed), model="m", prompt_version="p").draft
+    assert [channel.model_dump() for channel in kept.channels] == [
+        {"token": "ch1", "stain": "DAPI", "role": "nuclear", "reason": "DAPI と記録"},
+        {"token": "ch2", "stain": None, "role": "unused", "reason": "名前から GFP の候補"}]
+    assert not carries_settings(recorded, kept)
+
+
+def test_an_answer_with_settings_is_still_checked_for_its_text_choices_and_suggestions():
+    setting = {"recipe": "nuclear-intensity", "channels": [{"token": "ch1", "stain": None, "role": "nuclear", "reason": "核染色の候補"}]}
+    # The text check reads the answer as the model wrote it, the parts that are left out included.
+    remote = refused(answer(channels=[{"token": "ch9", "stain": None, "role": "measure", "reason": "https://example.org を参照"}]))
+    assert remote.codes == ["proposal_text_not_allowed"] and remote.answer is None
+    choice = refused(answer(**setting, choices=[{"question": "核染色", "options": ["DRAQ"]}]))
+    assert choice.codes == ["proposal_choice_invalid"] and choice.answer == answer()["answer"]
+    unknown = refused(answer(**setting, assignments=[{"field": "f9", "run": "Rep1", "group": "未処理"}]))
+    assert unknown.codes == ["proposal_assignment_field_unknown"]
+    assert refused(answer(**{**setting, "answer": None})).codes == ["proposal_answer_missing"]
 
 
 def test_an_answer_needs_its_text():
@@ -239,7 +299,10 @@ def test_an_installed_clients_prompt_keeps_context_1_2_0(tmp_path, monkeypatch):
     ("全視野で測って", {**ACTIN_DRAFT, "intent": "run", "answer": "全視野で測定します。", "scope": "all"}, ("run", True, [])),
     ("全視野で測って", {**ACTIN_DRAFT, "intent": "run", "answer": "全視野で測定します。", "scope": None},
      (None, False, ["proposal_scope_required"])),
-    ("チャンネルを教えて", answer(recipe="nuclear-intensity"), (None, False, ["proposal_answer_has_settings"])),
+    # A question's answer that drafted settings is still an answer: the settings are left out, nothing is refused.
+    ("チャンネルを教えて", answer(recipe="nuclear-intensity", metrics=[{"metric": "area", "channel": None, "region": "nucleus"}],
+                         channels=[{"token": "ch1", "stain": None, "role": "nuclear", "reason": "核染色の候補"}]),
+     ("answer", None, [])),
 ])
 def test_no_intent_changes_settings_or_starts_a_job(tmp_path, monkeypatch, goal, draft, expected):
     """Decision 4: whatever the model declares, the answer only comes back; settings and jobs stay as they were."""
@@ -253,6 +316,11 @@ def test_no_intent_changes_settings_or_starts_a_job(tmp_path, monkeypatch, goal,
     assert (body["proposal"]["draft"].get("intent") if body["proposal"] else None) == intent
     assert (body["message"]["applicable"], body["message"]["reasons"], body["message"]["effect"]) == (applicable, reasons, "none")
     assert body["message"]["reply"]
+    if intent == "answer":
+        kept = body["proposal"]["draft"]
+        assert (kept["recipe"], kept["metrics"], kept["processing"]) == ("none", [], None)
+        assert all(channel["role"] == "unused" for channel in kept["channels"])
+        assert kept.get("choices", []) == draft["choices"]
     assert client.get(f"/v1/workspaces/{wid}/analysis-spec").json() == spec_before
     assert client.get(f"/v1/workspaces/{wid}/selection").json() == selection_before
     assert client.app.state.store.one(jobs, workspace_id=wid) is None
@@ -269,6 +337,91 @@ def test_a_malformed_or_mismatched_answer_is_shown_with_its_reason(tmp_path, mon
     assert shown.status_code == 200 and shown.json()["proposal"] is None
     assert shown.json()["message"]["reasons"] == ["proposal_channels_mismatch", "proposal_metric_channel_invalid"]
     assert shown.json()["message"]["reply"].startswith("設定を変えます。")
+
+
+def as_the_workspace_sends(draft, links):
+    """A received draft as the workspace keeps it for the next message: channels by their workspace identifiers."""
+    ids = {link["token"]: link["channel_id"] for link in links}
+
+    def named(value):
+        if isinstance(value, list):
+            return [named(item) for item in value]
+        if isinstance(value, dict):
+            return {key: ids[item] if key in ("channel", "token") and item is not None else named(item) for key, item in value.items()}
+        return value
+    return named(draft)
+
+
+@pytest.mark.parametrize("prompt", [PROPOSAL_PROMPT_VERSION, FIGURE_PROMPT_VERSION])
+def test_a_proposal_with_many_suggestions_does_not_stop_the_next_message(tmp_path, monkeypatch, prompt):
+    """Review of W7: nine fields, so nine suggestions. The workspace sends the whole proposal back as the previous
+    one; the next message is still sent, and neither the suggestions nor the choices travel again."""
+    first = {**ACTIN_DRAFT, "intent": "run", "answer": "全視野で測定し、名前から群に分ける案を示します。", "scope": "all",
+             "choices": [{"question": "実験回", "options": ["すべて Rep1", "日付ごとに分ける"]}],
+             "assignments": [{"field": f"f{index}", "run": "Rep1", "group": "未処理" if index % 2 else "ActD"} for index in range(1, 10)]}
+    replies = iter([first, {**ACTIN_DRAFT, "intent": "settings", "answer": "Actin を測定に使います。", "scope": None}])
+    client, wid, calls = configured(tmp_path, monkeypatch, lambda request: FakeResponse(json.dumps(
+        {"draft": next(replies), "model": "gpt-6.1-sol", "prompt_version": PROPOSAL_PROMPT_VERSION}).encode()))
+    for _ in range(8):
+        assert make_field(client, wid).status_code == 201
+    proposed = send(client, wid, "全視野で測って、未処理と ActD に分けて")
+    assert proposed.status_code == 200, proposed.text
+    assert len(proposed.json()["proposal"]["draft"]["assignments"]) == 9 and proposed.json()["message"]["restorable"] is True
+    # An operator may pin an earlier prompt after the proposal was made: its context reads no kind of request at all.
+    object.__setattr__(client.app.state.settings, "proposal_prompt_version", prompt)
+    previous = as_the_workspace_sends(proposed.json()["proposal"]["draft"], proposed.json()["channels"])
+    following = client.post(f"/v1/workspaces/{wid}/proposal-drafts", headers=HEADERS, json={
+        "goal": "図は要らない", "transmission_confirmed": True, "previous_goal": "全視野で測って、未処理と ActD に分けて",
+        "previous_proposal": previous})
+    if prompt != PROPOSAL_PROMPT_VERSION:
+        # The fake service answered with the other version; what matters here is that the request was sent.
+        assert (following.status_code, following.json()["detail"]) == (502, "proposal_service_version_mismatch")
+    else:
+        assert following.status_code == 200, following.text
+        assert following.json()["message"]["state"] == "answered"
+    continued = calls[1]["context"]["previous_proposal"]
+    assert "assignments" not in continued and "choices" not in continued
+    assert (continued["recipe"], continued["channels"][0]["token"]) == ("supplied-regions", "ch1")
+    kind = {key: continued.get(key) for key in ("intent", "scope", "answer")}
+    assert kind == ({"intent": "run", "scope": "all", "answer": first["answer"]} if prompt == PROPOSAL_PROMPT_VERSION
+                    else {"intent": None, "scope": None, "answer": None})
+    assert calls[1]["context"]["previous_goal"] == "全視野で測って、未処理と ActD に分けて"
+
+
+def test_the_listing_says_which_answers_hold_choices_or_suggestions_to_read_again(tmp_path, monkeypatch):
+    """Review of W7: a reload shows the text only. `restorable` tells the workspace which messages to offer 「再送」
+    for, and that resend is answered from the record without a model call."""
+    with_choices = answer(channels=[], recipe="nuclear-intensity")
+    settings = {**ACTIN_DRAFT, "intent": "settings", "answer": "Actin を測定に使います。", "scope": None}
+    plain = answer(channels=[], choices=[], answer="チャンネルは 1 つで、Actin と記録されています。")
+    suggested = {**settings, "assignments": [{"field": "f1", "run": "Rep1", "group": "未処理"}]}
+    refused_run = {**settings, "intent": "run", "choices": answer()["choices"]}
+    client, wid, calls, _ = designed_workspace(tmp_path, monkeypatch, [with_choices, settings, plain, suggested, refused_run, {"intent": "answer"}])
+    goals = ["核染色はどれですか。", "Actin を測定に使う", "チャンネルはいくつですか。", "Actin を測定に使い、群に分けて", "全視野で測って", "形の崩れた回答"]
+    sent = [send(client, wid, goal) for goal in goals]
+    assert [response.status_code for response in sent] == [200, 200, 200, 200, 200, 502]
+    expected = [True, False, False, True, False, False]
+    assert [response.json()["message"]["restorable"] for response in sent[:5]] == expected[:5]
+    listed = client.get(f"/v1/workspaces/{wid}/assistant-messages").json()["messages"]
+    assert [(message["text"], message["restorable"]) for message in listed] == list(zip(goals, expected))
+    assert [(message["state"], message["applicable"]) for message in listed] == [
+        ("answered", None), ("answered", True), ("answered", None), ("answered", True), ("answered", False), ("failed", None)]
+    # Recording what the researcher did keeps the flag.
+    applied = client.patch(f"/v1/workspaces/{wid}/assistant-messages/{listed[3]['id']}", headers=HEADERS, json={"effect": "settings"})
+    assert applied.status_code == 200 and (applied.json()["effect"], applied.json()["restorable"]) == ("settings", True)
+    # 「再送」 of the question after a reload: the same message, its choices again, and no model call.
+    again = client.post(f"/v1/workspaces/{wid}/proposal-drafts", headers=HEADERS,
+                        json={"goal": goals[0], "transmission_confirmed": True, "message_id": listed[0]["id"]})
+    assert again.status_code == 200, again.text
+    assert again.json()["proposal"]["draft"]["choices"] == answer()["choices"]
+    assert (again.json()["message"]["id"], again.json()["message"]["restorable"]) == (listed[0]["id"], True)
+    assert len(calls) == 6
+    # A record that cannot be read as a proposal offers nothing to read again.
+    from cytellect_api.proposals import _restorable
+
+    assert [_restorable(value) for value in (None, "x", {}, {"draft": None}, {"draft": {"choices": []}},
+                                             {"draft": {"choices": [{"question": "q", "options": ["a", "b"]}]}})] == [
+        False, False, False, False, False, True]
 
 
 @pytest.mark.parametrize(("recorded", "sent"), [

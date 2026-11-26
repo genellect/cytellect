@@ -20,7 +20,7 @@ describe("AI answer reasons (#284 W2)", () => {
     for (const code of RESEARCHER_CODES) expect(known.has(code), code).toBe(true);
   });
   it("names each check of the kind of request explicitly (#284 W7)", () => {
-    for (const code of ["proposal_answer_has_settings", "proposal_answer_missing", "proposal_assignment_field_unknown", "proposal_assignment_duplicate",
+    for (const code of ["proposal_answer_missing", "proposal_assignment_field_unknown", "proposal_assignment_duplicate",
       "proposal_assignment_label_invalid", "proposal_choice_invalid", "proposal_scope_required", "proposal_run_requires_analysis"])
       expect(reasonView(code).text, code).not.toBe(reasonView("unknown_code").text);
     expect(reasonView("proposal_assignment_group_invalid")).toEqual({kind: "researcher", text: "割付の案の群：実験デザインより多い", place: "experiment"});

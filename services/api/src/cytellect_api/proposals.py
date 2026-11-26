@@ -49,7 +49,7 @@ from cytellect_analysis.region_contracts import (
 from fastapi import Depends, HTTPException
 from PIL import Image
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
-from sqlalchemy import select, update
+from sqlalchemy import and_, select, update
 
 from .channel_assignments import apply_channel_assignments
 from .db import assistant_messages, fields, proposal_drafts, revisions, workspaces
@@ -240,7 +240,10 @@ class AssistantMessage(BaseModel):
     """One message of the researcher to the AI and what came back (#284 W2). `applicable` is true when the
     answer carries settings the researcher may apply, false when its settings were refused (`reasons` and `stage`
     say why), and null when there is nothing to apply: a question's answer (#284 W7), or a message still pending
-    or failed. Nothing here changes settings."""
+    or failed. `restorable` is true when the answer recorded for the message holds items to confirm (`choices`) or
+    run and group suggestions (`assignments`): the listing carries the text only, so after a reload the workspace
+    offers the message's 「再送」 to read them again, which the record answers without a model call while the context
+    is unchanged. Nothing here changes settings."""
     id: str
     field_id: str | None
     created: float
@@ -251,6 +254,7 @@ class AssistantMessage(BaseModel):
     reasons: list[str]
     stage: Literal["context", "service", "validation"] | None
     effect: MessageEffect
+    restorable: bool
 
 
 def _applicable(draft) -> bool | None:
@@ -288,10 +292,26 @@ class ProposalDraftResponse(BaseModel):
     fields: list[ProposalFieldLink] = Field(default_factory=list)
 
 
+# A message with the proposal recorded for it (`draft_id`), read in one statement; `message_view` reads its rows.
+MESSAGE_ROWS = select(assistant_messages, proposal_drafts.c.proposal.label("recorded_proposal")).select_from(
+    assistant_messages.outerjoin(proposal_drafts, and_(
+        proposal_drafts.c.id == assistant_messages.c.draft_id,
+        proposal_drafts.c.workspace_id == assistant_messages.c.workspace_id)))
+
+
+def _restorable(recorded) -> bool:
+    """Whether a recorded proposal holds choices or assignment suggestions. No record, or one that cannot be read
+    as a proposal, has none."""
+    draft = recorded.get("draft") if isinstance(recorded, dict) else None
+    return isinstance(draft, dict) and bool(draft.get("choices") or draft.get("assignments"))
+
+
 def message_view(row) -> AssistantMessage:
+    """One row of `MESSAGE_ROWS` as the workspace reads it."""
     return AssistantMessage(id=row["id"], field_id=row["field_id"], created=row["created"], text=row["text"],
                             state=row["state"], reply=row["reply"], applicable=row["applicable"],
-                            reasons=list(row["reasons"] or []), stage=row["stage"], effect=row["effect"])
+                            reasons=list(row["reasons"] or []), stage=row["stage"], effect=row["effect"],
+                            restorable=_restorable(row["recorded_proposal"]))
 
 
 def answer_text(rationale: str, missing: tuple[str, ...] | list[str], answer: str | None = None) -> str:
@@ -612,6 +632,12 @@ def _source_stamp(store, wid: str) -> str:
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
 
 
+# What a follow-up continues from is the previous proposal's settings. Its items to confirm and its run and group
+# suggestions were for the researcher at that turn and are not sent again; a proposal with one suggestion per field
+# must not stop the messages after it.
+CONTINUATION_OMITTED = frozenset({"choices", "assignments"})
+
+
 def _continuation_context(context: ProposalContext, links: list[ProposalChannelLink], body: ProposalDraftRequest) -> ProposalContext:
     """Normalize only closed settings; never send private channel IDs or arbitrary JSON."""
     channel_tokens = {link.channel_id: link.token for link in links}
@@ -636,7 +662,8 @@ def _continuation_context(context: ProposalContext, links: list[ProposalChannelL
         return value
 
     current = DraftProcessing.model_validate(normalized(body.current_processing)) if body.current_processing else None
-    prior = normalized(body.previous_proposal) if body.previous_proposal else None
+    prior = (normalized({key: value for key, value in body.previous_proposal.items() if key not in CONTINUATION_OMITTED})
+             if body.previous_proposal else None)
     if isinstance(prior, dict) and context.protocol != "1.3.0":
         # A prompt before 2026-11-26.1 reads the previous proposal without the kind of request.
         prior = {key: value for key, value in prior.items() if key not in INTENT_FIELDS}
@@ -712,13 +739,13 @@ def register_proposal_routes(api, store, settings, owner, workspace, credentials
     def close_message(mid: str, **values):
         with store.transaction() as conn:
             conn.execute(update(assistant_messages).where(assistant_messages.c.id == mid).values(**values))
-            return message_view(conn.execute(select(assistant_messages).where(assistant_messages.c.id == mid)).mappings().one())
+            return message_view(conn.execute(MESSAGE_ROWS.where(assistant_messages.c.id == mid)).mappings().one())
 
     @api.get("/v1/workspaces/{wid}/assistant-messages", response_model=AssistantMessages)
     def list_messages(wid: str, who: Owner):
         workspace(wid, who)
         with store.engine.connect() as conn:
-            rows = conn.execute(select(assistant_messages).where(assistant_messages.c.workspace_id == wid)
+            rows = conn.execute(MESSAGE_ROWS.where(assistant_messages.c.workspace_id == wid)
                                 .order_by(assistant_messages.c.created, assistant_messages.c.id)).mappings().all()
         return AssistantMessages(messages=[message_view(row) for row in rows])
 
@@ -734,7 +761,7 @@ def register_proposal_routes(api, store, settings, owner, workspace, credentials
             if body.effect != "none" and not (row["state"] == "answered" and row["applicable"]):
                 raise HTTPException(409, "assistant_message_not_applicable")
             conn.execute(update(assistant_messages).where(assistant_messages.c.id == mid).values(effect=body.effect))
-            return message_view(conn.execute(select(assistant_messages).where(assistant_messages.c.id == mid)).mappings().one())
+            return message_view(conn.execute(MESSAGE_ROWS.where(assistant_messages.c.id == mid)).mappings().one())
 
     @api.post("/v1/workspaces/{wid}/proposal-drafts", response_model=ProposalDraftResponse)
     def draft_proposal(wid: str, body: ProposalDraftRequest, who: Owner):
@@ -776,7 +803,7 @@ def register_proposal_routes(api, store, settings, owner, workspace, credentials
                 conn.execute(update(assistant_messages).where(assistant_messages.c.id == mid).values(
                     state="answered", applicable=_applicable(cached_proposal.draft), draft_id=cached["id"], request_id=cached["request_id"],
                     reply=reply_text(cached_proposal.draft)))
-                row = conn.execute(select(assistant_messages).where(assistant_messages.c.id == mid)).mappings().one()
+                row = conn.execute(MESSAGE_ROWS.where(assistant_messages.c.id == mid)).mappings().one()
                 return ProposalDraftResponse(proposal=cached_proposal, channels=links, message=message_view(row), fields=field_links)
             if cached:
                 if cached["state"] == "pending" and cached["lease_until"] > now:

@@ -4668,6 +4668,10 @@
               "run"
             ],
             "title": "Effect"
+          },
+          "restorable": {
+            "type": "boolean",
+            "title": "Restorable"
           }
         },
         "type": "object",
@@ -4681,10 +4685,11 @@
           "applicable",
           "reasons",
           "stage",
-          "effect"
+          "effect",
+          "restorable"
         ],
         "title": "AssistantMessage",
-        "description": "One message of the researcher to the AI and what came back (#284 W2). `applicable` is true when the\nanswer carries settings the researcher may apply, false when its settings were refused (`reasons` and `stage`\nsay why), and null when there is nothing to apply: a question's answer (#284 W7), or a message still pending\nor failed. Nothing here changes settings."
+        "description": "One message of the researcher to the AI and what came back (#284 W2). `applicable` is true when the\nanswer carries settings the researcher may apply, false when its settings were refused (`reasons` and `stage`\nsay why), and null when there is nothing to apply: a question's answer (#284 W7), or a message still pending\nor failed. `restorable` is true when the answer recorded for the message holds items to confirm (`choices`) or\nrun and group suggestions (`assignments`): the listing carries the text only, so after a reload the workspace\noffers the message's \u300c\u518d\u9001\u300d to read them again, which the record answers without a model call while the context\nis unchanged. Nothing here changes settings."
       },
       "AssistantMessages": {
         "properties": {
