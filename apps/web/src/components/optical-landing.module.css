@@ -434,13 +434,14 @@
 /* The way into the demo is one object, built rather than coloured: a white body (the brightest thing on the
    dark stage) with dark ink, and a ring of the stage's light around it.
    Its contrast comes from what stands behind it too: the hero's shade is deepest under the copy and the actions.
-   The same object stands in the header, the hero, every screen of the product, the phone's bar and the end. */
-.page[data-world="dark"] :is(.hero .primary,.invite .primary,.navDownload,.chapter .button,.demoBar a){gap:20px;min-height:56px;padding:0 28px;border:0;background:#fff;box-shadow:0 0 0 4px #9db8ff38,0 0 0 9px #9db8ff14,0 22px 56px -16px #4d7cff;color:var(--green)!important;font-size:16px;font-weight:600;letter-spacing:.01em;transition:box-shadow .3s,transform .3s cubic-bezier(.2,.7,.1,1)}
-.page[data-world="dark"] :is(.hero .primary,.invite .primary,.navDownload,.chapter .button,.demoBar a):hover{background:#fff;box-shadow:0 0 0 4px #42d9ff66,0 0 0 10px #42d9ff1f,0 26px 64px -14px #42d9ff;transform:translateY(-1px)}
+   The same object stands in the header, the hero, every screen of the product and the end; the phone's bar
+   keeps its quiet dark form, so it never outweighs the download actions it passes over. */
+.page[data-world="dark"] :is(.hero .primary,.invite .primary,.navDownload,.chapter .button){gap:20px;min-height:56px;padding:0 28px;border:0;background:#fff;box-shadow:0 0 0 4px #9db8ff38,0 0 0 9px #9db8ff14,0 22px 56px -16px #4d7cff;color:var(--green)!important;font-size:16px;font-weight:600;letter-spacing:.01em;transition:box-shadow .3s,transform .3s cubic-bezier(.2,.7,.1,1)}
+.page[data-world="dark"] :is(.hero .primary,.invite .primary,.navDownload,.chapter .button):hover{background:#fff;box-shadow:0 0 0 4px #42d9ff66,0 0 0 10px #42d9ff1f,0 26px 64px -14px #42d9ff;transform:translateY(-1px)}
 .page[data-world="dark"] .header .navDownload{gap:14px;height:42px;min-height:0;padding:0 20px;box-shadow:0 0 0 3px #9db8ff33,0 12px 32px -12px #4d7cff;font-size:13px}
 .page[data-world="dark"] .chapter .button{min-height:54px;padding:0 26px;font-size:15px}
-.page[data-world="dark"] :is(.hero .primary,.invite .primary,.navDownload,.chapter .button,.demoBar a)>span{transition:transform .3s cubic-bezier(.2,.7,.1,1)}
-.page[data-world="dark"] :is(.hero .primary,.invite .primary,.navDownload,.chapter .button,.demoBar a):hover>span{transform:translateX(4px)}
+.page[data-world="dark"] :is(.hero .primary,.invite .primary,.navDownload,.chapter .button)>span{transition:transform .3s cubic-bezier(.2,.7,.1,1)}
+.page[data-world="dark"] :is(.hero .primary,.invite .primary,.navDownload,.chapter .button):hover>span{transform:translateX(4px)}
 .page[data-world="dark"] .secondary{border-color:var(--edge);background:#4d7cff14;color:#f3f5fa!important}
 .page[data-world="dark"] .secondary:hover{border-color:var(--cyan);background:#4d7cff29}
 .page[data-world="dark"] .button{border-color:var(--edge);background:#4d7cff14}
@@ -492,7 +493,7 @@
 .page[data-world="dark"] .stop::before{background:#cfe3ff}
 .page[data-world="dark"] .stop+.stop::before{background:var(--cyan);box-shadow:0 0 28px 4px #42d9ff40}
 /* The lab's step is a consultation, not the page's main action: a quiet line of text with a rule under it. */
-.page[data-world="dark"] .stop>.secondary{gap:10px;min-height:44px;padding:0;border:0;border-bottom:1px solid #9db8ff80;border-radius:0;background:none;font-size:15px;font-weight:500;transition:border-color .2s,color .2s}
+.page[data-world="dark"] .stop>.secondary{align-self:start;justify-content:flex-start;width:auto;gap:10px;min-height:44px;padding:0;border:0;border-bottom:1px solid #9db8ff80;border-radius:0;background:none;font-size:15px;font-weight:500;transition:border-color .2s,color .2s}
 .page[data-world="dark"] .stop>.secondary:hover{border-color:var(--cyan);background:none;color:#fff!important}
 .page[data-world="dark"] .stop>p{color:#d3d9e6}
 .page[data-world="dark"] .nextSteps{background:#0b101b;box-shadow:0 0 0 1px var(--edge),0 18px 40px #000}
@@ -505,7 +506,7 @@
   .page[data-world="dark"] .stop:first-child::after{background:linear-gradient(180deg,#4d7cff40,#6fc3ffb3 60%,var(--cyan))}
   .page[data-world="dark"] .heroShade{background:linear-gradient(180deg,#05070dc2 0%,#05070d8c 46%,#05070d00 78%)}
   .page[data-world="dark"] :is(.hero .primary,.invite .primary){gap:12px;min-height:50px;padding:0 20px;font-size:15px}
-  .page[data-world="dark"] .demoBar a{min-height:56px;padding:0 24px}
+  .page[data-world="dark"] .demoBar a{border-color:var(--edge);background:#0b101bee;color:#f3f5fa!important}
   .page[data-world="dark"] .reasonsPhoto{mask-image:linear-gradient(180deg,#0000 0%,#000 30%)}
   .page[data-world="dark"] .path::before{background:linear-gradient(180deg,#4d7cff40,#6fc3ffb3 55%,#e7b8a4)}
 }

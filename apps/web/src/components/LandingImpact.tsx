@@ -22,7 +22,9 @@ export function LandingImpact() {
     // A path already on screen (a reload further down the page) stays as it is.
     if (box.top < innerHeight && box.bottom > 0) return;
     setState("waiting");
-    const seen = new IntersectionObserver(([entry]) => { if (entry.isIntersecting) { setState("arrived"); seen.disconnect(); } }, { threshold: 0.6 });
+    // Most of the path should be in view first; on a window shorter than the path, as much as the window can show.
+    const threshold = Math.min(0.6, (innerHeight / Math.max(1, box.height)) * 0.8);
+    const seen = new IntersectionObserver(([entry]) => { if (entry.isIntersecting) { setState("arrived"); seen.disconnect(); } }, { threshold });
     seen.observe(node);
     return () => seen.disconnect();
   }, []);

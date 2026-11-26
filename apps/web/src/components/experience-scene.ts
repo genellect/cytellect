@@ -159,7 +159,9 @@ export async function mountExperience(host: HTMLElement, panels: ExperiencePanel
   const pointer = { x: 0, y: 0, tx: 0, ty: 0 };
   // The visitor can take hold of the space: a drag or a flick turns it around the screen in view, and it swings
   // back to the shot when released.
-  const orbit = { yaw: 0, pitch: 0, vy: 0, vp: 0, held: false, x: 0, y: 0, t: 0 };
+  // `pressed` is a press on the tour; it takes hold (`held`) once it has moved sideways, so a click or a scroll
+  // that starts on the tour neither turns the space nor stops the tour.
+  const orbit = { yaw: 0, pitch: 0, vy: 0, vp: 0, pressed: false, held: false, from: 0, x: 0, y: 0, t: 0 };
   const offset = new THREE.Vector3(), upAxis = new THREE.Vector3(0, 1, 0), sideAxis = new THREE.Vector3();
   const start = performance.now();
   let previous = start;
@@ -234,11 +236,14 @@ export async function mountExperience(host: HTMLElement, panels: ExperiencePanel
   const interactive = (node: EventTarget | null) => node instanceof Element && node.closest("a,button,input,select,textarea,[role=tab]") !== null;
   const down = (event: PointerEvent) => {
     if (event.button !== 0 || interactive(event.target)) return;
-    orbit.held = true; orbit.vy = orbit.vp = 0; orbit.x = event.clientX; orbit.y = event.clientY; orbit.t = event.timeStamp;
-    surface.dataset.grabbing = "true";
-    onGrab?.();
+    orbit.pressed = true; orbit.from = orbit.x = event.clientX; orbit.y = event.clientY; orbit.t = event.timeStamp;
   };
   const move = (event: PointerEvent) => {
+    if (orbit.pressed && !orbit.held && Math.abs(event.clientX - orbit.from) > 6) {
+      orbit.held = true; orbit.vy = orbit.vp = 0; orbit.x = event.clientX; orbit.y = event.clientY; orbit.t = event.timeStamp;
+      surface.dataset.grabbing = "true";
+      onGrab?.();
+    }
     if (orbit.held) {
       const elapsed = Math.max(1, event.timeStamp - orbit.t) / 1000;
       const turn = -(event.clientX - orbit.x) / Math.max(1, width) * 1.9, lift = (event.clientY - orbit.y) / Math.max(1, height) * (event.pointerType === "mouse" ? 0.9 : 0);
@@ -246,9 +251,9 @@ export async function mountExperience(host: HTMLElement, panels: ExperiencePanel
       orbit.vy = orbit.vy * 0.4 + (turn / elapsed) * 0.6; orbit.vp = orbit.vp * 0.4 + (lift / elapsed) * 0.6;
       orbit.x = event.clientX; orbit.y = event.clientY; orbit.t = event.timeStamp;
       request();
-    } else if (event.pointerType === "mouse") { pointer.tx = event.clientX / innerWidth * 2 - 1; pointer.ty = -(event.clientY / innerHeight * 2 - 1); }
+    } else if (!orbit.pressed && event.pointerType === "mouse") { pointer.tx = event.clientX / innerWidth * 2 - 1; pointer.ty = -(event.clientY / innerHeight * 2 - 1); }
   };
-  const up = () => { if (orbit.held) { orbit.held = false; delete surface.dataset.grabbing; } };
+  const up = () => { orbit.pressed = false; orbit.held = false; delete surface.dataset.grabbing; };
   surface.addEventListener("pointerdown", down);
   addEventListener("pointermove", move, { passive: true });
   addEventListener("pointerup", up);

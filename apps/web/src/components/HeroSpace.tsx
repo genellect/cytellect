@@ -28,7 +28,11 @@ export function HeroSpace() {
         const { mountHeroSpace } = await import("./hero-space-engine");
         if (controller.signal.aborted) return;
         // The copy stands a little in front of the room: it shifts against the turn of the view.
+        let shown = "";
         const mounted = await mountHeroSpace(element, hero, "/marketing/hero-film-poster.webp", controller.signal, (x, y) => {
+          const next = `${x.toFixed(3)} ${y.toFixed(3)}`;
+          if (next === shown) return;
+          shown = next;
           hero.style.setProperty("--look-x", x.toFixed(3)); hero.style.setProperty("--look-y", y.toFixed(3));
         });
         if (controller.signal.aborted) { mounted?.dispose(); return; }

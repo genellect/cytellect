@@ -29,11 +29,12 @@ export function LightField() {
     const sections = KEYS.map(key => ({ ...key, node: document.querySelector<HTMLElement>(key.selector) }));
     // x, y, r, g, b and strength of each light as shown now; they ease towards the section in view.
     const shown = { a: [0.8, 0.7, 77, 124, 255, 0], b: [0.2, 0.1, 139, 120, 240, 0] };
-    let frame = 0, last = 0;
+    let frame = 0, last = 0, placed = false;
     const draw = (now: number) => {
       frame = 0;
-      const ease = still || !last ? 1 : 1 - Math.exp(-Math.min(0.05, (now - last) / 1000) * 3.2);
-      last = now;
+      // The first frame places the lights; after that they ease, also when the loop starts again after a rest.
+      const ease = still || !placed ? 1 : 1 - Math.exp(-(last ? Math.min(0.05, (now - last) / 1000) : 1 / 60) * 3.2);
+      last = now; placed = true;
       // Each section weighs in by how close it is to the middle of the window.
       const want = { a: [0, 0, 0, 0, 0], b: [0, 0, 0, 0, 0] };
       let total = 0;

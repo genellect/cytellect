@@ -122,7 +122,9 @@ export async function mountHeroSpace(host: HTMLElement, surface: HTMLElement, po
 
   let width = 1, height = 1, active = true, frame = 0, last = performance.now(), rest = 0, spanX = 1;
   // The view: where the room has been spun to (yaw), and the look the pointer adds on top of it.
-  let yaw = 0, speed = 0, held = false, lastX = 0, lastT = 0;
+  // `held` is a press on the hero; `turning` is a press that has moved sideways, which is what takes hold of the
+  // room (a press that becomes a vertical scroll, or a plain click, leaves the film as it is).
+  let yaw = 0, speed = 0, held = false, turning = false, startX = 0, lastX = 0, lastT = 0;
   // How far the room is shown: 0 with the film covering the view, 1 with the view pulled back into the room.
   let shown = 0;
   const look = { x: 0, y: 0, tx: 0, ty: 0 };
@@ -151,14 +153,14 @@ export async function mountHeroSpace(host: HTMLElement, surface: HTMLElement, po
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     const nearest = Math.round(yaw / STEP) * STEP;
-    if (!held) {
+    if (!turning) {
       // A released room keeps turning, slows, and settles facing the nearest screen.
       yaw += speed * dt;
       speed *= Math.exp(-dt * 2.4);
       if (Math.abs(speed) < 0.6) { yaw += (nearest - yaw) * (1 - Math.exp(-dt * 4.5)); speed *= Math.exp(-dt * 6); }
     }
     // The view pulls back while the room is held or still turning, and closes on the film as it settles.
-    const want = held ? 1 : Math.min(1, Math.abs(yaw - nearest) / (STEP * 0.2) + Math.abs(speed) / 1.2);
+    const want = turning ? 1 : Math.min(1, Math.abs(yaw - nearest) / (STEP * 0.2) + Math.abs(speed) / 1.2);
     shown += (want - shown) * (1 - Math.exp(-dt * (want > shown ? 7 : 2.4)));
     if (shown < 0.0005 && want === 0) shown = 0;
     const open = shown * shown * (3 - 2 * shown);
@@ -187,23 +189,23 @@ export async function mountHeroSpace(host: HTMLElement, surface: HTMLElement, po
   const interactive = (target: EventTarget | null) => target instanceof Element && target.closest("a,button,input,select,textarea") !== null;
   const down = (event: PointerEvent) => {
     if (event.button !== 0 || interactive(event.target)) return;
-    held = true; speed = 0; lastX = event.clientX; lastT = event.timeStamp;
-    surface.dataset.grabbing = "true";
+    held = true; turning = false; startX = lastX = event.clientX; lastT = event.timeStamp;
   };
   const move = (event: PointerEvent) => {
-    if (held) {
+    if (held && !turning && Math.abs(event.clientX - startX) > 6) { turning = true; speed = 0; lastX = event.clientX; lastT = event.timeStamp; surface.dataset.grabbing = "true"; }
+    if (turning) {
       // The room follows the hand: the film under the pointer stays under it.
       const turn = -(event.clientX - lastX) / width * spanX, elapsed = Math.max(1, event.timeStamp - lastT) / 1000;
       yaw += turn;
       speed = speed * 0.4 + (turn / elapsed) * 0.6;
       lastX = event.clientX; lastT = event.timeStamp;
-    } else if (event.pointerType === "mouse") {
+    } else if (!held && event.pointerType === "mouse") {
       const box = host.getBoundingClientRect();
       look.tx = THREE.MathUtils.clamp((event.clientX - box.left) / box.width - 0.5, -0.5, 0.5) * 2;
       look.ty = THREE.MathUtils.clamp(0.5 - (event.clientY - box.top) / box.height, -0.5, 0.5) * 2;
     }
   };
-  const up = () => { if (held) { held = false; delete surface.dataset.grabbing; } };
+  const up = () => { held = false; turning = false; delete surface.dataset.grabbing; };
   const leave = () => { look.tx = 0; look.ty = 0; };
   surface.addEventListener("pointerdown", down);
   addEventListener("pointermove", move, { passive: true });
