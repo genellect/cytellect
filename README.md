@@ -36,7 +36,7 @@ Cytellect は、顕微鏡画像の解析から統計処理、グラフ出力ま�
     → packages/analysis   測定・統計・作図（NumPy · SciPy · statsmodels · Matplotlib）
 
 AI による解析設定
-  services/api → services/proposal-worker（Cloudflare Workers · D1）→ Anthropic Messages API（旧版のクライアントは OpenAI Responses API）
+  services/api → services/proposal-worker（Cloudflare Workers · D1）→ Anthropic Messages API
   → API で検証 → 設定に反映し、選んだ視野でプレビュー → 手動設定と同じジョブ
 ```
 
@@ -47,7 +47,7 @@ AI による解析設定
 | Windows 版 | 研究室の PC | 専用の Python・Fiji 環境。`127.0.0.1` で待ち受け | — |
 | Docker 版 | 研究室の PC | Web・API・ワーカーを別コンテナで実行。ワーカーはネットワークから隔離 | — |
 | GPU 推論 | Modal（L4 優先、A10 を予備候補） | GHCR の digest 固定イメージ。クラウド中継を経由して呼び出し、アイドル 20 秒でスケールダウン（`infra/modal_cellpose.py`） | 検出対象の 1 チャンネル、核マスク、検出の条件 |
-| クラウド中継 | Cloudflare Workers · D1 | LLM と GPU 推論の中継。認証と、利用量・費用の管理（`services/proposal-worker`） | LLM へは、指示文・染色とチャンネルの対応・実験デザイン（視野・群・実験回の数）・画像の寸法と画素サイズ・現在の設定 |
+| クラウド中継 | Cloudflare Workers · D1 | LLM と GPU 推論の中継。認証と、利用量・費用の管理（`services/proposal-worker`） | LLM へは、解析提案では研究の目的・チャンネル名と記録した染色・視野の名前と記録・代表的な視野の縮小画像・現在の設定、考察では結果のまとめ・指標の定義・群と実験回の名前・集計値と検定の結果 |
 | 公開サイト | Vercel | LP と公開デモ。`main` へのマージで自動デプロイ | 研究画像は受け付けない |
 
 ### ディレクトリ構成
@@ -128,9 +128,9 @@ StarDist で検出した核を親領域として、核小体・細胞質を Cell
 
 ## AI による解析設定
 
-研究目的の一文を、LLM（Claude Sonnet 5.5。配布済みの古い版は GPT-6.1 Sol）が検出・測定・選別・統計・図の構造化設定に変換する。LLM の責務は設定の生成に限定し、数値計算は決定的な共通実装（`packages/analysis`）が行う。
+LLM（Claude Sonnet 5.5）が、研究の目的とワークスペースの記録から解析設定（検出・測定・選別・統計・図）を提案し、保存した結果について考察の下書きを書く。提案した設定は検証とプレビューを経て、研究者が採用したときだけ適用する。測定値と統計は、決定的な共通実装（`packages/analysis`）だけが計算する。
 
-- 研究データを示す。研究者が同意した範囲で、目的、チャンネル名、視野の名前と記録、代表的な視野の縮小画像（設定で止められる）を送る。パスと測定値は送らない（[LLM による解析支援の見直し](docs/drafts/llm-assistant/plan.md)）
+- 研究データを示す。研究者が同意した範囲で送る。解析提案には目的、チャンネル名、視野の名前と記録、代表的な視野の縮小画像（設定で止められる）を、考察には結果のまとめ、指標の定義、群と実験回の名前、集計値と検定の結果を送る。パスは送らない（[LLM による解析支援の見直し](docs/drafts/llm-assistant/plan.md)）
 - スキーマ検証。応答の形式は Claude にプロンプトで示し（強制しない）、Worker が形を確かめて崩れていれば 1 回だけ直させる。API 側で型・値域・チャンネルの整合性を再検証する。検証を通った設定は、選んだ視野でのプレビューを経て、手動設定と同じジョブで実行する
 - コスト制御。利用額は Workers と D1 で管理し、呼び出し前に最大の費用を原子的に予約、完了後に精算する。未精算の予約も上限に算入し、障害時にも上限を超えない
 
