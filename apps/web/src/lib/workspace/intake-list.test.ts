@@ -1,4 +1,5 @@
 import {describe, expect, it, vi} from "vitest";
+import {intakePath} from "./dropped-files";
 import {additions, breakdown, createIntakeList, listedFields, matchingFields, type Inspection} from "./intake-list";
 
 /** Synthetic bytes: the names decide the grouping and the mocked judgement decides the role (W4 is tested on its own). */
@@ -137,6 +138,38 @@ describe("intake list before adding (#284 W5)", () => {
     storage.setItem("cytellect.intake.v1.old", JSON.stringify(["old_c1.tif", {name: 3}, {name: "bad_c1.tif", target: {run_id: 1}}]));
     reloaded.open("old");
     expect(reloaded.getSnapshot().items.map(item => [item.name, item.target])).toEqual([["old_c1.tif", null], ["bad_c1.tif", null]]);
+  });
+  it("a file chosen again after a reload goes where it was going, however it is chosen (independent review, round 4)", async () => {
+    const storage = memoryStorage(), control = {run_id: "r1", group_id: "c", sample: null}, treated = {run_id: "r1", group_id: "t", sample: null};
+    const first = createIntakeList({inspect: async value => judge(value), known: () => new Map(), storage});
+    first.open("w");
+    // The same file names in two cells (two condition folders), one of them from a folder choice.
+    first.add([file("field1-C01.tif", 1), file("field1-C02.tif", 3)], control);
+    first.add([file("field1-C01.tif", 5), file("field1-C02.tif", 7)], treated);
+    const inFolder = file("solo_c1.tif", 9);Object.defineProperty(inFolder, "webkitRelativePath", {value: "Rep1/treated/solo_c1.tif"});
+    first.add([inFolder], treated);
+    await settled(first);
+    const reload = () => {const list = createIntakeList({inspect: async value => judge(value), known: () => new Map(), storage});list.open("w", true);return list;};
+    // 「画像を追加」 (no cell): each file takes the place, the cell and the path of a kept name, one row per file.
+    const general = reload();
+    general.add([file("field1-C01.tif", 1), file("field1-C02.tif", 3), file("solo_c1.tif", 9)]);
+    await settled(general);
+    expect(general.getSnapshot().items.map(item => [item.name, item.state, item.target?.group_id ?? null])).toEqual([
+      ["field1-C01.tif", "再選択", "t"], ["field1-C02.tif", "再選択", "t"],
+      ["field1-C01.tif", "追加待ち", "c"], ["field1-C02.tif", "追加待ち", "c"], ["Rep1/treated/solo_c1.tif", "追加待ち", "t"]]);
+    // The file from the folder is added under the path it was first chosen with (its pending row has that name).
+    expect(additions(general.getSnapshot().items).flatMap(value => value.items.map(item => intakePath(item.file!)))).toContain("Rep1/treated/solo_c1.tif");
+    // Chosen again in 処理's cell: only 処理's kept rows are taken; 対照's stay to be chosen.
+    const cell = reload();
+    cell.add([file("field1-C01.tif", 5), file("field1-C02.tif", 7)], treated);
+    await settled(cell);
+    expect(cell.getSnapshot().items.filter(item => item.state === "再選択").map(item => [item.name, item.target?.group_id ?? null])).toEqual([
+      ["field1-C01.tif", "c"], ["field1-C02.tif", "c"], ["Rep1/treated/solo_c1.tif", "t"]]);
+    // The row's own 「選択」 keeps the folder path too.
+    const row = cell.getSnapshot().items.find(item => item.name === "Rep1/treated/solo_c1.tif")!;
+    cell.replace(row.id, file("solo_c1.tif", 9));
+    await settled(cell);
+    expect(cell.getSnapshot().items.find(item => item.id === row.id)).toMatchObject({name: "Rep1/treated/solo_c1.tif", state: "追加待ち", target: treated});
   });
   it("a copy whose original is removed from the list is no longer a copy: it becomes the image", async () => {
     const list = createIntakeList({inspect: async value => judge(value), known: () => new Map(), storage: null});

@@ -42,7 +42,7 @@ resolved by adding images of the same names again to where it was going (the sam
 both); a refused row, or a row going elsewhere, is another image's record and stays. An addition that ends early
 (no answer before or while sending, a changed workspace, 実行を中止) keeps nothing unsent: a later addition never
 sends its images on its own, and they stay in the list of chosen files. 実行を中止 is reported in the status line
-(「登録：1 視野 · 追加：中止」), not as an error. Registered fields are placed in the run
+(「登録：1 視野 · 追加：中止」), not as an error, and also ends a 追加 that covers several cells. Registered fields are placed in the run
 and group of their row when the addition ends and when the workspace opens again, never from the
 caller's returned IDs. The researcher is never asked for a reason: the comparison counts rows without
 a field in its n breakdown, by group and reason, from the selection saved with it. Every choice shows
@@ -70,7 +70,8 @@ offered for a failed message, for one left 送信中 by a session that ended, fo
 after a reload, for an answer this session no longer holds: one with settings or with run and group suggestions
 from any message, one with items to confirm as the latest message (where they are offered). It asks first, since it
 may call the model, and shows what is sent when this browser has not confirmed the scope. An answer without an
-analysis (only a stain's role, say) offers nothing to apply: 「核染色に … を指定」 records what it settles. From prompt
+analysis (only a stain's role, say) has nothing to apply and is recorded so (`applicable: null`): 「核染色に … を指定」
+records what it settles, and it offers no resend after a reload. From prompt
 `2026-11-26.1` (W7) the answer declares the kind of request, which only chooses these actions: a question shows its
 answer and the items to confirm as buttons (a choice is sent as the next message), a settings request 「設定を適用」, and a
 run request its target fields (「対象：選択した視野 · …」 or 「対象：全視野 · n 視野」, excluded fields left out) and
@@ -105,8 +106,9 @@ shows next and what was not added waits behind 取込 n件 (the chosen files and
 read stands behind a clean-up. The line beside 取込 counts the whole 追加 (「登録：3 視野 · 読み取れない：2 件」),
 however many fields and cells it covered. 閉じる hides the list and keeps the chosen files. 追加して AI に質問 then opens the AI
 input. The names of files not yet added are kept for this tab, with the cell each was chosen in, and come back after
-a reload as 「再選択」 rows, on which the list opens by itself (the browser cannot keep the files); a file chosen
-again goes where it was going. Images added from a group's cell are listed with
+a reload as 「再選択」 rows (each with its cell), on which the list opens by itself (the browser cannot keep the
+files). A file chosen again, by the row's 選択, by 画像を追加 or in the same cell, takes its row's place, cell and
+path, so it goes where it was going and resolves the row its interrupted upload left. Images added from a group's cell are listed with
 that run and group, also in 実験. Notes on registered fields (a stain one field has and another lacks) are listed
 apart (チャンネルの構成の違い) and not counted. Choosing and judging go on while images register or an analysis runs;
 追加 waits for them. Development builds log the counts a choice delivered (no names or paths).

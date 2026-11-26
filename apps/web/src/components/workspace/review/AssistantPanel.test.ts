@@ -19,7 +19,7 @@ function render(view: AnswerView | null, targets: RunTargets | null = null, rest
 
 describe("the actions of an answer follow its kind of request (#284 W7, plan 5.6)", () => {
   it("a question shows its answer and the items to confirm, and no action that changes settings or runs", () => {
-    const html = render({intent: "answer", scope: null, choices: [{question: "核染色のチャンネル", options: ["核染色は DRAQ", "核染色は GFP"]}], assignments: 2});
+    const html = render({intent: "answer", scope: null, choices: [{question: "核染色のチャンネル", options: ["核染色は DRAQ", "核染色は GFP"]}], assignments: 2, applies: false});
     expect(html).toContain("核染色は DRAQ");
     expect(html).toContain("割付の案：2 視野");
     expect(html).not.toContain("設定を適用");
@@ -29,19 +29,19 @@ describe("the actions of an answer follow its kind of request (#284 W7, plan 5.6
     expect(html).not.toContain("再送");
   });
   it("a settings request offers 「設定を適用」 only", () => {
-    const html = render({intent: "settings", scope: null, choices: [], assignments: 0});
+    const html = render({intent: "settings", scope: null, choices: [], assignments: 0, applies: true});
     expect(html).toContain("設定を適用");
     expect(html).not.toContain("適用して実行");
     expect(html).not.toContain("適用して試行");
   });
   it("a run request names its target fields and offers 「適用して実行」", () => {
-    const html = render({intent: "run", scope: "all", choices: [], assignments: 0}, {scope: "all", fields: [{id: "a", label: "A01"}, {id: "b", label: "A02"}], excluded: 1});
+    const html = render({intent: "run", scope: "all", choices: [], assignments: 0, applies: true}, {scope: "all", fields: [{id: "a", label: "A01"}, {id: "b", label: "A02"}], excluded: 1});
     expect(html).toContain("対象：全視野 · 2 視野 · 対象外 1");
     expect(html).toContain("適用して実行");
     expect(html).not.toContain("設定を適用");
   });
   it("an earlier draft keeps 「設定を適用」 and 「適用して試行」, and a restored answer offers 「再送」", () => {
-    const earlier = render({intent: null, scope: null, choices: [], assignments: 0});
+    const earlier = render({intent: null, scope: null, choices: [], assignments: 0, applies: true});
     expect(earlier).toContain("設定を適用");
     expect(earlier).toContain("適用して試行");
     expect(render(null)).toContain("再送");
@@ -53,12 +53,20 @@ describe("the actions of an answer follow its kind of request (#284 W7, plan 5.6
   it("names the nuclear stain to set before the answer's settings can be applied, as the one next action", () => {
     const html = renderToStaticMarkup(createElement(AssistantPanel, {
       messages: [message("m")], busy: false, demo: false, undoable: null, canApply: () => false, canTry: () => false, canRun: () => false,
-      answerOf: (): AnswerView => ({intent: "settings", scope: null, choices: [], assignments: 0}), confirmationOf: () => [{channel: "c1", label: "DRAQ"}],
+      answerOf: (): AnswerView => ({intent: "settings", scope: null, choices: [], assignments: 0, applies: true}), confirmationOf: () => [{channel: "c1", label: "DRAQ"}],
       onApply: none, onResend: none, onUndo: none, onShowSettings: none, onPlace: none, onConfirm: none,
     }));
     expect(html).toContain("設定の適用には、核染色の指定が必要です。");
     expect(html).toContain("核染色に DRAQ を指定");
     expect(html).not.toContain(">設定を適用<");
+    // An answer that only names the stain has nothing to apply afterwards: it states what is missing, no more.
+    const roleOnly = renderToStaticMarkup(createElement(AssistantPanel, {
+      messages: [message("m")], busy: false, demo: false, undoable: null, canApply: () => false, canTry: () => false, canRun: () => false,
+      answerOf: (): AnswerView => ({intent: "settings", scope: null, choices: [], assignments: 0, applies: false}), confirmationOf: () => [{channel: "c1", label: "DRAQ"}],
+      onApply: none, onResend: none, onUndo: none, onShowSettings: none, onPlace: none, onConfirm: none,
+    }));
+    expect(roleOnly).toContain("核染色：未指定");
+    expect(roleOnly).not.toContain("設定の適用には");
   });
   it("offers 「再送」 where sending again can help, and never for the request in flight or a question's answer", () => {
     const answered = message("m");

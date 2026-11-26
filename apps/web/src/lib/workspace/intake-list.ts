@@ -4,7 +4,7 @@
  * received. Names of files not yet added are kept for this tab (sessionStorage) and shown again after a reload as
  * 「再選択」: the browser cannot keep the files themselves. */
 import type {IntakeTarget} from "./api-adapter";
-import {intakePath} from "./dropped-files";
+import {intakePath, keepIntakePath} from "./dropped-files";
 import {groupFiles, isSupportedImage, type AddedFile} from "./grouping";
 import {tiffHasOmeMetadata, tiffInputMode} from "./tiff-intake";
 
@@ -126,18 +126,27 @@ export function createIntakeList(dependencies: IntakeDependencies) {
     /** Adds one selection (a file choice, a folder or a drop). An empty choice is reported, never silent. */
     add(list: File[], target: IntakeTarget | null = null): {received: number; images: number} {
       const selection = state.selections + 1;
+      // A file chosen again for a name kept over a reload (a 「再選択」 row) takes that row's place, its cell and its
+      // path: however it is chosen again (the row's own button, 画像を追加, a cell), it goes where it was going and is
+      // added under the name it was first chosen with. A file chosen in a cell only takes a row of that cell.
+      const waiting = state.items.filter(item => item.state === "再選択"), taken = new Set<string>(), base = (value: string) => value.split("/").at(-1)!;
+      const claim = (name: string) => {
+        const open = waiting.filter(row => !taken.has(row.id) && (row.name === name || (!name.includes("/") && base(row.name) === name)) && (!target || !row.target || place(row.target) === place(target)));
+        const row = open.find(value => value.name === name && place(value.target) === place(target)) ?? open.find(value => value.name === name) ?? open[0];
+        if (row) taken.add(row.id);
+        return row;
+      };
       const fresh = list.map(file => {
-        const name = intakePath(file);
-        const item = {...blank(crypto.randomUUID(), name, selection), file, size: file.size, target};
+        const chosen = intakePath(file), row = claim(chosen), name = row?.name ?? chosen;
+        if (name !== chosen) keepIntakePath(file, name);
+        const item = {...blank(crypto.randomUUID(), name, selection), file, size: file.size, target: target ?? row?.target ?? null};
         if (!isSupportedImage(name)) return {...item, state: "対象外" as const};
         if (file.size > LIMIT) return {...item, state: "読み取れない" as const, code: "field_upload_limit"};
         return item;
       });
       dependencies.diagnose?.({received: list.length, relative_paths: list.filter(file => (file.webkitRelativePath || intakePath(file)).includes("/")).length,
         images: fresh.filter(item => item.state === "読み込み中").length, listed: state.items.length + fresh.length});
-      // A file chosen again under a restored name takes the place of its 「再選択」 row.
-      const restored = new Set(fresh.map(item => item.name));
-      publish([...state.items.filter(item => !(item.state === "再選択" && restored.has(item.name))), ...fresh], list.length ? selection : state.selections);
+      publish([...state.items.filter(item => !taken.has(item.id)), ...fresh], list.length ? selection : state.selections);
       for (const item of fresh) if (item.state === "読み込み中") queue.push(item);
       pump();
       return {received: list.length, images: fresh.filter(item => item.state === "読み込み中").length};
@@ -148,7 +157,10 @@ export function createIntakeList(dependencies: IntakeDependencies) {
     /** Chooses a file again for one row (a file that could not be read, or a 「再選択」 row). */
     replace(id: string, file: File) {
       const old = state.items.find(item => item.id === id);if (!old) return;
-      const name = intakePath(file), item = {...blank(id, name, old.selection), file, size: file.size, target: old.target};
+      // A 「再選択」 row keeps the path it was first chosen with (a folder's) when the same file is chosen for it.
+      const chosen = intakePath(file), kept = old.state === "再選択" && !chosen.includes("/") && old.name.split("/").at(-1) === chosen;
+      if (kept) keepIntakePath(file, old.name);
+      const name = kept ? old.name : chosen, item = {...blank(id, name, old.selection), file, size: file.size, target: old.target};
       const next = !isSupportedImage(name) ? {...item, state: "対象外" as const} : file.size > LIMIT ? {...item, state: "読み取れない" as const, code: "field_upload_limit"} : item;
       publish(state.items.map(value => value.id === id ? next : value));
       if (next.state === "読み込み中") {queue.push(next);pump();}

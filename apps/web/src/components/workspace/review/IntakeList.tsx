@@ -70,7 +70,7 @@ export function IntakeList({items, registered, busy, targetLabel, onAdd, onMore,
         </tr>)}
         {others.map(item => <tr key={item.id} data-state={item.state}>
           <td>{thumbnailOf(item, items) ? <img className={styles.thumb} src={thumbnailOf(item, items)!} alt=""/> : <span className={styles.thumb} aria-hidden="true"/>}</td>
-          <th scope="row">{item.name}</th>
+          <th scope="row">{item.name}{item.state === "再選択" && item.target && <small>{targetLabel(item.target)}</small>}</th>
           <td>{item.channelNames.length ? channelText(item.channelNames) : "—"}</td>
           <td>{item.state}{detail(item, items, registered) && <small>{detail(item, items, registered)}</small>}</td>
           <td className={styles.rowActions}>

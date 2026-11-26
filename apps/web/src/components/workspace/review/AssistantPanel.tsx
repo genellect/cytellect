@@ -116,7 +116,7 @@ export function AssistantPanel({field, messages, busy, demo, canApply, canTry, u
           {targets && <p className={styles.messageState}>{targetText(targets)}</p>}
           {targets && !targets.fields.length && message.effect === "none" && <p className={styles.messageState}>実行には、対象の視野が必要です。</p>}
           {confirmation.length > 0 && <div className={styles.messageChoices} role="group" aria-label="核染色の指定">
-            <p>設定の適用には、核染色の指定が必要です。</p>
+            <p>{view?.applies === false ? "核染色：未指定" : "設定の適用には、核染色の指定が必要です。"}</p>
             {confirmation.map(item => <button key={item.channel} type="button" disabled={busy || !onConfirm} onClick={() => onConfirm?.(message.id, item.channel)}>核染色に {item.label} を指定</button>)}
           </div>}
           <div className={styles.messageActions}>

@@ -452,3 +452,18 @@ def test_a_name_sent_to_the_model_is_relative_and_one_line(recorded, sent):
     from cytellect_api.proposals import _added_name
 
     assert _added_name(recorded) == sent
+
+
+def test_an_answer_without_an_analysis_has_nothing_to_apply(tmp_path, monkeypatch):
+    """A settings answer that only names a role (recipe none, no processing) is recorded as neither applicable nor
+    refused: the workspace offers no application for it, and no resend after a reload."""
+    role_only = {**answer(channels=[{"token": "ch1", "stain": None, "role": "measure", "reason": "名前から測定に使う"}], choices=[]),
+                 "intent": "settings", "answer": "Actin を測定に使います。"}
+    client, wid, _, _ = designed_workspace(tmp_path, monkeypatch, [role_only, {**ACTIN_DRAFT, "intent": "settings", "answer": "Actin を測定に使います。", "scope": None}])
+    first = send(client, wid, "Actin は測定に使う")
+    assert first.status_code == 200, first.text
+    assert (first.json()["proposal"]["draft"]["intent"], first.json()["message"]["applicable"]) == ("settings", None)
+    second = send(client, wid, "Actin の輝度を測る設定にして")
+    assert second.json()["message"]["applicable"] is True
+    listed = client.get(f"/v1/workspaces/{wid}/assistant-messages").json()["messages"]
+    assert [message["applicable"] for message in listed] == [None, True]

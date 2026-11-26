@@ -507,6 +507,13 @@ describe("functional workspace runtime",()=>{
     expect(acceptWorkspaceRun).toHaveBeenCalledWith("w","f1-only");
     expect(runtime.getSnapshot().progress).toEqual({f2:"失敗"});
     expect(runtime.getSnapshot().error).toContain("View 2");
+    // After a reload, the newest run of these settings is the adopted one: the older, failed run's candidates are not
+    // read back over the adopted field (it would look like a candidate to adopt again).
+    const readResult=vi.fn(async(revision:string,field:string)=>result(revision,field));
+    Object.assign(adapter,{readResult,listWorkspaceRuns:vi.fn(async()=>[{...first,created:1,spec_current:true},{...again,state:"adopted" as const,created:2,spec_current:true}])});
+    await runtime.reload();
+    expect(readResult).not.toHaveBeenCalled();
+    expect(Object.values(runtime.getSnapshot().progress)).not.toContain("候補を確認");
   });
   it("keeps following a run while the connection is lost for a moment, and reports a longer loss",async()=>{
     const {createApiAdapter}=await import("./api-adapter");

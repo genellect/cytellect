@@ -239,8 +239,8 @@ MessageEffect = Literal["none", "settings", "run"]
 class AssistantMessage(BaseModel):
     """One message of the researcher to the AI and what came back (#284 W2). `applicable` is true when the
     answer carries settings the researcher may apply, false when its settings were refused (`reasons` and `stage`
-    say why), and null when there is nothing to apply: a question's answer (#284 W7), or a message still pending
-    or failed. `restorable` is true when the answer recorded for the message holds items to confirm (`choices`) or
+    say why), and null when there is nothing to apply: a question's answer (#284 W7), an answer without an analysis
+    (it only names a stain or a role), or a message still pending or failed. `restorable` is true when the answer recorded for the message holds items to confirm (`choices`) or
     run and group suggestions (`assignments`): the listing carries the text only, so after a reload the workspace
     offers the message's 「再送」 to read them again, which the record answers without a model call while the context
     is unchanged. `suggests_assignments` names the second kind apart: the experiment table shows the suggestions
@@ -262,8 +262,12 @@ class AssistantMessage(BaseModel):
 
 
 def _applicable(draft) -> bool | None:
-    """A question's answer (`intent: answer`) has no settings: it is neither applicable nor refused."""
-    return None if getattr(draft, "intent", None) == "answer" else True
+    """Whether the answer carries settings the researcher may apply. A question's answer (`intent: answer`) has none,
+    and neither has an answer without an analysis (recipe `none`, no processing: it only names a stain or a role,
+    which the researcher records in the workspace). Such an answer is neither applicable nor refused."""
+    if getattr(draft, "intent", None) == "answer":
+        return None
+    return None if getattr(draft, "recipe", None) == "none" and getattr(draft, "processing", None) is None else True
 
 
 class AssistantMessages(BaseModel):

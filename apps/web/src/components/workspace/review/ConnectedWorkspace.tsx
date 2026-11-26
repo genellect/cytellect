@@ -4,7 +4,7 @@ import {nclObjectDetector} from "@/lib/workspace/nucleolar-definition";
 import type {GroupingIssue} from "@/lib/workspace/grouping";
 import {Suspense,useEffect,useEffectEvent,useMemo,useReducer,useRef,useState,useSyncExternalStore,type CSSProperties,type DragEvent,type ReactNode} from "react";
 import {useSearchParams} from "next/navigation";
-import {ADD_STOPPED,IntakeInterrupted,NUCLEAR_STAIN_REQUIRED,useWorkspaceRuntime,type IntakeOutcome,type RuntimeSettings} from "@/lib/workspace/use-workspace-runtime";
+import {ADD_STOPPED,IntakeInterrupted,NUCLEAR_STAIN_MISSING,NUCLEAR_STAIN_REQUIRED,useWorkspaceRuntime,type IntakeOutcome,type RuntimeSettings} from "@/lib/workspace/use-workspace-runtime";
 import type {ReviewField,ReviewTarget} from "@/lib/workspace/review-preview";
 import {metricChoice,metricForSubject,metricStructure,metricTarget,metricUsesChannel,nucleusPositivity} from "@/lib/workspace/metric-catalog";
 import {MetricSelect} from "./MetricSelect";
@@ -541,7 +541,8 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
   // The cell's run and group go with the images: the runtime places each field once it exists, also when another image of
   // the same choice is refused or the addition is interrupted (#284 control C), so nothing here waits for returned IDs.
   const addToExperiment=(target:AddTarget,list:FileList|File[],design:ExperimentDesign)=>explained(async()=>{if(JSON.stringify(design)!==JSON.stringify(experiment))await r.saveExperiment(design);intakeList.add(Array.from(list),{group_id:target.groupId,run_id:target.runId,sample:target.sample});setIntakeShown(true);});
-  const targetLabel=(value:IntakeTarget)=>{const run=experiment?.runs?.find(item=>item.id===value.run_id)?.label,group=experiment?.groups.find(item=>item.id===value.group_id)?.label;return `追加先：${[group,run].filter(Boolean).join(" · ")||"未設定"}`;};
+  // A kept cell whose run or group has since left the design is said so: the field would be added unassigned.
+  const targetLabel=(value:IntakeTarget)=>{const run=experiment?.runs?.find(item=>item.id===value.run_id)?.label,group=experiment?.groups.find(item=>item.id===value.group_id)?.label;return run&&group?`追加先：${group} · ${run}`:"追加先：実験デザインに該当なし";};
   // 追加: the listed fields register together per run and group (so another stain chosen later joins its field), copies
   // kept as separate acquisitions register on their own, and unreadable files become rows with their reason (W1).
   const addListed=(askAi:boolean)=>{setCancelled(false);void act(async()=>{
@@ -558,7 +559,9 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
         const ready=addition.items.filter(item=>item.state==="追加待ち"&&!held.has(item.id));if(!ready.length)continue;
         const files=ready.map(item=>item.file!);
         try{const outcome=await (addition.separate?r.importSeparately(files,addition.target):r.importFiles(files,"automatic",addition.target));
-          first??=outcome.registered[0]?.fieldId;count(outcome);done.push(...ready.map(item=>item.id));}
+          first??=outcome.registered[0]?.fieldId;count(outcome);done.push(...ready.map(item=>item.id));
+          // 実行を中止 pressed while this addition's last field was sent: the additions after it wait in the list.
+          if(r.stopRequested()){total.stopped=true;break;}}
         catch(error){
           // An interrupted addition: what was registered, refused (it has its row) or found to be a copy leaves the
           // list; the rest stays to be added again.
@@ -583,7 +586,7 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
       if(total.registered.length&&!listedFields(intakeList.getSnapshot().items).some(value=>!value.conflicts.length))setIntakeShown(false);
       if(first&&!field)setSelected(first);
     }
-    if(askAi){dispatchPanel("open-ai");requestAnimationFrame(()=>document.querySelector<HTMLTextAreaElement>("textarea[aria-label='AIへの指示']")?.focus());}
+    if(askAi&&!total.stopped){dispatchPanel("open-ai");requestAnimationFrame(()=>document.querySelector<HTMLTextAreaElement>("textarea[aria-label='AIへの指示']")?.focus());}
   });};
   // Each field's adopted nuclei (null: not measured) and whether it is measured, for n and the summary figure.
   // The names each field was added with (folder-relative from a folder or a drop), for the W6 suggestions.
@@ -630,7 +633,7 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
       {demo&&showcase.scene&&<SceneIntro intro={intro} dataset={showcase.dataset}/>}
       <CloudNotices/>
       <ConnectionNotice onReconnected={()=>void act(()=>r.reconnected())}/>
-      {(r.error||localError)&&connected&&(isShowcaseNotice(localError||r.error)?<div className={`${styles.error} ${showcaseStyles.notice}`} role="status">{localError||r.error}<button aria-label="案内を閉じる" onClick={()=>{setLocalError("");r.dismissError();}}>閉じる</button></div>:<div className={styles.error} role="alert">{localError||r.error}{(localError||r.error)===NUCLEAR_STAIN_REQUIRED&&<button disabled={busy} onClick={()=>{r.dismissError();setLocalError("");showSettings();}}>設定</button>}<button aria-label="保存状態を再読み込み" disabled={busy} onClick={()=>void act(()=>r.reload())}>再読み込み</button></div>)}
+      {(r.error||localError)&&connected&&(isShowcaseNotice(localError||r.error)?<div className={`${styles.error} ${showcaseStyles.notice}`} role="status">{localError||r.error}<button aria-label="案内を閉じる" onClick={()=>{setLocalError("");r.dismissError();}}>閉じる</button></div>:<div className={styles.error} role="alert">{localError||r.error}{((localError||r.error)===NUCLEAR_STAIN_REQUIRED||(localError||r.error).includes(NUCLEAR_STAIN_MISSING))&&<button disabled={busy} onClick={()=>{r.dismissError();setLocalError("");showSettings();}}>設定</button>}<button aria-label="保存状態を再読み込み" disabled={busy} onClick={()=>void act(()=>r.reload())}>再読み込み</button></div>)}
       {/* One instance for both views: the first save switches to the experiment view (E-01). */}
       <section hidden={!setupShown} className={styles.imageWork}>{setupShown&&!demo&&intakeShown&&(intakeItems.length>0||intakeSaved||intakeNotes)&&intakeView}{setupShown&&setup}</section>
       <section hidden={mode!=="image"||setupShown} className={styles.imageWork}>

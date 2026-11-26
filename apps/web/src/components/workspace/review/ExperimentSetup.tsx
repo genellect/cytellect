@@ -47,7 +47,8 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,onOpen
   // The last plan the API stored: a refused save returns the editor to it instead of keeping the refused edit.
   const stored=useRef<ExperimentDesign|null>(design);
   useEffect(()=>{stored.current=design;setDraft(design);},[design]);
-  useEffect(()=>{folderInput.current?.setAttribute("webkitdirectory","");},[]);
+  // The folder input chooses folders from the moment it is drawn (it is not drawn before a design exists), so the
+  // attribute is set where the input is rendered, not once at mount.
   const fieldLabel=(id:string)=>fields.find(value=>value.id===id)?.label??id;
 
   async function save(next:ExperimentDesign){
@@ -180,7 +181,7 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,onOpen
       {issues.map((issue,index)=><li key={index}>{issueText(draft,issue,fieldLabel)}</li>)}
     </ul>}
     <input ref={fileInput} hidden type="file" multiple accept=".tif,.tiff,image/tiff" onChange={event=>{void received(event.target.files);event.target.value="";}}/>
-    <input ref={folderInput} hidden type="file" multiple onChange={event=>{void received(event.target.files);event.target.value="";}}/>
+    <input ref={node=>{folderInput.current=node;node?.setAttribute("webkitdirectory","");}} hidden type="file" multiple onChange={event=>{void received(event.target.files);event.target.value="";}}/>
   </section>;
 }
 

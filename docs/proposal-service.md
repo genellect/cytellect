@@ -85,7 +85,9 @@ kinds: something the researcher changes, with the place to change it, or a servi
 Sending never changes settings or runs anything; applying is the researcher's action (requirement L02). After a
 reload the messages and answers are shown again without a model call; applying a reloaded answer resends its
 message, which the cache answers without the model when the context is unchanged. A question's answer
-(`intent: answer`) has no settings: its message carries `applicable: null` and offers no application.
+(`intent: answer`) has no settings, and neither has an answer without an analysis (recipe `none`, no processing:
+it only names a stain or a role, which the researcher records in the workspace): its message carries
+`applicable: null` and offers no application.
 The listing carries the text of an answer, not its items to confirm or its run and group suggestions. Each
 message therefore says whether the proposal recorded for it holds any (`restorable`, read from the draft the
 message points to; false without one). For such a message the workspace offers 「再送」 after a reload: for

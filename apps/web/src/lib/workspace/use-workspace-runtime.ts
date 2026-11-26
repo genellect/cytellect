@@ -48,7 +48,8 @@ export interface RuntimeSnapshot {
 }
 /** What an answer received in this session offers (#284 W7, plan 5.6): the kind of request, the fields a run covers,
  * the items to confirm, and how many assignment suggestions it made. `intent` null is an earlier draft. */
-export interface AnswerView {intent: "answer" | "settings" | "run" | null; scope: "selected" | "all" | null; choices: Array<{question: string; options: string[]}>; assignments: number}
+/** `applies`: the answer carries an analysis or processing settings (something 「設定を適用」 would apply). */
+export interface AnswerView {intent: "answer" | "settings" | "run" | null; scope: "selected" | "all" | null; choices: Array<{question: string; options: string[]}>; assignments: number; applies: boolean}
 /** The fields 「適用して実行」 runs: the selected one, or every registered field the researcher has not excluded. */
 /** A channel an answer proposes as the nuclear stain, awaiting the researcher's own choice. */
 export interface ChannelConfirmation {channel: string; label: string}
@@ -82,6 +83,8 @@ function recordedName(name:string):string{const clean=name.replace(/[\u0000-\u00
 export const ADD_STOPPED="追加：中止";
 /** Shown when a nuclear detection is asked for while no chosen field has a nuclear stain; the screen offers 設定 with it. */
 export const NUCLEAR_STAIN_REQUIRED="核の検出には、核染色の指定が必要です。";
+/** A field's failure in a run of several fields when it has no nuclear stain; the screen offers 設定 with it too. */
+export const NUCLEAR_STAIN_MISSING="核染色の指定なし";
 export class IntakeInterrupted extends Error {constructor(public outcome:IntakeOutcome, public cause:unknown){super(message(cause));}}
 /** The bit depth the API refuses as an image: a 32-bit integer label image (a mask), not missing data (#284 input 5). */
 export const MASK_CANDIDATE_CODE="region_image_bit_depth_unsupported";
@@ -365,8 +368,10 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   async function recoverRun(){
     if(!state.data?.workspaceId||!("listWorkspaceRuns" in adapter))return;
     const runs=await adapter.listWorkspaceRuns(workspace());
-    const latest=runs.filter(run=>(run.spec_version===specification.version||run.spec_current===true)&&["queued","running","succeeded","failed","cancelled"].includes(run.state)).sort((a,b)=>b.created-a.created)[0];
-    if(!latest)return;
+    // The newest run of these settings. When it was adopted (for example the run of the fields that succeeded after
+    // another failed), nothing is recovered: an older, failed run's candidates are not shown over adopted results.
+    const latest=runs.filter(run=>run.spec_version===specification.version||run.spec_current===true).sort((a,b)=>b.created-a.created)[0];
+    if(!latest||!["queued","running","succeeded","failed","cancelled"].includes(latest.state))return;
     activeRunId=latest.id;
     try{const run=!["queued","running"].includes(latest.state)?latest:await adapter.waitWorkspaceRun(workspace(),latest.id,value=>publish({operation:`保存した処理を再開中 · ${progressLine(value,fieldName,targetName)}`,progress:{...state.progress,...fieldProgress(value)}}),attempt=>publish({operation:`接続：確認中 · 再試行 ${attempt}`}));publish({progress:{...state.progress,...fieldProgress(run)}});await readCandidates(run);}
     finally{activeRunId=null;}
@@ -400,7 +405,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       if(run.state==="cancelled"){runRequests.delete(key);throw new Error("処理を中止しました。採用済みの領域は保持されています。");}
       // A field without a nuclear stain fails its nuclear detection for that reason, not for its settings' values.
       const unstained=(field:string)=>{if(target!=="nuclei")return false;try{nuclearChannel(field);return false;}catch{return true;}};
-      const failure=()=>run.steps.filter(step=>step.error).map(step=>`${fieldName(step.field_id)}：${unstained(step.field_id)?"核染色の指定なし":errorCodeMessage(step.error!)}`).join("\n");
+      const failure=()=>run.steps.filter(step=>step.error).map(step=>`${fieldName(step.field_id)}：${unstained(step.field_id)?NUCLEAR_STAIN_MISSING:errorCodeMessage(step.error!)}`).join("\n");
       if(run.state==="failed"){runRequests.delete(key);
         // One field's failure does not hold the others back (#284 W8): the same run without the failed fields reuses
         // their finished steps, and its fields are adopted. The failed fields keep 「失敗」 and their reason.
@@ -740,6 +745,8 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     });},
     /** Registers a copy the researcher recorded as a separate acquisition (from the list before adding, #284 W5). */
     importSeparately(list:File[],target?:IntakeTarget|null){return exclusive("別の撮影として追加中",()=>intake(list,"automatic",target??null,{separate:true}));},
+    /** True when 実行を中止 was pressed during the last addition or run: a 追加 of several additions ends there. */
+    stopRequested(){return stopped;},
     /** Shows the result of one 追加 as a whole, when it took several calls of registration (the list before adding). */
     reportIntake(outcome:IntakeOutcome){publish({intake:outcome});},
     /** Records files the judgement before adding found unreadable, as rows with their reason (stage inspect, W5). */
@@ -839,7 +846,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     });},
     /** What the answer of a message received in this session offers; null when it is not held (a reload, a failure). */
     answerOf(messageId:string):AnswerView|null{const proposal=answers.get(messageId);if(!proposal)return null;const draft=proposal.draft;
-      return {intent:draft.intent??null,scope:draft.scope??null,choices:draft.choices??[],assignments:(draft.assignments??[]).length};},
+      return {intent:draft.intent??null,scope:draft.scope??null,choices:draft.choices??[],assignments:(draft.assignments??[]).length,applies:draft.intent!=="answer"&&(draft.recipe!=="none"||!!draft.processing)};},
     /** The fields a run request covers: the selected field, or every registered field that is not excluded. A row
      * without a field (an image that was not registered) is not a field and is never among them. */
     runTargets(messageId:string,selectedFieldId?:string):RunTargets|null{

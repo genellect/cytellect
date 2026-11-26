@@ -13,6 +13,8 @@ export interface DropSource {
 const relativePaths = new WeakMap<File, string>();
 /** The path of a file to add: inside a dropped or chosen folder, else its name. */
 export const intakePath = (file: File) => relativePaths.get(file) ?? (file.webkitRelativePath || file.name);
+/** Gives a file chosen again the path it was first chosen with (a name kept over a reload), so it is added under it. */
+export const keepIntakePath = (file: File, path: string) => {relativePaths.set(file, path);};
 
 /** The dropped files; the items are taken at once, because a drop's items are readable only while its event runs. */
 export function droppedFiles(transfer: DropSource): Promise<File[]> {
