@@ -366,9 +366,9 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
   // A proposal sends the scope in AI_SCOPE; it is confirmed once before the first request after it widened (L03).
   // A resend keeps its message and its retry flag through the confirmation: it sends the same scope as a new message.
   const [scopePending,setScopePending]=useState<{value:string;retry:boolean;message?:string}|null>(null);
-  // A confirmation of the AI panel appears above the conversation: it comes into view when it opens, wherever the
-  // conversation was scrolled to.
-  const reveal=useCallback((element:HTMLElement|null)=>{element?.scrollIntoView({block:"nearest"});},[]);
+  // A confirmation of the AI panel appears above the conversation: it comes into view and takes the focus when it
+  // opens, wherever the conversation was scrolled to, so its buttons are the next stop of the keyboard.
+  const reveal=useCallback((element:HTMLElement|null)=>{if(!element)return;element.scrollIntoView({block:"nearest"});element.focus({preventScroll:true});},[]);
   // An earlier request of the same instruction failed or timed out and may have been charged: the service sends it
   // again only when the researcher says so (the same rule as the discussion's 「再生成」).
   // `answered`: a recorded answer is fetched again (after a reload, or one refused on the service's side); its settings
@@ -682,11 +682,11 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
       {ai?<>
         <AiSettings/>
         <button onClick={showSettings}>解析設定を表示</button>
-        {scopePending!==null&&<section ref={reveal} role="group" aria-label="AIに送る内容の確認"><p>{AI_SCOPE}</p>
+        {scopePending!==null&&<section ref={reveal} tabIndex={-1} role="group" aria-label="AIに送る内容の確認"><p>{AI_SCOPE}</p>
           <div><button disabled={busy} onClick={()=>{markProposalScopeSeen();void sendInstruction(scopePending.value,true,scopePending.retry,scopePending.message);}}>確認して送信</button>
             <button disabled={busy} onClick={()=>{setIncludePreviews(false);markProposalScopeSeen();void sendInstruction(scopePending.value,true,scopePending.retry,scopePending.message);}}>縮小画像なしで送信</button>
             <button disabled={busy} onClick={()=>setScopePending(null)}>キャンセル</button></div></section>}
-        {retryPending!==null&&<section ref={reveal} role="group" aria-label="AIへの再送の確認"><p>{retryPending.answered?"記録済みの回答の取り直し。再送は課金の対象になり得ます。":"前回の依頼：未完了。再送は課金の対象になり得ます。"}</p>
+        {retryPending!==null&&<section ref={reveal} tabIndex={-1} role="group" aria-label="AIへの再送の確認"><p>{retryPending.answered?"記録済みの回答の取り直し。再送は課金の対象になり得ます。":"前回の依頼：未完了。再送は課金の対象になり得ます。"}</p>
           <div><button disabled={busy} onClick={()=>void sendInstruction(retryPending.value,false,retryPending.retry,retryPending.message)}>再送</button>
             <button disabled={busy} onClick={()=>setRetryPending(null)}>キャンセル</button></div></section>}
         {demoReply&&<p>{demoReply}</p>}

@@ -82,16 +82,20 @@ export function targetText(targets: RunTargets): string {
 export function AssistantPanel({field, messages, busy, demo, canApply, canTry, undoable, onApply, onResend, onUndo, onShowSettings, onPlace, onPropose,
   answerOf = () => null, runTargets = () => null, canRun = () => false, onRun, onChoose, confirmationOf = () => [], onConfirm}: Props) {
   const nuclear = field?.channels.find(channel => channel.id === field.nuclearChannelId) ?? field?.channels.find(channel => channel.role === "nuclear");
-  // The newest message starts at the top of the panel when it is sent and when its answer arrives: an answer of a few
-  // paragraphs otherwise leaves every later request, its state and its actions below the visible part. Only the
-  // panel's own scrolling box moves, never the page.
-  const newest = useRef<HTMLLIElement>(null), last = messages.at(-1), newestKey = last ? `${last.id}:${last.state}` : "";
+  // The newest message starts at the top of the panel when it is sent and when the panel opens: an answer of a few
+  // paragraphs otherwise leaves every later request and its state below the visible part. When its answer arrives the
+  // panel moves only while that message is in view, so a researcher who went back to an earlier answer stays there.
+  // Only the panel's own scrolling box moves, never the page.
+  const newest = useRef<HTMLLIElement>(null), shown = useRef(""), last = messages.at(-1), newestKey = last ? `${last.id}:${last.state}` : "";
   useEffect(() => {
-    const item = newest.current;
+    const item = newest.current, sameMessage = shown.current.split(":")[0] === newestKey.split(":")[0];
+    shown.current = newestKey;
     if (!item) return;
     for (let box = item.parentElement; box; box = box.parentElement) {
       if (!/auto|scroll/.test(getComputedStyle(box).overflowY) || box.scrollHeight <= box.clientHeight) continue;
-      box.scrollTop += item.getBoundingClientRect().top - box.getBoundingClientRect().top - 8;
+      const frame = box.getBoundingClientRect(), place = item.getBoundingClientRect();
+      if (sameMessage && (place.bottom <= frame.top || place.top >= frame.bottom)) return;
+      box.scrollTop += place.top - frame.top - 8;
       return;
     }
   }, [newestKey]);
