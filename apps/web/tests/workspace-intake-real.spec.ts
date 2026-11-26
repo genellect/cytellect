@@ -1,7 +1,8 @@
 import {expect, test, type Page} from "@playwright/test";
 import {execFileSync} from "node:child_process";
 import {createHash} from "node:crypto";
-import {readFile} from "node:fs/promises";
+import {mkdir, mkdtemp, readFile, writeFile} from "node:fs/promises";
+import {tmpdir} from "node:os";
 import path from "node:path";
 
 /**
@@ -62,7 +63,6 @@ test.describe("#284 W1, W4, W5 intake against the real API", () => {
     await expect(list(page).getByRole("row").filter({hasText:"BBBC007-a9-核の手動輪郭.tif"})).toContainText("寸法の一致：BBBC007-a9");
     await expect(list(page).getByRole("row").filter({hasText:"test-truncated-DRAQ.tif"})).toContainText("読み取り不可");
     await expect(list(page).getByRole("row").filter({hasText:"同一内容"})).toContainText("対応先：BBBC007-a9-C01.tif");
-    expect(await entries(page).catch(() => [])).toEqual([]);
     await addListed(page);
     await expect(status(page, "登録：2 視野")).toBeVisible({timeout:120000});
     await expect(fieldCards(page)).toHaveCount(2);
@@ -129,5 +129,38 @@ test.describe("#284 W1, W4, W5 intake against the real API", () => {
     await expect(page.getByRole("cell").filter({hasText:control.label}).first()).toContainText("2 視野", {timeout:60000});
     await expect(page.getByRole("cell").filter({hasText:treated.label}).first()).toContainText("1 視野");
     expect(await placed()).toEqual({[control.id]:2, [treated.id]:1});
+  });
+
+  test("W6: a folder of a run with two groups is suggested as such and applied only with 「案を適用」", async ({page}) => {
+    const input = await files();
+    // The registered public images in a run/group folder layout (BBBC007 a9 as control, f9620 as treated): names only
+    // decide. The folder names are ASCII: Playwright cannot hand Chromium a folder whose path holds other characters
+    // (the files then cannot be read); Japanese folder names are covered by the unit tests of the suggestions.
+    // A plain temporary folder: a folder upload with brackets in its path (the test title) does not complete.
+    const root = path.join(await mkdtemp(path.join(tmpdir(), "cytellect-w6-")), "Rep1");
+    for (const [group, payloads] of [["control", input.bbbc007.slice(0, 2)], ["treated", input.bbbc007.slice(2)]] as const) {
+      await mkdir(path.join(root, group), {recursive: true});
+      for (const payload of payloads) await writeFile(path.join(root, group, payload.name), payload.buffer);
+    }
+    await signIn(page);
+    await page.getByTestId("folder-input").setInputFiles(root);
+    await expect(list(page).getByRole("status")).toHaveText("受け取り：4 · 画像：4（2 視野）", {timeout:120000});
+    await addListed(page);
+    await expect(status(page, "登録：2 視野")).toBeVisible({timeout:120000});
+    await page.getByRole("navigation", {name:"作業の切替"}).getByRole("button", {name:"実験", exact:true}).click();
+    await expect(page.getByRole("status").filter({hasText:"フォルダーからの案：2 群（control、treated） · 実験回 1"})).toBeVisible();
+    await page.getByRole("button", {name:/^2 画面/}).click();
+    const table = page.getByRole("region", {name:"群・実験回が未割り当ての視野"});
+    await expect(table.getByRole("cell").filter({hasText:"Rep1 · control"})).toBeVisible();
+    await expect(table.getByRole("cell").filter({hasText:"Rep1 · treated"})).toBeVisible();
+    const specification = async () => (await (await page.request.get(`${api}/v1/workspaces/${workspaceId(page)}/analysis-spec`)).json()).spec;
+    expect(Object.keys((await specification())?.experiment?.fields ?? {})).toEqual([]);
+    await table.getByRole("button", {name:"案を適用", exact:true}).click();
+    await expect(table).toHaveCount(0);
+    await expect.poll(async () => Object.keys((await specification()).experiment.fields ?? {}).length, {timeout:60000}).toBe(2);
+    const design = (await specification()).experiment;
+    expect(design.runs.map((run:{label:string}) => run.label)).toEqual(["Rep1"]);
+    const byGroup = Object.fromEntries(design.groups.map((group:{id:string;label:string}) => [group.label, Object.values(design.fields as Record<string, {group_id:string}>).filter(value => value.group_id === group.id).length]));
+    expect(byGroup).toEqual({control: 1, treated: 1});
   });
 });

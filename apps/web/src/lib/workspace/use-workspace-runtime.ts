@@ -270,7 +270,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     const ordered:ReviewTarget[]=target==="cell"?["cell"]:target==="nuclei"?["nuclei"]:target==="nucleoli"?["nuclei","nucleoli"]:["nuclei","nucleoli","nucleoplasm"];
     const prepared=ordered.flatMap(key=>{const value=candidate(field,key);return value?[{key,value}]:[];});
     for(const {key,value} of prepared){const previous=currentTargets.get(field)?.[key];const result=await adapter.selectRevision(workspace(),value.result.revision,field);if(previous){history(field,key).undo.push(previous);history(field,key).redo=[];}adopted(field,key,result,value.recipe);}
-    candidateStore.delete(field);publish({});return true;
+    candidateStore.delete(field);const progress={...state.progress};delete progress[field];publish({progress});return true;
   }
   async function runField(field:string,target:ReviewTarget,preview=false){
     if(!preview && await acceptPrepared(field,target))return;
@@ -708,6 +708,8 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       publish({messages:withMessage(response.message)});
       return response;
     });},
+    /** A field's run state, without a 候補を確認 whose candidates were since discarded or adopted (#284 W8). */
+    progressOf(field:string,target:ReviewTarget){const value=state.progress[field];return value==="候補を確認"&&!candidate(field,target)?undefined:value;},
     /** Shows 準備中 on fields whose preview or measurement is about to be requested (#284 W8). */
     markPreparing(ids:string[]){if(!state.busy)publish({progress:progressOf(ids,"準備中")});},
     /** Removes 準備中 that no request followed (a preview that did not start, or one that ran without a server run). */

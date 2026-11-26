@@ -112,6 +112,7 @@ test("images added in a group's cell go to that group, though another image of t
   const loaded=page.waitForResponse(response=>new URL(response.url()).pathname==="/v1/workspaces"&&response.request().method()==="GET");
   await page.goto("/workspace");
   await loaded;
+  await page.getByRole("navigation",{name:"作業の切替"}).getByRole("button",{name:"実験",exact:true}).click();
   await page.getByRole("button",{name:/^2 画面/}).click();
   const design=()=>state.specification.spec!.experiment!;
   await expect.poll(()=>state.specification.spec?.experiment?.groups.length).toBe(2);

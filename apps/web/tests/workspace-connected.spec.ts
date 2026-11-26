@@ -194,7 +194,7 @@ for (const viewport of [{width:1920,height:1080},{width:1440,height:900},{width:
   const beforeNew=workspaceReads;
   await page.getByRole("button",{name:"新しいワークスペース",exact:true}).click();
   await expect(page).not.toHaveURL(/[?&]id=/);
-  await expect(page.getByRole("button",{name:/^2 画面/})).toBeVisible();
+  await expect(page.getByRole("button",{name:"画像を選ぶ",exact:true})).toBeVisible();
   await expect(page.getByRole("button",{name:"DAPI · c1",exact:true})).toHaveCount(0);
   expect(workspaceReads).toBe(beforeNew);
   expect(writes).toHaveLength(savedWrites);
