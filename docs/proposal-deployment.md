@@ -370,7 +370,8 @@ settlements; no reservation or budget incident remained. The answers were long e
 conversation below the visible part of the panel, which the same PR corrects (the panel shows the newest message from
 its first line); the two requests on the folders were sent once more to see that on the real answers (the ledger then
 read USD 1.9193 and 50 settlements, again with no reservation or incident; both came back as `answer` with the same
-kind of choices).
+kind of choices, and this time the assignment answer put the common parent folder `exp` as the run of both fields,
+saying it was provisional, where the first answer had left the run out).
 
 | Request | Kind returned | Recipe | What the screen showed |
 |---|---|---|---|
@@ -385,7 +386,8 @@ kind of choices).
 What the evaluation shows and does not show:
 
 - In all seven nothing was applied or run by the answer: a question changed nothing, 「まだ測定しない」 was kept, a
-  request outside the registered recipes proposed no measurement, and the assignment suggestion invented no run. The
+  request outside the registered recipes proposed no measurement, and the assignment suggestion took its groups from
+  the folder names and no run from anywhere else (left out once, the parent folder as a provisional run once). The
   kind returned matched the request in six; the request outside the recipes (「解析して」) came back as `settings`, not
   `run` or `answer`.
 - Answers still carry the service's own identifiers where a researcher expects the workspace's words: `ch1`/`ch2`,

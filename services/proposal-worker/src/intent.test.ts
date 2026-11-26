@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { CLAUDE_PROMPT_VERSIONS, checkRequest, handle, type Env } from "./index";
 import { FIGURE_PROMPT_VERSION, hasDraftShape, INTENT_INSTRUCTION, INTENT_PROMPT_VERSION, requestPayload } from "./openai";
 import { MemoryStore } from "./store";
+import { redeemSupport } from "./test-support";
 
 const ENV: Env = {
   DB: undefined as never, OPENAI_API_KEY: "sk-test", OPENAI_MODEL: "gpt-6.1-sol", ADMIN_TOKEN: "admin-token-0123456789abcdef",
@@ -42,7 +43,8 @@ async function device(store: MemoryStore) {
   const invited = await handle(new Request("https://proposal.example/v1/admin/invitations", { method: "POST", body: "{}",
     headers: { authorization: `Bearer ${ENV.ADMIN_TOKEN}` } }), ENV, store);
   const { invitation } = await invited.json() as { invitation: string };
-  const redeemed = await handle(new Request("https://proposal.example/v1/devices", { method: "POST", body: JSON.stringify({ invitation }) }), ENV, store);
+  const limiter = await redeemSupport();
+  const redeemed = await handle(new Request("https://proposal.example/v1/devices", { method: "POST", body: JSON.stringify({ invitation }) }), { ...ENV, ...limiter.env }, store, limiter.options);
   return (await redeemed.json() as { device_token: string }).device_token;
 }
 const modelReply = (draft: unknown) => new Response(JSON.stringify({ status: "completed",

@@ -215,7 +215,7 @@ def test_every_route_that_accepts_a_file_is_guarded(tmp_path):
     """A new upload route cannot be added without the guard: the guard's pattern is checked against the app."""
     from cytellect_api.app import create_app
     from cytellect_api.config import Settings
-    from cytellect_api.upload_guard import UPLOAD_ROUTE
+    from cytellect_api.upload_guard import INTAKE_ROUTE, UPLOAD_ROUTE
     from fastapi.routing import APIRoute
 
     app = create_app(Settings(tmp_path / "private", app_origin="http://localhost:3000", secure_cookies=False))
@@ -223,6 +223,8 @@ def test_every_route_that_accepts_a_file_is_guarded(tmp_path):
                if isinstance(route, APIRoute) and route.body_field is not None
                and any(getattr(param.field_info, "media_type", "") == "multipart/form-data"
                        for param in route.dependant.body_params)]
-    assert len(uploads) >= 4
+    assert len(uploads) >= 5
+    # The inspection before registration (#284 W4) names no workspace: the guard matches it by its own path.
+    assert INTAKE_ROUTE in uploads
     for path in uploads:
-        assert UPLOAD_ROUTE.fullmatch(path.replace("{wid}", "workspace")), path
+        assert path == INTAKE_ROUTE or UPLOAD_ROUTE.fullmatch(path.replace("{wid}", "workspace")), path
