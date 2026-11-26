@@ -142,7 +142,7 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   useEffect(()=>{if(needsAttention(r.intake))setIntakeShown(true);},[r.intake]);
   // Each workspace keeps its own list; a new workspace's list moves to the ID it receives at the first addition.
   const listWorkspace=useRef<string|null|undefined>(undefined);
-  useEffect(()=>{const id=data?.workspaceId??null;if(listWorkspace.current===id)return;
+  useEffect(()=>{const id=data?.workspaceId||null;if(listWorkspace.current===id)return;
     if(listWorkspace.current===null&&id)intakeList.rename(id);else intakeList.open(id);listWorkspace.current=id;},[data?.workspaceId,intakeList]);
   // A closed file dialog changes nothing (the earlier choice stays); it is said so, not left silent (#284 input 6).
   const [cancelled,setCancelled]=useState(false);

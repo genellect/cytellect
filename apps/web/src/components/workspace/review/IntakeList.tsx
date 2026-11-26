@@ -37,16 +37,18 @@ export function IntakeList({items, registered, busy, targetLabel, onAdd, onMore,
   const choose = (id: string) => {replacing.current = id;input.current?.click();};
   return <section className={styles.list} aria-label="取り込みの一覧">
     <header className={styles.listHeader}>
-      <p role="status">{breakdown(items) || "受け取り：0"}</p>
+      <p role="status">{breakdown(items) || "選択中のファイル：なし"}</p>
       <div className={styles.listActions}>
-        <button type="button" className={styles.primary} disabled={busy || loading || !addable} onClick={() => onAdd(false)}>追加</button>
-        <button type="button" disabled={busy || loading || !fields.length} onClick={() => onAdd(true)}>追加して AI に質問</button>
+        {items.length > 0 && <>
+          <button type="button" className={styles.primary} disabled={busy || loading || !addable} onClick={() => onAdd(false)}>追加</button>
+          <button type="button" disabled={busy || loading || !fields.length} onClick={() => onAdd(true)}>追加して AI に質問</button>
+        </>}
         <button type="button" onClick={onMore}>画像を足す</button>
-        <button type="button" disabled={!items.some(item => item.selection > 0)} onClick={onUndoLast}>直前の選択を取り消し</button>
+        {items.length > 0 && <button type="button" disabled={!items.some(item => item.selection > 0)} onClick={onUndoLast}>直前の選択を取り消し</button>}
         {!addable && <button type="button" onClick={onClose}>閉じる</button>}
       </div>
     </header>
-    <table className={styles.table}>
+    {items.length > 0 && <table className={styles.table}>
       <thead><tr><th scope="col"><span className={styles.hidden}>縮小画像</span></th><th scope="col">名前</th><th scope="col">チャンネル</th><th scope="col">状態</th><th scope="col"><span className={styles.hidden}>操作</span></th></tr></thead>
       <tbody>
         {fields.map(field => <tr key={field.key}>
@@ -54,7 +56,7 @@ export function IntakeList({items, registered, busy, targetLabel, onAdd, onMore,
           <th scope="row">{field.name}{field.items[0]?.target && <small>{targetLabel(field.items[0].target)}</small>}</th>
           <td>{channelText(field.channels)}</td>
           <td>{field.loading ? "読み込み中" : "追加待ち"}</td>
-          <td><button type="button" className={styles.remove} aria-label={`${field.name} を一覧から外す`} onClick={() => onRemove(field.items.map(item => item.id))}>×</button></td>
+          <td className={styles.rowActions}><button type="button" className={styles.remove} aria-label={`${field.name} を一覧から外す`} onClick={() => onRemove(field.items.map(item => item.id))}>×</button></td>
         </tr>)}
         {others.map(item => <tr key={item.id} data-state={item.state}>
           <td>{item.thumbnail ? <img className={styles.thumb} src={item.thumbnail} alt=""/> : <span className={styles.thumb} aria-hidden="true"/>}</td>
@@ -68,7 +70,8 @@ export function IntakeList({items, registered, busy, targetLabel, onAdd, onMore,
           </td>
         </tr>)}
       </tbody>
-    </table>
+    </table>}
+    {children && <h2 className={styles.savedHeading}>登録していない画像</h2>}
     {children}
     <input hidden type="file" accept=".tif,.tiff" ref={input} data-testid="intake-replace-input" onChange={event => {
       const id = replacing.current, file = event.target.files?.[0];replacing.current = null;event.target.value = "";

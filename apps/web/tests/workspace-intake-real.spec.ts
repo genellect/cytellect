@@ -66,6 +66,8 @@ test.describe("#284 W1, W4, W5 intake against the real API", () => {
     await addListed(page);
     await expect(status(page, "登録：2 視野")).toBeVisible({timeout:120000});
     await expect(fieldCards(page)).toHaveCount(2);
+    // What was not added stays in the list, also when the addition created the workspace (#284 input 5).
+    await expect(list(page).getByRole("status").first()).toHaveText("受け取り：3 · 画像：0（0 視野） · マスクの候補：1 · 同一内容：1 · 対象外：1");
     await expect(page.getByRole("alert").filter({hasText:/\S/})).toHaveCount(0);
     await expect(page.getByLabel(/除外の理由/)).toHaveCount(0);
     const saved = await entries(page);
