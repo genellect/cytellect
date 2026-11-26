@@ -445,3 +445,69 @@ describe("functional workspace runtime",()=>{
     expect(sameRuntimeRecipe({...recipe,nucleolar_revision_id:"r2"},recipe)).toBe(false);
   });
 });
+describe("connection loss and reconnection (#284 W9)",()=>{
+  const singleDesign={version:"1.0.0",layout:"single",control_group_id:null,independence_confirmed:false,groups:[{id:"g",label:"条件"}],runs:[{id:"r1",label:"実験回1"}],fields:{}};
+  const withDesign=()=>fixture(true,{version:1,spec:{channel_assignment_version:1,target:"nuclei",settings:defaultRuntimeSettings(),processing:null,measurement:null,experiment:singleDesign as never}});
+  const target={run_id:"r1",group_id:"g",sample:null};
+  const unreachable=()=>new ApiError("api_unreachable",0);
+  const placed=(writeSpecification:ReturnType<typeof fixture>["writeSpecification"])=>Object.keys(writeSpecification.mock.calls.at(-1)?.[1].spec!.experiment!.fields??{}).sort();
+  it("unsent: the row stays pending with its names, and reconnecting re-reads it without sending anything",async()=>{
+    const {runtime,adapter,writeSpecification}=withDesign();await runtime.load("w");const ledger=withLedger(adapter);
+    let calls=0;adapter.upload.mockImplementation(async(_workspace,field,_channels,_files,entry)=>{if(++calls===2)throw unreachable();return ledger.accept(entry!,`f-${field.key.split("/").at(-1)}`);});
+    const failure=await runtime.importFiles(bbbc007(),"automatic",target).catch((error:unknown)=>error);
+    expect(failure).toBeInstanceOf(IntakeInterrupted);
+    // The connection failure reads as one, not as the browser's "Failed to fetch".
+    expect(runtime.getSnapshot().error).toBe("APIに接続できません。解析サーバーの起動と接続先を確認してください。");
+    const sent=adapter.upload.mock.calls.length;
+    await runtime.reconnected();
+    expect(adapter.upload).toHaveBeenCalledTimes(sent);
+    expect(runtime.getSnapshot().intakeRows).toEqual([expect.objectContaining({state:"pending",names:["BBBC007-f9620-C01.tif","BBBC007-f9620-C02.tif"]})]);
+    expect(placed(writeSpecification)).toEqual(["f-BBBC007-a9"]);
+    expect(runtime.getSnapshot().error).toBe("");
+  });
+  it("answer lost after sending: reconnecting shows the row as registered and places it, with no second upload",async()=>{
+    const {runtime,adapter,writeSpecification}=withDesign();await runtime.load("w");const ledger=withLedger(adapter);
+    let calls=0;adapter.upload.mockImplementation(async(_workspace,field,_channels,_files,entry)=>{const saved=ledger.accept(entry!,`f-${field.key.split("/").at(-1)}`);if(++calls===2)throw unreachable();return saved;});
+    await runtime.importFiles(bbbc007(),"automatic",target).catch(()=>undefined);
+    await runtime.reconnected();
+    expect(runtime.getSnapshot().intakeRows).toEqual([]);
+    expect(placed(writeSpecification)).toEqual(["f-BBBC007-a9","f-BBBC007-f9620"]);
+    expect(adapter.upload).toHaveBeenCalledTimes(2);
+    expect(ledger.entries().filter(entry=>entry.field_id?.startsWith("f-BBBC007"))).toHaveLength(2);
+  });
+  it("reconnected: choosing the same images again for the pending row sends them under that row, so the record does not grow",async()=>{
+    const {runtime,adapter,writeSpecification}=withDesign();await runtime.load("w");const ledger=withLedger(adapter);
+    let down=true;adapter.upload.mockImplementation(async(_workspace,field,_channels,_files,entry)=>{if(down&&field.key.includes("f9620"))throw unreachable();return ledger.accept(entry!,`f-${field.key.split("/").at(-1)}`);});
+    await runtime.importFiles(bbbc007(),"automatic",target).catch(()=>undefined);
+    const pending=ledger.entries().find(entry=>!entry.field_id)!,rows=ledger.entries().length;
+    down=false;await runtime.reconnected();
+    // The same bytes as the files this session still holds for the row: not "same content" as themselves.
+    const replaced=await runtime.replaceImport(pending.id,bbbc007().slice(2));
+    expect(replaced.duplicates).toEqual([]);expect(replaced.registered).toHaveLength(1);
+    expect(adapter.upload.mock.calls.filter(call=>call[4]===pending.id)).toHaveLength(2);
+    expect(ledger.entries()).toHaveLength(rows);
+    expect(ledger.entries().find(entry=>entry.id===pending.id)?.field_id).toBe("f-BBBC007-f9620");
+    expect(placed(writeSpecification)).toEqual(["f-BBBC007-a9","f-BBBC007-f9620"]);
+  });
+  it.each([
+    ["an ended session that a new session did not resolve (401)",new ApiError("session_required",401)],
+    ["the wrong origin (403)",new ApiError("local_origin_required",403)],
+  ])("%s interrupts the addition; the rows stay pending, never refused as images",async(_label,error)=>{
+    const {runtime,adapter}=withDesign();await runtime.load("w");const ledger=withLedger(adapter);
+    adapter.upload.mockImplementation(async()=>{throw error;});
+    const failure=await runtime.importFiles(bbbc007().slice(0,2),"automatic",target).catch((value:unknown)=>value);
+    expect(failure).toBeInstanceOf(IntakeInterrupted);
+    expect((failure as IntakeInterrupted).outcome.rejected).toEqual([]);
+    expect(ledger.entries().find(entry=>!entry.field_id)?.intake).toMatchObject({state:"pending",names:["BBBC007-a9-C01.tif","BBBC007-a9-C02.tif"]});
+    expect(adapter.recordImport).not.toHaveBeenCalled();
+    expect(adapter.upload).toHaveBeenCalledTimes(1); // the runtime never repeats it; the API client retries a 401 once
+  });
+  it("opens the workspace when the first load met no answer",async()=>{
+    const {runtime,adapter}=fixture();
+    adapter.restore.mockRejectedValueOnce(unreachable());
+    await expect(runtime.load("w")).rejects.toMatchObject({code:"api_unreachable"});
+    await runtime.reconnected();
+    expect(runtime.getSnapshot().data?.workspaceId).toBe("w");
+    expect(runtime.getSnapshot().error).toBe("");
+  });
+});

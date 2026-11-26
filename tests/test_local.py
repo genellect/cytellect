@@ -1,6 +1,7 @@
 """Local bootstrap threat boundaries and real launcher/worker lifecycle."""
 import errno
 import io
+import json
 import os
 import socket
 import subprocess
@@ -444,10 +445,15 @@ def test_launcher_terminated_abruptly_does_not_leave_worker(tmp_path, use_redire
             # than accepting another uv direct/hardlinked interpreter run.
             assert any(not os.path.samefile(child.exe(), executable)
                        and child.name().lower() in {"python.exe", "pythonw.exe"} for child in descendants)
+        runtime = tmp_path / "runtime"
+        assert stop_record(runtime)["state"] == "running"
         process.terminate()
         process.wait(timeout=10)
         _, alive = psutil.wait_procs(descendants, timeout=10)
         assert not [p for p in alive if p.is_running() and p.status() != psutil.STATUS_ZOMBIE]
+        # TerminateProcess (Windows), or SIGTERM that uvicorn re-raises after its shutdown, ends the
+        # launcher before it can write its stop: the next start reports the missing clean exit.
+        assert local_module.read_previous_stop(runtime) == {"reason": "unrecorded", "time": None}
     finally:
         for child in descendants:
             try:
@@ -566,3 +572,235 @@ def test_isolated_launcher_starts_its_worker_isolated_too(tmp_path, monkeypatch,
     monkeypatch.setattr(local_module, "process_alive", lambda identity: identity == (456, 4.0))
     WorkerSupervisor(Settings(tmp_path / "private"), lambda: None)._spawn()
     assert launched == [[sys.executable, "-B", flag, "-m", "cytellect_api.local_worker", "123", "4.0"]]
+
+
+# Stop records (#284 W9): every stop path leaves a reason code and a time in the PC data folder.
+
+def stop_record(root):
+    return json.loads((root / local_module.STOP_RECORD).read_text(encoding="ascii"))
+
+
+def test_stop_record_first_start_normal_abnormal_and_missing_clean_exit(tmp_path):
+    root = tmp_path / "private"
+    root.mkdir()
+    assert local_module.begin_stop_record(root) is None  # a first start has no previous run
+    assert stop_record(root)["state"] == "running"
+    local_module.record_stop(root, "launcher_closed")
+    assert local_module.begin_stop_record(root) is None  # a normal stop says nothing at the next start
+    local_module.record_stop(root, "update_switch")
+    assert local_module.begin_stop_record(root) is None
+    local_module.record_stop(root, "local_worker_stopped")
+    previous = local_module.begin_stop_record(root)
+    assert previous is not None and previous["reason"] == "local_worker_stopped" and previous["time"] > 0
+    # This run was killed (no stop written): the next start counts it as an abnormal stop.
+    assert local_module.begin_stop_record(root) == {"reason": "unrecorded", "time": None}
+    assert set(stop_record(root)) == {"schema", "state", "started"}
+    local_module.record_stop(root, "private synthetic detail")  # never stores free text
+    assert stop_record(root)["reason"] == "unhandled_exception"
+    (root / local_module.STOP_RECORD).write_text("{damaged", encoding="ascii")
+    assert local_module.read_previous_stop(root) == {"reason": "unrecorded", "time": None}
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="creating a symbolic link needs privileges on Windows")
+def test_stop_record_never_writes_through_a_planted_link(tmp_path):
+    root = tmp_path / "private"
+    root.mkdir()
+    target = tmp_path / "elsewhere.json"
+    target.write_text("untouched", encoding="ascii")
+    (root / local_module.STOP_RECORD).symlink_to(target)
+    assert local_module.begin_stop_record(root) == {"reason": "unrecorded", "time": None}
+    assert target.read_text(encoding="ascii") == "untouched"
+    assert not (root / local_module.STOP_RECORD).is_symlink() and stop_record(root)["state"] == "running"
+
+
+def test_previous_stop_line_names_the_reason_and_local_time():
+    assert local_module.previous_stop_line(None) is None
+    assert local_module.previous_stop_line({"reason": "unrecorded", "time": None}) == "前回の停止：理由の記録なし"
+    moment = time.mktime((2026, 11, 23, 18, 28, 0, 0, 0, -1))
+    assert local_module.previous_stop_line({"reason": "local_worker_stopped", "time": moment}) == (
+        "前回の停止：計算処理の停止 · 11月23日 18:28")
+    assert set(local_module.STOP_LABELS) == local_module.ABNORMAL_STOPS | {local_module.UNRECORDED_STOP}
+
+
+def test_previous_stop_route_is_for_the_pc_owner_only(tmp_path):
+    client, app, settings, web = local(tmp_path)
+    assert client.get("/v1/local/previous-stop").status_code == 401
+    client.post("/v1/local/session", headers=HEADERS)
+    assert client.get("/v1/local/previous-stop").json() == {"abnormal": False, "reason": None, "time": None}
+    abnormal = create_local_app(settings, web, 8765, previous_stop={"reason": "parent_process_gone", "time": 5.0})
+    owner = TestClient(abnormal, base_url=ORIGIN, client=("127.0.0.1", 45003))
+    owner.post("/v1/local/session", headers=HEADERS)
+    assert owner.get("/v1/local/previous-stop").json() == {"abnormal": True, "reason": "parent_process_gone", "time": 5.0}
+    invited = TestClient(abnormal, base_url=ORIGIN, client=("127.0.0.1", 45004))
+    assert invited.post("/v1/invitations/redeem", json={"token": abnormal.state.store.invite(3600)},
+                        headers=HEADERS).status_code == 200
+    assert invited.get("/v1/local/previous-stop").status_code == 401  # another owner's session
+    remote = TestClient(abnormal, base_url=ORIGIN, client=("192.0.2.1", 1000))
+    remote.cookies.update(owner.cookies)
+    assert remote.get("/v1/local/previous-stop").status_code == 403
+
+
+class _StopHarness:
+    """run_local with its real lock, port, app and stop record; the server and worker are stand-ins."""
+
+    def __init__(self, tmp_path, monkeypatch):
+        import uvicorn
+
+        self.web = tmp_path / "web"
+        self.web.mkdir(exist_ok=True)
+        (self.web / "index.html").write_text("local shell", encoding="utf-8")
+        with socket.socket() as free:
+            free.bind(("127.0.0.1", 0))
+            self.port = free.getsockname()[1]
+        self.settings = Settings(tmp_path / "private", app_origin=f"http://127.0.0.1:{self.port}", secure_cookies=False)
+        self.scenario = lambda server, harness: None
+        self.start_failure: Exception | None = None
+        self.gui_calls: list[dict] = []
+        self.close_window = False
+        harness = self
+
+        class Server:
+            def __init__(self, config):
+                self.config, self.should_exit, self.started = config, False, False
+
+            def run(self, sockets):
+                self.started = True
+                harness.scenario(self, harness)
+
+        class Supervisor:
+            def __init__(self, _settings, stop_server):
+                self.stop_server, self.failure = stop_server, None
+                harness.supervisor = self
+
+            def start(self):
+                if harness.start_failure is not None:
+                    raise harness.start_failure
+
+            def stop(self):
+                pass
+
+        def gui(server, url, run_server, open_browser, *, request_stop=None, notice=None):
+            harness.gui_calls.append({"notice": notice})
+            run_server()
+            if harness.close_window:
+                request_stop()
+
+        monkeypatch.setattr(uvicorn, "Server", Server)
+        monkeypatch.setattr(local_module, "WorkerSupervisor", Supervisor)
+        monkeypatch.setattr(local_module, "_gui", gui)
+
+    def run(self, **options):
+        local_module.run_local(self.settings, self.web, self.port, open_browser=False, **options)
+
+    def reason(self):
+        record = stop_record(self.settings.data_dir)
+        assert record["state"] == "stopped" and isinstance(record["time"], int)
+        assert set(record) == {"schema", "state", "reason", "time"}  # no names, paths or pixels
+        return record["reason"]
+
+
+def _wait_for_exit(server, _harness):
+    deadline = time.monotonic() + 5
+    while not server.should_exit and time.monotonic() < deadline:
+        time.sleep(0.02)
+    assert server.should_exit
+
+
+def test_closing_the_launcher_and_ctrl_c_record_launcher_closed(tmp_path, monkeypatch):
+    harness = _StopHarness(tmp_path, monkeypatch)
+    harness.close_window = True
+    harness.run(gui=True)
+    assert harness.reason() == "launcher_closed" and harness.gui_calls == [{"notice": None}]
+
+    def interrupt(_server, _harness):
+        raise KeyboardInterrupt  # uvicorn re-raises a captured Ctrl+C after its shutdown
+
+    harness.scenario = interrupt
+    with pytest.raises(KeyboardInterrupt):
+        harness.run()
+    assert harness.reason() == "launcher_closed"
+
+
+def test_a_server_that_ends_unasked_is_an_abnormal_stop(tmp_path, monkeypatch):
+    harness = _StopHarness(tmp_path, monkeypatch)
+    harness.run(gui=True)  # the server thread ended, but nothing asked it to stop
+    assert harness.reason() == "server_stopped"
+    harness.run(gui=True)
+    assert harness.gui_calls[-1]["notice"].startswith("前回の停止：サービスの停止 · ")
+
+
+def test_the_update_switch_records_a_normal_stop(tmp_path, monkeypatch):
+    harness = _StopHarness(tmp_path, monkeypatch)
+
+    def update(server, _harness):
+        server.config.app.state.request_shutdown()
+        assert server.should_exit
+
+    harness.scenario = update
+    harness.run()
+    assert harness.reason() == "update_switch"
+    harness.scenario = lambda server, _harness: None
+    harness.run(gui=True)
+    assert harness.gui_calls[-1] == {"notice": None}  # the successor says nothing about a planned switch
+
+
+@pytest.mark.parametrize("failure", ["local_worker_stopped", "local_worker_start_failed"])
+def test_a_stopped_worker_is_recorded_and_named_at_the_next_start(tmp_path, monkeypatch, failure):
+    harness = _StopHarness(tmp_path, monkeypatch)
+
+    def worker_ends(server, harness):
+        harness.supervisor.failure = failure
+        harness.supervisor.stop_server()
+        assert server.should_exit
+
+    harness.scenario = worker_ends
+    with pytest.raises(RuntimeError, match=failure):
+        harness.run()
+    assert harness.reason() == failure
+    harness.scenario = lambda server, _harness: None
+    harness.run(gui=True)
+    assert harness.gui_calls[-1]["notice"].startswith("前回の停止：" + local_module.STOP_LABELS[failure] + " · ")
+
+
+def test_a_worker_that_cannot_start_is_recorded(tmp_path, monkeypatch):
+    harness = _StopHarness(tmp_path, monkeypatch)
+    harness.start_failure = RuntimeError("local_worker_start_failed")
+    with pytest.raises(RuntimeError):
+        harness.run()
+    assert harness.reason() == "local_worker_start_failed"
+
+
+def test_a_vanished_parent_process_is_recorded(tmp_path, monkeypatch):
+    harness = _StopHarness(tmp_path, monkeypatch)
+    monkeypatch.setattr(local_module, "redirector_owner", lambda: (1, 1.0))
+    monkeypatch.setattr(local_module, "process_alive", lambda identity: False)
+    harness.scenario = _wait_for_exit
+    harness.run()
+    assert harness.reason() == "parent_process_gone"
+
+
+@pytest.mark.parametrize("where", ["server", "app"])
+def test_an_unhandled_exception_is_recorded_without_its_text(tmp_path, monkeypatch, where):
+    harness = _StopHarness(tmp_path, monkeypatch)
+
+    def fail(*_args, **_kwargs):
+        raise ValueError("private synthetic detail")
+
+    if where == "server":
+        harness.scenario = fail
+    else:
+        monkeypatch.setattr(local_module, "create_local_app", fail)
+    with pytest.raises(ValueError):
+        harness.run()
+    assert harness.reason() == "unhandled_exception"
+    assert "private" not in (harness.settings.data_dir / local_module.STOP_RECORD).read_text(encoding="ascii")
+
+
+def test_a_second_launch_leaves_the_running_launchers_record(tmp_path, monkeypatch):
+    harness = _StopHarness(tmp_path, monkeypatch)
+    harness.settings.data_dir.mkdir(parents=True)
+    local_module.begin_stop_record(harness.settings.data_dir)
+    before = (harness.settings.data_dir / local_module.STOP_RECORD).read_bytes()
+    with runtime_lock(harness.settings.data_dir), pytest.raises(ValueError, match="local_runtime_already_in_use"):
+        harness.run()
+    assert (harness.settings.data_dir / local_module.STOP_RECORD).read_bytes() == before

@@ -44,7 +44,9 @@ a field in its n breakdown, by group and reason, from the selection saved with i
 its result in one line beside 取込, including an empty folder, a choice without TIFF and a closed dialog
 (the earlier choice stays). Only an addition that cannot go on (no answer, ended session, changed
 workspace) is shown as an error; what it registered stays. Images chosen before the experiment form
-is chosen accumulate until they are registered.
+is chosen accumulate until they are registered. In the local build, a lost connection is shown by the
+connection notice instead of that error and its 「再読み込み」, and the rows are read again once the
+service answers ([Packaged local browser workspace](#packaged-local-browser-workspace)).
 
 The AI panel ([#284](https://github.com/genellect/cytellect/issues/284) W2) first shows the selected field as the
 workspace records it, without a model call and also while the AI is not enabled: its name and size, each channel with
@@ -295,6 +297,32 @@ after a relaunch revokes the cookie, instead of a 401 that the browser logs as a
 error; a GET never issues a session. The cloud sign-in routes (`/v1/account*`)
 accept only this PC's own session, not an invitation's, so local browser tests
 open the workspace with `POST /v1/local/session`, as `解析を開始` does.
+
+Connection failures (genellect/cytellect#284) are told apart in the API client
+(`apps/web/src/lib/api.ts`, state in `lib/local-connection.ts`) and shown by
+`ConnectionNotice` above the workspace, which then hides the general error line
+and its 「再読み込み」:
+
+| Failure | Detected as | Workspace |
+|---|---|---|
+| No answer (not sent, or the answer lost) | `fetch` throws; the client raises `api_unreachable` with status 0 instead of the browser's `Failed to fetch` | 「ローカルのサービス：接続なし」, 「再接続」, 「再開には、デスクトップの「Cytellect」の起動が必要です。」; `/v1/local/setup` is checked every 5 seconds |
+| Ended session | 401 `session_required` on a page that has used a session | `POST /v1/local/session`, then the same request once more (one shared renewal for concurrent requests). A second 401 shows 「作業画面のセッション：終了」 and 「再接続」 |
+| Wrong origin | 403 `local_origin_required`, or a non-loopback page | 「ローカルのサービス：接続の拒否」 and 「作業画面には、デスクトップの「Cytellect」から開いた画面が必要です。」 |
+
+A request without an answer is never repeated, because the API may have
+accepted it; a 401 is answered before the route runs, so its single repeat
+writes nothing twice. Session routes, an explicit `DELETE /v1/session` and a
+page that has not used a session yet (it starts from 「解析を開始」) are never
+renewed. When the service answers again, the runtime's `reconnected` reads the
+rows and fields again: a row whose upload reached the API shows as registered,
+a `pending` row keeps its names for 「差し替え」 under the same row ID, and
+recorded targets are placed. The notice also shows, once per start, the
+previous launcher run's abnormal stop from `GET /v1/local/previous-stop`
+(「前回の停止：計算処理の停止 · 11月23日 18:28」; codes in
+[local delivery](local.md#stop-and-restart-停止と再開)). The hosted build keeps
+its session rules (no renewal, no notice); its no-answer error reads
+「APIに接続できません。…」. `tests/local-connection.spec.ts` checks the notice
+against the local static build with mocked routes (`CYTELLECT_LOCAL_UI_URL`).
 
 Onboarding and the upload form state that images are saved locally. The retention
 period is 24 hours after explicit activity. Data that expires while the application

@@ -177,7 +177,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   const writeSpecification=dependencies.writeSpecification ?? ((id:string,value:RuntimeSpecification)=>request<RuntimeSpecification>(`/v1/workspaces/${id}/analysis-spec`,{method:"PUT",body:JSON.stringify({version:value.version,spec:value.spec})}));
   let specification:RuntimeSpecification={version:0,spec:null},specificationDirty=false;
   let beforeProposal:{settings:RuntimeSettings;processing:ProposalProcessing|null;specification:RuntimeSpecification}|null=null;
-  let closed=false,epoch=0,stopped=false,activeRunId:string|null=null;
+  let closed=false,epoch=0,stopped=false,activeRunId:string|null=null,opened:string|undefined;
   const runRequests=new Map<string,string>();
   let currentTargets=new Map<string,RuntimeTargets>(),registered=new Map<string,ImportedField>();
   const omeFiles=new Map<string,File>();
@@ -466,7 +466,10 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     const batch=`import-${crypto.randomUUID()}`,fresh:AddedFile[]=[],freshOme:string[]=[],oversized=new Set<string>();
     const known=new Map<string,string>();
     for(const field of registered.values())for(const input of Object.values(field.image_info.inputs??{}))known.set(input.sha256,names.get(field.id)||field.display_name||field.id);
-    for(const [path,sha256] of hashes)known.set(sha256,shownPath(path));
+    // A row sent again (差し替え, e.g. after a reconnection) may hold the very files it still keeps: they are not copies of themselves.
+    const replacing=new Set<string>();
+    if(options.entry)for(const [key,id] of uploadKeys)if(id===options.entry){const grouped=groupFiles(added).fields.find(field=>field.key===key);for(const path of grouped?Object.values(grouped.files).map(file=>file.path):[key])replacing.add(path);}
+    for(const [path,sha256] of hashes)if(!replacing.has(path))known.set(sha256,shownPath(path));
     for(const file of list){
       const originalPath=intakePath(file);if(!isSupportedImage(originalPath)){outcome.skipped.push({name:originalPath});continue;}
       let path=`${batch}/${originalPath}`;
@@ -530,16 +533,25 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     publish({intake:outcome,importIssues:groupFiles(added,mode).issues.filter(issue=>issue.kind!=="duplicate_content"&&issue.kind!=="duplicate_channel").map(shownIssue)});
     return outcome;
   }
+  async function reloadSaved(){await refresh(workspace(),true);if(await placeAfterRestart())await refresh(workspace());await recoverRun();}
   async function travel(field:string,target:ReviewTarget,direction:"undo"|"redo"){return exclusive(direction==="undo"?"前の版に戻しています":"次の版を採用しています",async()=>{await checkCurrent();const stack=history(field,target),destination=stack[direction].at(-1);if(!destination)return;const previous=bound(field,target),result=await adapter.selectRevision(workspace(),destination.result.revision,field);stack[direction].pop();stack[direction==="undo"?"redo":"undo"].push(previous);adopted(field,target,result,destination.recipe);await refresh(workspace());});}
-  return {
+  const runtime={
     adapter,subscribe(listener:()=>void){listeners.add(listener);return()=>{listeners.delete(listener);};},getSnapshot:()=>state,
-    async load(id?:string){closed=false;publish({busy:true,loading:true,error:"",operation:"画像と保存結果を読み込み中"});
+    async load(id?:string){closed=false;opened=id;publish({busy:true,loading:true,error:"",operation:"画像と保存結果を読み込み中"});
       // What is shown first loads first: a two-group design opens side by side on the first run's field
       // of each group (V-01), both together; any other design on its first field. The others follow.
       try{const opening=await openingFields(id);await refresh(id,true,opening?undefined:1,opening);if(state.data?.workspaceId)publish({messages:await readMessages(state.data.workspaceId)});}catch(error){publish({busy:false,loading:false,operation:"",error:message(error)});throw error;}
       try{
         if(registered.size>(state.data?.fields.length??0)){publish({operation:"残りの視野を読み込み中"});await painted();await refresh(workspace());}if(await placeAfterRestart())await refresh(workspace());await recoverRun();}catch(error){publish({error:message(error)});throw error;}finally{publish({busy:false,loading:false,operation:""});}},
-    reload(){return exclusive("保存結果を再読み込み中",async()=>{await refresh(workspace(),true);if(await placeAfterRestart())await refresh(workspace());await recoverRun();});},
+    reload(){return exclusive("保存結果を再読み込み中",reloadSaved);},
+    /** The local service answers again (#284 W9): re-read the rows and fields. A row whose upload reached the API shows as
+     * registered (the API joins it by the row's ID), a row still "pending" keeps its names, and recorded targets are placed.
+     * Nothing is sent again here; sending a row again uses the same row ID, so the API returns the same field. */
+    reconnected(){
+      if(state.busy)return Promise.resolve();
+      if(!state.data?.workspaceId)return runtime.load(opened);
+      return exclusive("保存結果を再読み込み中",reloadSaved);
+    },
     /** Hide the last message (used for demo notices, which need no reload). */
     dismissError(){if(state.error)publish({error:""});},
     newWorkspace(){if(state.busy)throw new Error("現在の処理が終わるまでお待ちください。");++epoch;beforeProposal=null;runRequests.clear();added.length=0;omeFiles.clear();files.clear();uploadKeys.clear();uploaded.clear();names.clear();hashes.clear();copies.clear();histories.clear();candidateStore.clear();currentTargets.clear();registered.clear();specification={version:0,spec:null};publish({assignments:{version:0,assignments:[]},activeTarget:"nuclei",settings:defaultRuntimeSettings(),processing:null,proposal:null,error:"",importIssues:[],intakeRows:[],intake:null,messages:[],progress:{}});answers.clear();lastApplicable=null;replaceData(emptyData());},
@@ -704,6 +716,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       publish({messages:withMessage(recorded??{...message,effect:run?"run":"settings"})});
     });},
   };
+  return runtime;
 }
 
 export function useWorkspaceRuntime(initialWorkspaceId?:string){

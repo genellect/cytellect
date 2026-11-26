@@ -25,6 +25,14 @@ class LocalSetupView(BaseModel):
     version: str | None = None
 
 
+class PreviousStopView(BaseModel):
+    """The previous launcher run's end, when it was abnormal (a reason code and time, no research data)."""
+    abnormal: bool
+    reason: Literal["local_worker_stopped", "local_worker_start_failed", "parent_process_gone",
+                    "server_stopped", "unhandled_exception", "unrecorded"] | None
+    time: float | None
+
+
 class WorkspaceView(BaseModel):
     id: str
     owner: str

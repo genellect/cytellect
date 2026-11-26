@@ -36,6 +36,7 @@ import {NextStep,TableHeading,type ColorView,type NextAction} from "./ColorView"
 import {UnfinishedImports} from "./UnfinishedImports";
 import {AssistantPanel} from "./AssistantPanel";
 import type {ReasonPlace} from "@/lib/workspace/assistant-reasons";
+import {ConnectionNotice,useLocalConnection} from "./ConnectionNotice";
 import {needsAttention,outcomeLine} from "@/lib/workspace/intake-record";
 import {PairStage,pairDisplayText,pairRuns,type Historical,type PairDisplay} from "./PairStage";
 import {fieldsIn,type ExperimentDesign} from "@/lib/workspace/experiment-design";
@@ -137,6 +138,8 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   const [instruction,setInstruction]=useState(""),[assignments,setAssignments]=useState(false),[editing,setEditing]=useState(false),[search,setSearch]=useState(""),[returnMode,setReturnMode]=useState<Mode|null>(null);
   const sourceReturn=useRef<{mode:Mode;field:string;channel:string;target:ReviewTarget;metric:string;region:number|undefined;historical:Historical|null}|null>(null);
   const [localError,setLocalError]=useState(""),[viewport,setViewport]=useState<Record<string,ReviewImageViewport|null>>({});
+  // While the local service is unreachable, its session ended or the origin is wrong, ConnectionNotice speaks instead (#284 W9).
+  const connected=useLocalConnection()==="connected";
   const [previewRequest,setPreviewRequest]=useState<{field:string;target:ReviewTarget;sequence:number}|null>(null);
   const [gfpSaved,setGfpSaved]=useState<{signature:string;result:GfpGateResult;filter:WorkspaceGfpFilter}|null>(null);
   const [channelSaved,setChannelSaved]=useState<{signature:string;result:ChannelGateResult;filter:ChannelGateFilter}|null>(null);
@@ -532,7 +535,8 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
     <div className={styles.body}>
       {demo&&showcase.scene&&<SceneIntro intro={intro} dataset={showcase.dataset}/>}
       <CloudNotices/>
-      {(r.error||localError)&&(isShowcaseNotice(localError||r.error)?<div className={`${styles.error} ${showcaseStyles.notice}`} role="status">{localError||r.error}<button aria-label="案内を閉じる" onClick={()=>{setLocalError("");r.dismissError();}}>閉じる</button></div>:<div className={styles.error} role="alert">{localError||r.error}<button aria-label="保存状態を再読み込み" disabled={busy} onClick={()=>void act(()=>r.reload())}>再読み込み</button></div>)}
+      <ConnectionNotice onReconnected={()=>void act(()=>r.reconnected())}/>
+      {(r.error||localError)&&connected&&(isShowcaseNotice(localError||r.error)?<div className={`${styles.error} ${showcaseStyles.notice}`} role="status">{localError||r.error}<button aria-label="案内を閉じる" onClick={()=>{setLocalError("");r.dismissError();}}>閉じる</button></div>:<div className={styles.error} role="alert">{localError||r.error}<button aria-label="保存状態を再読み込み" disabled={busy} onClick={()=>void act(()=>r.reload())}>再読み込み</button></div>)}
       {/* One instance for both views: the first save switches to the experiment view (E-01). */}
       <section hidden={!setupShown} className={styles.imageWork}>{setupShown&&setup}</section>
       <section hidden={mode!=="image"||setupShown} className={styles.imageWork}>

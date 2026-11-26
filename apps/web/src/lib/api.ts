@@ -1,4 +1,5 @@
 import {isShowcaseNoticeCode, showcaseActive, showcaseNotices, showcaseTransport} from "./showcase";
+import {reportConnection} from "./local-connection";
 export const LOCAL_MODE = process.env.NEXT_PUBLIC_CYTELLECT_WEB_MODE === "local";
 export const API = LOCAL_MODE ? "" : process.env.NEXT_PUBLIC_API_ORIGIN || (process.env.NODE_ENV === "development" ? "http://localhost:8000" : "");
 export const API_CONFIGURED = LOCAL_MODE || !!API;
@@ -12,21 +13,64 @@ export const LOCAL_UNREACHABLE_TEXT = "Cytellect に接続できません。小�
 export const CLOUD_NETWORK_HINT = "大学や研究室のネットワークでは、接続が制限されている場合があります。続く場合は、ネットワーク管理者に api.cytellect.app への接続の許可を依頼してください。";
 /** `reasons`: the machine-readable reasons a refusal carries (for example a refused AI draft, #284 W2). */
 export class ApiError extends Error { constructor(public code: string, public status: number, public reasons: string[] = []) { super(code); } }
+/** No answer at all: the request was not sent, or its answer was lost (status 0, never a server's refusal). */
+export const UNREACHABLE_CODE = "api_unreachable";
+const LOOPBACK_HOSTS = ["localhost","127.0.0.1","[::1]","::1"];
+const isAbort = (error:unknown) => error instanceof DOMException && error.name === "AbortError";
+/** Local mode: one new session for every request that met a 401 at the same time (the launcher revokes sessions at each stop). */
+let renewing: Promise<boolean> | null = null;
+function renewLocalSession(): Promise<boolean> {
+ // The same POST as the workspace's opening (WorkspaceAccess); the cookie is HttpOnly and never read here.
+ renewing ??= fetch(API + "/v1/local/session", {method:"POST",headers:{"X-Cytellect-Request":"1"},credentials:"include",cache:"no-store"})
+   .then(response => response.ok, () => false).finally(() => {renewing = null;});
+ return renewing;
+}
+async function detailCode(result: Response, fallback: string) {
+ try { const value = await result.clone().json(); if (typeof value.detail === "string") return value.detail as string;
+   if (value.detail && typeof value.detail.code === "string") return value.detail.code as string; } catch {}
+ return fallback;
+}
+/** The reason codes a structured refusal carries (#284 W2); never its text. */
+async function detailReasons(result: Response): Promise<string[]> {
+ try { const value = await result.clone().json(); if (value.detail && Array.isArray(value.detail.reasons)) return value.detail.reasons.filter((item: unknown): item is string => typeof item === "string"); } catch {}
+ return [];
+}
+async function sent(send: () => Promise<Response>): Promise<Response> {
+ try { return await send(); }
+ catch (error) { if (isAbort(error)) throw error; if (LOCAL_MODE) reportConnection("unreachable"); throw new ApiError(UNREACHABLE_CODE, 0); }
+}
+/** Routes that open or end a session themselves: their 401 is the answer, never renewed. */
+const sessionRoute = (path: string, method: string) => path.startsWith("/v1/local/session") || path.startsWith("/v1/invitations")
+ || path.startsWith("/v1/desktop/session") || (path.startsWith("/v1/session") && method !== "GET");
+/** Routes that answer without a session: their answer says nothing about one. */
+const openRoute = (path: string, method: string) => path.startsWith("/v1/local/setup") || path.startsWith("/v1/local/first-run")
+ || (path.startsWith("/v1/local/session") && method === "GET");
+/** Only a session this page has used is renewed: a page that has none yet starts it from its own screen (「解析を開始」). */
+let sessionUsed = false;
+/** Local mode: what an answer (or its absence) says about the connection; a 401 is renewed once, then sent again once. */
+async function localExchange(send: () => Promise<Response>, path: string, method = "GET"): Promise<Response> {
+ let result = await sent(send);
+ if (result.status === 401 && sessionUsed && !sessionRoute(path, method) && await detailCode(result, "") === "session_required"
+   && await renewLocalSession()) result = await sent(send); // A 401 is refused before the route runs: nothing was written.
+ if (result.ok && !openRoute(path, method)) sessionUsed = !(path.startsWith("/v1/session") && method === "DELETE");
+ if (result.status === 401 && await detailCode(result, "") === "session_required") reportConnection("session");
+ else if (result.status === 403 && await detailCode(result, "") === "local_origin_required") reportConnection("origin");
+ else reportConnection("connected");
+ return result;
+}
+function assertLocalHost() {
+ if(LOCAL_MODE && typeof window!=="undefined" && !LOOPBACK_HOSTS.includes(window.location.hostname)) {reportConnection("origin"); throw new ApiError("local_host_required",403);}
+}
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
  const showcase = !API_CONFIGURED && showcaseActive();
  if(!API_CONFIGURED && !showcase) throw new ApiError("server_not_configured",503);
- if(LOCAL_MODE && typeof window!=="undefined" && !["localhost","127.0.0.1","[::1]","::1"].includes(window.location.hostname)) throw new ApiError("local_host_required",403);
+ assertLocalHost();
  const headers = new Headers(options.headers);
  if (options.body && !(options.body instanceof FormData)) headers.set("Content-Type", "application/json");
  if (options.method && !["GET", "HEAD"].includes(options.method)) headers.set("X-Cytellect-Request", "1");
- const result = showcase ? await showcaseTransport()!.fetch(path, {...options, headers}) : await fetch(API + path, {...options, headers, credentials: "include", cache: "no-store"});
- if (!result.ok) {
-   let code = "request_failed", reasons: string[] = [];
-   try { const value = await result.json(); if (typeof value.detail === "string") code = value.detail;
-     else if (value.detail && typeof value.detail.code === "string") {code = value.detail.code;
-       if (Array.isArray(value.detail.reasons)) reasons = value.detail.reasons.filter((item: unknown): item is string => typeof item === "string");} } catch {}
-   throw new ApiError(code, result.status, reasons);
- }
+ const send = () => fetch(API + path, {...options, headers, credentials: "include", cache: "no-store"});
+ const result = showcase ? await showcaseTransport()!.fetch(path, {...options, headers}) : LOCAL_MODE ? await localExchange(send, path, (options.method || "GET").toUpperCase()) : await sent(send);
+ if (!result.ok) throw new ApiError(await detailCode(result, "request_failed"), result.status, await detailReasons(result));
  return result.json() as Promise<T>;
 }
 export const post = <T,>(path: string, body?: unknown) => request<T>(path, {method:"POST",body:body === undefined ? undefined : JSON.stringify(body)});
@@ -44,8 +88,9 @@ export async function fetchPrivateResponse(path: string, signal?: AbortSignal): 
    return result;
  }
  if(!API_CONFIGURED) throw new ApiError("server_not_configured",503);
- if(LOCAL_MODE && typeof window!=="undefined" && !["localhost","127.0.0.1","[::1]","::1"].includes(window.location.hostname)) throw new ApiError("local_host_required",403);
- const result = await fetch(API + path, {credentials:"include",cache:"no-store",signal});
+ assertLocalHost();
+ const send = () => fetch(API + path, {credentials:"include",cache:"no-store",signal});
+ const result = LOCAL_MODE ? await localExchange(send, path) : await sent(send);
  if (!result.ok) throw new ApiError("artifact_unavailable", result.status);
  return result;
 }
@@ -346,11 +391,15 @@ const messages:Record<string,string> = {
  sans_serif_font_not_installed:"図に使用できる通常の太さのフォントが見つかりません。フォント環境を確認してください。",
  figure_font_glyphs_unavailable:"選択した書体では図中の一部の文字を表示できません。図の言語・ラベルとフォント環境を確認してください。",
  local_host_required:"この画面はローカルの作業画面ではありません。デスクトップの「Cytellect」から開いてください。",
+ // The three connection failures of the local build (#284 W9); the workspace shows them in its connection notice.
+ api_unreachable:LOCAL_MODE ? LOCAL_UNREACHABLE_TEXT : "APIに接続できません。解析サーバーの起動と接続先を確認してください。",
+ local_origin_required:"作業画面には、デスクトップの「Cytellect」から開いた画面が必要です。",
  fiji_detection_capacity_exceeded:"この画像は現在の自動検出の上限を超えています（1辺2048 px、270万画素）。原画像は変更されていません。",
  recipe_required_channels_missing:"このレシピに必要なチャンネルが不足しています。NCL解析には核染色とNCL、GFP解析には核染色とGFPが必要です。",
  outcome_cannot_be_its_own_gfp_covariate:"GFPを目的変数と説明変数の両方に指定できません。実験回での比較を選択してください。",
  invitation_invalid:"招待コードが無効、期限切れ、または使用済みです。",
- session_required:LOCAL_MODE ? "作業画面の接続が切れました。ブラウザでこのページを再読み込みしてください。" : "セッションが失効しました。新しい招待で接続してください。",
+ // Local mode: shown only after a new session (one per request) did not resolve the 401.
+ session_required:LOCAL_MODE ? "作業画面のセッション：終了。再開には、デスクトップの「Cytellect」から開いた画面が必要です。" :"セッションが失効しました。新しい招待で接続してください。",
  too_many_attempts:"試行回数が多すぎます。1分後にもう一度お試しください。",
  confirm_background_for_every_field:"すべての視野で背景ROIを描いて確認してください。",
  demo_accepts_synthetic_only:"この環境では実画像の解析を実行できません。",

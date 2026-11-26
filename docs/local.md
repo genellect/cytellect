@@ -185,6 +185,31 @@ Originals and derived files remain in the chosen private runtime directory, outs
 
 Closing the launcher stops computation and revokes its local-owner sessions. A subsequent launch can reopen that owner's unexpired work. Cleanup, stop/restart, quota and partial-job behavior must be verified on the installed copy, not only the development environment.
 
+### Stop and restart (停止と再開)
+
+Every stop of the launcher is recorded in `local-stop.json` in the data folder (`data/`), next to `local-owner` ([genellect/cytellect#284](https://github.com/genellect/cytellect/issues/284)). The record holds a schema, a state, one reason code and the time in seconds; no file name, instruction text, path or pixel, and never exception text. Only the launcher that holds the runtime lock reads or writes it, so a refused second launch leaves the running launcher's record alone. It is written by replacing the file atomically; a write that fails never blocks a start or a stop.
+
+| Code | Stop path | At the next start |
+|---|---|---|
+| `launcher_closed` | 「停止して閉じる」, the window's close button, or Ctrl+C in the command-line launcher | Nothing is shown |
+| `update_switch` | The in-app update stops this version before the relauncher starts the next ([In-app update](#in-app-update)) | Nothing is shown |
+| `local_worker_stopped` | The worker exited a third time (it is restarted twice; the limit is unchanged) | 「前回の停止：計算処理の停止 · 日時」 |
+| `local_worker_start_failed` | The worker could not start, at the launch or at a restart | 「前回の停止：計算処理の起動失敗 · 日時」 |
+| `parent_process_gone` | The Windows virtual environment's redirector that owns the launcher disappeared | 「前回の停止：起動元のプロセスの終了 · 日時」 |
+| `server_stopped` | The server ended although nothing asked it to stop | 「前回の停止：サービスの停止 · 日時」 |
+| `unhandled_exception` | Any other exception while starting or serving | 「前回の停止：予期しないエラー · 日時」 |
+| `unrecorded` (read only) | No stop was written: the process was killed (Task Manager, `TerminateProcess`, a SIGTERM that uvicorn re-raises after its shutdown in the command-line launcher), the PC lost power, or the record is damaged. At each start the launcher marks the record `running`; a start that still finds `running` counts the previous run as an abnormal stop | 「前回の停止：理由の記録なし」 |
+
+After an abnormal stop, the next start shows the line once in the launcher window, below its status, and the workspace shows the same line at the top until it is closed. The workspace reads it from `GET /v1/local/previous-stop`, which answers only this PC owner's session (401 otherwise, 403 off the loopback origin) with `{abnormal, reason, time}`; it is not part of the published OpenAPI contract. The command-line launcher prints the code instead. The stop paths themselves, including the worker's restart limit, are unchanged; the record is for finding the cause of a stop such as the `Failed to fetch` of #284, which has no recorded cause yet.
+
+The workspace separates the three ways a request can fail and does not ask for a page reload for any of them:
+
+- **No answer** (the request was not sent, or its answer was lost): 「ローカルのサービス：接続なし」 with 「再接続」 and 「再開には、デスクトップの「Cytellect」の起動が必要です。」. The workspace checks `/v1/local/setup` again every 5 seconds. A request without an answer is never sent again automatically, because the service may have accepted it.
+- **Ended session** (401 `session_required`, for example after the launcher was restarted): the API client opens a new session with `POST /v1/local/session`, as the workspace's opening does, and sends the same request once more. A 401 is answered before the route runs, so nothing was written. Requests that meet a 401 together share one renewal. Only a page that has already used a session renews it; a page without one starts it from 「解析を開始」, and the session routes themselves (and an explicit `DELETE /v1/session`) are never renewed. If the second answer is still 401, the workspace shows 「作業画面のセッション：終了」 with 「再接続」.
+- **Wrong origin** (403 `local_origin_required`, or a page that is not on the loopback address): 「ローカルのサービス：接続の拒否」 and 「作業画面には、デスクトップの「Cytellect」から開いた画面が必要です。」, without a button.
+
+Once the service answers again, the workspace re-reads the rows and fields (the runtime's `reconnected`, the same reading as 「再読み込み」). An image whose upload reached the API but whose answer was lost shows as registered, because the API joins the field to its row by the row's ID (`client_upload_id`); a row still `pending` keeps its file names for 「差し替え」 under the same row ID, which the API answers with the same field. Recorded group and run targets are placed at this reading as at a restart. Nothing is sent again by the reconnection itself.
+
 Windows virtual environments may run a redirector executable and a separate Python interpreter. The interpreter watches that redirector's PID and creation time; losing it stops the local server. The worker reports its actual process identity over a private pipe, so stopping or retrying a worker also terminates its interpreter, not just its redirector. Ordinary setup shells are not lifetime owners and may exit after opening Cytellect. Tests cover abrupt redirector termination and bounded worker recovery with a real Windows stdlib virtual environment.
 
 Worker identity and parent monitoring start before scientific-library initialization. The15-second process handshake does not impose a15-second limit on cold font or scientific imports; jobs stay queued until initialization finishes. Matplotlib configuration and font caches use the private runtime temporary directory. Parent disappearance during initialization still stops the worker, and ordinary job/Fiji shutdown retains its supervised termination behavior.
