@@ -2,13 +2,13 @@
 
 Status: Windows development preview. Each version is advertised only after its built package passes installation and browser checks; release notes record the accepted source and evidence. Local execution is an initial deployment option; the product remains a browser workspace with a future hosted backend.
 
-The Windows 11 Microsoft Store package is being verified under [Issue #215](https://github.com/genellect/cytellect/issues/215). See [Windows MSIX](windows-msix.md) for the build, shared workspace location and acceptance steps.
+On Windows 11 x64, install Cytellect from the [Microsoft Store](https://apps.microsoft.com/detail/9PGKTQGV7X5C) (public since 2026-11-24, [Issue #215](https://github.com/genellect/cytellect/issues/215)); the Store installs updates. See [Windows MSIX](windows-msix.md) for the build, shared workspace location and acceptance steps. The per-user EXE below remains available, for example on Windows 10 x64. It is published automatically from `main` after CI passes and updates itself in the app ([release signing](release-signing.md)).
 
 The accepted [0.1.0-local.20 release](https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.20) is available for Windows x86-64. It is the first package with the redesigned two-group comparison (one or two screens, groups and independent runs, a result sentence and a figure with the run as n), keeps workspaces until explicit deletion by default and sends Cellpose inference to an administrator-provided cloud GPU. See its [acceptance record](local-release-0.1.0-local.20.md) for the exact source, checksums, all 27 installed browser cases, numerical replay and evidence limits. The [local.19](local-release-0.1.0-local.19.md) and [local.17](local-release-0.1.0-local.17.md) records remain evidence for those packages. Start with the [public-image guide](quickstart.ja.md). The [local.11 record](archive/local-release-0.1.0.md) remains historical evidence for that immutable package.
 
 ## Researcher flow
 
-Source after 0.1.0-local.20 builds two deliverables from the same accepted ZIP: the per-user installer `Cytellect-Setup-<version>.exe` (stage 1, requirements I1–I8 of the Windows access plan under owner review) and the setup ZIP, which stays available until the owner retires it. No released version contains the installer yet.
+Source after 0.1.0-local.20 builds two deliverables from the same accepted ZIP: the per-user installer `Cytellect-Setup-<version>.exe` (stage 1, requirements I1–I8 of the Windows access plan under owner review) and the setup ZIP, which stays available until the owner retires it. Current releases ship the installer; they are published automatically as described in [release signing](release-signing.md).
 
 1. Download `Cytellect-Setup-<version>.exe` and open it. It installs for the current user only (`PrivilegesRequired=lowest`) into `%LOCALAPPDATA%\Cytellect`; there is no administrator prompt, command, extraction or destination choice. Whether Windows warns before it runs depends on signing and reputation ([application control](#windows-application-control), D4 below).
 2. Before changing anything, the installer checks Windows 10 1809 or later / Windows 11 on x64, at least 8 GB of memory (7 GiB as reported after hardware reservations) and free space (4 GB plus the unpacked payload for a first installation, 1.5 GB plus the payload for an update that reuses Fiji and Python). A failed check shows the reason and the next action in Japanese and exits without changes. A destination that holds files without Cytellect's ownership marker is also refused unchanged.
@@ -164,6 +164,10 @@ records how SmartScreen and Smart App Control treat it. If Smart App Control blo
 free distribution through the Microsoft Store is tried first; a paid code-signing
 certificate is compared only if that is not enough. Passing CI on GitHub's runner is not
 this evidence.
+
+Update (owner decision 2026-11-16, Issue #215): code signing uses free means only, and no paid
+code-signing certificate is used. The Microsoft Store package, signed by the Store, is public since
+2026-11-24 and is the primary route on Windows 11 x64; the EXE stays unsigned.
 
 ## What stays the same
 
