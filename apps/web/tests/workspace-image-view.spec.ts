@@ -454,3 +454,28 @@ test("a resend from a browser that has not confirmed the scope asks what is sent
   // The same message is sent again, not a new one.
   expect(requests[0]).toMatchObject({goal:"核を数えて",message_id:"m1"});
 });
+
+test("the newest message of a long conversation and a confirmation are in view without scrolling (#284 W2)",async({context,page})=>{
+  const headers=()=>({"Access-Control-Allow-Origin":new URL(page.url()).origin,"Access-Control-Allow-Credentials":"true",
+    "Access-Control-Allow-Headers":"content-type,x-cytellect-request","Access-Control-Allow-Methods":"GET,POST,PATCH,OPTIONS"});
+  // An answer of many paragraphs, as the model writes them, then a later request whose answer was never received.
+  const long=Array.from({length:40},(_,index)=>`段落 ${index+1}：記録されたチャンネルと染色の説明。`).join("\n");
+  const restored=[{id:"m1",field_id:"f1",created:1,text:"この画像で何が測れる？",state:"answered",reply:long,applicable:null,reasons:[],stage:null,effect:"none"},
+    {id:"m2",field_id:"f1",created:2,text:"核の面積を測りたい",state:"failed",reply:null,applicable:null,reasons:["proposal_service_unavailable"],stage:null,effect:"none"}];
+  await page.route("**/v1/workspaces/w/assistant-messages",async route=>{
+    if(route.request().method()==="OPTIONS")return route.fulfill({status:204,headers:headers()});
+    await route.fulfill({headers:headers(),contentType:"application/json",body:JSON.stringify({messages:restored})});
+  });
+  await imageWorkspace(context,page);
+  await page.goto("/workspace?id=w");
+  await page.getByRole("textbox",{name:"AIへの指示"}).click();
+  const conversation=page.getByRole("list",{name:"AI との会話"});
+  const newest=conversation.getByRole("listitem").filter({hasText:"核の面積を測りたい"});
+  // The panel opens on the newest message: its request, state and action, not the top of the earlier answer.
+  await expect(newest.getByText("核の面積を測りたい",{exact:true})).toBeInViewport();
+  await expect(newest.getByText("状態：失敗",{exact:true})).toBeInViewport();
+  await expect(conversation.getByText("段落 1：記録されたチャンネルと染色の説明。",{exact:true})).not.toBeInViewport();
+  // The confirmation sits above the conversation and comes into view when it opens.
+  await newest.getByRole("button",{name:"再送",exact:true}).click();
+  await expect(page.getByRole("group",{name:/^AI(への再送|に送る内容)の確認$/})).toBeInViewport();
+});

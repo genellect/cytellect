@@ -57,7 +57,10 @@ The AI panel ([#284](https://github.com/genellect/cytellect/issues/284) W2) firs
 workspace records it, without a model call and also while the AI is not enabled: its name and size, each channel with
 the origin of its name and its role, and the nuclear channel. Below are the workspace's messages, each with its state
 (送信中, 回答, 失敗, 設定を適用済み, 実行済み), its answer and, when its settings cannot be used, the reasons: a place the
-researcher changes (画像, 染色対応, 実験デザイン, 解析設定) or a service-side failure with its code and 「再送」. Sending
+researcher changes (画像, 染色対応, 実験デザイン, 解析設定) or a service-side failure with its code and 「再送」. The
+panel shows the newest message from its first line when the message is sent, when its answer arrives and when the panel
+opens, and a confirmation above the conversation comes into view when it opens: an answer of several paragraphs does
+not leave the next request and its actions below the visible part. Sending
 changes nothing, and the text leaves the input once the conversation holds the message (a request that never reached
 the API keeps what was typed). 「設定を適用」 and 「適用して試行」 under an answer are the only ways an answer changes
 settings or runs a preview, followed by 「解析設定を表示」 and 「AIによる設定変更を戻す」; when some fields fail, the
@@ -84,9 +87,14 @@ control group, 「案の対照の群」 is chosen first, and what changes beside
 not sent; 「解析案を作る」 asks for a proposal from the images alone. A new workspace starts with an empty conversation and
 input, and reopening a workspace shows its messages again.
 
-An empty workspace opens on adding images ([#284](https://github.com/genellect/cytellect/issues/284) W5): the image
-stage offers 画像を選択, フォルダーを選択 and a drop, the accepted formats in one line, and schematic samples of the
-measured fluorescence images, another stain of the same field and an outline mask. Chosen files go to the list first.
+An empty workspace opens on adding images ([#284](https://github.com/genellect/cytellect/issues/284) W5): a panel on
+the workspace's own light surface (never an empty dark image stage, which reads as an image that failed to load)
+offers 画像を選択, フォルダーを選択 and a drop, the accepted formats in one line, and three pictures of one registered
+public field (BBBC007v1 A9, CC0 1.0; `apps/web/public/samples/NOTICE.json`): its DNA image as the measured
+fluorescence image, its actin image as another stain of the same field, and its hand-drawn nuclear outlines, filled,
+as a mask with the list's own words for one (マスクの候補 · 32-bit 整数ラベル). A window under 720 px high crops
+the pictures to a band and a width up to 780 px sets them one a row, so the two links stay in view. Chosen files go to
+the list first.
 Each file is judged by `POST /v1/intake/inspect` (one at a time; nothing is stored) and listed with its thumbnail
 and role: images grouped into the fields they will make with their channels (追加待ち, 読み込み中 while judged), a mask
 candidate with the fields of its size (寸法の一致), a copy with what it copies (同一内容, 別の撮影として追加), an

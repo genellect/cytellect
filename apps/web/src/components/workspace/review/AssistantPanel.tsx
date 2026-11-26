@@ -1,4 +1,5 @@
 "use client";
+import {useEffect, useRef} from "react";
 import type {AssistantMessage} from "@/lib/workspace/api-adapter";
 import {reasonView, type ReasonPlace} from "@/lib/workspace/assistant-reasons";
 import type {ReviewField} from "@/lib/workspace/review-preview";
@@ -81,6 +82,19 @@ export function targetText(targets: RunTargets): string {
 export function AssistantPanel({field, messages, busy, demo, canApply, canTry, undoable, onApply, onResend, onUndo, onShowSettings, onPlace, onPropose,
   answerOf = () => null, runTargets = () => null, canRun = () => false, onRun, onChoose, confirmationOf = () => [], onConfirm}: Props) {
   const nuclear = field?.channels.find(channel => channel.id === field.nuclearChannelId) ?? field?.channels.find(channel => channel.role === "nuclear");
+  // The newest message starts at the top of the panel when it is sent and when its answer arrives: an answer of a few
+  // paragraphs otherwise leaves every later request, its state and its actions below the visible part. Only the
+  // panel's own scrolling box moves, never the page.
+  const newest = useRef<HTMLLIElement>(null), last = messages.at(-1), newestKey = last ? `${last.id}:${last.state}` : "";
+  useEffect(() => {
+    const item = newest.current;
+    if (!item) return;
+    for (let box = item.parentElement; box; box = box.parentElement) {
+      if (!/auto|scroll/.test(getComputedStyle(box).overflowY) || box.scrollHeight <= box.clientHeight) continue;
+      box.scrollTop += item.getBoundingClientRect().top - box.getBoundingClientRect().top - 8;
+      return;
+    }
+  }, [newestKey]);
   return <div className={styles.assistant}>
     {field && <section aria-label="選択した視野の情報" className={styles.assistantFacts}>
       <p><strong>視野：</strong>{field.label} · {field.width} × {field.height} px</p>
@@ -95,7 +109,7 @@ export function AssistantPanel({field, messages, busy, demo, canApply, canTry, u
         const reasons = message.reasons.map(reasonView);
         const view = answerOf(message.id), intent = view?.intent ?? null, targets = intent === "run" ? runTargets(message.id) : null;
         const confirmation = demo ? [] : confirmationOf(message.id);
-        return <li key={message.id} className={styles.message} data-state={message.state}>
+        return <li key={message.id} ref={message.id === last?.id ? newest : undefined} className={styles.message} data-state={message.state}>
           <p className={styles.userMessage}>{message.text || "画像からの解析案"}</p>
           <p className={styles.messageState}>状態：{messageState(message)}</p>
           {message.reply && message.reply.split("\n").map((line, index) => <p key={index}>{line}</p>)}

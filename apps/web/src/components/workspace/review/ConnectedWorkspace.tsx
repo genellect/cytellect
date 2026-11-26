@@ -2,7 +2,7 @@
 import {isCellposeDetector} from "@/lib/workspace/cellpose-settings";
 import {nclObjectDetector} from "@/lib/workspace/nucleolar-definition";
 import type {GroupingIssue} from "@/lib/workspace/grouping";
-import {Suspense,useEffect,useEffectEvent,useMemo,useReducer,useRef,useState,useSyncExternalStore,type CSSProperties,type DragEvent,type ReactNode} from "react";
+import {Suspense,useCallback,useEffect,useEffectEvent,useMemo,useReducer,useRef,useState,useSyncExternalStore,type CSSProperties,type DragEvent,type ReactNode} from "react";
 import {useSearchParams} from "next/navigation";
 import {ADD_STOPPED,IntakeInterrupted,NUCLEAR_STAIN_MISSING,NUCLEAR_STAIN_REQUIRED,useWorkspaceRuntime,type IntakeOutcome,type RuntimeSettings} from "@/lib/workspace/use-workspace-runtime";
 import type {ReviewField,ReviewTarget} from "@/lib/workspace/review-preview";
@@ -190,6 +190,9 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   const busy=r.busy||editing||!transportAvailable;
   // Choosing and judging files go on while images register or an analysis runs; only 追加 waits (#284 W5 change 1).
   const intakeDisabled=!data||r.loading||!transportAvailable;
+  // The first reading of the workspace has ended, with its data or with an error (a dismissed error does not undo it).
+  const [opened,setOpened]=useState(false);
+  if(!opened&&(data||r.error))setOpened(true);
   // The 取込 list: grouping notes, saved rows without a field, and what the last addition did not register.
   const intakeCount=intakeItems.length+r.intakeRows.length+(r.intake?r.intake.held.length+r.intake.duplicates.length+r.intake.skipped.length+r.intake.rejected.filter(item=>!item.entry).length:0);
   const intakeLine=cancelled?"選択：取り消し · 直前の選択を保持":outcomeLine(r.intake);
@@ -363,6 +366,9 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
   // A proposal sends the scope in AI_SCOPE; it is confirmed once before the first request after it widened (L03).
   // A resend keeps its message and its retry flag through the confirmation: it sends the same scope as a new message.
   const [scopePending,setScopePending]=useState<{value:string;retry:boolean;message?:string}|null>(null);
+  // A confirmation of the AI panel appears above the conversation: it comes into view when it opens, wherever the
+  // conversation was scrolled to.
+  const reveal=useCallback((element:HTMLElement|null)=>{element?.scrollIntoView({block:"nearest"});},[]);
   // An earlier request of the same instruction failed or timed out and may have been charged: the service sends it
   // again only when the researcher says so (the same rule as the discussion's 「再生成」).
   // `answered`: a recorded answer is fetched again (after a reload, or one refused on the service's side); its settings
@@ -639,7 +645,9 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
       {/* One instance for both views: the first save switches to the experiment view (E-01). */}
       <section hidden={!setupShown} className={styles.imageWork}>{setupShown&&!demo&&intakeShown&&(intakeItems.length>0||intakeSaved||intakeNotes)&&intakeView}{setupShown&&setup}</section>
       <section hidden={mode!=="image"||setupShown} className={styles.imageWork}>
-        {!demo&&intakeShown&&(intakeItems.length>0||intakeSaved||intakeNotes)?intakeView:!field&&demo&&!fields.length&&!r.error?<div className={styles.start}><p role="status">読み込み中…</p></div>:!field&&!demo?<EmptyStart disabled={intakeDisabled} onFiles={()=>chooseFiles()} onFolder={()=>chooseFiles(true)} onExperiment={()=>changeMode("experiment")} onMeasured={()=>changeMode("statistics")}/>:!field?<div className={styles.start}><h1>画像解析</h1><div className={styles.startActions}><button className={styles.primary} disabled={intakeDisabled} onClick={()=>chooseFiles()}>画像を追加</button><button disabled={intakeDisabled} onClick={()=>chooseFiles(true)}>フォルダーを追加</button></div><p>TIFF・OME-TIFF</p><button onClick={()=>changeMode("statistics")}>測定済みデータを使用</button></div>:<>
+        {/* While a workspace is being read there is no field yet: the start (「画像を追加」) waits for the first answer
+            (also in the prerendered page), so a workspace with fields never opens on it. */}
+        {!demo&&intakeShown&&(intakeItems.length>0||intakeSaved||intakeNotes)?intakeView:!field&&!fields.length&&!r.error&&(demo||r.loading||!opened)?<div className={styles.start}><p role="status">読み込み中…</p></div>:!field&&!demo?<EmptyStart disabled={intakeDisabled} onFiles={()=>chooseFiles()} onFolder={()=>chooseFiles(true)} onExperiment={()=>changeMode("experiment")} onMeasured={()=>changeMode("statistics")}/>:!field?<div className={styles.start}><h1>画像解析</h1><div className={styles.startActions}><button className={styles.primary} disabled={intakeDisabled} onClick={()=>chooseFiles()}>画像を追加</button><button disabled={intakeDisabled} onClick={()=>chooseFiles(true)}>フォルダーを追加</button></div><p>TIFF・OME-TIFF</p><button onClick={()=>changeMode("statistics")}>測定済みデータを使用</button></div>:<>
           {/* What the image shows on the left (region, stain, colour mode), how it is laid out on the right (MV-08). */}
           <div className={styles.channelBar} role="toolbar" aria-label="画像の表示">
             <div className={styles.barGroup} role="group" aria-label="表示対象">{returnMode&&<button className={styles.icon} aria-label="元の結果へ戻る" disabled={editing} onClick={returnToResult}><Icon name="back"/></button>}{!pairActive&&<strong title={field.label}>{field.label}</strong>}
@@ -674,11 +682,11 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
       {ai?<>
         <AiSettings/>
         <button onClick={showSettings}>解析設定を表示</button>
-        {scopePending!==null&&<section role="group" aria-label="AIに送る内容の確認"><p>{AI_SCOPE}</p>
+        {scopePending!==null&&<section ref={reveal} role="group" aria-label="AIに送る内容の確認"><p>{AI_SCOPE}</p>
           <div><button disabled={busy} onClick={()=>{markProposalScopeSeen();void sendInstruction(scopePending.value,true,scopePending.retry,scopePending.message);}}>確認して送信</button>
             <button disabled={busy} onClick={()=>{setIncludePreviews(false);markProposalScopeSeen();void sendInstruction(scopePending.value,true,scopePending.retry,scopePending.message);}}>縮小画像なしで送信</button>
             <button disabled={busy} onClick={()=>setScopePending(null)}>キャンセル</button></div></section>}
-        {retryPending!==null&&<section role="group" aria-label="AIへの再送の確認"><p>{retryPending.answered?"記録済みの回答の取り直し。再送は課金の対象になり得ます。":"前回の依頼：未完了。再送は課金の対象になり得ます。"}</p>
+        {retryPending!==null&&<section ref={reveal} role="group" aria-label="AIへの再送の確認"><p>{retryPending.answered?"記録済みの回答の取り直し。再送は課金の対象になり得ます。":"前回の依頼：未完了。再送は課金の対象になり得ます。"}</p>
           <div><button disabled={busy} onClick={()=>void sendInstruction(retryPending.value,false,retryPending.retry,retryPending.message)}>再送</button>
             <button disabled={busy} onClick={()=>setRetryPending(null)}>キャンセル</button></div></section>}
         {demoReply&&<p>{demoReply}</p>}

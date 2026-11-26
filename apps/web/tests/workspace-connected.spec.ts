@@ -104,6 +104,11 @@ for (const viewport of [{width:1920,height:1080},{width:1440,height:900},{width:
   // A new workspace opens on adding images (#284 W5, decision 1).
   await expect(page.getByRole("heading", {name: "画像を追加", exact: true, level: 1})).toBeVisible();
   await expect(page.getByRole("button", {name: "画像を選択", exact: true})).toBeEnabled();
+  // What to choose, shown before the picker opens: three pictures of one public field, each named, with their source.
+  const samples = page.getByRole("list", {name: "選ぶ画像の見本"});
+  await expect(samples.getByRole("listitem")).toHaveText(["測る蛍光画像例：a9-C01.tif · DNA", "同じ視野の別の染色例：a9-C02.tif · アクチン", "核のマスクマスクの候補 · 32-bit 整数ラベル"]);
+  await expect.poll(() => samples.locator("img").evaluateAll(images => images.map(image => (image as HTMLImageElement).complete && (image as HTMLImageElement).naturalWidth))).toEqual([264, 264, 264]);
+  await expect(page.getByText("見本：BBBC007v1 A9 · CC0 1.0", {exact: true})).toBeVisible();
   await page.getByTestId("file-input").setInputFiles([{name: "A01_c1.tif", mimeType: "image/tiff", buffer: Buffer.from([1, 2, 3])}, {name: "A01_c2.tif", mimeType: "image/tiff", buffer: Buffer.from([4, 5, 6])}]);
   // Chosen files are listed and judged; nothing registers before 追加.
   await expect(page.getByRole("status").filter({hasText: "受け取り：2 · 画像：2（1 視野）"})).toBeVisible();
