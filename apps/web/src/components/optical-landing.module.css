@@ -77,6 +77,18 @@
 
 /* Mission: the statement alone, in moving light. */
 .mission{position:relative;isolation:isolate;display:grid;align-items:center;min-height:min(68svh,720px);padding-block:clamp(96px,10vw,168px);overflow:hidden;background:radial-gradient(48% 60% at 82% 78%,#eebfab8c,#eebfab00 70%),radial-gradient(60% 50% at 30% 10%,#fff,#fff0 70%),linear-gradient(180deg,#eef0ec,#f3f4f1)}
+/* Award: a small section between the mission and the product. An engraved plate of brushed champagne gold,
+   in the material of awards rather than the page's palette, on the page's left axis. */
+/* One measure, --award-gap, above and below the plate: the mission keeps half of it under the plate and the
+   product's intro takes the other half, so the plate never sits on the seam between them. */
+.mission:has(.award){--award-gap:clamp(72px,8vw,120px);min-height:0;padding-bottom:calc(var(--award-gap) / 2)}
+.mission:has(.award)+.experience .experienceIntro{padding-top:calc(clamp(72px,8vw,120px) / 2)}
+.award{position:relative;z-index:1;width:min(100% - 2 * var(--gutter),1360px);margin:var(--award-gap) auto 0}
+.awardPlate{position:relative;display:flex;align-items:center;justify-content:center;gap:clamp(14px,1.6vw,22px);padding:clamp(16px,1.6vw,22px) clamp(28px,3.4vw,52px);border-radius:10px;background:linear-gradient(100deg,#ffffff00 20%,#ffffff59 34%,#ffffff00 46%,#ffffff00 70%,#ffffff40 80%,#ffffff00 90%),repeating-linear-gradient(0deg,#ffffff14 0 1px,#00000008 1px 2px,#ffffff0a 2px 3px),linear-gradient(180deg,#efdcae,#d6b878 48%,#c4a160 52%,#dcc28a);box-shadow:inset 0 1px 0 #fff8e6,inset 0 -1px 0 #9c7c3e,inset 0 0 0 1px #b99556,0 18px 36px -24px #4a3a1a99,0 2px 4px #4a3a1a1f;color:#4b3816}
+.awardPlate::after{content:"";position:absolute;inset:7px;border:1px solid #8f6f3480;border-radius:5px;box-shadow:0 1px 0 #fff4d466;pointer-events:none}
+.trophy{flex:none;width:clamp(34px,3vw,44px);height:auto;fill:#6b5122;filter:drop-shadow(0 1px 0 #fff3cf) drop-shadow(0 -1px 0 #7d5f2a66)}
+.awardTitle{margin:0;font-size:clamp(18px,1.9vw,28px);font-weight:700;line-height:1.4;letter-spacing:.06em;text-shadow:0 1px 0 #fff3cfb3,0 -1px 0 #6b512240}
+.awardTitle>span{display:inline-block}
 .lightField{position:absolute;z-index:-1;inset:0;width:100%;height:100%;opacity:0;transition:opacity 1.2s}
 .lightField[data-state="ready"]{opacity:1}
 
@@ -298,6 +310,8 @@
 }
 @media(min-width:1024px) and (max-width:1100px){.header>div{display:none}.navigation{display:flex;gap:14px}}
 @media(max-width:760px){
+  .awardPlate{padding-inline:20px}
+
   .page{--gutter:22px;--section-space:104px;--t-body:17px}
   .header{top:10px;left:12px;right:12px;height:56px;padding:0 8px 0 20px}.wordmark{font-size:26px}
   .hero{height:100svh;min-height:600px;max-height:940px;align-items:flex-start;padding-top:clamp(152px,21svh,202px);padding-bottom:48px}
@@ -360,3 +374,139 @@
 @media(min-width:761px) and (max-aspect-ratio:1/1){.hero{align-items:flex-start;padding-top:150px}.hero h1{font-size:clamp(64px,8vw,88px)}.heroShade{background:linear-gradient(180deg,#0a1311b3 0%,#0a131166 38%,#0a131100 70%)}}
 @media(max-height:600px) and (min-width:761px){.hero{min-height:480px;padding-top:108px;padding-bottom:32px}.hero h1{font-size:clamp(40px,8.8svh,60px)}.heroActions{margin-top:22px}}
 @media(prefers-reduced-motion:reduce){.page *,.page *::before,.page *::after{transition:none!important}}
+
+/* ── The hero's 3D space (HeroSpace): the film as a room to look around and spin. It lies over the film HeroFilm
+   shows; once it is drawing, that film steps aside but stays in the page for its controls. */
+.heroSpace{position:absolute;z-index:0;inset:0;overflow:hidden;opacity:0;transition:opacity .9s}
+.heroSpace canvas{display:block;width:100%;height:100%}
+.hero[data-space="ready"] .heroSpace{opacity:1}
+.hero[data-space="ready"]{cursor:grab;touch-action:pan-y;-webkit-user-select:none;user-select:none}
+.hero[data-space="ready"][data-grabbing="true"]{cursor:grabbing}
+.experience[data-mode="space"] .tour{cursor:grab;touch-action:pan-y}
+.experience[data-mode="space"] .tour[data-grabbing="true"]{cursor:grabbing;-webkit-user-select:none;user-select:none}
+
+/* ── Glass and metal that answer the mouse in 3D (LandingTilt): they lean towards the pointer, and a light on
+   their surface follows it. */
+.page [data-tilt]{transform:perspective(1000px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));transition:transform .4s cubic-bezier(.2,.7,.1,1);will-change:transform}
+.page[data-world="dark"] .loop li::after{content:"";position:absolute;inset:-1px;border-radius:inherit;background:radial-gradient(300px circle at var(--lx,50%) var(--ly,50%),#7fb6ff33,#7fb6ff00 70%);opacity:var(--lit,0);pointer-events:none}
+/* The hero's copy stands a little in front of its room. */
+.hero[data-space="ready"] .heroCopy{transform:translate3d(calc(var(--look-x,0) * -5px),calc(var(--look-y,0) * 3px),0)}
+
+/* ── The patient path: once, as it comes into view, the line runs to the patient and the steps follow it. */
+.path[data-state="waiting"] li{opacity:0}
+.path[data-state="arrived"] li{animation:lpStep .8s cubic-bezier(.2,.7,.1,1) both}
+.path[data-state="arrived"] li:nth-child(2){animation-delay:.55s}
+.path[data-state="arrived"] li:last-child{animation-delay:1.25s}
+.path[data-state="arrived"] li:last-child::before{animation:lpArrive 1.5s 1.25s cubic-bezier(.2,.7,.1,1) both}
+@keyframes lpStep{from{opacity:0;transform:translateY(14px)}}
+@keyframes lpArrive{0%{box-shadow:0 0 0 0 #e7b8a400;scale:.3}45%{box-shadow:0 0 96px 34px #e7b8a48c;scale:1.25}100%{scale:1}}
+@media(min-width:761px){
+  .path[data-state="waiting"]::before{clip-path:polygon(0 47%,0 47%,0 53%,0 53%)}
+  .path[data-state="arrived"]::before{animation:lpRun 1.6s cubic-bezier(.3,0,.2,1) both}
+}
+@media(max-width:760px){
+  .path[data-state="waiting"]::before{clip-path:polygon(47% 0,53% 0,53% 0,47% 0)}
+  .path[data-state="arrived"]::before{animation:lpFall 1.6s cubic-bezier(.3,0,.2,1) both}
+}
+@keyframes lpRun{from{clip-path:polygon(0 47%,0 47%,0 53%,0 53%)}}
+@keyframes lpFall{from{clip-path:polygon(47% 0,53% 0,53% 0,47% 0)}}
+
+/* ── The dark world (the landing page: `data-world="dark"` on its root). The composition, the measures and the
+   type are the page's own; the colour is new. The ground is a blue-black, and everything that glows on it (the
+   lines, the edges of the glass, the light behind the copy) runs from blue to cyan, the blue of the product's
+   own screens. The warm colour of culture medium is kept for one place: the patient at the end of the path.
+   The page is one stage: a single field of light stands behind every section (LightField) and passes from one
+   to the next, so the sections bring no ground of their own, and the film and the photograph come out of the
+   dark and return to it. The install guide and the privacy page keep the light ground. */
+.page[data-world="dark"]{--fg:#f3f5fa;--ink:#f3f5fa;--rule:#f3f5fa24;--line:#f3f5fa24;--muted:#a4adbf;--ground:#05070d;--paper:#0b101b;--green:#070b16;--edge:#9db8ff3d;--blue:#4d7cff;--cyan:#42d9ff;
+  --ray:linear-gradient(90deg,var(--blue),var(--cyan));
+  --glass:linear-gradient(135deg,#9db8ff1f,#9db8ff0a);--lift:0 50px 100px -48px #000,0 2px 6px #00000066}
+/* The stage's light (LightField places it): the mouse's, then the two the section in view asks for. */
+.page[data-world="dark"] .lightField{position:fixed;z-index:0;inset:0;width:auto;height:auto;opacity:1;pointer-events:none;
+  background:radial-gradient(520px circle at var(--mx,50%) var(--my,50%),rgb(77 124 255 / calc(.17 * var(--ms,0))),#4d7cff00 70%),
+    radial-gradient(64vw 74vh at var(--ax,84%) var(--ay,70%),rgb(var(--ac,77 124 255) / calc(.36 * var(--as,0))),#0000 72%),
+    radial-gradient(58vw 68vh at var(--bx,16%) var(--by,6%),rgb(var(--bc,139 120 240) / calc(.22 * var(--bs,0))),#0000 72%)}
+.page[data-world="dark"] :is(a,button,summary):focus-visible{outline-color:var(--cyan)}
+.page[data-world="dark"] .header,.page[data-world="dark"] .header[data-tone="light"]{--h-fg:#f3f5fa;--h-bg:#070b1699;--h-rule:var(--edge);box-shadow:none}
+.page[data-world="dark"] .header[data-tone="light"] .navigation .navDownload{color:var(--green)!important}
+.page[data-world="dark"] .primary{border-color:#f3f5fa;background:#f3f5fa;color:var(--green)!important;transition:background .2s,box-shadow .3s}
+.page[data-world="dark"] .primary:hover{background:#fff;box-shadow:0 0 0 1px var(--cyan),0 14px 44px -14px #4d7cffd9}
+/* The way into the demo is one object, built rather than coloured: a white body (the brightest thing on the
+   dark stage) with dark ink, and a ring of the stage's light around it.
+   Its contrast comes from what stands behind it too: the hero's shade is deepest under the copy and the actions.
+   The same object stands in the header, the hero, every screen of the product and the end; the phone's bar
+   keeps its quiet dark form, so it never outweighs the download actions it passes over. */
+.page[data-world="dark"] :is(.hero .primary,.invite .primary,.navDownload,.chapter .button){gap:20px;min-height:56px;padding:0 28px;border:0;background:#fff;box-shadow:0 0 0 4px #9db8ff38,0 0 0 9px #9db8ff14,0 22px 56px -16px #4d7cff;color:var(--green)!important;font-size:16px;font-weight:600;letter-spacing:.01em;transition:box-shadow .3s,transform .3s cubic-bezier(.2,.7,.1,1)}
+.page[data-world="dark"] :is(.hero .primary,.invite .primary,.navDownload,.chapter .button):hover{background:#fff;box-shadow:0 0 0 4px #42d9ff66,0 0 0 10px #42d9ff1f,0 26px 64px -14px #42d9ff;transform:translateY(-1px)}
+.page[data-world="dark"] .header .navDownload{gap:14px;height:42px;min-height:0;padding:0 20px;box-shadow:0 0 0 3px #9db8ff33,0 12px 32px -12px #4d7cff;font-size:13px}
+.page[data-world="dark"] .chapter .button{min-height:54px;padding:0 26px;font-size:15px}
+.page[data-world="dark"] :is(.hero .primary,.invite .primary,.navDownload,.chapter .button)>span{transition:transform .3s cubic-bezier(.2,.7,.1,1)}
+.page[data-world="dark"] :is(.hero .primary,.invite .primary,.navDownload,.chapter .button):hover>span{transform:translateX(4px)}
+.page[data-world="dark"] .secondary{border-color:var(--edge);background:#4d7cff14;color:#f3f5fa!important}
+.page[data-world="dark"] .secondary:hover{border-color:var(--cyan);background:#4d7cff29}
+.page[data-world="dark"] .button{border-color:var(--edge);background:#4d7cff14}
+.page[data-world="dark"] .button:hover{border-color:var(--cyan);background:#4d7cff29}
+.page[data-world="dark"] .heroShade{background:radial-gradient(52% 62% at 16% 64%,#05070dc7,#05070d00 72%),linear-gradient(90deg,#05070dc2 0%,#05070d73 34%,#05070d00 66%)}
+.page[data-world="dark"] .eyebrow>span::after{width:44px;background:var(--ray);opacity:1}
+.page[data-world="dark"] :is(.mission,.experience,.download){background:none}
+/* The film leaves the hero into the dark of the stage. */
+.page[data-world="dark"] .mission::before{content:"";position:absolute;z-index:-1;inset:0 0 auto;height:min(52%,400px);background:linear-gradient(180deg,var(--ground),#05070d00);pointer-events:none}
+.page[data-world="dark"] .hero::after{content:"";position:absolute;z-index:1;left:0;right:0;bottom:0;height:14%;background:linear-gradient(0deg,var(--ground),#05070d00);pointer-events:none}
+.page[data-world="dark"] .tablist{border-color:var(--edge);background:linear-gradient(135deg,#9db8ff1f,#9db8ff0a);box-shadow:0 24px 50px -30px #000,inset 0 1px 0 #9db8ff24}
+.page[data-world="dark"] .tabPill{background:#f3f5fa;box-shadow:0 0 34px -6px #4d7cffb3}
+.page[data-world="dark"] .tabSweep{background:var(--ray)}
+.page[data-world="dark"] .tab:hover{background:#9db8ff1a}
+.page[data-world="dark"] .tab[aria-selected="true"]{color:var(--green)}
+.page[data-world="dark"] .tab[aria-selected="true"]:hover{background:none}
+.page[data-world="dark"] .switchArrow{border-color:var(--edge);background:#4d7cff14;box-shadow:none}
+.page[data-world="dark"] .switchArrow:hover{border-color:var(--cyan);background:#f3f5fa;color:var(--green)}
+.page[data-world="dark"] .params li{border-color:var(--edge);background:#4d7cff14}
+/* The two figures a researcher looks for first, in the light of the page. */
+.page[data-world="dark"] .numbers strong{width:fit-content;background:linear-gradient(90deg,#f3f5fa 35%,#8fe6ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.page[data-world="dark"] :is(.plateBack,.plate,.plateWide){border-color:var(--edge)}
+.page[data-world="dark"] .plates[data-kind="strip"]{background:radial-gradient(70% 90% at 90% 100%,#4d7cff3d,#4d7cff00 70%),var(--paper)}
+/* The screens fade towards the copy and at the head and foot of the stage, without a veil over its light. */
+.page[data-world="dark"] .experienceVeil{display:none}
+.page[data-world="dark"] .experienceCanvas{-webkit-mask-image:linear-gradient(90deg,#0000 0%,#0000 30%,#0006 45%,#000 58%),linear-gradient(180deg,#0000 0%,#000 14%,#000 84%,#0000 100%);-webkit-mask-composite:source-in;mask-image:linear-gradient(90deg,#0000 0%,#0000 30%,#0006 45%,#000 58%),linear-gradient(180deg,#0000 0%,#000 14%,#000 84%,#0000 100%);mask-composite:intersect}
+/* Award: one quiet line under the mission, in the page's own glass. The only gold on the page is the name of the
+   prize itself, in the weight and size of the words beside it. */
+.page[data-world="dark"] .mission:has(.award){--award-gap:clamp(28px,2.6vw,40px);padding-block:clamp(64px,6vw,96px) clamp(40px,3.6vw,56px)}
+.page[data-world="dark"] .mission:has(.award)+.experience .experienceIntro{padding-top:clamp(48px,4.4vw,72px)}
+.page[data-world="dark"] .awardPlate{display:inline-flex;justify-content:flex-start;gap:12px;padding:11px 24px 11px 18px;border:1px solid var(--edge);border-radius:999px;background:var(--glass);box-shadow:inset 0 1px 0 #9db8ff24;color:var(--fg);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.page[data-world="dark"] .awardPlate::after{display:none}
+.page[data-world="dark"] .trophy{width:20px;fill:#dcb767;filter:none}
+.page[data-world="dark"] .awardTitle{font-size:clamp(14px,1.1vw,16px);font-weight:500;line-height:1.5;letter-spacing:.02em;text-shadow:none}
+.page[data-world="dark"] .awardTitle>span:last-child{background:linear-gradient(90deg,#f1dba0,#dcb767 55%,#cfa553);-webkit-background-clip:text;background-clip:text;color:transparent}
+/* Reasons: the bench keeps its own light; the claim above it stands on the dark, the four reasons in dark glass. */
+.page[data-world="dark"] .reasonsPhoto{mask-image:linear-gradient(180deg,#0000 0%,#0000 22%,#000 52%,#000 90%,#0000 100%)}
+.page[data-world="dark"] .loop li{position:relative;border-color:var(--edge);background:linear-gradient(135deg,#070b16eb,#070b16bd)}
+.page[data-world="dark"] .loop li::before{content:"";position:absolute;left:24px;right:24px;top:-1px;height:1px;background:var(--ray);opacity:.9}
+/* Impact: the path runs from the blue of the bench to the warm colour of the patient. */
+.page[data-world="dark"] .impactPanel{background:none;color:#f3f5fa}
+.page[data-world="dark"] .path::before{background:linear-gradient(90deg,#4d7cff40,#6fc3ffb3 55%,#e7b8a4)}
+.page[data-world="dark"] .path li::before{background:#cfe3ff}
+.page[data-world="dark"] .path li:last-child::before{background:#e7b8a4}
+/* The film comes out of the dark of the stage and returns to it. */
+.page[data-world="dark"] .invite{background:none}
+.page[data-world="dark"] .invite::before{background:linear-gradient(180deg,var(--ground) 0%,#05070d00 20%),linear-gradient(0deg,var(--ground) 0%,#05070dd1 18%,#05070d8c 40%,#05070d14 72%),linear-gradient(90deg,#05070d80,#05070d00 62%)}
+.page[data-world="dark"] .journey::before{background:linear-gradient(90deg,#4d7cff40,#6fc3ffb3 60%,var(--cyan))}
+.page[data-world="dark"] .stop::before{background:#cfe3ff}
+.page[data-world="dark"] .stop+.stop::before{background:var(--cyan);box-shadow:0 0 28px 4px #42d9ff40}
+/* The lab's step is a consultation, not the page's main action: a quiet line of text with a rule under it. */
+.page[data-world="dark"] .stop>.secondary{align-self:start;justify-content:flex-start;width:auto;gap:10px;min-height:44px;padding:0;border:0;border-bottom:1px solid #9db8ff80;border-radius:0;background:none;font-size:15px;font-weight:500;transition:border-color .2s,color .2s}
+.page[data-world="dark"] .stop>.secondary:hover{border-color:var(--cyan);background:none;color:#fff!important}
+.page[data-world="dark"] .stop>p{color:#d3d9e6}
+.page[data-world="dark"] .nextSteps{background:#0b101b;box-shadow:0 0 0 1px var(--edge),0 18px 40px #000}
+.page[data-world="dark"] .nextSteps::before{background:#0b101b}
+.page[data-world="dark"] .footer{background:#03050acc}
+@media(max-width:1100px){
+  .page[data-world="dark"] .header>div>nav{background:#0b101b;border-color:var(--edge)}
+}
+@media(max-width:760px){
+  .page[data-world="dark"] .stop:first-child::after{background:linear-gradient(180deg,#4d7cff40,#6fc3ffb3 60%,var(--cyan))}
+  .page[data-world="dark"] .heroShade{background:linear-gradient(180deg,#05070dc2 0%,#05070d8c 46%,#05070d00 78%)}
+  .page[data-world="dark"] :is(.hero .primary,.invite .primary){gap:12px;min-height:50px;padding:0 20px;font-size:15px}
+  .page[data-world="dark"] .demoBar a{border-color:var(--edge);background:#0b101bee;color:#f3f5fa!important}
+  .page[data-world="dark"] .reasonsPhoto{mask-image:linear-gradient(180deg,#0000 0%,#000 30%)}
+  .page[data-world="dark"] .path::before{background:linear-gradient(180deg,#4d7cff40,#6fc3ffb3 55%,#e7b8a4)}
+}
