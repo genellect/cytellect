@@ -18,15 +18,17 @@ export function messageState(message: AssistantMessage): string {
 
 /**
  * Whether a message offers 「再送」: a failed one; one left 送信中 by a session that ended before its answer (never the
- * request in flight); an answer with settings this session no longer holds (a reload), to apply it; and an answer whose
- * settings were refused for a reason on the service's side. A question's answer has nothing to send again.
+ * request in flight); an answer with settings, choices or run and group suggestions this session no longer holds (a
+ * reload); and an answer whose settings were refused for a reason on the service's side. A question's plain answer has
+ * nothing to send again.
  */
 export function resendable(message: AssistantMessage, serviceReason: boolean, held: boolean, busy: boolean, demo: boolean): boolean {
   if (demo) return false;
   if (message.state === "failed") return true;
   if (message.state === "pending") return !busy;
   if (message.applicable === false) return serviceReason;
-  return message.applicable === true && message.effect === "none" && !held;
+  // `restorable`: the recorded answer holds choices or run and group suggestions, which a resend returns from the record.
+  return (message.applicable === true || message.restorable === true) && message.effect === "none" && !held;
 }
 
 interface Props {
