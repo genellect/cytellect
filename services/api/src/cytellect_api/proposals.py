@@ -459,16 +459,19 @@ def build_context(store, wid: str, goal: str, field_id: str | None = None, *, pr
                 adopted_cells.add(entry["field_id"])
     sent = rows[:200]
     extended = protocol == "1.3.0"
-    experiment = specification.get("experiment") if extended and isinstance(specification.get("experiment"), dict) else {}
+    stored_experiment = specification.get("experiment") if extended else None
+    experiment: dict = stored_experiment if isinstance(stored_experiment, dict) else {}
     added = {entry["field_id"]: entry["intake"].get("names") or [] for entry in adopted_selection["entries"]
              if entry.get("field_id") and isinstance(entry.get("intake"), dict)}
     field_records = [_field_record(row, display_names.get(row["id"])) for row in sent]
     if extended:
-        assigned = experiment.get("fields") if isinstance(experiment.get("fields"), dict) else {}
+        stored_fields = experiment.get("fields")
+        assigned: dict = stored_fields if isinstance(stored_fields, dict) else {}
         run_names = {run.get("id"): _label(run.get("label")) for run in experiment.get("runs") or [] if isinstance(run, dict)}
         group_names = {group.get("id"): _label(group.get("label")) for group in experiment.get("groups") or [] if isinstance(group, dict)}
         for index, (row, record) in enumerate(zip(sent, field_records)):
-            placed = assigned.get(row["id"]) if isinstance(assigned.get(row["id"]), dict) else {}
+            stored_place = assigned.get(row["id"])
+            placed: dict = stored_place if isinstance(stored_place, dict) else {}
             names = [name for name in (_added_name(value) for value in added.get(row["id"], [])[:4]) if name]
             record.update({"id": f"f{index + 1}", "paths": names, "run": run_names.get(placed.get("run_id")),
                            "group": group_names.get(placed.get("group_id"))})
@@ -688,7 +691,7 @@ def register_proposal_routes(api, store, settings, owner, workspace, credentials
 
     def open_message(conn, wid: str, body: ProposalDraftRequest, now: float) -> str:
         """Writes the message as sent (or reopens it for its 「再送」) before the model is called (#284 W2)."""
-        values = {"state": "pending", "reply": None, "applicable": None, "reasons": [], "stage": None,
+        values: dict = {"state": "pending", "reply": None, "applicable": None, "reasons": [], "stage": None,
                   "request_id": None, "draft_id": None}
         if body.message_id:
             found = conn.execute(select(assistant_messages.c.id).where(assistant_messages.c.id == body.message_id,
@@ -831,6 +834,7 @@ def register_proposal_routes(api, store, settings, owner, workspace, credentials
             message = close_message(mid, state="answered", applicable=False, reasons=refused.codes, stage="validation",
                                     reply=answer_text(refused.rationale or "", refused.missing_information, refused.answer))
             return ProposalDraftResponse(proposal=None, channels=links, message=message, fields=field_links)
+        assert proposal is not None  # Every other path above returned or raised.
         workspace(wid, who)  # Revocation/expiry during the external call blocks publication.
         try:
             refreshed, refreshed_links = build_context(store, wid, body.goal, body.field_id, protocol=protocol)
