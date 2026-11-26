@@ -101,7 +101,8 @@ group: a stain chosen without a cell joins the cell its field was chosen in, and
 cells are two fields. An OME-TIFF with its own metadata is a field of its own, and the stains of a copy kept as a
 separate acquisition stay one field. A 32-bit float or signed 16-bit
 image is 読み取れない (「8/16-bit 以外の画像」), not a mask candidate, and counts as a missing image. 追加 registers
-the fields (W1) and records the unreadable files as rows with stage `inspect`; with a field registered the image
+the fields (W1) and records the unreadable files as rows with stage `inspect` (at the record's limit of 100 rows the
+rest gets no row and is listed with that reason, 「取り込みの記録が上限 100 件」, as an image is); with a field registered the image
 shows next and what was not added waits behind 取込 n件 (the chosen files and the saved rows), so nothing that was
 read stands behind a clean-up. The line beside 取込 counts the whole 追加 (「登録：3 視野 · 読み取れない：2 件」),
 however many fields and cells it covered. 閉じる hides the list and keeps the chosen files. 追加して AI に質問 then opens the AI

@@ -654,7 +654,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       // The first load never finished: open what the page was opening. A new workspace the researcher started has
       // nothing saved to re-read, and is never replaced by the workspace that was open before it.
       if(!state.data)return runtime.load(opened);
-      if(!state.data.workspaceId)return Promise.resolve();
+      if(!state.data.workspaceId){if(state.error)publish({error:""});return Promise.resolve();}
       return exclusive("保存結果を再読み込み中",reloadSaved);
     },
     /** Hide the last message (used for demo notices, which need no reload). */

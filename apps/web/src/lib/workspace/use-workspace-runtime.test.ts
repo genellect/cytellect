@@ -625,10 +625,15 @@ describe("connection loss and reconnection (#284 W9)",()=>{
   it("reconnected: a new workspace started after a saved one is not replaced by the saved one (automated review)",async()=>{
     const {runtime,adapter}=fixture();await runtime.load("w");
     runtime.newWorkspace();
+    // The first addition met no answer: the message of that failure does not outlive the reconnection.
+    adapter.create.mockRejectedValueOnce(unreachable());
+    await runtime.importFiles(bbbc007().slice(0,2)).catch(()=>undefined);
+    expect(runtime.getSnapshot().error).not.toBe("");
     const reads=adapter.restore.mock.calls.length;
     await runtime.reconnected();
     expect(runtime.getSnapshot().data?.workspaceId).toBe("");
     expect(adapter.restore).toHaveBeenCalledTimes(reads);
+    expect(runtime.getSnapshot().error).toBe("");
   });
   it("recordRefused says how many rows it saved, and stops at the record's limit (automated review)",async()=>{
     const {runtime,adapter}=withDesign();await runtime.load("w");const ledger=withLedger(adapter);
