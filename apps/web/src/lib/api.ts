@@ -354,7 +354,12 @@ const messages:Record<string,string> = {
  demo_accepts_synthetic_only:"この環境では実画像の解析を実行できません。",
  unsupported_or_invalid_image:"画像の軸・bit深度・サイズ・チャンネルの対応を確認してください。",
  workspace_selection_changed:"別のタブで採用状態が更新されました。再読み込みして比較対象を確認してください。",
- workspace_selection_incomplete:"未完了の視野か、登録できなかった画像があります。解析を完了するか、理由を付けて除外してください。",
+ workspace_selection_incomplete:"比較には、各視野の測定結果の採用、または理由を付けた対象外の指定が必要です。",
+ // Why an image did not become a field, decided before it is sent (#284). The API's own codes are listed above.
+ field_channel_limit:"1 視野のチャンネル数の上限は 4 です。",
+ unregistered_upload:"この環境の画像の追加には、登録済みの公開画像が必要です。",
+ field_input_modes_mixed:"1 視野の画像には、同じ形式（グレースケールまたは RGB 表示画像）が必要です。",
+ ledger_full:"取り込みの記録の上限は 100 件です。",
  workspace_selection_required:"視野の採用状態を確認できません。再読み込みしてください。",
  stale_revision:"別の解析版が採用されています。最新の版へ戻って修正してください。",
  review_required:"品質確認を完了してから統計を実行してください。",

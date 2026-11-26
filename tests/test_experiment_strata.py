@@ -397,9 +397,10 @@ def test_api_keeps_the_stratum_for_one_adopted_field_with_same_stratum_exclusion
     assert replayed["stratum"] == record
 
 
-def test_api_refuses_a_stratum_cohort_while_a_field_or_failed_upload_is_unaccounted_for(tmp_path):
-    """Synthetic numeric fields. A field without a stratum, or an image that never became a field,
-    needs a recorded reason before any stratum is analysed (no silent omission, as in 1.0.0)."""
+def test_api_refuses_a_stratum_cohort_while_a_field_is_unaccounted_for_but_not_a_failed_upload(tmp_path):
+    """Synthetic numeric fields. A field without a stratum needs a recorded reason before any stratum is
+    analysed (no silent omission, as in 1.0.0). An image that never became a field is technical missing
+    data: its row stays in the saved selection and never blocks the comparison (#284 decision 2)."""
     client, app, settings = authenticated(tmp_path)
     wid, ids, sources, design = _workspace(client, app, settings)
     path = f"/v1/workspaces/{wid}/region-cohorts"
@@ -412,16 +413,16 @@ def test_api_refuses_a_stratum_cohort_while_a_field_or_failed_upload_is_unaccoun
         assert saved.status_code == 200, saved.text
         return saved.json()
 
-    # 1. Every field is assigned and measured; only an interrupted upload has no reason.
+    # 1. Every field is assigned and measured; an interrupted upload has no reason and is not asked for one.
     body = _cohort_body(client, wid, ids, sources, design, "level-a")
     selection = adopt(lambda entries: entries.append(
-        {"id": "interrupted-upload", "field_id": None, "revision_id": None, "exclusion_reason": None}))
-    refused = client.post(path, json={**body, "workspace_selection": selection}, headers=HEADERS)
-    assert refused.status_code == 409 and refused.json()["detail"] == "workspace_selection_incomplete"
-
-    def reason(entries):
-        entries[-1]["exclusion_reason"] = "Upload interrupted"
-    selection = adopt(reason)
+        {"id": "interrupted-upload", "field_id": None, "revision_id": None, "exclusion_reason": None,
+         "intake": {"names": ["synthetic-a.tif"], "state": "pending"}}))
+    accepted = client.post(path, json={**body, "workspace_selection": selection}, headers=HEADERS)
+    assert accepted.status_code == 202, accepted.text
+    process_one(app.state.store, settings)
+    saved_selection = app.state.store.one(revisions, id=accepted.json()["revision_id"])["config"]["workspace_selection"]
+    assert saved_selection["entries"][-1]["intake"] == {"names": ["synthetic-a.tif"], "state": "pending"}
 
     # 2. One measured field of another stratum loses its stratum: no stratum can be analysed
     #    until it is assigned again or excluded with a reason.

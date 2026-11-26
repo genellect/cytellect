@@ -34,8 +34,9 @@ import type {RegionClassification} from "./ReviewImageCanvas";
 import type {NucleusTableGate} from "./nucleus-table-model";
 import {NextStep,TableHeading,type ColorView,type NextAction} from "./ColorView";
 import {UnfinishedImports} from "./UnfinishedImports";
+import {needsAttention,outcomeLine} from "@/lib/workspace/intake-record";
 import {PairStage,pairDisplayText,pairRuns,type Historical,type PairDisplay} from "./PairStage";
-import {assignFields,fieldsIn,type ExperimentDesign} from "@/lib/workspace/experiment-design";
+import {fieldsIn,type ExperimentDesign} from "@/lib/workspace/experiment-design";
 import {centre,densestPoint,imageStageLayout} from "./image-stage-layout";
 import {emptyMetadata} from "./connected-results-model";
 import {experimentSetupShown,initialPanelState,panelReducer} from "./panel-state";
@@ -123,6 +124,8 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   const [lastResultMode,setLastResultMode]=useState<"statistics"|"figure">("statistics");
   // The first images of a workspace without a form, held until the form is chosen (see add).
   const [pending,setPending]=useState<File[]|null>(null);
+  // A closed file dialog changes nothing (the earlier choice stays); it is said so, not left silent (#284 input 6).
+  const [cancelled,setCancelled]=useState(false);
   const [metric,setMetric]=useState("mean"),[range,setRange]=useState("selected"),[compare,setCompare]=useState(false),[picked,setPicked]=useState<string[]>([]),[picker,setPicker]=useState(false),[table,setTable]=useState(false);
   // The images come first: the panel starts closed, in the demo and in production alike; 設定 opens it.
   const [panelState,dispatchPanel]=useReducer(panelReducer,initialPanelState);
@@ -162,6 +165,9 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   const transportAvailable=API_CONFIGURED||demo;
   const busy=r.busy||editing||!transportAvailable;
   const intakeDisabled=!data||r.busy||!transportAvailable;
+  // The 取込 list: grouping notes, saved rows without a field, and what the last addition did not register.
+  const intakeCount=r.importIssues.length+r.intakeRows.length+(r.intake?r.intake.held.length+r.intake.duplicates.length+r.intake.skipped.length+r.intake.rejected.filter(item=>!item.entry).length:0);
+  const intakeKey=outcomeKey(r.intake),intakeLine=cancelled?"選択：取り消し · 直前の選択を保持":outcomeLine(r.intake);
   const [guide,setGuide]=useState(false);
   // The in-browser API downloads after the recorded view has painted (capable devices only).
   const loaded=!!data;
@@ -350,9 +356,11 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
   // The 画像 and フォルダ buttons and a drop of files or folders add images the same way. A chosen list is read at once
   // (the input is cleared right after); a drop's files arrive once its folders are read.
   // The first images of a workspace without a form wait for the choice (1 画面, 2 画面 or none), so they never land in a
-  // view the researcher did not choose; later images follow the choice already made.
+  // view the researcher did not choose; later images follow the choice already made. A second choice before that adds
+  // to the waiting images instead of replacing them (#284 input 3); they are released once registered.
   function add(list:FileList|Promise<File[]>|null){
-    if(!demo&&!experiment&&!fields.length){void (list instanceof Promise?list:Promise.resolve(list?Array.from(list):[])).then(files=>{if(files.length){setPending(files);setMode("experiment");}});return;}
+    setCancelled(false);
+    if(!demo&&!experiment&&!fields.length){void (list instanceof Promise?list:Promise.resolve(list?Array.from(list):[])).then(files=>{if(files.length){setPending(previous=>[...(previous??[]),...files]);setMode("experiment");}else void act(()=>r.importFiles([]));});return;}
     if(list instanceof Promise)void act(async()=>r.importFiles(await list));else if(list)void act(()=>r.importFiles(list));
   }
   // Experiment design (requirements E-01–E-08): saving never runs or changes analyses.
@@ -479,13 +487,15 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
   const declaredNow=samePrimary(primary,{metric:chosenOutcome.metric,regionSet:chosenOutcome.region_set_id,channel:chosenOutcome.channel_id});
   const declare=()=>explained(async()=>{if(!r.workspaceId)await r.ensureWorkspace();await r.savePrimaryOutcome(declaredNow?null:chosenOutcome);}).catch(cause=>setLocalError(cause instanceof Error?cause.message:String(cause)));
   const saveExperiment=(design:ExperimentDesign)=>explained(async()=>{if(!r.workspaceId)await r.ensureWorkspace();await r.saveExperiment(design);if(mode==="image"&&!fields.length)setMode("experiment");});
-  const addToExperiment=(target:AddTarget,list:FileList|File[],design:ExperimentDesign)=>explained(async()=>{const ids=await r.importFiles(list);if(ids.length)await r.saveExperiment(assignFields(design,ids,{group_id:target.groupId,run_id:target.runId,sample:target.sample}));return ids;});
+  // The cell's run and group go with the images: the runtime places each field once it exists, also when another image of
+  // the same choice is refused or the addition is interrupted (#284 control C), so nothing here waits for returned IDs.
+  const addToExperiment=(target:AddTarget,list:FileList|File[],design:ExperimentDesign)=>explained(async()=>{if(JSON.stringify(design)!==JSON.stringify(experiment))await r.saveExperiment(design);return r.importFiles(list,"automatic",{group_id:target.groupId,run_id:target.runId,sample:target.sample});});
   // The images that waited for the choice go where the researcher puts them; one screen has one place, and opens on them.
-  const placePending=async(target:AddTarget,design:ExperimentDesign)=>{if(!pending)return;const ids=await addToExperiment(target,pending,design);setPending(null);if(design.layout==="single"&&ids[0]){setSelected(ids[0]);setMode("image");}};
+  const placePending=async(target:AddTarget,design:ExperimentDesign)=>{if(!pending)return;const first=(await addToExperiment(target,pending,design)).registered[0]?.fieldId;setPending(null);if(design.layout==="single"&&first){setSelected(first);setMode("image");}};
   // Each field's adopted nuclei (null: not measured) and whether it is measured, for n and the summary figure.
   const setup=<ExperimentSetup design={experiment} fields={fields.filter(value=>value.kind!=="reference").map(value=>{const ch=value.nuclearChannelId||value.channels[0]?.id,nuclear=r.currentResult(value.id,"nuclei");return {id:value.id,label:value.label,preview:ch?value.previews[ch]:undefined,nuclei:nuclear?adoptedNuclei(nuclear):null,measured:!!nuclear||!!r.currentResult(value.id,"cell"),excluded:!!value.exclusionReason};})}
     onNext={()=>changeMode("statistics")} source={demo?showcase.dataset:null} loading={r.loading}
-    busy={r.busy||!transportAvailable} readOnly={demo} onSave={saveExperiment} onAdd={addToExperiment} pending={pending&&!demo?{count:pending.length,onPlace:placePending,onWithoutForm:()=>{const files=pending;setPending(null);setMode("image");void act(()=>r.importFiles(files));},onDiscard:()=>setPending(null)}:undefined} onOpenField={id=>{setSelected(id);changeMode("image");}} onCsv={()=>changeMode("statistics")}/>;
+    busy={r.busy||!transportAvailable} readOnly={demo} onSave={saveExperiment} onAdd={addToExperiment} pending={pending&&!demo?{count:pending.length,onPlace:placePending,onWithoutForm:()=>{const files=pending;setMode("image");void act(async()=>{await r.importFiles(files);setPending(null);});},onDiscard:()=>setPending(null)}:undefined} onOpenField={id=>{setSelected(id);changeMode("image");}} onCsv={()=>changeMode("statistics")}/>;
   const setupShown=experimentSetupShown(mode,!!field,demo);
   // The nucleus table step shows one field's nuclei (the table lists one field's nuclei) with its table open.
   // The view the visitor had before the guide's nucleus-table step, restored when the guide leaves that step or closes.
@@ -499,6 +509,7 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
     else if(guideView.current)restoreGuideView();else setNucleusView(false);}
   function closeGuide(){setGuide(false);restoreGuideView();}
   useEffect(()=>{folderInput.current?.setAttribute("webkitdirectory","");},[]);
+  useEffect(()=>{const inputs=[fileInput.current,folderInput.current],closed=()=>setCancelled(true);for(const input of inputs)input?.addEventListener("cancel",closed);return()=>{for(const input of inputs)input?.removeEventListener("cancel",closed);};},[]);
   const chooseComparison=()=>{if(!picked.length&&field)setPicked(field.channels.map(ch=>`${field.id}:${ch.id}`));setCompare(true);setPicker(true);};
 
   // Files and folders dropped anywhere on the workspace; the demo explains that it cannot add them. While adding is
@@ -544,7 +555,7 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
 
         </>}
       </section>
-      <section className={styles.resultWork} hidden={mode==="image"||mode==="experiment"}>{r.unfinishedImports.length>0&&<p role="status" className={styles.unfinishedNotice}>登録できなかった画像：{r.unfinishedImports.length} 件。比較の前に、画面下の「取込」で理由を付けて除外してください。</p>}<ConnectedResults stainName={stainName} recorded={recordedStats} primary={primary} measured={measured} compareRequest={compareRequest} adapter={r.adapter} workspace={data?.workspaceId||""} selection={r.adapter.selection()} items={sources} target={sourceTarget} metric={metric} channel={metricUsesChannel(metric)?actualChannel||null:null} mode={mode==="image"||mode==="experiment"?lastResultMode:mode} shown={mode==="statistics"||mode==="figure"} onOpening={(opened,openedChannel)=>{if(explicitMetric.current)return;if(metric==="mean"){setMetric(opened);openedMetric.current=opened;}if(openedChannel&&!channelId)setChannel(openedChannel);}} reclassifyRequest={reclassifyRequest} experiment={experiment} experimentSha256={r.experimentSha256()} onEditExperiment={()=>changeMode("experiment")} onImages={()=>changeMode("image")} onStatistics={()=>changeMode("statistics")} onSource={(id,n,revision,source,ch,structure)=>void openSource(id,n,revision,source,ch,structure)} onAnalysisTargetChange={setTarget} onOpeningTarget={opening=>{if(!explicitMetric.current)setTarget(opening);}} onPrepareMissing={()=>r.run(sourceTarget)} disabled={r.busy} gfp={gfpFilter} channelGate={channelFilter} initialSpec={storedSpec||undefined} onSaveDraft={draft=>r.saveResultDraft(draft)} onMetricChange={(nextMetric,nextChannel)=>{setMetric(nextMetric);if(nextChannel)setChannel(nextChannel);}}/></section>
+      <section className={styles.resultWork} hidden={mode==="image"||mode==="experiment"}><ConnectedResults stainName={stainName} recorded={recordedStats} primary={primary} measured={measured} compareRequest={compareRequest} adapter={r.adapter} workspace={data?.workspaceId||""} selection={r.adapter.selection()} items={sources} target={sourceTarget} metric={metric} channel={metricUsesChannel(metric)?actualChannel||null:null} mode={mode==="image"||mode==="experiment"?lastResultMode:mode} shown={mode==="statistics"||mode==="figure"} onOpening={(opened,openedChannel)=>{if(explicitMetric.current)return;if(metric==="mean"){setMetric(opened);openedMetric.current=opened;}if(openedChannel&&!channelId)setChannel(openedChannel);}} reclassifyRequest={reclassifyRequest} experiment={experiment} experimentSha256={r.experimentSha256()} onEditExperiment={()=>changeMode("experiment")} onImages={()=>changeMode("image")} onStatistics={()=>changeMode("statistics")} onSource={(id,n,revision,source,ch,structure)=>void openSource(id,n,revision,source,ch,structure)} onAnalysisTargetChange={setTarget} onOpeningTarget={opening=>{if(!explicitMetric.current)setTarget(opening);}} onPrepareMissing={()=>r.run(sourceTarget)} disabled={r.busy} gfp={gfpFilter} channelGate={channelFilter} initialSpec={storedSpec||undefined} onSaveDraft={draft=>r.saveResultDraft(draft)} onMetricChange={(nextMetric,nextChannel)=>{setMetric(nextMetric);if(nextChannel)setChannel(nextChannel);}}/></section>
     </div>
 
     {(mode==="image"&&!!field||ai)&&(panel||ai)&&<aside className={styles.inspector} aria-label={ai?"AI":"画像解析"}><div className={styles.panelHeading}><h2>{ai?"AI":"画像解析"}</h2><button className={styles.icon} aria-label="パネルを閉じる" onClick={()=>dispatchPanel("close")}><Icon name="close"/></button></div><div className={styles.inspectorBody}>
@@ -582,11 +593,15 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
         <section><h3>測定</h3><MetricSelect value={metric} onChange={setMetric} calibrated={calibrated} offered={metricOffered}/><label>背景補正<select value={r.settings.background} disabled={busy} onChange={e=>setSetting("background",e.target.value as RuntimeSettings["background"])}><option value="raw">なし（原値）</option><option value="automatic">自動推定</option><option value="confirmed_roi">背景ROI</option></select></label>{r.settings.background==="confirmed_roi"&&field&&<ConnectedBackground fieldId={field.id} fieldLabel={field.label} channels={field.channels.map(ch=>({...ch,role:ch.role||undefined}))} backgrounds={backgrounds} confirmedChannelIds={storedSpec?.confirmed_channel_ids||[]} disabled={r.busy} drawing={!!backgroundDraw} onDraw={channels=>{setCompare(false);setBackgroundDraw({field:field.id,channels,id:crypto.randomUUID()});}} onRemove={async channels=>{const updated={...backgrounds,[field.id]:{...backgrounds[field.id]}};for(const ch of channels)delete updated[field.id][ch];await r.saveBackgrounds(updated,storedSpec?.confirmed_channel_ids||[]);}}/>}</section>
       </>}
     </div></aside>}
-    <footer className={styles.composer}><AiAvailabilityHint onSettings={()=>dispatchPanel("open-ai")}/>{r.importIssues.length+r.unfinishedImports.length>0&&<details className={styles.importIssues} data-dismissible><summary>取込 {r.importIssues.length+r.unfinishedImports.length}件</summary><ul>{r.importIssues.map((issue,index)=><li key={index}>{importIssueText(issue)}</li>)}<UnfinishedImports items={r.unfinishedImports} disabled={busy} onExclude={(entries,reason)=>void act(()=>r.excludeImports(entries,reason))}/></ul></details>}<button className={styles.icon} aria-label="AIの会話を開く" aria-pressed={ai} onClick={()=>dispatchPanel("toggle-ai")}><Icon name="ai"/></button><textarea disabled={!aiAccess.available} aria-label="AIへの指示" placeholder={demo&&showcase.examples.length?"AIに指示（例から選択）":"AIに指示"} value={instruction} onFocus={!ai?()=>dispatchPanel("open-ai"):undefined} onChange={e=>setInstruction(e.target.value)} rows={1}/><button className={styles.send} aria-label="AIへ送信" disabled={busy||!aiAccess.available||(!instruction.trim()&&!fields.length)} onClick={()=>void send()}><Icon name="send"/></button></footer>
+    <footer className={styles.composer}><AiAvailabilityHint onSettings={()=>dispatchPanel("open-ai")}/>{intakeCount>0&&<details key={intakeKey} open={needsAttention(r.intake)||undefined} className={styles.importIssues} data-dismissible><summary>取込 {intakeCount}件</summary><ul>{r.importIssues.map((issue,index)=><li key={index}>{importIssueText(issue)}</li>)}<UnfinishedImports rows={r.intakeRows} outcome={r.intake} disabled={busy} onReplace={(entry,files)=>void act(()=>r.replaceImport(entry,files))} onCancel={entry=>void act(()=>r.cancelImport(entry))} onSeparate={id=>void act(()=>r.addSeparately(id))} onChoose={()=>chooseFiles()}/></ul></details>}{intakeLine&&<p role="status" className={styles.intakeResult}>{intakeLine}</p>}<button className={styles.icon} aria-label="AIの会話を開く" aria-pressed={ai} onClick={()=>dispatchPanel("toggle-ai")}><Icon name="ai"/></button><textarea disabled={!aiAccess.available} aria-label="AIへの指示" placeholder={demo&&showcase.examples.length?"AIに指示（例から選択）":"AIに指示"} value={instruction} onFocus={!ai?()=>dispatchPanel("open-ai"):undefined} onChange={e=>setInstruction(e.target.value)} rows={1}/><button className={styles.send} aria-label="AIへ送信" disabled={busy||!aiAccess.available||(!instruction.trim()&&!fields.length)} onClick={()=>void send()}><Icon name="send"/></button></footer>
     {demo&&<DemoGuide open={guide} onClose={closeGuide} onStep={guideStep} dataset={showcase.dataset}/>}
-    <input hidden type="file" multiple accept=".tif,.tiff" ref={fileInput} data-testid="file-input" disabled={intakeDisabled} onChange={e=>{add(e.target.files);e.target.value="";}}/><input hidden type="file" multiple ref={folderInput} data-testid="folder-input" disabled={intakeDisabled} onChange={e=>{add(e.target.files);e.target.value="";}}/>
+    <input hidden type="file" multiple accept=".tif,.tiff" ref={fileInput} data-testid="file-input" disabled={intakeDisabled} onChange={e=>{setCancelled(false);add(e.target.files);e.target.value="";}}/><input hidden type="file" multiple ref={folderInput} data-testid="folder-input" disabled={intakeDisabled} onChange={e=>{setCancelled(false);add(e.target.files);e.target.value="";}}/>
   </main>;
 }
+
+/** A new key per addition, so the 取込 list opens again when an addition needs a look. */
+const outcomeKeys=new WeakMap<object,number>();let outcomeSerial=0;
+function outcomeKey(outcome:object|null){if(!outcome)return 0;if(!outcomeKeys.has(outcome))outcomeKeys.set(outcome,++outcomeSerial);return outcomeKeys.get(outcome)!;}
 
 function importIssueText(issue:GroupingIssue){
   switch(issue.kind){

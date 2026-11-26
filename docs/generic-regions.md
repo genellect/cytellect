@@ -235,6 +235,12 @@ Uploaded filenames are not storage paths or identity. The transaction repeats
 the identity lookup, checks quotas and inserts once, so concurrent retries cannot
 double-count fields or bytes. Unused temporary files are removed.
 
+The workspace writes a row of its selection under the same ID before sending the images, with the file
+names, the state and, when one was chosen, the run and group (`intake`). A refused upload records the
+API's reason code on that row; an upload whose answer was lost is joined to its row when the field
+exists. Sending the images again under the row's ID resolves that row without making another. Rows
+without a field may be removed; a field's row may not.
+
 An upload may carry an optional `display_name` (1–120 characters, no control
 characters or surrounding spaces); the workspace sends the name it lists, the last
 segment of the grouped file name. It is saved with the field and its revision

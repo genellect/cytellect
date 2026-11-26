@@ -50,22 +50,64 @@ def test_undo_is_shared_and_stale_tab_cannot_overwrite_or_compare(tmp_path):
     assert foreign.get(path).status_code == 404
 
 
-def test_a_failed_upload_alone_blocks_the_cohort_until_it_has_a_reason(tmp_path):
-    """Every registered field is measured; only an image that never became a field lacks a reason."""
+def test_a_failed_upload_never_blocks_the_cohort_and_its_record_is_kept(tmp_path):
+    """Every registered field is measured; an image that never became a field is counted, not excluded (#284)."""
     client, _app, _settings, wid, body, _ = setup_cohort(tmp_path)
     path = f"/v1/workspaces/{wid}/selection"
     selection = client.get(path).json()
-    selection["entries"].append({"id": "interrupted-upload", "field_id": None, "revision_id": None, "exclusion_reason": None})
+    rejected = {"id": "rejected-upload", "field_id": None, "revision_id": None, "exclusion_reason": None,
+                "intake": {"names": ["synthetic-a9-C01.tif", "synthetic-a9-C02.tif"], "state": "rejected", "stage": "register",
+                           "code": "region_image_unreadable", "target": {"run_id": "run-1", "group_id": "control", "sample": None}}}
+    selection["entries"].append(rejected)
     selection = save(client, wid, selection)
-    refused = client.post(f"/v1/workspaces/{wid}/region-cohorts", json={**body, "workspace_selection": selection}, headers=HEADERS)
-    assert refused.status_code == 409 and refused.json()["detail"] == "workspace_selection_incomplete"
-    selection["entries"][-1]["exclusion_reason"] = "Upload interrupted; excluded before comparison"
-    selection = save(client, wid, selection)
+    # Omitted values stay omitted: the saved row compares equal to what the app sent.
+    assert selection["entries"][-1]["intake"] == {**rejected["intake"], "target": {"run_id": "run-1", "group_id": "control", "sample": None}}
     queued = client.post(f"/v1/workspaces/{wid}/region-cohorts", json={**body, "workspace_selection": selection}, headers=HEADERS)
     assert queued.status_code == 202, queued.text
+    rid = queued.json()["revision_id"]
+    assert client.get(f"/v1/revisions/{rid}/workspace-selection").json() == selection
 
 
-def test_failed_upload_and_analysis_require_reasoned_exclusions_and_are_saved(tmp_path):
+def test_intake_rows_are_validated_and_only_field_less_rows_can_be_removed(tmp_path):
+    client, _app, _settings, wid, _body, _ = setup_cohort(tmp_path)
+    path = f"/v1/workspaces/{wid}/selection"
+    selection = client.get(path).json()
+    pending = {"id": "pending-upload", "field_id": None, "revision_id": None, "exclusion_reason": None,
+               "intake": {"names": ["synthetic.tif"], "state": "pending"}}
+    for intake in ({"names": ["synthetic.tif"], "state": "registered"},  # a registered row needs its field
+                   {"names": [], "state": "pending"}, {"names": ["a\nb.tif"], "state": "pending"},
+                   {"names": ["synthetic.tif"], "state": "pending", "code": "Not a code"},
+                   {"names": ["synthetic.tif"], "state": "pending", "path": "/home/x"},
+                   {"names": ["synthetic.tif"], "state": "pending", "separate": False}):
+        invalid = copy.deepcopy(selection)
+        invalid["entries"].append({**pending, "intake": intake})
+        assert client.post(path, headers=HEADERS, json=invalid).status_code == 422, intake
+    measured = copy.deepcopy(selection)
+    measured["entries"][0]["intake"] = {"names": ["synthetic.tif"], "state": "pending"}
+    assert client.post(path, headers=HEADERS, json=measured).status_code == 422
+    selection["entries"].append(pending)
+    selection = save(client, wid, selection)
+    # "追加をやめる" removes the row of an image that never became a field...
+    removed = save(client, wid, {**selection, "entries": selection["entries"][:-1]})
+    assert all(entry["id"] != "pending-upload" for entry in removed["entries"])
+    # ...but never the row of a registered field.
+    assert client.post(path, headers=HEADERS, json={**removed, "entries": removed["entries"][1:]}).json()["detail"] == "workspace_entries_cannot_disappear"
+
+
+def test_an_interrupted_upload_that_reached_the_api_resolves_its_row(tmp_path):
+    client, _app, _settings, wid, _body, _ = setup_cohort(tmp_path)
+    path = f"/v1/workspaces/{wid}/selection"
+    selection = client.get(path).json()
+    selection["entries"].append({"id": "5b0c7c7e-2f40-4c1e-9a1e-0d6b8f1a2c3d", "field_id": None, "revision_id": None, "exclusion_reason": None,
+                                 "intake": {"names": ["synthetic.tif"], "state": "rejected", "stage": "register", "code": "upload_unanswered"}})
+    selection = save(client, wid, selection)
+    field = make_field(client, wid, client_upload_id="5b0c7c7e-2f40-4c1e-9a1e-0d6b8f1a2c3d").json()["id"]
+    row = next(entry for entry in client.get(path).json()["entries"] if entry["id"] == "5b0c7c7e-2f40-4c1e-9a1e-0d6b8f1a2c3d")
+    assert row["field_id"] == field and row["intake"] == {"names": ["synthetic.tif"], "state": "registered"}
+
+
+def test_an_unmeasured_field_requires_a_reasoned_exclusion_and_the_selection_is_saved(tmp_path):
+    """A registered field without an adopted result is the researcher's to exclude; a failed upload is not (#284)."""
     client, app, settings, wid, body, _ = setup_cohort(tmp_path)
     failed_field = make_field(client, wid).json()["id"]
     path = f"/v1/workspaces/{wid}/selection"
@@ -73,7 +115,8 @@ def test_failed_upload_and_analysis_require_reasoned_exclusions_and_are_saved(tm
     selection["entries"].append({"id": "interrupted-upload", "field_id": None, "revision_id": None, "exclusion_reason": None})
     selection = save(client, wid, selection)
     request = {**body, "workspace_selection": selection}
-    assert client.post(f"/v1/workspaces/{wid}/region-cohorts", json=request, headers=HEADERS).status_code == 409
+    refused = client.post(f"/v1/workspaces/{wid}/region-cohorts", json=request, headers=HEADERS)
+    assert refused.status_code == 409 and refused.json()["detail"] == "workspace_selection_incomplete"
     invalid = copy.deepcopy(selection)
     invalid["entries"][-1]["exclusion_reason"] = " "
     assert client.post(path, headers=HEADERS, json=invalid).status_code == 422
@@ -81,7 +124,7 @@ def test_failed_upload_and_analysis_require_reasoned_exclusions_and_are_saved(tm
         if not entry["revision_id"]:
             entry["exclusion_reason"] = "Acquisition file incomplete; excluded before comparison"
     selection = save(client, wid, selection)
-    dropped = {**selection, "entries": selection["entries"][:-1]}
+    dropped = {**selection, "entries": [entry for entry in selection["entries"] if entry["field_id"] != failed_field]}
     assert client.post(path, headers=HEADERS, json=dropped).status_code == 409
     queued = client.post(f"/v1/workspaces/{wid}/region-cohorts", headers=HEADERS, json={**body, "workspace_selection": selection})
     assert queued.status_code == 202, queued.text

@@ -26,12 +26,25 @@ without relying on canvas interaction. Nucleus/nucleolus/manual ROI edits create
 immutable revisions. Undo/Redo selects earlier/later revisions through the API.
 Nucleus edits require nucleolar resegmentation/review. Exclusions and background/gating
 updates are remeasured on current masks. Old statistics remain visibly labelled old.
-An image the API rejects is named with its reason (for example, an integer label mask sent as an
-image to measure) and is not sent again. Its entry stays in the workspace record, because a field
-that failed to import is never dropped silently: the comparison waits until the researcher excludes
-it with a reason from the import list (取込). Rejections with the same reason are stated once, several
-entries can be excluded together with one reason, and the statistics view says how many are waiting.
-The API does not store file names, so after a reload the entry is listed without one.
+Images are added item by item ([#284](https://github.com/genellect/cytellect/issues/284) W1):
+one image's failure never stops the others, their placement in a group, their measurement or the
+comparison. The order is fixed: files that are not TIFF are 対象外; a file with the same bytes as
+another image of the addition or as a registered field's input is a copy (同一内容) and becomes a
+field only through 「別の撮影として追加」; the rest are grouped into fields; and only a field in which two
+different images name the same channel waits (要確認), unsent, while the other fields are registered.
+Before its images are sent, each field gets a row in the workspace record with its file names and,
+when it was added from a group's cell, that run and group. A refused image keeps its row with the
+API's reason code (a 32-bit integer label image is shown as a mask candidate, not as missing data); an
+image whose answer never arrived stays 「登録未完了」. Rows keep their names after a reload.
+A row is resolved by 「差し替え」 (choosing all of its files again, sent under the same row key, so no
+second row or field is made) or removed with 「記録から削除」. Registered fields are placed in the run
+and group of their row when the addition ends and when the workspace opens again, never from the
+caller's returned IDs. The researcher is never asked for a reason: the comparison counts rows without
+a field in its n breakdown, by group and reason, from the selection saved with it. Every choice shows
+its result in one line beside 取込, including an empty folder, a choice without TIFF and a closed dialog
+(the earlier choice stays). Only an addition that cannot go on (no answer, ended session, changed
+workspace) is shown as an error; what it registered stays. Images chosen before the experiment form
+is chosen accumulate until they are registered.
 
 Statistics display cells/fields/independent units separately. The paired option is
 initially selected because synthetic controls and treatments share pair IDs. Confirm

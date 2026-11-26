@@ -6,7 +6,7 @@ Cytellect は、研究者の未発表の顕微鏡画像を研究者の PC で解
 
 ### 研究データ
 
-画像、マスク、測定表、図は、研究者の PC か研究室のサーバーの非公開の領域に置く。外部に送るのは次の場合に限る。
+画像、マスク、測定表、図と、取り込みの記録（登録を試みた画像のファイル名と、登録できなかった理由）は、研究者の PC か研究室のサーバーの非公開の領域に置く。外部に送るのは次の場合に限る。
 
 | 送り先 | 送るもの | 送り先での扱い |
 |---|---|---|
@@ -93,7 +93,7 @@ Cytellect analyses researchers' unpublished microscopy images on the researcher'
 
 #### Research data
 
-Images, masks, measurement tables and figures stay in a private area of the researcher's PC or the lab server. Data leaves it only in these cases:
+Images, masks, measurement tables and figures, and the import record (the file names of images the researcher added and why one was not registered), stay in a private area of the researcher's PC or the lab server. Data leaves it only in these cases:
 
 | Destination | Data | Handling |
 |---|---|---|

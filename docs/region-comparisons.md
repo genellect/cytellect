@@ -111,6 +111,12 @@ reason and they stay in the ledger as missing; the result keeps every group and
 unit's missing / all nuclei and warns when, within a run, the groups' missing
 fractions differ by 10 percentage points or more
 ([methods](methods.md#unresolved-nucleoli-policy-100-2026-10-26)).
+An image that never became a field (refused or interrupted on import) is not a field of the ledger
+and does not stop the comparison. Its row stays in the workspace selection saved with the comparison,
+with the file names, the reason code and the group and run the researcher chose, and the result's n
+breakdown counts it there as technical missing data
+([#284](https://github.com/genellect/cytellect/issues/284), decision 2 of its implementation plan). No measurement or count is
+inferred for it.
 An excluded failed field must also have the same whole-field exclusion and reason
 in the saved source configuration. A failure-ledger entry alone cannot authorize
 dropping that field or its unit. This integrity check also applies to the shared

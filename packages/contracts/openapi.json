@@ -9713,6 +9713,45 @@
         ],
         "title": "ImageInfo"
       },
+      "IntakeTarget": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Run Id"
+          },
+          "group_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Group Id"
+          },
+          "sample": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 24,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run_id",
+          "group_id"
+        ],
+        "title": "IntakeTarget",
+        "description": "Where the researcher asked the images to go; applied once the field exists (#284 control C)."
+      },
       "InviteInput": {
         "properties": {
           "token": {
@@ -19458,6 +19497,90 @@
         "type": "object",
         "title": "WorkspaceInput"
       },
+      "WorkspaceIntake": {
+        "properties": {
+          "names": {
+            "items": {
+              "type": "string",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "^[^\\x00-\\x1f\\x7f]+$"
+            },
+            "type": "array",
+            "maxItems": 16,
+            "minItems": 1,
+            "title": "Names"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "rejected",
+              "registered"
+            ],
+            "title": "State"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "inspect",
+                  "register"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[a-z0-9_]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IntakeTarget"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "separate": {
+            "anyOf": [
+              {
+                "type": "boolean",
+                "const": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Separate"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "names",
+          "state"
+        ],
+        "title": "WorkspaceIntake",
+        "description": "What the app knows about one attempted field: its files, how far it got and why it stopped.\n\nRows without a field (pending, rejected) are technical missing data: they are counted in the\ncomparison's n breakdown, never asked for a reason, and never block a comparison (#284 decision 2)."
+      },
       "WorkspaceRunRequest": {
         "properties": {
           "request_id": {
@@ -19615,6 +19738,16 @@
               }
             ],
             "title": "Target Revisions"
+          },
+          "intake": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkspaceIntake"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,

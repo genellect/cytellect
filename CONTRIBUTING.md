@@ -207,7 +207,7 @@ python3 scripts/dev.py audit             # 依存パッケージを変えたと�
 
 | 名前 | 内容 | 確かめられること |
 |---|---|---|
-| `bbbc007`（既定） | DNA とアクチン、1 視野 | 核の検出、測定、修正 |
+| `bbbc007`（既定） | DNA とアクチン、2 視野（a9、f9620） | 核の検出、測定、修正、画像の取り込み |
 | `bbbc013` | DRAQ と FKHR-EGFP、3 視野（リポジトリにあり、場所を示すだけ） | チャンネルの陽性判定と陽性率、面積だけの測定 |
 | `jump-plk1` | PLK1 ノックアウトと対照、実験回 3（約 400 MB） | 群間比較 |
 | `nucleolar` | DAPI と NCL の原画像 | 核小体（[公開画像での検証](docs/public-nucleolar-validation.md)） |

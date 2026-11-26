@@ -16,15 +16,17 @@ def prepare(data: Path, output: Path) -> None:
     archive_name = "BBBC007_v1_images.zip"
     archive = data / archive_name
     verify_archive(archive, manifest["archives"][archive_name])
-    field = next(item for item in manifest["fields"] if item["id"] == "a9")
+    # a9 and f9620 are the two accepted grayscale pairs (README): two fields, as the intake tests of #284 need.
     output.mkdir(parents=True, exist_ok=True)
     identities = {}
     with ZipFile(archive) as source:
-        for channel in ("actin", "dna"):
-            content = source.read(field["members"][channel])
-            name = f"a9-{channel}.tif"
-            (output / name).write_bytes(content)
-            identities[name] = sha256(content)
+        for field_id in ("a9", "f9620"):
+            field = next(item for item in manifest["fields"] if item["id"] == field_id)
+            for channel in ("actin", "dna"):
+                content = source.read(field["members"][channel])
+                name = f"{field_id}-{channel}.tif"
+                (output / name).write_bytes(content)
+                identities[name] = sha256(content)
     (output / "manifest.json").write_text(json.dumps({
         "dataset": manifest["dataset"], "source": manifest["source"],
         "license": manifest["license"], "files": identities,

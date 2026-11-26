@@ -26,6 +26,7 @@ import {ConnectedCsvResults} from "./ConnectedCsvResults";
 import {EditableFigure,type FigurePart,type FigureSource} from "./EditableFigure";
 import type {components} from "@/lib/generated";
 import {comparisonDefaults,fieldMetadata,isStratified,scopedIdentity,strataOf,stratumRequestFor,unassignedFieldCount,type ExperimentDesign} from "@/lib/workspace/experiment-design";
+import {missingImages as countMissingImages,type MissingImages} from "@/lib/workspace/intake-record";
 import {breakdown,formatNumber,summarize,tidy,type ComparisonEstimates,type ResultBasis,type CountRow,type FieldLedgerRow,type SavedComparison} from "@/lib/result-summary";
 import {channelGateInputSignature,channelGateName,channelGateRequest,channelGateThresholds,recordedChannelGate,type ChannelGateFilter,type ChannelGateResult} from "@/lib/workspace/channel-gate";
 
@@ -199,6 +200,14 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
   const [selectedSeries,setSelectedSeries]=useState("");
   const [pointSource,setPointSource]=useState<{job:string;source:FigureSource}|null>(null);
   const [saved,setSaved]=useState<Saved|null>(null),[busy,setBusy]=useState(""),[error,setError]=useState("");
+  // Images that never became a field, from the selection saved with this comparison (#284 W1): counted in the n
+  // breakdown as technical missing data. The demo records no such request and shows none.
+  const [missingRecord,setMissingRecord]=useState<{revision:string;selection:WorkspaceSelection|null}|null>(null);
+  const savedRevision=saved?.revision??null;
+  useEffect(()=>{if(!savedRevision||demo)return;let live=true;
+    adapter.comparisonSelection(savedRevision).then(selection=>{if(live)setMissingRecord({revision:savedRevision,selection});}).catch(()=>{});
+    return()=>{live=false;};},[savedRevision,demo,adapter]);
+  const shownMissingImages=useMemo(()=>savedRevision&&missingRecord?.revision===savedRevision?countMissingImages(missingRecord.selection,experiment):[],[savedRevision,missingRecord,experiment]);
   const pageSize=(page:ResultOperation)=>page==="distribution"?{width:183,height:100}:{width:89,height:60};
   const width=chosenWidth??pageSize(saved?saved.operation:operation).width,height=chosenHeight??pageSize(saved?saved.operation:operation).height;
   const [recordedGate,setRecordedGate]=useState<{identity:string;revision:string;filter:ChannelGateFilter;result:ChannelGateResult}|null>(null);
@@ -675,7 +684,7 @@ function WorkspaceResults({adapter,workspace,selection,items:allItems,target,met
           <div>
             {recorded.length>1&&savedChips}
             {mode==="statistics"&&saved.result.estimates&&<ResultSummaryCard estimates={saved.result.estimates} comparison={(saved.result.comparisons?.[0]??{}) as SavedComparison} metricLabel={resultMetricLabel(saved.result,saved.result.estimates.metric,stainName)} unit={unitLabel(saved.result.unit)} warnings={saved.result.warnings||[]} onEditExperiment={onEditExperiment} testable={testable}
-          reported={showcaseDataset?.reported??null}
+          reported={showcaseDataset?.reported??null} missingImages={shownMissingImages}
           counts={breakdown(Array.isArray(saved.result.counts)?saved.result.counts as CountRow[]:[],saved.result.source_field_ledger??[],saved.result.spec?.selection?.source==="field-summary"?null:saved.target==="nuclei"||saved.target==="nucleoplasm"?"核":saved.target==="nucleoli"?"核小体":"領域",
             saved.result.compartment_missing?{rows:saved.result.compartment_missing.rows,perNucleus:saved.result.spec?.selection?.source==="compartment-summary"}:null)}
           missing={saved.result.compartment_missing??null}/>}
@@ -825,7 +834,7 @@ export function shownSummary(estimates:ComparisonEstimates,comparison:SavedCompa
     missing:missing&&unresolved?`核小体を確定できない核 ${unresolved} / ${nuclei} は欠測`:null,testable});
 }
 
-function ResultSummaryCard({estimates,comparison,metricLabel,unit,warnings,counts,reported,missing,onEditExperiment,testable=false}:{estimates:ComparisonEstimates;comparison:SavedComparison;metricLabel:string;unit:string;warnings:string[];counts:ReturnType<typeof breakdown>;reported:ShowcaseDataset["reported"];missing:MissingSummary|null;onEditExperiment?:()=>void;testable?:boolean}){
+function ResultSummaryCard({estimates,comparison,metricLabel,unit,warnings,counts,reported,missing,missingImages=[],onEditExperiment,testable=false}:{estimates:ComparisonEstimates;comparison:SavedComparison;metricLabel:string;unit:string;warnings:string[];counts:ReturnType<typeof breakdown>;reported:ShowcaseDataset["reported"];missing:MissingSummary|null;missingImages?:MissingImages[];onEditExperiment?:()=>void;testable?:boolean}){
   const summary=shownSummary(estimates,comparison,metricLabel,unit,warnings,missing,testable);
   const cautions=[...summary.cautions,...warnings.filter(code=>READ_WARNINGS.has(code)).map(code=>comparisonWarnings[code]||commonWarnings[code]).filter((value):value is string=>!!value)];
   // The demo says what the measured value means, for visitors who are not biologists (DM-11).
@@ -841,7 +850,8 @@ function ResultSummaryCard({estimates,comparison,metricLabel,unit,warnings,count
     {estimates.runs.length>0&&<details open={estimates.runs.length<5}><summary>実験回ごとの値</summary><table><thead><tr><th>実験回</th><th>{estimates.control}</th><th>{estimates.treatment}</th><th>差（{estimates.treatment} − {estimates.control}）{estimates.scale==="fraction"?" / ポイント":""}</th></tr></thead>
       <tbody>{estimates.runs.map(run=><tr key={run.pair}><th>{run.pair}</th><td>{runValue(run.control)}</td><td>{runValue(run.treatment)}</td><td>{runValue(run.difference,true)}</td></tr>)}</tbody></table></details>}
     <details><summary>n の内訳と除外</summary><ul>{counts.groups.map(value=><li key={value}>{value}</li>)}</ul>
-      <p>{counts.exclusions.length?"除外・欠測（実験回ごと）":"除外・欠測：なし"}</p>{counts.exclusions.length>0&&<ul>{counts.exclusions.map(value=><li key={value}>{value}</li>)}</ul>}
+      <p>{counts.exclusions.length?"除外・欠測（実験回ごと）":missingImages.length?"除外：なし":"除外・欠測：なし"}</p>{counts.exclusions.length>0&&<ul>{counts.exclusions.map(value=><li key={value}>{value}</li>)}</ul>}
+      {missingImages.length>0&&<><p>未登録の画像：{missingImages.reduce((sum,value)=>sum+value.count,0)} 件</p><ul aria-label="未登録の画像">{missingImages.map(value=><li key={`${value.group}:${value.run}:${value.reason}`}>{value.group}{value.run?` · ${value.run}`:""}：{value.count} 件 · {value.reason}</li>)}</ul></>}
       {missing&&<MissingNucleoli summary={missing}/>}
       <ul className={styles.cautions}>{summary.notes.map(value=><li key={value}>{value}</li>)}</ul></details>
     {reported&&<ReportedSource reported={reported}/>}

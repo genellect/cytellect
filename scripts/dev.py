@@ -297,7 +297,7 @@ def contracts(_: argparse.Namespace) -> None:
 
 # Registered public images for trying the screens by hand (fixtures/public holds each source and license).
 PUBLIC_INPUTS = {
-    "bbbc007": "DNA and actin, one field: nucleus detection and the workspace browser tests (CC0)",
+    "bbbc007": "DNA and actin, two fields (a9, f9620): nucleus detection and the workspace browser tests (CC0)",
     "bbbc013": "DRAQ and FKHR-EGFP, three fields: channel gates, positive fraction and area-only (in the checkout)",
     "jump-plk1": "PLK1 knockout and control, three runs: group comparison (about 400 MB, CC0)",
     "nucleolar": "DAPI and NCL source image of the nucleolus validation (docs/public-nucleolar-validation.md)",

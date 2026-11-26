@@ -54,12 +54,15 @@ test("images added before the form wait for it and go to the chosen group of two
   await page.goto("/workspace");
   await loaded;
   await expect(page.getByRole("heading",{name:"実験デザイン",exact:true,level:1})).toBeVisible();
-  await page.getByTestId("file-input").setInputFiles([{name:"A01_c1.tif",mimeType:"image/tiff",buffer:Buffer.from([1,2,3])},{name:"A01_c2.tif",mimeType:"image/tiff",buffer:Buffer.from([4,5,6])}]);
+  // A second choice adds to the first instead of replacing it (#284 input 3).
+  await page.getByTestId("file-input").setInputFiles([{name:"A01_c1.tif",mimeType:"image/tiff",buffer:Buffer.from([1,2,3])}]);
+  await expect(page.getByRole("status").filter({hasText:"受け取ったファイル：1 件 · 登録：実験デザインの選択後"})).toBeVisible();
+  await page.getByTestId("file-input").setInputFiles([{name:"A01_c2.tif",mimeType:"image/tiff",buffer:Buffer.from([4,5,6])}]);
   // Nothing is registered until the form is chosen.
-  await expect(page.getByRole("status").filter({hasText:"受け取った画像：2 件。"})).toBeVisible();
+  await expect(page.getByRole("status").filter({hasText:"受け取ったファイル：2 件 · 登録：実験デザインの選択後"})).toBeVisible();
   expect(uploads).toBe(0);
   await page.getByRole("button",{name:/^2 画面/}).click();
-  const place=page.getByRole("region",{name:"受け取った画像の追加先"});
+  const place=page.getByRole("region",{name:"受け取ったファイルの追加先"});
   await expect(place).toBeVisible();
   expect(uploads).toBe(0);
   // No group is assumed: the researcher names it.

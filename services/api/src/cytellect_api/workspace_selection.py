@@ -1,6 +1,7 @@
 """Persisted field adoption; whole-ledger CAS prevents stale tabs changing cohorts."""
 from typing import Annotated, Literal
 
+from cytellect_analysis.experiment_design import ShortLabel
 from cytellect_analysis.regions import FIELD_EXCLUSION_REASON_MAX, Id, RegionModel
 from fastapi import Depends, HTTPException
 from pydantic import Field, model_validator
@@ -11,17 +12,51 @@ from .db import fields, revisions, workspace_selections, workspaces
 Target = Literal["nuclei", "gfp", "ncl", "nucleoli", "nucleoplasm", "cell"]
 
 
+# A file name as the researcher chose it (a folder-relative path when one is known). Names are research data:
+# they stay in this database and the researcher's own export, never in logs or AI requests (SECURITY.md).
+IntakeName = Annotated[str, Field(min_length=1, max_length=255, pattern=r"^[^\x00-\x1f\x7f]+$")]
+ReasonCode = Annotated[str, Field(min_length=1, max_length=80, pattern=r"^[a-z0-9_]+$")]
+
+
+def _omitted(value):
+    return value is None
+
+
+class IntakeTarget(RegionModel):
+    """Where the researcher asked the images to go; applied once the field exists (#284 control C)."""
+    run_id: Id
+    group_id: Id
+    sample: ShortLabel | None = None
+
+
+class WorkspaceIntake(RegionModel):
+    """What the app knows about one attempted field: its files, how far it got and why it stopped.
+
+    Rows without a field (pending, rejected) are technical missing data: they are counted in the
+    comparison's n breakdown, never asked for a reason, and never block a comparison (#284 decision 2)."""
+    names: list[IntakeName] = Field(min_length=1, max_length=16)
+    state: Literal["pending", "rejected", "registered"]
+    stage: Literal["inspect", "register"] | None = Field(default=None, exclude_if=_omitted)
+    code: ReasonCode | None = Field(default=None, exclude_if=_omitted)
+    target: IntakeTarget | None = Field(default=None, exclude_if=_omitted)
+    # The researcher recorded that an image with the same pixels as another is a separate acquisition.
+    separate: Literal[True] | None = Field(default=None, exclude_if=_omitted)
+
+
 class WorkspaceSelectionEntry(RegionModel):
     id: Id
     field_id: Id | None = None
     revision_id: Id | None = None
     exclusion_reason: str | None = Field(default=None, min_length=1, max_length=FIELD_EXCLUSION_REASON_MAX)
-    target_revisions: dict[Target, Id] | None = Field(default=None, max_length=6, exclude_if=lambda value: value is None)
+    target_revisions: dict[Target, Id] | None = Field(default=None, max_length=6, exclude_if=_omitted)
+    intake: WorkspaceIntake | None = Field(default=None, exclude_if=_omitted)
 
     @model_validator(mode="after")
     def coherent(self):
         if (self.revision_id or self.target_revisions) and not self.field_id:
             raise ValueError("field_required")
+        if self.intake and (self.intake.state == "registered") != bool(self.field_id):
+            raise ValueError("intake_state_mismatch")
         if self.exclusion_reason is not None and not self.exclusion_reason.strip():
             raise ValueError("exclusion_reason_required")
         return self
@@ -111,7 +146,10 @@ def selection_at(conn, wid):
                 continue
             interrupted = next((entry for entry in entries if entry["id"] == row["client_upload_id"] and not entry["field_id"]), None)
             if interrupted:
+                # The upload reached the API but its answer did not reach the app (interrupted).
                 interrupted["field_id"] = row["id"]
+                if interrupted.get("intake"):
+                    interrupted["intake"] = registered_intake(interrupted["intake"])
             else:
                 entries.append({"id": row["id"], "field_id": row["id"], "revision_id": None, "exclusion_reason": None})
         return {"version": saved["version"], "entries": entries}
@@ -126,6 +164,11 @@ def selection_at(conn, wid):
         chosen = next((row for row in choices if row["id"] == active), choices[0] if len(choices) == 1 else None)
         entries.append({"id": fid, "field_id": fid, "revision_id": chosen["id"] if chosen else None, "exclusion_reason": None})
     return {"version": 0, "entries": entries}
+
+
+def registered_intake(intake):
+    """The intake record of a row whose field now exists: the failure it may have had is resolved."""
+    return {key: value for key, value in intake.items() if key not in ("stage", "code")} | {"state": "registered"}
 
 
 def assert_selection(conn, wid, expected):
@@ -153,7 +196,8 @@ def register_workspace_selection_routes(api, store, owner, workspace, touch):
                 raise HTTPException(409, "workspace_selection_changed")
             old = {entry["id"]: entry for entry in previous["entries"]}
             current = {entry["id"]: entry for entry in entries}
-            if set(old) - set(current):
+            # Only a row that never became a field may be removed ("追加をやめる"); a field's row stays.
+            if any(old[eid]["field_id"] for eid in set(old) - set(current)):
                 raise HTTPException(409, "workspace_entries_cannot_disappear")
             registered = set(conn.execute(select(fields.c.id).where(fields.c.workspace_id == wid)).scalars())
             if {entry["field_id"] for entry in entries if entry["field_id"]} != registered:

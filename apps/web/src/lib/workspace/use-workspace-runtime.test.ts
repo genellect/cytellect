@@ -1,7 +1,7 @@
 import {describe, expect, it, vi} from "vitest";
 import {ApiError} from "../api";
-import {createWorkspaceRuntime, defaultRuntimeSettings, runtimeRecipe, sameRuntimeRecipe} from "./use-workspace-runtime";
-import type {createApiAdapter, ImportedField, Recipe, SavedResult, ValidatedProposal} from "./api-adapter";
+import {createWorkspaceRuntime, defaultRuntimeSettings, IntakeInterrupted, runtimeRecipe, sameRuntimeRecipe} from "./use-workspace-runtime";
+import type {createApiAdapter, ImportedField, IntakeRecord, Recipe, SavedResult, SelectionEntry, ValidatedProposal} from "./api-adapter";
 import type {ReviewData, ReviewTarget} from "./review-preview";
 import type {ChannelDefinition} from "./grouping";
 const nuclear:ChannelDefinition={token:"c4",stain:"DAPI",role:"nuclear",evidence:"user"};
@@ -22,12 +22,40 @@ function fixture(withResult=true,initialSpecification:import("./use-workspace-ru
     editMask:vi.fn(async(_workspace:string,_source:SavedResult,recipe:Recipe)=>{const saved=result(`edit${++serial}`);revisions.set(saved.revision,recipe);adopted.set(target(recipe),saved);return saved;}),
     selectRevision:vi.fn(async(_workspace:string,id:string)=>{const saved=result(id);adopted.set(target(revisions.get(id)!),saved);return saved;}),
     draft:vi.fn(async()=>({proposal:{draft:{recipe:"nuclear-intensity",channels:[],metrics:[],statistics:{kind:"descriptive",test:null,omnibus:null,association:null},figures:[],missing_information:[],reference_ids:[],rationale:"fixture",processing:{version:"1.0.0",nuclei:{channel:"c4",detection_max_side_px:null,detector:{engine:"fiji-stardist-2d",model:"Versatile (fluorescent nuclei)",probability:.65,nms:.3,percentile_low:1,percentile_high:99.8}},nucleoli:null,signal:null}},needs_confirmation:[]} as ValidatedProposal})),
-    registerImport:vi.fn<(workspace:string,id:string)=>Promise<void>>(),excludeField:vi.fn<(workspace:string,id:string,reason:string|null)=>Promise<void>>(),uploadOme:vi.fn(async()=>input),upload:vi.fn<(workspace:string,field:{key:string},channels?:unknown,files?:unknown,entry?:string)=>Promise<ImportedField>>(async()=>input),create:vi.fn(async()=>({id:"w",title:"fixture"})),selection:()=>({version:1,entries:[]}),
+    registerImport:vi.fn<(workspace:string,id:string,intake?:IntakeRecord)=>Promise<void>>(),recordImport:vi.fn<(workspace:string,id:string,intake:Partial<IntakeRecord>)=>Promise<void>>(),removeImport:vi.fn<(workspace:string,id:string)=>Promise<void>>(),excludeField:vi.fn<(workspace:string,id:string,reason:string|null)=>Promise<void>>(),uploadOme:vi.fn(async()=>input),upload:vi.fn<(workspace:string,field:{key:string},channels?:unknown,files?:unknown,entry?:string)=>Promise<ImportedField>>(async()=>input),create:vi.fn(async()=>({id:"w",title:"fixture"})),selection:vi.fn(():{version:number;entries:SelectionEntry[]}|null=>({version:1,entries:[]})),
   };
   let spec=initialSpecification;
   const writeSpecification=vi.fn(async(_id:string,value:import("./use-workspace-runtime").RuntimeSpecification)=>{spec={...value,version:spec.version+1};return spec;});
   const runtime=createWorkspaceRuntime({adapter:adapter as unknown as ReturnType<typeof createApiAdapter>,loadPreview,releasePreview:vi.fn(),readSpecification:async()=>spec,writeSpecification});
   return {runtime,adapter,adopted,recipe,revisions,assignments,loadPreview,writeSpecification};
+}
+/** The four BBBC007 files of #284 by name (a9 and f9620, C01 = DNA and C02 = actin). The bytes are synthetic: the
+ * name decides the grouping, and each file has its own content (implementation plan §11). */
+const bbbc007=()=>["BBBC007-a9-C01.tif","BBBC007-a9-C02.tif","BBBC007-f9620-C01.tif","BBBC007-f9620-C02.tif"].map((name,index)=>new File([new Uint8Array([index+1])],name));
+/** The rows the API keeps, as the adapter writes them: an addition writes a row, an accepted upload joins its field. */
+function withLedger(adapter:ReturnType<typeof fixture>["adapter"]){
+  let rows:SelectionEntry[]=[{id:"f1",field_id:"f1",revision_id:"corrected",exclusion_reason:null}];const fields=new Map<string,ImportedField>();
+  adapter.selection.mockImplementation(()=>({version:1,entries:rows}));
+  adapter.registerImport.mockImplementation(async(_workspace,id,intake)=>{const row=rows.find(entry=>entry.id===id);if(!row)rows=[...rows,{id,field_id:null,revision_id:null,exclusion_reason:null,...(intake?{intake}:{})}];else if(intake&&!row.field_id)rows=rows.map(entry=>entry.id===id?{...entry,intake}:entry);});
+  adapter.recordImport.mockImplementation(async(_workspace,id,change)=>{rows=rows.map(entry=>{if(entry.id!==id||!entry.intake)return entry;const intake={...entry.intake,...change} as IntakeRecord;for(const key of ["stage","code","target"] as const)if(intake[key]===undefined)delete intake[key];return {...entry,intake};});});
+  adapter.removeImport.mockImplementation(async(_workspace,id)=>{rows=rows.filter(entry=>entry.id!==id||!!entry.field_id);});
+  const restore=adapter.restore.getMockImplementation()!;
+  adapter.restore.mockImplementation(async(...args:Parameters<typeof restore>)=>{const value=await restore(...args);return {...value,fields:[...value.fields,...fields.values()],selection:{version:1,entries:rows}} as unknown as typeof value;});
+  adapter.upload.mockImplementation(async()=>{throw new Error("no upload behaviour");});
+  return {
+    entries:()=>rows,
+    fill(size:number){while(rows.length<size)rows=[...rows,{id:`filler-${rows.length}`,field_id:`filler-${rows.length}`,revision_id:null,exclusion_reason:null}];},
+    /** Accepts an upload: the field exists and its row is joined, with the stored input hashes. */
+    accept(entry:string,id:string){
+      const sent=adapter.upload.mock.calls.findLast(call=>call[4]===entry);
+      const inputs:Record<string,{sha256:string;bytes:number}>={};
+      const field:ImportedField={id,workspace_id:"w",metadata:{},image_info:{shape:[10,10],channels:[{channel_id:"c4",label:"DAPI",stain:"DAPI"}],inputs}};
+      if(sent){const grouped=sent[1] as unknown as {files:Record<string,{path:string;sha256?:string}>};Object.values(grouped.files).forEach((file,index)=>{if(file.sha256)inputs[`ch${index}`]={sha256:file.sha256,bytes:1};});}
+      fields.set(id,field);
+      rows=rows.map(row=>{if(row.id!==entry)return row;const intake=row.intake?{...row.intake,state:"registered" as const}:undefined;if(intake){delete intake.stage;delete intake.code;}return {...row,field_id:id,...(intake?{intake}:{})};});
+      return field;
+    },
+  };
 }
 describe("functional workspace runtime",()=>{
   it("resends a failed proposal only after an explicit retry, with the same instruction",async()=>{
@@ -180,40 +208,132 @@ describe("functional workspace runtime",()=>{
     const {runtime,adapter,loadPreview}=fixture();await runtime.load("w");await runtime.importFiles([new File([new Uint8Array(4)],"view_c4.tif")]);expect(adapter.draft).not.toHaveBeenCalled();expect(adapter.run).not.toHaveBeenCalled();expect(loadPreview).toHaveBeenCalledWith("w",["f1"]);
     await runtime.requestProposal("","f1");expect(adapter.draft.mock.calls[0]).toBeDefined();expect(adapter.run).toHaveBeenCalledTimes(1);expect(adapter.run.mock.calls[0][1]).toBe("f1");
   });
-  it("names a rejected file, keeps its ledger entry until it is excluded with a reason, and never resends it",async()=>{
-    const {runtime,adapter}=fixture();await runtime.load("w");
-    // The ledger the API keeps: each import registers an entry, which an accepted upload fills and an exclusion annotates.
-    const pending=new Map<string,string|null>(),filled=new Set<string>();
-    adapter.registerImport.mockImplementation(async(_workspace:string,id:string)=>{if(!pending.has(id))pending.set(id,null);});
-    adapter.excludeField.mockImplementation(async(_workspace:string,id:string,reason:string|null)=>{pending.set(id,reason);});
-    const restore=adapter.restore.getMockImplementation()!;
-    adapter.restore.mockImplementation(async(...args:Parameters<typeof restore>)=>{const value=await restore(...args);
-      return {...value,selection:{...value.selection,entries:[...value.selection.entries,...[...pending].filter(([id])=>!filled.has(id)).map(([id,reason])=>({id,field_id:null,revision_id:null,exclusion_reason:reason}))]}} as unknown as typeof value;});
-    adapter.upload.mockImplementation(async(_workspace,field,_channels,_files,entry)=>{if(field.key.endsWith("-labels"))throw new ApiError("region_image_bit_depth_unsupported",422);filled.add(entry!);return {id:`f-${field.key.split("/").at(-1)}`,workspace_id:"w",metadata:{},image_info:{shape:[10,10],channels:[{channel_id:"c4",label:"DAPI",stain:"DAPI"}]}};});
+  it("names a rejected file, keeps its row with the reason, never resends it and never asks for an exclusion",async()=>{
+    const {runtime,adapter}=fixture();await runtime.load("w");const ledger=withLedger(adapter);
+    adapter.upload.mockImplementation(async(_workspace,field,_channels,_files,entry)=>{if(field.key.endsWith("-labels"))throw new ApiError("region_image_bit_depth_unsupported",422);return ledger.accept(entry!,`f-${field.key.split("/").at(-1)}`);});
     const files=["a_c1.tif","a_c4.tif","b_c4.tif","a-labels.tif","b-labels.tif"].map((name,index)=>new File([new Uint8Array([index])],name));
-    const failure=await runtime.importFiles(files).catch((error:Error)=>error);
-    expect(failure).toBeInstanceOf(Error);
-    // One reason, both files: the same problem is stated once.
-    expect((failure as Error).message).toContain("登録できなかった画像が 2 件あります。");
-    expect((failure as Error).message).toMatch(/[ab]-labels\.tif、[ab]-labels\.tif：8-bit または 16-bit の画像ではありません/);
-    expect((failure as Error).message.match(/8-bit または 16-bit/g)).toHaveLength(1);
-    expect((failure as Error).message).not.toContain("import-");
+    const outcome=await runtime.importFiles(files);
+    expect(outcome.registered.map(item=>item.fieldId).sort()).toEqual(["f-a","f-b"]);
+    expect(outcome.rejected.map(item=>[item.names,item.code]).sort()).toEqual([[["a-labels.tif"],"region_image_bit_depth_unsupported"],[["b-labels.tif"],"region_image_bit_depth_unsupported"]]);
+    expect(runtime.getSnapshot().error).toBe("");
     const keys=()=>adapter.upload.mock.calls.map(call=>call[1].key.split("/").at(-1));
     expect(keys().sort()).toEqual(["a","a-labels","b","b-labels"]);
     // Issues name the researcher's own files, not the private batch folder.
     expect(runtime.getSnapshot().importIssues).toContainEqual({kind:"missing_channel",field:"b",token:"c1"});
     expect(JSON.stringify(runtime.getSnapshot().importIssues)).not.toContain("import-");
-    const unfinished=runtime.getSnapshot().unfinishedImports;
-    expect(unfinished.map(item=>item.name).sort()).toEqual(["a-labels.tif","b-labels.tif"]);
-    expect(unfinished[0]).toMatchObject({reason:expect.stringContaining("8-bit または 16-bit")});
+    const rows=runtime.getSnapshot().intakeRows;
+    expect(rows.map(row=>row.names[0]).sort()).toEqual(["a-labels.tif","b-labels.tif"]);
+    // A 32-bit label image is a mask candidate, not missing data.
+    expect(rows.every(row=>row.state==="rejected"&&row.mask&&row.code==="region_image_bit_depth_unsupported")).toBe(true);
     await runtime.importFiles([new File([new Uint8Array([9])],"c_c4.tif")]);
     expect(keys().sort()).toEqual(["a","a-labels","b","b-labels","c"]);
-    expect(runtime.getSnapshot().unfinishedImports).toHaveLength(2);
-    const entries=unfinished.map(item=>item.entry);
-    await expect(runtime.excludeImports(entries," ")).rejects.toThrow("除外の理由を入力してください。");
-    await runtime.excludeImports(entries,"整数ラベル画像で、測る画像ではない");
-    for(const entry of entries)expect(adapter.excludeField).toHaveBeenCalledWith("w",entry,"整数ラベル画像で、測る画像ではない");
-    expect(runtime.getSnapshot().unfinishedImports).toEqual([]);
+    expect(runtime.getSnapshot().intakeRows).toHaveLength(2);
+    expect(adapter.excludeField).not.toHaveBeenCalled();
+    // A restart keeps the names and the reason (the row is the record, #284 involvement 3).
+    const restarted=fixture();restarted.adapter.restore.mockImplementation(adapter.restore.getMockImplementation()!);await restarted.runtime.load("w");
+    expect(restarted.runtime.getSnapshot().intakeRows.map(row=>[row.names[0],row.code]).sort()).toEqual([["a-labels.tif","region_image_bit_depth_unsupported"],["b-labels.tif","region_image_bit_depth_unsupported"]]);
+  });
+  it("makes no field of a copy and names what it copies; the researcher can record it as a separate acquisition (#284 control A, synthetic bytes)",async()=>{
+    const {runtime,adapter}=fixture();await runtime.load("w");const ledger=withLedger(adapter);
+    adapter.upload.mockImplementation(async(_workspace,field,_channels,_files,entry)=>ledger.accept(entry!,`f-${field.key.split("/").at(-1)}`));
+    const outcome=await runtime.importFiles([...bbbc007(),new File([new Uint8Array([1])],"BBBC007-a9-C01.tif")]);
+    expect(outcome.registered.map(item=>item.names)).toEqual([["BBBC007-a9-C01.tif","BBBC007-a9-C02.tif"],["BBBC007-f9620-C01.tif","BBBC007-f9620-C02.tif"]]);
+    expect(outcome.duplicates).toEqual([{id:expect.any(String),name:"BBBC007-a9-C01.tif",sameAs:"BBBC007-a9-C01.tif"}]);
+    expect(adapter.upload).toHaveBeenCalledTimes(2);
+    // A later selection of the same bytes is found against the registered field's inputs.
+    const again=await runtime.importFiles([new File([new Uint8Array([2])],"BBBC007-a9-C02.tif")]);
+    expect(again.duplicates).toHaveLength(1);expect(again.registered).toEqual([]);expect(adapter.upload).toHaveBeenCalledTimes(2);
+    const separate=await runtime.addSeparately(outcome.duplicates[0].id);
+    expect(separate.registered).toHaveLength(1);expect(adapter.upload).toHaveBeenCalledTimes(3);
+    expect(adapter.registerImport.mock.calls.at(-1)?.[2]).toMatchObject({separate:true,names:["BBBC007-a9-C01.tif"]});
+  });
+  it("registers the unrelated field of a name conflict and never finds the conflict again (#284 control B, synthetic bytes)",async()=>{
+    const {runtime,adapter}=fixture();await runtime.load("w");const ledger=withLedger(adapter);
+    adapter.upload.mockImplementation(async(_workspace,field,_channels,_files,entry)=>ledger.accept(entry!,`f-${field.key.split("/").at(-1)}`));
+    // The Issue's renamed copy has a9-C01's bytes: it is a copy, not a conflict (implementation plan §11.1).
+    const copy=await runtime.importFiles([...bbbc007(),new File([new Uint8Array([1])],"BBBC007-a9_c01.tif")]);
+    expect(copy.held).toEqual([]);expect(copy.duplicates.map(item=>item.name)).toEqual(["BBBC007-a9_c01.tif"]);expect(copy.registered).toHaveLength(2);
+    // Different bytes under a9's C01 name: only a9 waits; f9620 is registered.
+    const second=fixture();await second.runtime.load("w");const other=withLedger(second.adapter);
+    second.adapter.upload.mockImplementation(async(_workspace,field,_channels,_files,entry)=>other.accept(entry!,`f-${field.key.split("/").at(-1)}`));
+    const conflict=await second.runtime.importFiles([...bbbc007(),new File([new Uint8Array([7])],"BBBC007-a9_c01.tif")]);
+    expect(conflict.held).toEqual([{names:["BBBC007-a9-C01.tif","BBBC007-a9_c01.tif","BBBC007-a9-C02.tif"],reason:"duplicate_channel"}]);
+    expect(conflict.registered.map(item=>item.fieldId)).toEqual(["f-BBBC007-f9620"]);
+    expect(second.runtime.getSnapshot().error).toBe("");
+    // Choosing again with the right two files registers a9; the earlier conflict is not found again.
+    const resolved=await second.runtime.importFiles(bbbc007().slice(0,2));
+    expect(resolved.held).toEqual([]);expect(resolved.registered.map(item=>item.fieldId)).toEqual(["f-BBBC007-a9"]);
+  });
+  it("puts the registered fields of a group's cell where the researcher asked, though one image is refused (#284 control C, synthetic bytes)",async()=>{
+    const design={version:"1.0.0",layout:"pair",control_group_id:"c",independence_confirmed:false,groups:[{id:"t",label:"処理"},{id:"c",label:"対照"}],runs:[{id:"r1",label:"実験回1"}],fields:{}};
+    const {runtime,adapter,writeSpecification}=fixture(true,{version:1,spec:{channel_assignment_version:1,target:"nuclei",settings:defaultRuntimeSettings(),processing:null,measurement:null,experiment:design as never}});
+    await runtime.load("w");const ledger=withLedger(adapter);
+    adapter.upload.mockImplementation(async(_workspace,field,_channels,_files,entry)=>{if(field.key.includes("truncated"))throw new ApiError("unsupported_or_invalid_region_image",422);return ledger.accept(entry!,`f-${field.key.split("/").at(-1)}`);});
+    const outcome=await runtime.importFiles([...bbbc007(),new File([new Uint8Array([5])],"test-truncated-DRAQ.tif")],"automatic",{run_id:"r1",group_id:"c",sample:null});
+    expect(outcome.registered).toHaveLength(2);expect(outcome.rejected).toHaveLength(1);
+    const placed=writeSpecification.mock.calls.at(-1)![1].spec!.experiment!.fields as Record<string,{group_id:string;run_id:string}>;
+    expect(Object.keys(placed).sort()).toEqual(["f-BBBC007-a9","f-BBBC007-f9620"]);
+    expect(Object.values(placed).every(value=>value.group_id==="c"&&value.run_id==="r1")).toBe(true);
+    // The refused image keeps its target, so the n breakdown counts it in the control group; placed rows forget theirs.
+    const rows=ledger.entries();
+    expect(rows.find(entry=>!entry.field_id)?.intake).toMatchObject({state:"rejected",code:"unsupported_or_invalid_region_image",target:{group_id:"c"}});
+    expect(rows.filter(entry=>entry.field_id&&entry.intake).every(entry=>!entry.intake!.target)).toBe(true);
+  });
+  it("keeps what was registered when the service stops answering, and places it after a restart",async()=>{
+    const design={version:"1.0.0",layout:"single",control_group_id:null,independence_confirmed:false,groups:[{id:"g",label:"条件"}],runs:[{id:"r1",label:"実験回1"}],fields:{}};
+    const {runtime,adapter,writeSpecification}=fixture(true,{version:1,spec:{channel_assignment_version:1,target:"nuclei",settings:defaultRuntimeSettings(),processing:null,measurement:null,experiment:design as never}});
+    await runtime.load("w");const ledger=withLedger(adapter);
+    let calls=0;adapter.upload.mockImplementation(async(_workspace,field,_channels,_files,entry)=>{if(++calls===2)throw new TypeError("Failed to fetch");return ledger.accept(entry!,`f-${field.key.split("/").at(-1)}`);});
+    const failure=await runtime.importFiles(bbbc007(),"automatic",{run_id:"r1",group_id:"g",sample:null}).catch((error:unknown)=>error);
+    expect(failure).toBeInstanceOf(IntakeInterrupted);
+    expect((failure as IntakeInterrupted).outcome.registered.map(item=>item.fieldId)).toEqual(["f-BBBC007-a9"]);
+    expect(runtime.getSnapshot().intakeRows).toEqual([expect.objectContaining({state:"pending",names:["BBBC007-f9620-C01.tif","BBBC007-f9620-C02.tif"]})]);
+    expect(Object.keys(writeSpecification.mock.calls.at(-1)![1].spec!.experiment!.fields!)).toEqual(["f-BBBC007-a9"]);
+    // The answer was lost but the field exists (the API joins it to the row); opening the workspace places it.
+    ledger.accept(ledger.entries().find(entry=>!entry.field_id)!.id,"f-BBBC007-f9620");
+    await runtime.reload();
+    expect(Object.keys(writeSpecification.mock.calls.at(-1)![1].spec!.experiment!.fields!).sort()).toEqual(["f-BBBC007-a9","f-BBBC007-f9620"]);
+    expect(runtime.getSnapshot().intakeRows).toEqual([]);
+  });
+  it("retries an interrupted field under its own row and group when the next images go elsewhere",async()=>{
+    const design={version:"1.0.0",layout:"pair",control_group_id:"c",independence_confirmed:false,groups:[{id:"t",label:"処理"},{id:"c",label:"対照"}],runs:[{id:"r1",label:"実験回1"}],fields:{}};
+    const {runtime,adapter,writeSpecification}=fixture(true,{version:1,spec:{channel_assignment_version:1,target:"nuclei",settings:defaultRuntimeSettings(),processing:null,measurement:null,experiment:design as never}});
+    await runtime.load("w");const ledger=withLedger(adapter);
+    let calls=0;adapter.upload.mockImplementation(async(_workspace,field,_channels,_files,entry)=>{if(++calls===2)throw new TypeError("Failed to fetch");return ledger.accept(entry!,`f-${field.key.split("/").at(-1)}`);});
+    await runtime.importFiles(bbbc007(),"automatic",{run_id:"r1",group_id:"c",sample:null}).catch(()=>undefined);
+    const pending=ledger.entries().find(entry=>!entry.field_id)!;
+    // The next images go to the other group; the interrupted f9620 is sent again under its own row and stays in 対照.
+    await runtime.importFiles([new File([new Uint8Array([40])],"A01_c1.tif")],"automatic",{run_id:"r1",group_id:"t",sample:null});
+    expect(adapter.upload.mock.calls.filter(call=>call[4]===pending.id)).toHaveLength(2);
+    const fields=writeSpecification.mock.calls.at(-1)![1].spec!.experiment!.fields as Record<string,{group_id:string}>;
+    expect(Object.fromEntries(Object.entries(fields).map(([id,value])=>[id,value.group_id]))).toEqual({"f-BBBC007-a9":"c","f-BBBC007-f9620":"c","f-A01":"t"});
+  });
+  it("replaces a refused row in place, removes a row on request, and reports a full record and an empty choice",async()=>{
+    const {runtime,adapter}=fixture();await runtime.load("w");const ledger=withLedger(adapter);
+    let broken=true;adapter.upload.mockImplementation(async(_workspace,field,_channels,_files,entry)=>{if(broken)throw new ApiError("unsupported_or_invalid_region_image",422);return ledger.accept(entry!,`f-${field.key.split("/").at(-1)}`);});
+    const first=await runtime.importFiles(bbbc007().slice(0,2));const entry=first.rejected[0].entry!;
+    broken=false;const replaced=await runtime.replaceImport(entry,bbbc007().slice(0,2).map((file,index)=>new File([new Uint8Array([30+index])],file.name)));
+    expect(replaced.registered).toHaveLength(1);
+    expect(adapter.upload.mock.calls.at(-1)?.[4]).toBe(entry);
+    expect(ledger.entries().filter(value=>value.id===entry)).toEqual([expect.objectContaining({field_id:"f-BBBC007-a9",intake:{names:["BBBC007-a9-C01.tif","BBBC007-a9-C02.tif"],state:"registered"}})]);
+    broken=true;const refused=await runtime.importFiles([new File([new Uint8Array([8])],"x_c1.tif")]);
+    await runtime.cancelImport(refused.rejected[0].entry!);
+    expect(runtime.getSnapshot().intakeRows).toEqual([]);
+    ledger.fill(100);broken=false;
+    const full=await runtime.importFiles([new File([new Uint8Array([6])],"y_c1.tif")]);
+    expect(full.rejected).toEqual([{entry:null,names:["y_c1.tif"],code:"ledger_full"}]);expect(full.registered).toEqual([]);
+    expect((await runtime.importFiles([])).empty).toBe("nothing");
+    const text=await runtime.importFiles([new File(["notes"],"readme.txt")]);
+    expect(text).toMatchObject({empty:"no_images",skipped:[{name:"readme.txt"}]});
+  });
+  it("refuses a field above the size limit without sending it, and sends the other fields",async()=>{
+    const {runtime,adapter}=fixture();await runtime.load("w");const ledger=withLedger(adapter);
+    adapter.upload.mockImplementation(async(_workspace,field,_channels,_files,entry)=>ledger.accept(entry!,`f-${field.key.split("/").at(-1)}`));
+    const large=new File([new Uint8Array([4])],"large_c1.tif");Object.defineProperty(large,"size",{value:257*1024*1024});
+    const outcome=await runtime.importFiles([large,new File([new Uint8Array([5])],"small_c1.tif")]);
+    expect(outcome.rejected).toEqual([{entry:expect.any(String),names:["large_c1.tif"],code:"field_upload_limit"}]);
+    expect(outcome.registered.map(item=>item.names)).toEqual([["small_c1.tif"]]);
+    expect(adapter.upload).toHaveBeenCalledTimes(1);
   });
   it("retains separate file identities when later images have the same filename",async()=>{
     const {runtime,adapter}=fixture();await runtime.load("w");

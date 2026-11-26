@@ -71,9 +71,9 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pendin
   if(!draft)return <section className={styles.choice} aria-label="実験デザイン">
     <h1>実験デザイン</h1>
     <p>実験デザインに合わせて画面の数を選びます。1 画面は後から 2 画面に拡張できます。</p>
-    {pending&&<p className={styles.pending} role="status">受け取った画像：{pending.count} 件。1 画面か 2 画面かの選択後に登録します。
+    {pending&&<p className={styles.pending} role="status">受け取ったファイル：{pending.count} 件 · 登録：実験デザインの選択後
       <button className={styles.link} disabled={busy} title="群・試料・実験回は、統計の画面で視野ごとに入力します" onClick={pending.onWithoutForm}>実験デザインなしで登録</button>
-      <button className={styles.link} disabled={busy} onClick={pending.onDiscard}>取り消す</button></p>}
+      <button className={styles.link} disabled={busy} onClick={pending.onDiscard}>取り消し</button></p>}
     <div className={styles.choices}>
       <button className={styles.choiceCard} disabled={busy||readOnly} onClick={()=>choose("single")}><strong>1 画面</strong><span>1 群の記述</span><small>核の大きさや数の分布を実験回ごとに示します。検定はしません。</small></button>
       <button className={styles.choiceCard} disabled={busy||readOnly} onClick={()=>choose("pair")}><strong>2 画面</strong><span>2 群の比較</span><small>対照と処理（例：WT と変異体、溶媒と薬剤）を、同じ実験回で対にして比較します。</small></button>
@@ -116,14 +116,14 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,pendin
       <span><FieldIcon/><strong>{counts.fields}</strong> 視野</span><Arrow/>
       <span><RunIcon/><strong>{counts.runs}</strong> 実験回<small>（n = {counts.runs}）</small></span>
     </p></>}
-    {pending&&!readOnly&&<section className={styles.pendingPlace} aria-label="受け取った画像の追加先">
-      <p>受け取った画像 {pending.count} 件の追加先を選んでください。群ごとに分かれた画像は「取り消す」の後、各群の「画像を追加」から追加します。</p>
+    {pending&&!readOnly&&<section className={styles.pendingPlace} aria-label="受け取ったファイルの追加先">
+      <p>受け取ったファイル：{pending.count} 件 · 追加先：1 群・1 実験回</p>
       <select aria-label="追加先" disabled={locked} value={pendingTarget} onChange={event=>setPendingTarget(event.target.value)}>
-        <option value="">追加先を選ぶ…</option>
+        <option value="">追加先：未選択</option>
         {runs.flatMap(run=>draft.groups.map(group=><option key={`${run.id}:${group.id}`} value={`${run.id}\u0000${group.id}`}>{run.label} · {group.label}</option>))}
       </select>
       <button disabled={locked||!pendingTarget} onClick={()=>{const [runId,groupId]=pendingTarget.split("\u0000");setPendingTarget("");void place({groupId,runId,sample:null},draft);}}>追加</button>
-      <button className={styles.link} disabled={locked} onClick={pending.onDiscard}>取り消す</button>
+      <button className={styles.link} disabled={locked} onClick={pending.onDiscard}>取り消し</button>
     </section>}
     <div className={styles.grid} style={{gridTemplateColumns:`minmax(200px,270px) repeat(${draft.groups.length},minmax(0,1fr))`}} role="table" aria-label="群と実験回">
       <div role="row" className={styles.row}>

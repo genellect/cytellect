@@ -10,7 +10,12 @@ import type {AnyCellposeProcessingDetector} from "./cellpose-settings";
 import type { ProposalProcessing, NuclearProcessingDetector, SignalProcessingDetector } from "./proposal-processing";
 import {localProposal, type ProposalChannelLink} from "./proposal-mapping";
 
-export interface SelectionEntry {id: string; field_id: string | null; revision_id: string | null; exclusion_reason: string | null; target_revisions?: Partial<Record<"nuclei" | "gfp" | "ncl" | "nucleoli" | "nucleoplasm" | "cell", string>>}
+/** Where the researcher asked an image to go (a run and group of the experiment design). */
+export interface IntakeTarget {run_id: string; group_id: string; sample: string | null}
+/** What the app recorded about one attempted field (#284): its files, how far it got and why it stopped. Values
+ * that do not apply are omitted, as the API stores them. File names are research data and stay on this PC. */
+export interface IntakeRecord {names: string[]; state: "pending" | "rejected" | "registered"; stage?: "inspect" | "register"; code?: string; target?: IntakeTarget; separate?: true}
+export interface SelectionEntry {id: string; field_id: string | null; revision_id: string | null; exclusion_reason: string | null; target_revisions?: Partial<Record<"nuclei" | "gfp" | "ncl" | "nucleoli" | "nucleoplasm" | "cell", string>>; intake?: IntakeRecord}
 export interface WorkspaceSelection {version: number; entries: SelectionEntry[]}
 export interface ChannelAssignment {channel_id: string; stain: string | null; role: "nuclear" | "measure" | "unused"}
 export interface ChannelAssignmentGroup {id:string;field_ids:string[];channel_ids:string[];assignments:ChannelAssignment[]}
@@ -23,7 +28,9 @@ export interface ImportedField {
   /** The researcher-visible name saved at registration (figure labels use it); null for older fields. */
   display_name?: string | null;
   metadata: Record<string, string | number | null>;
-  image_info: {input_mode?: "native" | "display-rgb"; shape: [number, number]; channels: Array<{channel_id: string; label: string; stain: string | null; identity_source?: StainSource}>; calibration?: {pixel_size_x_um: number; pixel_size_y_um: number; confirmed: boolean} | null};
+  image_info: {input_mode?: "native" | "display-rgb"; shape: [number, number];
+    /** The stored input files (hashes of the bytes sent), compared with new files to find copies (#284 control A). */
+    inputs?: Record<string, {sha256: string; bytes: number}>; channels: Array<{channel_id: string; label: string; stain: string | null; identity_source?: StainSource}>; calibration?: {pixel_size_x_um: number; pixel_size_y_um: number; confirmed: boolean} | null};
 }
 export interface MeasurementRow {
   region_id: number; channel_id: string; area_px: number; area_um2: number | null;
@@ -177,6 +184,20 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
     selection = await client.post<WorkspaceSelection>(`/v1/workspaces/${workspace}/selection`, {version: selection.version, entries});
     return selection;
   }
+  /** Joins an accepted upload to its row. A resend of an already registered field keeps that field's row only. */
+  async function settleImport(workspace: string, entryId: string, field: string) {
+    if (!selection) await loadSelection(workspace);
+    const existing = selection!.entries.find(entry => entry.field_id === field && entry.id !== entryId);
+    if (existing) {if (selection!.entries.some(entry => entry.id === entryId)) await saveSelection(workspace, selection!.entries.filter(entry => entry.id !== entryId)); return;}
+    const row = selection!.entries.find(entry => entry.id === entryId);
+    if (row?.field_id === field && (!row.intake || row.intake.state === "registered")) return;
+    await saveSelection(workspace, selection!.entries.map(entry => {
+      if (entry.id !== entryId) return entry;
+      if (!entry.intake) return {...entry, field_id: field};
+      const intake: IntakeRecord = {...entry.intake, state: "registered"};delete intake.stage;delete intake.code;
+      return {...entry, field_id: field, intake};
+    }));
+  }
   async function assertSelection(workspace: string) {
     if (!selection) await loadSelection(workspace);
     const current = await client.request<WorkspaceSelection>(`/v1/workspaces/${workspace}/selection`);
@@ -220,6 +241,11 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
   return {
     async create() {const record = await client.post<Workspace>("/v1/workspaces", {title: "画像解析"}); await loadSelection(record.id); return record;},
     selection: () => selection,
+    /** The selection saved with a comparison (null for a comparison made without one). */
+    async comparisonSelection(revision: string) {
+      try {return await client.request<WorkspaceSelection>(`/v1/revisions/${revision}/workspace-selection`);}
+      catch (error) {if (error instanceof ApiError && error.status === 404) return null; throw error;}
+    },
     getFieldLinks(workspace:string){return client.request<FieldLinks>(`/v1/workspaces/${workspace}/field-links`);},
     async saveFieldLink(workspace:string,field:string,value:{version:number;selection_version:number;kind:"analysis"|"reference";reference_for_field_id:string|null}){const result=await client.request<FieldLinks>(`/v1/workspaces/${workspace}/field-links/${field}`,{method:"PUT",body:JSON.stringify(value)});await loadSelection(workspace);return result;},
     getChannelAssignments(workspace: string) {
@@ -233,9 +259,28 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       const current = await client.request<WorkspaceSelection>(`/v1/workspaces/${workspace}/selection`);
       return JSON.stringify(current) === expected;
     },
-    async registerImport(workspace: string, id: string) {
+    /** Writes the row of an attempted field before its images are sent, so an interruption keeps its names. */
+    async registerImport(workspace: string, id: string, intake?: IntakeRecord) {
       if (!selection) await loadSelection(workspace);
-      if (!selection!.entries.some(entry => entry.id === id)) await saveSelection(workspace, [...selection!.entries, {id, field_id: null, revision_id: null, exclusion_reason: null}]);
+      const existing = selection!.entries.find(entry => entry.id === id);
+      if (!existing) await saveSelection(workspace, [...selection!.entries, {id, field_id: null, revision_id: null, exclusion_reason: null, ...(intake ? {intake} : {})}]);
+      else if (intake && !existing.field_id && JSON.stringify(existing.intake) !== JSON.stringify(intake)) await saveSelection(workspace, selection!.entries.map(entry => entry.id === id ? {...entry, intake} : entry));
+    },
+    /** Records why an attempted field was not registered; the row keeps its names and target. */
+    async recordImport(workspace: string, id: string, change: Pick<IntakeRecord, "state"> & Partial<IntakeRecord>) {
+      if (!selection) await loadSelection(workspace);
+      const existing = selection!.entries.find(entry => entry.id === id);
+      // A registered row only forgets its target once the field is placed; its state never goes back.
+      if (!existing?.intake || (existing.field_id ? change.state !== "registered" : change.state === "registered")) return;
+      const intake: IntakeRecord = {...existing.intake, ...change};
+      for (const key of ["stage", "code", "target"] as const) if (intake[key] === undefined) delete intake[key];
+      await saveSelection(workspace, selection!.entries.map(entry => entry.id === id ? {...entry, intake} : entry));
+    },
+    /** Removes the row of an image that never became a field ("記録から削除"); a field's row is never removed. */
+    async removeImport(workspace: string, id: string) {
+      if (!selection) await loadSelection(workspace);
+      if (!selection!.entries.some(entry => entry.id === id && !entry.field_id)) return;
+      await saveSelection(workspace, selection!.entries.filter(entry => entry.id !== id));
     },
     async excludeField(workspace: string, id: string, reason: string | null) {
       return saveSelection(workspace, selection!.entries.map(entry => entry.id === id ? {...entry, exclusion_reason: reason} : entry));
@@ -266,20 +311,14 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
         channels: presentChannels.map(channelSpecification), input_mode: modes.has("display-rgb") ? "display-rgb" : "native", metadata: {}, calibration: null,
         ...displayNameOf(field.key)}));
       const uploaded = await client.request<ImportedField>(`/v1/workspaces/${workspace}/region-fields`, {method: "POST", body: data});
-      if (entryId) {
-        const existing = selection!.entries.find(entry => entry.field_id === uploaded.id && entry.id !== entryId);
-        await saveSelection(workspace, existing
-          ? selection!.entries.filter(entry => entry.id !== entryId)
-          : selection!.entries.map(entry => entry.id === entryId ? {...entry, field_id: uploaded.id} : entry));
-      }
+      if (entryId) await settleImport(workspace, entryId, uploaded.id);
       return uploaded;
     },
     async uploadOme(workspace:string,file:File,entryId:string){
       const data=new FormData();data.set("ome",file);data.set("client_upload_id",entryId);
       const name=displayNameOf(file.name).display_name;if(name)data.set("display_name",name);
       const uploaded=await client.request<ImportedField>(`/v1/workspaces/${workspace}/region-fields/ome`,{method:"POST",body:data});
-      const existing=selection!.entries.find(entry=>entry.field_id===uploaded.id&&entry.id!==entryId);
-      await saveSelection(workspace,existing?selection!.entries.filter(entry=>entry.id!==entryId):selection!.entries.map(entry=>entry.id===entryId?{...entry,field_id:uploaded.id}:entry));
+      await settleImport(workspace,entryId,uploaded.id);
       return uploaded;
     },
     async preview(field: string, channel: string) { return client.blob(`/v1/region-fields/${field}/preview?channel_id=${encodeURIComponent(channel)}&gain=1`); },

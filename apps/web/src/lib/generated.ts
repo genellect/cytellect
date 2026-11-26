@@ -3457,6 +3457,18 @@ export interface components {
                 [key: string]: string;
             };
         };
+        /**
+         * IntakeTarget
+         * @description Where the researcher asked the images to go; applied once the field exists (#284 control C).
+         */
+        IntakeTarget: {
+            /** Run Id */
+            run_id: string;
+            /** Group Id */
+            group_id: string;
+            /** Sample */
+            sample?: string | null;
+        };
         /** InviteInput */
         InviteInput: {
             /** Token */
@@ -6949,6 +6961,29 @@ export interface components {
             /** Plan Candidate Id */
             plan_candidate_id?: ("regions-manual" | "regions-imported" | "regions-nuclei" | "legacy-gfp-nuclear" | "legacy-ncl") | null;
         };
+        /**
+         * WorkspaceIntake
+         * @description What the app knows about one attempted field: its files, how far it got and why it stopped.
+         *
+         *     Rows without a field (pending, rejected) are technical missing data: they are counted in the
+         *     comparison's n breakdown, never asked for a reason, and never block a comparison (#284 decision 2).
+         */
+        WorkspaceIntake: {
+            /** Names */
+            names: string[];
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "pending" | "rejected" | "registered";
+            /** Stage */
+            stage?: ("inspect" | "register") | null;
+            /** Code */
+            code?: string | null;
+            target?: components["schemas"]["IntakeTarget"] | null;
+            /** Separate */
+            separate?: true | null;
+        };
         /** WorkspaceRunRequest */
         WorkspaceRunRequest: {
             /** Request Id */
@@ -6990,6 +7025,7 @@ export interface components {
             target_revisions?: {
                 [key: string]: string;
             } | null;
+            intake?: components["schemas"]["WorkspaceIntake"] | null;
         };
         /** WorkspaceView */
         WorkspaceView: {

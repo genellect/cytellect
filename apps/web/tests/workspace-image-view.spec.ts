@@ -79,6 +79,8 @@ async function imageWorkspace(context:BrowserContext,page:Page,options:{pair?:bo
     if(path.endsWith("/region-masks")){const rid=path.split("/")[3];return json({regions:outlines[rid.startsWith("n")?"nucleoli":"nuclei"].map((points,index)=>({id:index+1,points})),metadata:{mask_revision_id:`mask-${rid}`}});}
     if(path.endsWith("/preview"))return route.fulfill({headers,contentType:"image/svg+xml",body:`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="${url.searchParams.get("channel_id")==="c1"?"#555":"#999"}"/></svg>`});
     const record=revisions.find(value=>path.endsWith(`/revisions/${value.id}`));if(record)return json(record);
+    // A comparison saved without a workspace selection (#284 W1: the n breakdown reads it when present).
+    if(path.endsWith("/workspace-selection"))return json({detail:"workspace_selection_not_found"},404);
     unexpected.push(`${method} ${path}${url.search}`);return json({detail:"unexpected_transport_route"},404);
   });
   return {unexpected,uploads,discussions,checks};
@@ -209,7 +211,8 @@ test("a drop of image files adds them as the 画像 button does",async({page,con
   await page.goto("/workspace?id=w");
   const cards=page.locator("[class*=fieldCard]");
   await expect(cards).toHaveCount(2);
-  const transfer=await page.evaluateHandle(()=>{const value=new DataTransfer();for(const name of ["A03_c1.tif","A03_c2.tif"])value.items.add(new File([new Uint8Array([1,2,3])],name,{type:"image/tiff"}));return value;});
+  const transfer=await page.evaluateHandle(()=>{const value=new DataTransfer();// Two channels have different bytes: a file with the same bytes as another is a copy, not a field (#284 control A).
+    ["A03_c1.tif","A03_c2.tif"].forEach((name,index)=>value.items.add(new File([new Uint8Array([1,2,3+index])],name,{type:"image/tiff"})));return value;});
   const main=page.locator("main");
   await main.dispatchEvent("dragover",{dataTransfer:transfer});
   await main.dispatchEvent("drop",{dataTransfer:transfer});

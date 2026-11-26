@@ -3,7 +3,7 @@ import {useEffect, useState, useSyncExternalStore} from "react";
 import {ApiError, errorCodeMessage, errorMessage, request} from "../api";
 import type {Point} from "../types";
 import type {PrimaryOutcome} from "./primary-outcome";
-import {automaticBackground, createApiAdapter, nuclearRecipe, rawMeasurement, type ChannelAssignment, type ChannelAssignments, type ImportedField, type MaskOperation, type Recipe, type SavedResult, type ValidatedProposal, type WorkspaceRun} from "./api-adapter";
+import {automaticBackground, createApiAdapter, nuclearRecipe, rawMeasurement, type ChannelAssignment, type ChannelAssignments, type ImportedField, type IntakeTarget, type SelectionEntry, type MaskOperation, type Recipe, type SavedResult, type ValidatedProposal, type WorkspaceRun} from "./api-adapter";
 import {rememberGoal} from "./ai-settings";
 import {effectiveChannelAssignments} from "./channel-assignments";
 import {intakePath} from "./dropped-files";
@@ -14,7 +14,7 @@ import {applicableProcessing, preserveNclModelSelection, savedProcessing, withPr
 import {loadReviewPreview, newestWorkspaceId, releaseReviewPreview, type ReviewData, type ReviewTarget} from "./review-preview";
 import {validTargetResults, type TargetResult} from "./target-results";
 import {tiffInputMode,tiffHasOmeMetadata} from "./tiff-intake";
-import {openingPair,type ExperimentDesign} from "./experiment-design";
+import {assignFields,openingPair,type ExperimentDesign} from "./experiment-design";
 
 export interface RuntimeSettings {
   nuclearMaxSide: number | null; nuclearProbability: number; nuclearNms: number;
@@ -32,10 +32,36 @@ export interface RuntimeSnapshot {
   /** True while fields and saved results load (nothing to stop; analyses wait). */
   loading: boolean;
   activeTarget: ReviewTarget; settings: RuntimeSettings; proposal: ValidatedProposal | null; processing: ProposalProcessing | null; importIssues: Grouping["issues"];
-  /** Imports recorded in the ledger without a field; the comparison needs each completed or excluded with a reason. */
-  unfinishedImports: UnfinishedImport[];
+  /** Saved rows of images that did not become a field (#284): they stay named after a restart. */
+  intakeRows: IntakeRow[];
+  /** What the last addition of images did, including what it did not register (no saved row). */
+  intake: IntakeOutcome | null;
 }
-export interface UnfinishedImport {entry:string; name:string|null; reason:string|null}
+/** A saved row without a field. `legacy` rows come from before rows carried names (#284). */
+export interface IntakeRow {entry:string; names:string[]; state:"pending"|"rejected"|"legacy"; code:string|null; mask:boolean; target:IntakeTarget|null}
+/** The result of adding images, item by item (#284 implementation plan, section 5.4): one item's failure is not the batch's. */
+export interface IntakeOutcome {
+  registered: Array<{fieldId:string; names:string[]}>;
+  /** entry is null when no row could be written (the record is full). */
+  rejected: Array<{entry:string|null; names:string[]; code:string}>;
+  /** Two different images name the same field and channel: the field waits for the researcher (not sent). */
+  held: Array<{names:string[]; reason:"duplicate_channel"}>;
+  /** Same bytes as another image: not a field unless the researcher records it as a separate acquisition. */
+  duplicates: Array<{id:string; name:string; sameAs:string}>;
+  /** Not a TIFF. */
+  skipped: Array<{name:string}>;
+  /** The selection held no file at all, or no TIFF (shown so a choice never ends silently). */
+  empty?: "nothing" | "no_images";
+}
+/** The addition could not go on (no answer, ended session, changed workspace); the outcome holds what was done. */
+export class IntakeInterrupted extends Error {constructor(public outcome:IntakeOutcome, public cause:unknown){super(message(cause));}}
+/** The bit depth the API refuses as an image: a 32-bit integer label image (a mask), not missing data (#284 input 5). */
+export const MASK_CANDIDATE_CODE="region_image_bit_depth_unsupported";
+const FIELD_FILE_LIMIT=256*1024*1024,LEDGER_LIMIT=100;
+const emptyOutcome=():IntakeOutcome=>({registered:[],rejected:[],held:[],duplicates:[],skipped:[]});
+const hex=(digest:ArrayBuffer)=>Array.from(new Uint8Array(digest),value=>value.toString(16).padStart(2,"0")).join("");
+/** A refusal of this item only: the next field can still be sent. Anything else stops the addition. */
+const itemRefusal=(error:unknown):error is ApiError=>error instanceof ApiError&&(error.status===422||error.status===413||error.code==="region_upload_id_conflict"||error.code==="unregistered_upload");
 type Adapter = ReturnType<typeof createApiAdapter>;
 export interface RuntimeCandidate {result:SavedResult;recipe:Recipe;settingsFingerprint:string;runId?:string;runState?:WorkspaceRun["state"];backgroundPending?:boolean}
 type RuntimeTargets = Partial<Record<ReviewTarget, TargetResult>>;
@@ -140,7 +166,7 @@ export function runtimeProposalProcessing(channel:ChannelDefinition,settings:Run
 }
 export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   const adapter=dependencies.adapter ?? createApiAdapter(), loadPreview=dependencies.loadPreview ?? loadReviewPreview, releasePreview=dependencies.releasePreview ?? releaseReviewPreview;
-  let state:RuntimeSnapshot={data:null,busy:false,loading:false,operation:"",error:"",assignments:{version:0,assignments:[]},activeTarget:"nuclei",settings:defaultRuntimeSettings(),proposal:null,processing:null,importIssues:[],unfinishedImports:[]};
+  let state:RuntimeSnapshot={data:null,busy:false,loading:false,operation:"",error:"",assignments:{version:0,assignments:[]},activeTarget:"nuclei",settings:defaultRuntimeSettings(),proposal:null,processing:null,importIssues:[],intakeRows:[],intake:null};
   const readSpecification=dependencies.readSpecification ?? ((id:string)=>request<RuntimeSpecification>(`/v1/workspaces/${id}/analysis-spec`));
   // Only the version and the spec are written: read-only fields of the response (e.g. experiment_sha256) are never sent back.
   const writeSpecification=dependencies.writeSpecification ?? ((id:string,value:RuntimeSpecification)=>request<RuntimeSpecification>(`/v1/workspaces/${id}/analysis-spec`,{method:"PUT",body:JSON.stringify({version:value.version,spec:value.spec})}));
@@ -151,8 +177,9 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   let currentTargets=new Map<string,RuntimeTargets>(),registered=new Map<string,ImportedField>();
   const omeFiles=new Map<string,File>();
   const added:AddedFile[]=[],files=new Map<string,File>(),uploadKeys=new Map<string,string>(),uploaded=new Map<string,string>(),names=new Map<string,string>();
-  // What this session knows about an import whose ledger entry has no field yet (names are not stored by the API).
-  const failedImports=new Map<string,{name:string;reason:string|null;key:string;paths:string[]}>();
+  // Hashes of files waiting to be sent (copies are found by content, #284 control A) and copies kept for
+  // "別の撮影として追加" until the researcher decides or the workspace changes.
+  const hashes=new Map<string,string>(),copies=new Map<string,{file:File;name:string}>();
   const candidateStore=new Map<string,Partial<Record<ReviewTarget,RuntimeCandidate>>>();
   const histories=new Map<string,{undo:TargetResult[];redo:TargetResult[]}>(),listeners=new Set<()=>void>();
   function publish(patch:Partial<RuntimeSnapshot>){if(closed)return;state={...state,...patch};for(const listener of listeners)listener();}
@@ -207,8 +234,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
         processing=preserveLegacyMarker||preserveHistoricalCellpose?processing:specification.spec.processing;
       }
       settings=visibleNucleolarSettings(settings,processing);
-      const unfinishedImports=(saved.selection?.entries??[]).filter(entry=>!entry.field_id&&!entry.exclusion_reason).map(entry=>({entry:entry.id,name:failedImports.get(entry.id)?.name??null,reason:failedImports.get(entry.id)?.reason??null}));
-      publish({assignments,settings,processing,activeTarget:recordedSpecification.spec?.target??state.activeTarget,unfinishedImports});replaceData(next);
+      publish({assignments,settings,processing,activeTarget:recordedSpecification.spec?.target??state.activeTarget,intakeRows:intakeRows(saved.selection?.entries??[])});replaceData(next);
     }catch(error){releasePreview(next);throw error;}
   }
   async function exclusive<T>(operation:string,task:()=>Promise<T>){if(state.busy)throw new Error("現在の処理が終わるまでお待ちください。");publish({busy:true,error:"",operation});try{return await task();}catch(error){publish({error:message(error)});throw error;}finally{publish({busy:false,operation:""});}}
@@ -365,13 +391,105 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       ...(firstFigure?{figure:{...figure,metric:metricMap[firstFigure.metric]??firstFigure.metric,channel_id:firstFigure.channel}}:{})}};
     publish({processing:automatic?processing?{...processing,signal:null}:null:state.processing,settings,activeTarget:target});
   }
-  function dropImport(key:string,paths:string[]){for(const path of paths){files.delete(path);omeFiles.delete(path);const index=added.findIndex(value=>value.path===path);if(index>=0)added.splice(index,1);}uploadKeys.delete(key);}
+  function dropImport(key:string,paths:string[]){for(const path of paths){files.delete(path);omeFiles.delete(path);hashes.delete(path);const index=added.findIndex(value=>value.path===path);if(index>=0)added.splice(index,1);}uploadKeys.delete(key);}
   async function showImported(saved:ImportedField,key:string){uploaded.set(key,saved.id);names.set(saved.id,key.split("/").at(-1)||key);registered.set(saved.id,saved);const partial=await loadPreview(workspace(),[saved.id]);const freshField=partial.fields.find(value=>value.id===saved.id);if(freshField&&state.data){freshField.label=names.get(saved.id)||freshField.label;const retained=state.data.fields.filter(value=>value.id!==saved.id);const previous=state.data.fields.find(value=>value.id===saved.id);if(previous)releasePreview({...partial,fields:[previous]});const channels=[...state.data.channels];for(const channel of freshField.channels)if(!channels.some(value=>value.id===channel.id))channels.push(channel);publish({data:{...state.data,fields:[...retained,freshField],channels},operation:`${uploaded.size} 視野を登録済み`});}
   }
   /** The two fields a saved two-group design opens on, read before any image; undefined otherwise. */
   async function openingFields(id?:string):Promise<string[]|undefined>{
     try{const workspaceId=id??await newestWorkspaceId();if(!workspaceId)return undefined;const pair=openingPair((await readSpecification(workspaceId)).spec?.experiment??null);return pair.length>1?pair:undefined;}
     catch{return undefined;}
+  }
+  function intakeRows(entries:readonly SelectionEntry[]):IntakeRow[]{
+    return entries.filter(entry=>!entry.field_id&&!entry.exclusion_reason).map(entry=>({entry:entry.id,names:entry.intake?.names??[],
+      state:entry.intake?(entry.intake.state==="rejected"?"rejected":"pending"):"legacy",code:entry.intake?.code??null,mask:entry.intake?.code===MASK_CANDIDATE_CODE,target:entry.intake?.target??null}));
+  }
+  /** Puts registered fields where the researcher asked (the row's target), once, then forgets the target (#284 control C).
+   * Run after every addition and when a workspace opens, so an interrupted addition is placed after a restart. */
+  async function applyTargets(){
+    const selection=adapter.selection(),design=specification.spec?.experiment;if(!selection)return;
+    const placed=selection.entries.filter(entry=>entry.field_id&&entry.intake?.target);if(!placed.length||!design)return;
+    let next=design;
+    for(const entry of placed){const target=entry.intake!.target!;
+      if(design.fields?.[entry.field_id!]||!(design.runs??[]).some(run=>run.id===target.run_id)||!(design.groups??[]).some(group=>group.id===target.group_id))continue;
+      next=assignFields(next,[entry.field_id!],{run_id:target.run_id,group_id:target.group_id,sample:target.sample});}
+    if(next!==design){specification=await writeSpecification(workspace(),{version:specification.version,spec:{...specification.spec!,experiment:next}});specificationDirty=false;}
+    for(const entry of placed)await adapter.recordImport(workspace(),entry.id,{state:"registered",target:undefined});
+  }
+  /** Forgets the files this session holds for a row (removed, or replaced by other files): they are never resent under it. */
+  function forgetEntry(entry:string){for(const [key,id] of [...uploadKeys])if(id===entry){const grouped=groupFiles(added).fields.find(field=>field.key===key);dropImport(key,grouped?Object.values(grouped.files).map(file=>file.path):[key]);}}
+  /** An addition interrupted before its fields were placed is placed when the workspace opens again. */
+  async function placeAfterRestart(){if(!state.data?.workspaceId||!adapter.selection()?.entries.some(entry=>entry.field_id&&entry.intake?.target))return false;await applyTargets();return true;}
+  /** Adds images (implementation plan, sections 5.2-5.4). Order: not a TIFF → same content → fields → name conflicts. */
+  async function intake(list:File[],mode:"automatic"|"single",target:IntakeTarget|null,options:{entry?:string;separate?:boolean}={}):Promise<IntakeOutcome>{
+    stopped=false;const outcome=emptyOutcome();
+    if(!list.length){outcome.empty="nothing";publish({intake:outcome});return outcome;}
+    // A batch has its own identity: names in a later drop cannot overwrite earlier pixels.
+    const batch=`import-${crypto.randomUUID()}`,fresh:AddedFile[]=[],freshOme:string[]=[],oversized=new Set<string>();
+    const known=new Map<string,string>();
+    for(const field of registered.values())for(const input of Object.values(field.image_info.inputs??{}))known.set(input.sha256,names.get(field.id)||field.display_name||field.id);
+    for(const [path,sha256] of hashes)known.set(sha256,shownPath(path));
+    for(const file of list){
+      const originalPath=intakePath(file);if(!isSupportedImage(originalPath)){outcome.skipped.push({name:originalPath});continue;}
+      let path=`${batch}/${originalPath}`;
+      if(files.has(path))path=`${batch}/image-${crypto.randomUUID()}/${originalPath}`;
+      let sha256:string|undefined;
+      if(file.size>FIELD_FILE_LIMIT)oversized.add(path);
+      else{sha256=hex(await crypto.subtle.digest("SHA-256",await file.arrayBuffer()));
+        const same=known.get(sha256);
+        if(same!==undefined&&!options.separate){const id=crypto.randomUUID();copies.set(id,{file,name:originalPath});outcome.duplicates.push({id,name:originalPath,sameAs:same});continue;}
+        known.set(sha256,originalPath);hashes.set(path,sha256);}
+      if(!oversized.has(path)&&await tiffHasOmeMetadata(file)){omeFiles.set(path,file);freshOme.push(path);}
+      else fresh.push({path,size:file.size,...(sha256?{sha256}:{}),inputMode:oversized.has(path)?"native":await tiffInputMode(file)});
+      files.set(path,file);
+    }
+    if(!fresh.length&&!freshOme.length){if(!outcome.duplicates.length)outcome.empty="no_images";publish({intake:outcome});return outcome;}
+    added.push(...fresh);let grouping=groupFiles(added,mode);
+    // A name conflict holds its own field only (unsent, no row); the other fields are registered (#284 control B).
+    for(const issue of grouping.issues){if(issue.kind!=="duplicate_channel")continue;
+      const field=grouping.fields.find(value=>value.key===issue.field);if(!field||uploaded.has(field.key))continue;
+      const paths=[...new Set([...issue.paths,...Object.values(field.files).map(file=>file.path)])];
+      outcome.held.push({names:paths.map(shownPath),reason:"duplicate_channel"});dropImport(field.key,paths);}
+    if(outcome.held.length)grouping=groupFiles(added,mode);
+    publish({importIssues:grouping.issues.filter(issue=>issue.kind!=="duplicate_content"&&issue.kind!=="duplicate_channel").map(shownIssue)});
+    const batchFields=grouping.fields.filter(field=>!uploaded.has(field.key)&&(!options.entry||field.key.startsWith(`${batch}/`)));
+    const batchOme=[...omeFiles.keys()].filter(key=>!uploaded.has(key)&&(!options.entry||freshOme.includes(key)));
+    if(options.entry&&batchFields.length+batchOme.length!==1){for(const field of batchFields)dropImport(field.key,Object.values(field.files).map(file=>file.path));for(const key of batchOme)dropImport(key,[key]);
+      throw new Error("差し替えには、この行と同じ 1 視野の画像が必要です。");}
+    if(!state.data?.workspaceId){const created=await adapter.create();replaceData({...emptyData(),workspaceId:created.id,title:created.title});}else await checkCurrent();
+    if(options.entry)forgetEntry(options.entry);
+    const ledgerSize=()=>adapter.selection()?.entries.length??0;
+    try{
+      const send=async(key:string,paths:string[],refusal:string|null,upload:(entry:string)=>Promise<ImportedField>)=>{
+        const shown=paths.map(shownPath);
+        if(options.entry)uploadKeys.set(key,options.entry);
+        if(!uploadKeys.has(key)){if(ledgerSize()>=LEDGER_LIMIT){outcome.rejected.push({entry:null,names:shown,code:"ledger_full"});dropImport(key,paths);return;}uploadKeys.set(key,crypto.randomUUID());}
+        const entry=uploadKeys.get(key)!;
+        // A field retried after an interruption keeps the target and decision its row recorded, not this call's.
+        const recorded=options.entry?undefined:adapter.selection()?.entries.find(value=>value.id===entry)?.intake;
+        const rowTarget=recorded?recorded.target:target,separate=recorded?recorded.separate:options.separate;
+        await adapter.registerImport(workspace(),entry,{names:shown,state:"pending",...(rowTarget?{target:rowTarget}:{}),...(separate?{separate:true}:{})});
+        let saved:ImportedField;
+        try{if(refusal)throw new ApiError(refusal,422);saved=await upload(entry);}
+        catch(error){if(!itemRefusal(error))throw error;
+          await adapter.recordImport(workspace(),entry,{state:"rejected",stage:"register",code:error.code});
+          outcome.rejected.push({entry,names:shown,code:error.code});dropImport(key,paths);return;}
+        await showImported(saved,key);outcome.registered.push({fieldId:saved.id,names:shown});
+      };
+      for(const field of batchFields){if(stopped||closed)break;
+        const present=grouping.channels.filter(channel=>field.files[channel.token]),paths=Object.values(field.files).map(file=>file.path);
+        const modes=new Set(present.map(channel=>field.files[channel.token].inputMode||"native"));
+        const refusal=paths.some(path=>oversized.has(path))||paths.reduce((sum,path)=>sum+(files.get(path)?.size??0),0)>FIELD_FILE_LIMIT?"field_upload_limit":present.length>4?"field_channel_limit":modes.size>1?"field_input_modes_mixed":null;
+        await send(field.key,paths,refusal,entry=>adapter.upload(workspace(),field,present,files,entry));}
+      for(const key of batchOme){if(stopped||closed)break;const file=omeFiles.get(key)!;await send(key,[key],null,entry=>adapter.uploadOme(workspace(),file,entry));}
+    }catch(error){
+      // What was registered stays; rows not answered stay "pending" and are named after a restart (#284 W1).
+      try{await refresh(workspace());await applyTargets();}catch{/* the interruption is what is reported */}
+      publish({intake:outcome});throw new IntakeInterrupted(outcome,error);
+    }
+    await refresh(workspace());await applyTargets();await refresh(workspace());
+    // Refused, held and copied files have left the record: the grouping notes describe what remains.
+    publish({intake:outcome,importIssues:groupFiles(added,mode).issues.filter(issue=>issue.kind!=="duplicate_content"&&issue.kind!=="duplicate_channel").map(shownIssue)});
+    return outcome;
   }
   async function travel(field:string,target:ReviewTarget,direction:"undo"|"redo"){return exclusive(direction==="undo"?"前の版に戻しています":"次の版を採用しています",async()=>{await checkCurrent();const stack=history(field,target),destination=stack[direction].at(-1);if(!destination)return;const previous=bound(field,target),result=await adapter.selectRevision(workspace(),destination.result.revision,field);stack[direction].pop();stack[direction==="undo"?"redo":"undo"].push(previous);adopted(field,target,result,destination.recipe);await refresh(workspace());});}
   return {
@@ -381,11 +499,11 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       // of each group (V-01), both together; any other design on its first field. The others follow.
       try{const opening=await openingFields(id);await refresh(id,true,opening?undefined:1,opening);}catch(error){publish({busy:false,loading:false,operation:"",error:message(error)});throw error;}
       try{
-        if(registered.size>(state.data?.fields.length??0)){publish({operation:"残りの視野を読み込み中"});await painted();await refresh(workspace());}await recoverRun();}catch(error){publish({error:message(error)});throw error;}finally{publish({busy:false,loading:false,operation:""});}},
-    reload(){return exclusive("保存結果を再読み込み中",async()=>{await refresh(workspace(),true);await recoverRun();});},
+        if(registered.size>(state.data?.fields.length??0)){publish({operation:"残りの視野を読み込み中"});await painted();await refresh(workspace());}if(await placeAfterRestart())await refresh(workspace());await recoverRun();}catch(error){publish({error:message(error)});throw error;}finally{publish({busy:false,loading:false,operation:""});}},
+    reload(){return exclusive("保存結果を再読み込み中",async()=>{await refresh(workspace(),true);if(await placeAfterRestart())await refresh(workspace());await recoverRun();});},
     /** Hide the last message (used for demo notices, which need no reload). */
     dismissError(){if(state.error)publish({error:""});},
-    newWorkspace(){if(state.busy)throw new Error("現在の処理が終わるまでお待ちください。");++epoch;beforeProposal=null;runRequests.clear();added.length=0;omeFiles.clear();files.clear();uploadKeys.clear();uploaded.clear();names.clear();failedImports.clear();histories.clear();candidateStore.clear();currentTargets.clear();registered.clear();specification={version:0,spec:null};publish({assignments:{version:0,assignments:[]},activeTarget:"nuclei",settings:defaultRuntimeSettings(),processing:null,proposal:null,error:"",importIssues:[],unfinishedImports:[]});replaceData(emptyData());},
+    newWorkspace(){if(state.busy)throw new Error("現在の処理が終わるまでお待ちください。");++epoch;beforeProposal=null;runRequests.clear();added.length=0;omeFiles.clear();files.clear();uploadKeys.clear();uploaded.clear();names.clear();hashes.clear();copies.clear();histories.clear();candidateStore.clear();currentTargets.clear();registered.clear();specification={version:0,spec:null};publish({assignments:{version:0,assignments:[]},activeTarget:"nuclei",settings:defaultRuntimeSettings(),processing:null,proposal:null,error:"",importIssues:[],intakeRows:[],intake:null});replaceData(emptyData());},
     dispose(){closed=true;++epoch;if(state.data)releasePreview(state.data);},
     nclDetector(field:string){
       try {const recipe=runtimeNucleolarRecipe(nuclearChannel(field),state.settings,currentTargets.get(field)??{},state.processing);return recipe.detector?.engine==="cytellect-ncl-objects"?recipe.detector:undefined;}catch{return undefined;}
@@ -464,42 +582,19 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     saveBackgrounds(backgrounds:Record<string,Record<string,{polygon:Point[];confirmed:true}>>,confirmed_channel_ids:string[]){return exclusive("背景領域を保存中",async()=>{await checkCurrent();publish({settings:{...state.settings,background:"confirmed_roi"}});specificationDirty=true;specification={...specification,spec:{...(specification.spec??{channel_assignment_version:state.assignments.version,target:state.activeTarget,settings:state.settings,processing:state.processing,measurement:null}),backgrounds,confirmed_channel_ids}};await persistSpecification(state.activeTarget);publish({});});},
     saveSelection(selection:unknown){return exclusive("対象選択を保存中",async()=>{await checkCurrent();await persistSpecification(specification.spec?.target??state.activeTarget);specification=await writeSpecification(workspace(),{version:specification.version,spec:{...specification.spec!,selection}});publish({});});},
     resultRecipe(field:string,target:ReviewTarget){return currentTargets.get(field)?.[target]?.recipe;},canUndo(field:string,target:ReviewTarget){return history(field,target).undo.length>0;},canRedo(field:string,target:ReviewTarget){return history(field,target).redo.length>0;},stop(){stopped=true;if(activeRunId)void adapter.cancelWorkspaceRun(workspace(),activeRunId).catch(error=>publish({error:message(error)}));},
-    /** Registers the images and returns the IDs of the fields this call added (in upload order). */
-    importFiles(list:FileList|File[],mode:"automatic"|"single"="automatic"){return exclusive("画像を登録中",async()=>{stopped=false;
-      // A batch has its own identity: names in a later drop cannot overwrite earlier pixels.
-      const batch=`import-${crypto.randomUUID()}`,fresh:AddedFile[]=[],addedIds:string[]=[];
-      for(const file of Array.from(list)){
-        const originalPath=intakePath(file);if(!isSupportedImage(originalPath))continue;
-        if(file.size>256*1024*1024)throw new Error("画像ファイルは256 MiB以下にしてください。");
-        const digest=await crypto.subtle.digest("SHA-256",await file.arrayBuffer()),sha256=Array.from(new Uint8Array(digest),value=>value.toString(16).padStart(2,"0")).join("");
-
-        let path=`${batch}/${originalPath}`;
-        if(fresh.some(value=>value.path===path))path=`${batch}/image-${crypto.randomUUID()}/${originalPath}`;
-        if(await tiffHasOmeMetadata(file))omeFiles.set(path,file);else fresh.push({path,size:file.size,sha256,inputMode:await tiffInputMode(file)});files.set(path,file);
-      }
-      if(!fresh.length&&!added.length&&!omeFiles.size)throw new Error("TIFF画像を選択してください。");added.push(...fresh);const grouping=groupFiles(added,mode);publish({importIssues:grouping.issues.map(shownIssue)});if(grouping.issues.some(value=>value.kind==="duplicate_channel"))throw new Error("同じ視野・チャンネルの画像が複数あります。画像の対応を確認してください。");
-      if(!state.data?.workspaceId){const created=await adapter.create();replaceData({...emptyData(),workspaceId:created.id,title:created.title});}else await checkCurrent();
-      // A file the API rejects is reported by name and not resent; its ledger entry stays until the researcher excludes it with a reason.
-      const rejected=new Map<string,string[]>();
-      const reject=(key:string,paths:string[],error:unknown)=>{
-        const entry=uploadKeys.get(key),name=paths.map(shownPath).join("、");
-        if(!(error instanceof ApiError&&error.status===422)){if(entry)failedImports.set(entry,{name,reason:null,key,paths});throw error;}
-        rejected.set(message(error),[...(rejected.get(message(error))??[]),name]);if(entry)failedImports.set(entry,{name,reason:message(error),key,paths});
-        dropImport(key,paths);
-      };
-      try { for(const field of grouping.fields){if(stopped||closed)break;if(uploaded.has(field.key))continue;if(!uploadKeys.has(field.key))uploadKeys.set(field.key,crypto.randomUUID());const key=uploadKeys.get(field.key)!;await adapter.registerImport(workspace(),key);let saved:ImportedField;try{saved=await adapter.upload(workspace(),field,grouping.channels.filter(channel=>field.files[channel.token]),files,key);}catch(error){reject(field.key,Object.values(field.files).map(file=>file.path),error);continue;}await showImported(saved,field.key);addedIds.push(saved.id);} for(const [key,file] of [...omeFiles]){if(stopped||closed)break;if(uploaded.has(key))continue;if(!uploadKeys.has(key))uploadKeys.set(key,crypto.randomUUID());const entry=uploadKeys.get(key)!;await adapter.registerImport(workspace(),entry);let saved:ImportedField;try{saved=await adapter.uploadOme(workspace(),file,entry);}catch(error){reject(key,[key],error);continue;}await showImported(saved,key);addedIds.push(saved.id);} } finally {await refresh(workspace());}
-      if(rejected.size){publish({importIssues:groupFiles(added,mode).issues.map(shownIssue)});
-        // One line per reason, naming at most three files: twelve label images are one problem, not twelve.
-        const lines=[...rejected].map(([reason,names])=>`${names.slice(0,3).join("、")}${names.length>3?` ほか ${names.length-3} 件`:""}：${reason}`);
-        throw new Error(`登録できなかった画像が ${[...rejected.values()].flat().length} 件あります。${lines.join(" ")} 比較の前に、「取込」の一覧で理由を付けて除外してください。`);}
-      return addedIds;
+    /** Registers the images item by item (#284). A refused image, a name conflict or a copy never stops the others,
+     * and the images go to `target` (a run and group) once they are fields, whatever the caller does next. */
+    importFiles(list:FileList|File[],mode:"automatic"|"single"="automatic",target?:IntakeTarget|null){return exclusive("画像を登録中",()=>intake(Array.from(list),mode,target??null));},
+    /** Sends the images again for one saved row (the same row and upload key): the row is resolved, not duplicated. */
+    replaceImport(entry:string,list:FileList|File[]){return exclusive("画像を差し替え中",async()=>{
+      const row=adapter.selection()?.entries.find(value=>value.id===entry&&!value.field_id);if(!row)throw new Error("差し替えには、保存状態の再読み込みが必要です。");
+      return intake(Array.from(list),"automatic",row.intake?.target??null,{entry});
     });},
-    /** Records why imports that never became fields are left out; they are never dropped silently. */
-    excludeImports(entries:string[],reason:string){return exclusive("登録できなかった画像を除外中",async()=>{
-      if(!reason.trim())throw new Error("除外の理由を入力してください。");await checkCurrent();
-      for(const entry of entries){await adapter.excludeField(workspace(),entry,reason.trim());const known=failedImports.get(entry);if(known)dropImport(known.key,known.paths);failedImports.delete(entry);}
-      await refresh(workspace());
-    });},
+    /** "記録から削除": removes the row of an image that never became a field. Registered fields are not touched. */
+    cancelImport(entry:string){return exclusive("取り込みの行を削除中",async()=>{await checkCurrent();await adapter.removeImport(workspace(),entry);forgetEntry(entry);await refresh(workspace());});},
+    /** Records that a copy (same pixels as another image) is a separate acquisition, and registers it. */
+    addSeparately(id:string){return exclusive("別の撮影として追加中",async()=>{const copy=copies.get(id);if(!copy)throw new Error("別の撮影としての追加には、画像の再選択が必要です。");copies.delete(id);
+      const outcome=await intake([copy.file],"automatic",null,{separate:true});publish({intake:{...outcome,duplicates:[...(state.intake?.duplicates??[]).filter(value=>value.id!==id),...outcome.duplicates]}});return outcome;});},
     /** The saved experiment design (groups, runs, samples), or null. */
     experiment(){return specification.spec?.experiment??null;},
     /** Hash of the saved stratified design, as the API names it (cohort requests carry it). */
