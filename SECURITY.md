@@ -16,7 +16,7 @@ Cytellect は、未発表の顕微鏡画像を研究者の PC 上で解析する
 - [8. AI による解析支援](#8-ai-による解析支援)
 - [9. 暗号](#9-暗号)
 - [10. 配布物とサプライチェーン](#10-配布物とサプライチェーン)
-- [11. 運用](#11-運用)
+- [11. 失効と復旧](#11-失効と復旧)
 - [12. 脆弱性への対応](#12-脆弱性への対応)
 - [13. 関連文書](#13-関連文書)
 
@@ -318,17 +318,7 @@ Docker 版の解析ワーカーは、ネットワークを持たない、非 roo
 
 実装：[`ci.yml`](.github/workflows/ci.yml)、[`codeql.yml`](.github/workflows/codeql.yml)、[`scan_secrets.py`](scripts/scan_secrets.py)、[`security-tools.lock.json`](scripts/security-tools.lock.json)、[`public_uploads.py`](services/api/src/cytellect_api/public_uploads.py)。試験：[`test_scan_secrets.py`](tests/test_scan_secrets.py)、[`test_public_uploads.py`](tests/test_public_uploads.py)
 
-## 11. 運用
-
-### 11.1 権限
-
-| 役割 | 権限 |
-|---|---|
-| 管理者 | `main` への反映、本番への公開と配布、外部サービスの契約と設定、利用者の承認と失効、脆弱性への対応を行う。 |
-| 開発メンバー | 担当する変更を実装し、プルリクエストを作成し、他のメンバーの変更をレビューする。`main` への反映と配布の権限は持たない。 |
-| AI エージェント | 依頼者の指示の範囲で実装と検証を行う。`main` への反映と本番への公開は、管理者が対象を明示して指示した場合に限る。 |
-
-### 11.2 失効と復旧
+## 11. 失効と復旧
 
 | 事象 | 対応 |
 |---|---|
@@ -337,16 +327,6 @@ Docker 版の解析ワーカーは、ネットワークを持たない、非 roo
 | ハッシュと署名に使用する鍵の漏えい | 鍵を交換する。交換により、未使用のログインコードと承認リンクは無効になる。 |
 | 更新の署名鍵の漏えいまたは紛失 | [更新の署名](docs/release-signing.md)に定める失効と交換の手順に従う。 |
 | 中継サービスの不具合 | 以前の版に切り戻す。 |
-| 非公開データまたは認証情報の混入 | ただちに管理者に連絡する。履歴の書き換えは単独で行わず、対応を協議する。 |
-
-### 11.3 利用者が管理する範囲
-
-| 領域 | Cytellect が行うこと | 利用者が行うこと |
-|---|---|---|
-| 研究データの保管 | アプリは、研究データを OS の利用者だけが読み取れる場所に保存する。 | PC と OS アカウントの管理、ディスクの暗号化、バックアップ |
-| クラウドの機能 | 認証、中継、利用枠の管理、送信範囲の表示 | 機能の使用の判断、送信範囲への同意 |
-| アプリの更新 | 署名付きの更新の提供 | 更新の適用 |
-| アカウント | 承認、失効、認証情報の保護 | メールアドレスの管理、使用しなくなった端末のサインアウト |
 
 ## 12. 脆弱性への対応
 
@@ -389,7 +369,7 @@ Docker 版の解析ワーカーは、ネットワークを持たない、非 roo
 | 文書 | 内容 |
 |---|---|
 | [データ保護と運用](docs/security.md) | データ保護の仕様と運用の詳細 |
-| [チーム開発ルール §6](docs/team-development.md#6-研究データの扱い) | 開発の場（Git、CI、ログ、開発用 AI）での研究データと認証情報の取り扱い |
+| [チーム開発ルール §6](docs/team-development.md#6-研究データの扱い) | 開発における研究データと認証情報の取り扱い |
 | [更新の署名](docs/release-signing.md) | 署名鍵の作成、登録、交換、失効 |
 | [CI の構成](docs/ci.md) | CI のジョブと必須の検査 |
 | [プライバシーポリシー](https://cytellect.app/privacy) | 利用者の情報の取り扱い |
@@ -412,7 +392,7 @@ Vulnerabilities are accepted through the [private report form](https://github.co
 - [8. AI assistance](#8-ai-assistance)
 - [9. Cryptography](#9-cryptography)
 - [10. Releases and supply chain](#10-releases-and-supply-chain)
-- [11. Operations](#11-operations)
+- [11. Revocation and recovery](#11-revocation-and-recovery)
 - [12. Vulnerability handling](#12-vulnerability-handling)
 - [13. Related documents](#13-related-documents)
 
@@ -714,17 +694,7 @@ Implementation: [`uv.lock`](uv.lock), [`pnpm-lock.yaml`](pnpm-lock.yaml), [`runt
 
 Implementation: [`ci.yml`](.github/workflows/ci.yml), [`codeql.yml`](.github/workflows/codeql.yml), [`scan_secrets.py`](scripts/scan_secrets.py), [`security-tools.lock.json`](scripts/security-tools.lock.json), [`public_uploads.py`](services/api/src/cytellect_api/public_uploads.py). Tests: [`test_scan_secrets.py`](tests/test_scan_secrets.py), [`test_public_uploads.py`](tests/test_public_uploads.py)
 
-### 11. Operations
-
-#### 11.1 Authority
-
-| Role | Authority |
-|---|---|
-| Maintainer | Merges to `main`, production releases and distribution, contracts and settings of external services, approval and revocation of users, and vulnerability handling. |
-| Development members | Implement assigned changes, open pull requests and review other members' changes. They hold no authority to merge to `main` or to distribute. |
-| AI agents | Implement and verify within the requester's instructions. Merging to `main` and production release are limited to cases the maintainer has explicitly instructed for the specific target. |
-
-#### 11.2 Revocation and recovery
+### 11. Revocation and recovery
 
 | Event | Response |
 |---|---|
@@ -733,16 +703,6 @@ Implementation: [`ci.yml`](.github/workflows/ci.yml), [`codeql.yml`](.github/wor
 | Leak of the key used for hashes and signatures | The key is rotated. Rotation invalidates unused sign-in codes and approval links. |
 | Leak or loss of the update-signing key | The revocation and rotation procedures defined in [release signing](docs/release-signing.md) are followed. |
 | Fault in the relay service | The service is rolled back to a previous version. |
-| Inclusion of private data or credentials | The maintainer is notified immediately. History is not rewritten unilaterally; the response is agreed first. |
-
-#### 11.3 What the user manages
-
-| Area | What Cytellect does | What the user does |
-|---|---|---|
-| Storage of research data | The application stores research data where only the OS user can read it. | Management of the PC and OS accounts, disk encryption and backup |
-| Cloud features | Authentication, relay, quota management and display of the transmission scope | The decision to use a feature and consent to the transmission scope |
-| Application updates | Provision of signed updates | Applying updates |
-| Accounts | Approval, revocation and protection of authentication data | Management of the e-mail address and signing out of devices no longer in use |
 
 ### 12. Vulnerability handling
 
@@ -785,7 +745,7 @@ Published security advisories are available in the [list](https://github.com/gen
 | Document | Content |
 |---|---|
 | [Data protection and operations](docs/security.md) | The data-protection specification and operating details |
-| [Team development rules, section 6](docs/team-development.md#6-research-data) | The handling of research data and credentials in development (Git, CI, logs, development AI) |
+| [Team development rules, section 6](docs/team-development.md#6-research-data) | The handling of research data and credentials in development |
 | [Release signing](docs/release-signing.md) | Creating, registering, rotating and revoking the signing key (in Japanese) |
 | [CI configuration](docs/ci.md) | CI jobs and required checks (in Japanese) |
 | [Privacy policy](https://cytellect.app/privacy) | The handling of user information (in Japanese) |
