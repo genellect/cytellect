@@ -259,10 +259,11 @@ def test_owner_checks_report_each_account_without_printing_credentials(monkeypat
 
         # The deploy token belongs to the main-only environment; a repository-wide copy is reported.
         token = {"secrets": [{"name": "MODAL_TOKEN_ID"}, {"name": "MODAL_TOKEN_SECRET"}]}
-        for repository_wide, expected in (({"secrets": []}, "ok"), (token, "NG")):
-            listed = {f"repos/{dev.REPOSITORY}/environments/modal-deploy/secrets": token,
+        for environment, repository_wide, expected in ((token, {"secrets": []}, "ok"), (token, token, "NG"),
+                                                       (None, token, "NG"), (None, {"secrets": []}, "NG"), (token, None, "--")):
+            listed = {f"repos/{dev.REPOSITORY}/environments/modal-deploy/secrets": environment,
                       f"repos/{dev.REPOSITORY}/actions/secrets": repository_wide}
-            monkeypatch.setattr(dev, "github_api", lambda path, listed=listed: listed.get(path, github(dev.OWNER)(path)))
+            monkeypatch.setattr(dev, "github_api", lambda path, listed=listed: listed[path] if path in listed else github(dev.OWNER)(path))
             assert {name: state for state, name, _ in dev.owner_checks()}["Modal deploy (GitHub Actions)"] == expected
 
         monkeypatch.setattr(dev, "github_api", github("someone-else"))

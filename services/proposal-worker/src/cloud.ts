@@ -246,8 +246,12 @@ async function verifyCode(ctx: CloudContext, cfg: AuthConfig, email: string, cod
   }
   // An attempt is claimed atomically before the code is compared: requests that arrive
   // together cannot compare more than maxAttempts candidates against one code.
-  const attempts = await ctx.auth.claimAttempt(email, purpose, AUTH.maxAttempts);
-  if (attempts === null) return fail(400, "too_many_attempts");
+  const attempts = await ctx.auth.claimAttempt(email, purpose, row.code_hash, AUTH.maxAttempts);
+  if (attempts === null) {
+    // No attempt left on this code, or the code was used or replaced since it was read.
+    const current = await ctx.auth.code(email, purpose);
+    return fail(400, current?.code_hash === row.code_hash ? "too_many_attempts" : "code_expired");
+  }
   const candidate = typeof code === "string" ? code.replace(/\s/g, "") : "";
   const hash = /^\d{6}$/.test(candidate) ? await codeHash(cfg, email, purpose, candidate) : "";
   if (hash && equal(hash, row.code_hash)) {

@@ -634,18 +634,27 @@ def owner_checks() -> list[tuple[str, str, str]]:
     else:
         results.append(("NG", "GitHub (owner)", f"signed in as {login or 'nobody'}; the owner needs admin on "
                         f"{REPOSITORY} (`gh auth login`)"))
-    secrets = github_api(f"repos/{REPOSITORY}/environments/{MODAL_DEPLOY_ENVIRONMENT}/secrets")
-    if isinstance(secrets, dict):
-        names = {entry.get("name") for entry in secrets.get("secrets", [])}
-        missing = sorted({"MODAL_TOKEN_ID", "MODAL_TOKEN_SECRET"} - names)
-        # The token belongs to the main-only environment alone; a repository-wide copy is readable from any branch.
-        everywhere = github_api(f"repos/{REPOSITORY}/actions/secrets")
-        leftover = sorted({"MODAL_TOKEN_ID", "MODAL_TOKEN_SECRET"}
-                          & {entry.get("name") for entry in (everywhere.get("secrets", []) if isinstance(everywhere, dict) else [])})
-        results.append(("NG" if missing or leftover else "ok", "Modal deploy (GitHub Actions)",
-                        f"{MODAL_DEPLOY_ENVIRONMENT} environment secrets missing: {', '.join(missing)}" if missing
-                        else f"delete the repository-wide copies: {', '.join(leftover)}" if leftover
-                        else f"deploy token stored in the {MODAL_DEPLOY_ENVIRONMENT} environment secrets"))
+    wanted = {"MODAL_TOKEN_ID", "MODAL_TOKEN_SECRET"}
+
+    def names(listing: object) -> set | None:
+        return {entry.get("name") for entry in listing.get("secrets", [])} if isinstance(listing, dict) else None
+
+    # The token belongs to the main-only environment alone; a repository-wide copy is readable from any branch.
+    stored = names(github_api(f"repos/{REPOSITORY}/environments/{MODAL_DEPLOY_ENVIRONMENT}/secrets"))
+    everywhere = names(github_api(f"repos/{REPOSITORY}/actions/secrets"))
+    if stored is not None or everywhere is not None:
+        missing, leftover = sorted(wanted - (stored or set())), sorted(wanted & (everywhere or set()))
+        if stored is None:
+            state, detail = "NG", f"the {MODAL_DEPLOY_ENVIRONMENT} environment is missing or not readable (docs/cloud-gpu.ja.md)"
+        elif missing:
+            state, detail = "NG", f"{MODAL_DEPLOY_ENVIRONMENT} environment secrets missing: {', '.join(missing)}"
+        elif leftover:
+            state, detail = "NG", f"delete the repository-wide copies: {', '.join(leftover)}"
+        elif everywhere is None:
+            state, detail = "--", "environment secrets stored; repository-wide secrets not readable here"
+        else:
+            state, detail = "ok", f"deploy token stored in the {MODAL_DEPLOY_ENVIRONMENT} environment secrets"
+        results.append((state, "Modal deploy (GitHub Actions)", detail))
     else:
         # Cloud sessions cannot list Actions secrets; the last successful deploy is the evidence left.
         runs = github_api(f"repos/{REPOSITORY}/actions/workflows/cellpose-modal-deploy.yml/runs?status=success&per_page=1")

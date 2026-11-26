@@ -175,7 +175,8 @@ describe("e-mail code login", () => {
     const waiting: (() => void)[] = [];
     vi.spyOn(t.auth, "code").mockImplementation(async (email, purpose) => {
       const row = await read(email, purpose);
-      await new Promise<void>((release) => waiting.push(release));
+      // Only each request's first read is held; a later re-read passes.
+      if (waiting.length < 6) await new Promise<void>((release) => waiting.push(release));
       return row;
     });
     const arrived = async (count: number) => { while (waiting.length < count) await new Promise((next) => setTimeout(next, 1)); };

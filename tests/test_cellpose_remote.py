@@ -258,7 +258,8 @@ def test_baseline_client_compatibility_and_network_release(service, monkeypatch)
     ("batch_size", 9), ("batch_size", 0), ("batch_size", 2.0), ("batch_size", True), ("batch_size", "4"),
     ("iterations", 10001), ("iterations", 0), ("diameter_px", 0), ("diameter_px", 5000), ("diameter_px", float("nan")),
     ("diameter_px", float("inf")), ("flow_threshold", 0), ("cellprob_threshold", 21), ("local_background_radius_px", 129),
-    ("nuclear_diameter_fraction", 1.5), ("batch_size", None),
+    ("nuclear_diameter_fraction", 1.5), ("batch_size", None), ("maximum_size_fraction", 50),
+    ("normalization_percentile_low", -5), ("minimum_area_px", 0), ("maximum_nuclear_coverage", 1),
 ])
 def test_service_refuses_out_of_range_request_values_before_inference(service, name, value):
     state = service.start()
@@ -276,15 +277,18 @@ def test_service_ranges_are_the_clients_contract_and_accept_its_defaults(service
     contract = {}
     for spec in (CellposeDetectorSpec, NclCellposeDetectorSpec, NclParentCellposeDetectorSpec):
         for name, field in spec.model_fields.items():
-            bounds = {type(item).__name__: getattr(item, type(item).__name__.lower()) for item in field.metadata
-                      if type(item).__name__ in ("Gt", "Ge", "Le")}
-            if name in state.module.PARAMETER_RANGES:
-                contract[name] = (bounds.get("Ge", bounds.get("Gt")), "Ge" in bounds, bounds["Le"])
+            bounds = {type(item).__name__.lower(): getattr(item, type(item).__name__.lower()) for item in field.metadata
+                      if type(item).__name__ in ("Gt", "Ge", "Le", "Lt")}
+            if bounds:  # Every numeric field of the contract has a range, and the service knows each of them.
+                contract[name] = (bounds.get("ge", bounds.get("gt")), "ge" in bounds, bounds.get("le", bounds.get("lt")), "le" in bounds)
         state.module.check_parameter_ranges(spec().model_dump(mode="json"))
-    assert contract == {name: (low, inclusive, high)
-                        for name, (_, low, inclusive, high, _) in state.module.PARAMETER_RANGES.items()}
-    for name, (_, _, _, high, optional) in state.module.PARAMETER_RANGES.items():
-        state.module.check_parameter_ranges({name: high})
+    assert contract == {name: entry[1:5] for name, entry in state.module.PARAMETER_RANGES.items()}
+    for name, (_, _, _, high, high_inclusive, optional) in state.module.PARAMETER_RANGES.items():
+        if high_inclusive:
+            state.module.check_parameter_ranges({name: high})
+        else:
+            with pytest.raises(state.module.InputError):
+                state.module.check_parameter_ranges({name: high})
         if optional:
             state.module.check_parameter_ranges({name: None})
 

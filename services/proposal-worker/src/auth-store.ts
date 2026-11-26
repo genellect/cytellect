@@ -109,13 +109,13 @@ export class D1AuthStore {
   }
 
   /**
-   * Claims one attempt atomically before a candidate is compared; returns the new count,
-   * or null when every attempt is already claimed (or the code is gone).
+   * Claims one attempt on this very code atomically, before a candidate is compared; returns
+   * the new count, or null when every attempt is claimed or the code is no longer the one read.
    */
-  async claimAttempt(email: string, purpose: CodePurpose, max: number) {
+  async claimAttempt(email: string, purpose: CodePurpose, hash: string, max: number) {
     const row = await this.db.prepare(
-      "UPDATE login_codes SET attempts = attempts + 1 WHERE email = ? AND purpose = ? AND attempts < ? RETURNING attempts",
-    ).bind(email, purpose, max).first<{ attempts: number }>();
+      "UPDATE login_codes SET attempts = attempts + 1 WHERE email = ? AND purpose = ? AND code_hash = ? AND attempts < ? RETURNING attempts",
+    ).bind(email, purpose, hash, max).first<{ attempts: number }>();
     return row?.attempts ?? null;
   }
 

@@ -85,6 +85,16 @@ def test_semantic_rejections(change, code):
     assert code in codes(draft(**change))
 
 
+def test_ordinary_biological_words_in_stains_and_legend_terms_are_kept():
+    """Only links and markup are refused outside the explanations: "macro" and "import" are also biology."""
+    context = CONTEXT.model_copy(update={"channels": [*CONTEXT.channels[:2], CONTEXT.channels[2].model_copy(update={"stain": "macro-H2A"})]})
+    raw = draft(channels=[*draft()["channels"][:2], {"token": "c3", "stain": "macro-H2A", "role": "measure", "reason": "測定対象"}],
+                figure_presentation={"composition": "quantification", "legend_terms": {
+                    "cell_line": "HeLa", "treatment": "nuclear import inhibitor, 1 h", "stains": "anti-macro-H2A"}})
+    result = validate_draft(context, raw, model="m", prompt_version="p")
+    assert result.draft.figure_presentation.legend_terms.treatment == "nuclear import inhibitor, 1 h"
+
+
 def test_absent_ncl_and_unknown_units_are_never_filled_in():
     no_ncl = ProposalContext(field_count=3, channels=[{"token": "dapi", "stain": "DAPI"}, {"token": "gfp", "stain": "GFP"}])
     raw = draft(channels=[{"token": "dapi", "stain": "DAPI", "role": "nuclear", "reason": "x"},
