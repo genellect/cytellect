@@ -276,6 +276,16 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       for (const key of ["stage", "code", "target"] as const) if (intake[key] === undefined) delete intake[key];
       await saveSelection(workspace, selection!.entries.map(entry => entry.id === id ? {...entry, intake} : entry));
     },
+    /** Forgets the run and group of rows whose fields are placed, in one save. */
+    async clearTargets(workspace: string, ids: string[]) {
+      if (!selection) await loadSelection(workspace);
+      const chosen = new Set(ids);
+      if (!selection!.entries.some(entry => chosen.has(entry.id) && entry.intake?.target)) return;
+      await saveSelection(workspace, selection!.entries.map(entry => {
+        if (!chosen.has(entry.id) || !entry.intake?.target) return entry;
+        const intake: IntakeRecord = {...entry.intake};delete intake.target;return {...entry, intake};
+      }));
+    },
     /** Removes the row of an image that never became a field ("記録から削除"); a field's row is never removed. */
     async removeImport(workspace: string, id: string) {
       if (!selection) await loadSelection(workspace);

@@ -413,7 +413,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       if(design.fields?.[entry.field_id!]||!(design.runs??[]).some(run=>run.id===target.run_id)||!(design.groups??[]).some(group=>group.id===target.group_id))continue;
       next=assignFields(next,[entry.field_id!],{run_id:target.run_id,group_id:target.group_id,sample:target.sample});}
     if(next!==design){specification=await writeSpecification(workspace(),{version:specification.version,spec:{...specification.spec!,experiment:next}});specificationDirty=false;}
-    for(const entry of placed)await adapter.recordImport(workspace(),entry.id,{state:"registered",target:undefined});
+    await adapter.clearTargets(workspace(),placed.map(entry=>entry.id));
   }
   /** Forgets the files this session holds for a row (removed, or replaced by other files): they are never resent under it. */
   function forgetEntry(entry:string){for(const [key,id] of [...uploadKeys])if(id===entry){const grouped=groupFiles(added).fields.find(field=>field.key===key);dropImport(key,grouped?Object.values(grouped.files).map(file=>file.path):[key]);}}
