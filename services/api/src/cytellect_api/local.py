@@ -161,6 +161,8 @@ def create_local_app(settings: Settings, web_dir: Path, port: int, *, store_vers
                            remote_settings=lambda: local_cellpose_remote_environment(settings.data_dir))
     app = create_app(settings, proposal_credentials=account.credentials)
     app.state.cloud_account = account
+    # The Microsoft Store updates its package; the in-app update reads this (app_update.py).
+    app.state.store_version = store_version
     store = app.state.store
 
     def local_session(request: Request):

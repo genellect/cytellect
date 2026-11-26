@@ -1,7 +1,8 @@
 import {afterEach, describe, expect, it, vi} from "vitest";
 import {
   AccountRequestError, restartGpuAfterSignIn, accountErrorText, accountLabel, accountNotice, formatDate, gpuNotice, gpuQuotaReached, gpuQuotaText, inferencePhase,
-  followUpdate, pendingNotice, plausibleCode, plausibleEmail, resendWait, safeNotesUrl, updateNotice, updateSignature, usageText, UPDATE_RECONNECT_LIMIT,
+  followUpdate, pendingNotice, plausibleCode, plausibleEmail, resendWait, safeNotesUrl, updateBannerLine, updateErrorDetail, updateLaterHides, updateNotice,
+  updateRefusal, updateSignature, usageText, UPDATE_LATER_KEY, UPDATE_RECONNECT_LIMIT,
 } from "./cloud-account";
 
 afterEach(() => {vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.resetModules();});
@@ -124,11 +125,14 @@ describe("automatic GPU start after sign-in", () => {
 
 describe("update banner", () => {
   it("names each update state and keeps the error code for 詳細", () => {
-    expect(updateNotice({available: true, latest: "0.1.0-local.22", state: "idle"})).toMatchObject({text: "更新があります（0.1.0-local.22）。研究データと設定は引き継がれます。", action: {label: "更新"}});
-    expect(updateNotice({available: true, state: "idle"}, true)!.text).toContain("更新中…");
-    expect(updateNotice({available: true, state: "downloading"})!.tone).toBe("progress");
-    expect(updateNotice({available: true, state: "restarting"})!.text).toContain("再起動中…");
-    expect(updateNotice({available: false, latest: "0.1.0-local.22", state: "updated"})!.text).toBe("更新が完了しました（0.1.0-local.22）。");
+    expect(updateNotice({available: true, latest: "0.1.0-local.22", state: "idle"})).toMatchObject({text: "更新があります（0.1.0-local.22）。研究データと設定は引き継がれます。", action: {label: "更新"}, later: true});
+    // From the click on, the same line names the stage and where work goes on after the restart.
+    expect(updateNotice({available: true, state: "idle"}, true)).toEqual({text: "更新：受付。更新後の再開先：この画面", tone: "progress"});
+    expect(updateNotice({available: true, state: "downloading"})).toEqual({text: "更新：ダウンロード中。更新後の再開先：この画面", tone: "progress"});
+    expect(updateNotice({available: true, state: "installing"})!.text).toBe("更新：インストール中。更新後の再開先：この画面");
+    expect(updateNotice({available: true, state: "restarting"})!.text).toBe("更新：再起動中。更新後の再開先：この画面");
+    for (const state of ["downloading", "installing", "restarting"] as const) expect(updateNotice({available: true, state})!.later).toBeUndefined();
+    expect(updateNotice({available: false, latest: "0.1.0-local.22", state: "updated"})!.text).toBe("更新：完了（0.1.0-local.22）");
     const failed = updateNotice({available: true, state: "failed", error: "update_failed"})!;
     expect(failed.text).toBe("更新できませんでした。今の版のまま使えます。あとでもう一度お試しください。");
     // A refused signature, manifest or installer hash may mean a replaced release: no manual download is offered.
@@ -153,6 +157,69 @@ describe("update banner", () => {
     expect(updateSignature({available: false, current: "a", latest: "b", state: "updated", error: null})).toBe("updated:a:b:");
     expect(updateNotice({available: false, state: "idle"})).toBeNull();
     expect(updateNotice(null)).toBeNull();
+  });
+  it("keeps where the installer stopped, and its exit code, under 詳細", () => {
+    const exit = updateNotice({available: true, state: "failed", error: "update_install_failed", stage: "exit", exit_code: 1})!;
+    expect(exit.error).toBe("update_install_failed stage=exit exit_code=1");
+    expect(exit.text).toBe("更新できませんでした。今の版のまま使えます。あとでもう一度お試しください。");
+    expect(exit.action?.label).toBe("再試行");
+    expect(updateNotice({available: true, state: "failed", error: "update_installer_launch_failed", stage: "launch", exit_code: null})!.error)
+      .toBe("update_installer_launch_failed stage=launch");
+    expect(updateNotice({available: true, state: "failed", error: "update_installer_timeout", stage: "timeout"})!.error)
+      .toBe("update_installer_timeout stage=timeout");
+    expect(updateErrorDetail({available: true, state: "failed", error: "update_install_failed", exit_code: 0})).toBe("update_install_failed exit_code=0");
+    expect(updateErrorDetail({available: true, state: "idle"})).toBeUndefined();
+  });
+  it("shows nothing in the Microsoft Store package, which the Store updates", () => {
+    expect(updateNotice({available: false, current: "1.2.3.0", state: "unsupported", store: true})).toBeNull();
+    // Even a status that claims an offer is not offered in the app.
+    expect(updateNotice({available: true, latest: "0.1.0-local.22", state: "idle", store: true})).toBeNull();
+    expect(updateBannerLine({available: false, state: "unsupported", store: true})).toBeNull();
+    // A refused 「更新」 there names the Store.
+    expect(updateBannerLine({available: false, state: "unsupported", store: true}, {outcome: "unsupported"}))
+      .toEqual({text: "Microsoft Store 版の更新には、Microsoft Store が必要です。", tone: "info", closable: true});
+  });
+  it("maps each refusal of 「更新」 to what the banner does", () => {
+    expect(updateRefusal("update_in_progress")).toBe("follow");
+    expect(updateRefusal("update_jobs_running")).toBe("jobs_running");
+    expect(updateRefusal("update_not_available")).toBe("not_available");
+    expect(updateRefusal("update_unsupported")).toBe("unsupported");
+    expect(updateRefusal("session_required")).toBe("failed");
+    expect(updateRefusal("")).toBe("failed");
+  });
+  it("shows one line for each result of 「更新」 that the status does not carry", () => {
+    const offer = {available: true, latest: "0.1.0-local.22", state: "idle" as const, launch: "a1"};
+    // Nothing newer and an installation that cannot update in the app each say so in one line.
+    expect(updateBannerLine({...offer, available: false}, {outcome: "not_available"})).toEqual({text: "新しい版：なし", tone: "info", closable: true});
+    expect(updateBannerLine(offer, {outcome: "unsupported"}))
+      .toEqual({text: "この版の更新には、cytellect.app の新しい版のインストーラーが必要です。", tone: "info", closable: true});
+    // A running analysis is not stopped: the offer and its button stay, with the reason.
+    const waiting = updateBannerLine(offer, {outcome: "jobs_running"})!;
+    expect(waiting.text).toBe("解析の実行中のため、更新は開始していません。更新があります（0.1.0-local.22）。研究データと設定は引き継がれます。");
+    expect(waiting.action?.label).toBe("更新");
+    expect(updateBannerLine(offer, {outcome: "timeout"})!.tone).toBe("problem");
+    expect(updateBannerLine(offer, {outcome: "session_lost"})!.text).toContain("作業画面を開き直してください");
+    // A double click or an update from another tab: the stage of the running update.
+    expect(updateBannerLine(offer, {following: true})!.text).toBe("更新：受付。更新後の再開先：この画面");
+    expect(updateBannerLine({...offer, state: "installing"}, {following: true})!.text).toBe("更新：インストール中。更新後の再開先：この画面");
+  });
+  it("hides the offer after 「後で」 until the launcher starts again", () => {
+    const offer = {available: true, latest: "0.1.0-local.22", state: "idle" as const, launch: "a1"};
+    expect(updateBannerLine(offer, {later: null})!.action?.label).toBe("更新");
+    expect(updateBannerLine(offer, {later: "a1"})).toBeNull();
+    // A new launch (another identifier) offers it again.
+    expect(updateBannerLine({...offer, launch: "b2"}, {later: "a1"})).not.toBeNull();
+    // The manual installer notice of a version without a signing key is postponed the same way.
+    const manual = {available: false, latest: "0.1.0-local.22", state: "unsupported" as const, error: "update_signing_key_missing", launch: "a1"};
+    expect(updateBannerLine(manual, {later: "a1"})).toBeNull();
+    // Progress and results are never hidden by 「後で」.
+    expect(updateBannerLine({...offer, state: "downloading"}, {later: "a1"})).not.toBeNull();
+    expect(updateBannerLine({...offer, state: "failed", error: "update_failed"}, {later: "a1"})).not.toBeNull();
+    expect(updateBannerLine(offer, {later: "a1", outcome: "not_available"})).not.toBeNull();
+    // An older API without the identifier: 「後で」 lasts for the page only (kept as "").
+    expect(updateLaterHides({available: true, state: "idle"}, "")).toBe(true);
+    expect(updateLaterHides({available: true, state: "idle"}, null)).toBe(false);
+    expect(UPDATE_LATER_KEY).toBe("cytellect.update.later");
   });
   it("links release notes only on this project's GitHub releases", () => {
     expect(safeNotesUrl("https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.22")).toBe("https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.22");

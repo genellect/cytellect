@@ -10,6 +10,8 @@ Windows 版のアプリ内更新は、オーナーの Ed25519 鍵で署名され
 - 署名は `.github/workflows/local-release.yml` の `draft` ジョブが行う。手動配布はオーナーが承認する `release`、EXE の自動配布はオーナーが有効にした `windows-exe-publish` 環境で動く。secret `UPDATE_SIGNING_KEY` で `ssh-keygen -Y sign -n cytellect-update` を実行し、アプリと同じ検証（`scripts/update_manifest.py verify`）で確かめてから、タグと下書きのリリースを作る。secret がない場合や公開鍵と合わない場合は公開せずに止まる。自動配布では再試行に使うタグが先に作られる。
 - インストール済みのアプリは、組み込んだ公開鍵（`services/api/src/cytellect_api/update_signature.py` の `UPDATE_PUBLIC_KEY`）で署名を確かめ、manifest の版と、インストーラーの SHA-256 と大きさが一致したときだけ実行する。リリースの `.sha256` と GitHub の digest は信頼の起点にしない。
 - 公開鍵が空の版は、アプリ内で更新しない。新しい版があれば「cytellect.app から新しい版のインストーラーをダウンロードして開いてください」と表示する。
+- 署名を確かめた後のインストーラーの失敗は、段階で区別して記録する：起動できない（`update_installer_launch_failed`）、1 時間以内に終わらない（`update_installer_timeout`）、0 以外で終了（`update_install_failed` と終了コード）。どれも今の版のまま動く。インストーラーのログ（`updates/installer.log`）は PC の中に残し、送らない。
+- Microsoft Store 版はアプリ内で更新しない（Store が更新する）。作業画面に更新の案内を表示しない。
 - 秘密鍵はリポジトリ・Issue・PR・チャット・CI のログに置かない。CI と試験は、実行のたびに生成する試験用の鍵を使う。
 
 ## 1. 鍵を作る（初回）
