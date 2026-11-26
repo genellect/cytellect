@@ -34,11 +34,7 @@
 | 対象とする活動 | 設計、開発、配布、運用、脆弱性への対応 |
 | 対象外 | 同梱する第三者の部品（Fiji、Cellpose など）と、利用する外部サービス自体の脆弱性。これらは各開発元の窓口が扱う。Cytellect による外部サービスの設定と利用方法に起因する問題は、対象に含む。 |
 
-本書の管理策は、ISO/IEC 27001:2022 附属書 A（ISO/IEC 27002:2022）の管理策の区分に対応づけて記述し、各章に対応する管理策の番号を示す。本書は管理策の実装を説明する文書であり、第三者認証の取得を示すものではない。
-
 ## 2. 基本方針
-
-対応する管理策：ISO/IEC 27002:2022 5.1
 
 Cytellect は、未発表の顕微鏡画像を研究者の PC 上で解析する。セキュリティ設計は、次の方針に基づく。
 
@@ -52,8 +48,6 @@ Cytellect は、未発表の顕微鏡画像を研究者の PC 上で解析する
 | 配布物の検証 | PC は、管理者の鍵で署名された更新だけを実行する。依存と同梱物はハッシュで固定する。 | [13. 外部サービスとサプライチェーン](#13-外部サービスとサプライチェーン) |
 
 ## 3. 体制と責任
-
-対応する管理策：ISO/IEC 27002:2022 5.2、5.3、5.23
 
 ### 3.1 役割
 
@@ -77,8 +71,6 @@ Cytellect は、未発表の顕微鏡画像を研究者の PC 上で解析する
 
 ## 4. システム構成と信頼境界
 
-対応する管理策：ISO/IEC 27002:2022 8.27
-
 研究データを保持するのは研究者の PC だけである。クラウド側の構成要素は、処理に必要な期間と範囲でのみデータに触れる。
 
 | 構成要素 | 役割 | 保持するデータ | 保持する鍵と資格情報 |
@@ -93,8 +85,6 @@ Cytellect は、未発表の顕微鏡画像を研究者の PC 上で解析する
 
 ## 5. 情報の分類と取り扱い
 
-対応する管理策：ISO/IEC 27002:2022 5.9、5.10、5.12
-
 | 区分 | 例 | 保存場所 | 取り扱い |
 |---|---|---|---|
 | 研究データ（非公開） | 未発表の画像、輪郭、測定表、図、ファイル名とパス | 研究者の PC または研究室のサーバー | クラウドに保存しない。外部への送信は [6. 研究データの保護](#6-研究データの保護) に定める範囲に限る。Git、CI、ログ、公開の場に含めない。 |
@@ -104,8 +94,6 @@ Cytellect は、未発表の顕微鏡画像を研究者の PC 上で解析する
 | 公開データ | 出典とライセンスを確認した公開画像 | リポジトリの登録済みの領域 | 出典、再配布条件、ハッシュを記録し、試験と公開デモに使用する。 |
 
 ## 6. 研究データの保護
-
-対応する管理策：ISO/IEC 27002:2022 5.14、5.34、8.10、8.12
 
 ### 6.1 所在と処理
 
@@ -118,7 +106,7 @@ PC の外部へ送信するのは、利用者が次の操作を実行した場�
 | 操作 | 送信する情報 | 送信先 | 送信先での取り扱い |
 |---|---|---|---|
 | クラウド GPU による細胞の検出 | 検出対象の 1 プレーンと検出条件。核小体の検出では、採用済みの核のラベルを加える。 | 中継サービスを経由して推論サーバー（Modal） | 中継サービスは本文を読み取らずに転送し、推論サーバーはメモリ上でのみ処理する。いずれも保存せず、ログに記録しない。 |
-| AI への解析の相談 | 研究の目的、チャンネル名と記録した染色、視野の名前（既定ではファイル名）と記録（条件、実験回、組、取得日）、画像の寸法と画素サイズ、視野と群の数、現在の解析設定と前回の提案、代表的な 1 視野のチャンネルごとの縮小画像（一辺 512 px 以下。設定で無効にできる） | 中継サービスを経由して Anthropic または OpenAI | 中継サービスは本文を保存せず、ログに記録しない。OpenAI には、応答を保存しない設定（`store: false`）で送信する。送信したデータは、モデルの学習に使用されない。各提供元は、不正利用の監視などの目的で、データを一定期間保持する場合がある。 |
+| AI への解析の相談 | 研究の目的、チャンネル名と記録した染色、視野の名前（既定ではファイル名）と記録（条件、実験回、組、取得日）、画像の寸法と画素サイズ、視野と群の数、現在の解析設定と前回の提案、代表的な 1 視野のチャンネルごとの縮小画像（一辺 512 px 以下。設定で無効にできる） | 中継サービスを経由して Anthropic または OpenAI | 中継サービスは本文を保存せず、ログに記録しない。OpenAI には、応答を保存しない設定（`store: false`）で送信する。送信したデータは、モデルの学習に使用されない。各提供元は、不正利用の監視のために、各社の API の規約が定める期間、データを保持する。 |
 | AI による考察の生成 | 保存した比較結果と実験の目的。比較結果は、画面のまとめ（見出しと要点）、指標の名前と定義、染色名、領域・群・実験回・チャンネルの名前、群ごとの値、差と信頼区間、実験回ごとの値、n とその内訳、集計と検定の方法、研究者が記述した実験単位の定義と対応の根拠、検定と p 値からなる。目的の初期値は、そのワークスペースで AI への相談に記述した研究の目的である。 | 同上 | 同上 |
 | クラウドへのログイン | メールアドレスとログインコード | Resend | ログインコードのメール送信にのみ使用する。 |
 
@@ -126,7 +114,7 @@ PC の外部へ送信するのは、利用者が次の操作を実行した場�
 
 | 管理策 | 実装 |
 |---|---|
-| 送信しない情報 | 原画像、輪郭、核ごとの測定値、ファイルのパスは、6.2 に記載したものを除き送信しない。利用者が除外した視野は、提案にも縮小画像にも使用しない。 |
+| 送信しない情報 | 外部へ送信する情報は、6.2 に記載したものに限る。核ごとの測定値とファイルのパスは、いずれの操作でも送信しない。利用者が除外した視野は、提案にも縮小画像にも使用しない。 |
 | 同意 | AI への送信範囲は、クラウドへのログイン時と最初の考察の生成時に画面に表示し、同意を得たうえで送信する。送信範囲は、AI の設定画面にも表示する（2026-11-16 に決定し、2026-11-17 に考察の生成へまとめ・n の内訳・方法・目的を追加した。経緯は [AI による解析支援の見直し](docs/drafts/llm-assistant/plan.md)）。 |
 | 送信の確認 | AI への送信は、利用者の操作による確認を伴う要求だけを受け付ける。確認を伴わない要求は、PC 上のサーバーが拒否する。 |
 | 通信の保護 | 外部との通信は、すべて TLS で暗号化する。 |
@@ -150,8 +138,6 @@ PC の外部へ送信するのは、利用者が次の操作を実行した場�
 | 更新の確認 | EXE 版は、GitHub の公開リリース一覧を参照して更新の有無を確認する（最大 6 時間に 1 回）。研究データとアカウント情報は送信しない。 |
 
 ## 7. アクセス制御と認証
-
-対応する管理策：ISO/IEC 27002:2022 5.15〜5.18、8.2〜8.5
 
 ### 7.1 研究者の認証
 
@@ -196,8 +182,6 @@ Docker 版の解析ワーカーは、ネットワークを持たない、非 roo
 
 ## 8. 暗号と鍵の管理
 
-対応する管理策：ISO/IEC 27002:2022 8.24
-
 | 用途 | 方式 | 鍵と秘密値の保管 |
 |---|---|---|
 | 通信の保護 | TLS | 各サービスの証明書による。 |
@@ -213,21 +197,17 @@ Docker 版の解析ワーカーは、ネットワークを持たない、非 roo
 
 ## 9. 通信とネットワークのセキュリティ
 
-対応する管理策：ISO/IEC 27002:2022 8.20〜8.22
-
 | 経路 | 管理策 |
 |---|---|
 | PC 内（画面と PC 上のサーバー） | `127.0.0.1` でのみ待ち受け、他の機器からは接続できない。 |
 | 解析ワーカー | Docker 版の解析ワーカーは、ネットワークを持たない。CI は、実際のコンテナで外部への通信が拒否されることを検証する。 |
-| PC から中継サービス | HTTPS に限る（試験用のループバックを除く）。資格情報、クエリ、フラグメントを含む URL は受け付けない。リダイレクトには従わず、応答のサイズを制限し、定義済みの項目だけを画面に渡す。 |
+| PC から中継サービス | クラウドとの通信は HTTPS に限る。資格情報、クエリ、フラグメントを含む URL は受け付けない。リダイレクトには従わず、応答のサイズを制限し、定義済みの項目だけを画面に渡す。 |
 | 中継サービスから送信先 | 外部への要求はリダイレクトに従わないため、鍵が別のホストに送信されることはない。送信先へ転送するヘッダーは内容の種別を示すものに限り、利用者の端末トークンを送信先に渡さない。 |
 | 推論サーバー | Modal のプロキシ認証を必須とし、認証のない要求を受け付けない。 |
 | 更新の取得 | 取得元は HTTPS の GitHub のホストに限り、リダイレクト先も照合する。 |
 | ブラウザからの利用 | 中継サービスは、他のオリジンからの利用を許可する設定（CORS）を持たないため、他のサイトのブラウザからは利用できない。 |
 
 ## 10. アプリケーションのセキュリティ
-
-対応する管理策：ISO/IEC 27002:2022 8.26〜8.28
 
 ### 10.1 中継サービス
 
@@ -274,8 +254,6 @@ Docker 版の解析ワーカーは、ネットワークを持たない、非 roo
 
 ## 11. ログ、監視、容量の管理
 
-対応する管理策：ISO/IEC 27002:2022 8.6、8.15、8.16
-
 | 管理策 | 実装 |
 |---|---|
 | ログに記録しない情報 | 中継サービスは、要求と応答の本文、コード、トークンを記録しない。PC 上のサーバーは、アクセスログを無効にし、要求の本文、ファイル名、トークンの値を記録しない。推論サーバーは、要求の内容、パス、接続元のアドレスを記録しない。 |
@@ -286,8 +264,6 @@ Docker 版の解析ワーカーは、ネットワークを持たない、非 roo
 | 入力とジョブの上限 | 入力の件数とサイズ、ジョブの実行時間とメモリに上限を設ける（[10.3 PC 上のアプリ](#103-pc-上のアプリ)）。 |
 
 ## 12. 開発と変更の管理
-
-対応する管理策：ISO/IEC 27002:2022 8.25、8.29、8.31〜8.33
 
 | 管理策 | 実装 |
 |---|---|
@@ -301,8 +277,6 @@ Docker 版の解析ワーカーは、ネットワークを持たない、非 roo
 | AI エージェントの利用 | AI エージェントの成果物は、依頼者が内容を確認してからレビューに出す。`main` への反映と本番への公開は、管理者が対象を明示して指示した場合に限る。 |
 
 ## 13. 外部サービスとサプライチェーン
-
-対応する管理策：ISO/IEC 27002:2022 5.19〜5.23、8.19
 
 ### 13.1 外部サービス
 
@@ -340,8 +314,6 @@ Docker 版の解析ワーカーは、ネットワークを持たない、非 roo
 
 ## 14. 脆弱性の管理
 
-対応する管理策：ISO/IEC 27002:2022 8.8
-
 ### 14.1 サポート対象の版
 
 | 版 | セキュリティ修正 |
@@ -374,8 +346,6 @@ Docker 版の解析ワーカーは、ネットワークを持たない、非 roo
 
 ## 15. インシデントへの対応
 
-対応する管理策：ISO/IEC 27002:2022 5.24〜5.28
-
 ### 15.1 侵害時の影響範囲
 
 単一の構成要素が侵害されても被害が波及しないよう、データ、鍵、権限を分離している。
@@ -399,8 +369,6 @@ Docker 版の解析ワーカーは、ネットワークを持たない、非 roo
 
 ## 16. 事業継続
 
-対応する管理策：ISO/IEC 27002:2022 5.29、5.30、8.13
-
 | 事象 | 対応 |
 |---|---|
 | クラウドの機能の停止 | 研究データは PC にあり、測定、統計、作図はクラウドに依存しない。クラウドの機能が停止しても、PC 上の解析は継続できる。 |
@@ -410,8 +378,6 @@ Docker 版の解析ワーカーは、ネットワークを持たない、非 roo
 
 ## 17. 法令、契約、ライセンス
 
-対応する管理策：ISO/IEC 27002:2022 5.31〜5.34
-
 | 項目 | 内容 |
 |---|---|
 | プライバシー | 利用者の情報の取り扱いは、[プライバシーポリシー](https://cytellect.app/privacy)に定める。 |
@@ -420,8 +386,6 @@ Docker 版の解析ワーカーは、ネットワークを持たない、非 roo
 | 用途 | Cytellect は研究用のソフトウェアであり、診断、予後、治療の選択を出力しない。 |
 
 ## 18. 文書の管理
-
-対応する管理策：ISO/IEC 27002:2022 5.1、5.37
 
 本書は、Cytellect のセキュリティに関する正本である。方針、仕様、手順を変更するときは、関連する文書を同じ変更で更新する。本書の変更は、プルリクエストと管理者の承認を要する。
 
@@ -469,11 +433,7 @@ The purpose of this document is to show users, organizations assessing adoption 
 | Activities in scope | Design, development, distribution, operation and vulnerability handling |
 | Out of scope | Vulnerabilities in bundled third-party components (Fiji, Cellpose and others) and in the external services themselves. These are handled by their respective maintainers. Issues arising from how Cytellect configures or uses an external service are in scope. |
 
-The controls in this document are described in correspondence with the control categories of ISO/IEC 27001:2022 Annex A (ISO/IEC 27002:2022), and each chapter states the corresponding control numbers. This document describes how the controls are implemented and does not indicate third-party certification.
-
 ### 2. Security principles
-
-Corresponding controls: ISO/IEC 27002:2022 5.1
 
 Cytellect analyses researchers' unpublished microscopy images on the researcher's own PC. Its security design rests on the following principles.
 
@@ -487,8 +447,6 @@ Cytellect analyses researchers' unpublished microscopy images on the researcher'
 | Verified distribution | The PC runs only updates signed with the maintainer's key. Dependencies and bundled components are pinned by hash. | [13. External services and supply chain](#13-external-services-and-supply-chain) |
 
 ### 3. Organization and responsibilities
-
-Corresponding controls: ISO/IEC 27002:2022 5.2, 5.3, 5.23
 
 #### 3.1 Roles
 
@@ -512,8 +470,6 @@ Because research data remains under the user's control, responsibilities are div
 
 ### 4. Architecture and trust boundaries
 
-Corresponding controls: ISO/IEC 27002:2022 8.27
-
 Only the researcher's PC holds research data. Cloud components handle data only for the duration and to the extent that processing requires.
 
 | Component | Role | Data held | Keys and credentials held |
@@ -528,8 +484,6 @@ Only the researcher's PC holds research data. Cloud components handle data only 
 
 ### 5. Information classification and handling
 
-Corresponding controls: ISO/IEC 27002:2022 5.9, 5.10, 5.12
-
 | Class | Examples | Location | Handling |
 |---|---|---|---|
 | Research data (private) | Unpublished images, masks, measurement tables, figures, file names and paths | The researcher's PC or the lab server | Never stored in the cloud. External transmission is limited to the scope defined in [6. Protection of research data](#6-protection-of-research-data). Never included in Git, CI, logs or public places. |
@@ -539,8 +493,6 @@ Corresponding controls: ISO/IEC 27002:2022 5.9, 5.10, 5.12
 | Public data | Public images whose source and licence have been confirmed | The registered area of the repository | Source, redistribution terms and hashes are recorded; used for tests and the public demo. |
 
 ### 6. Protection of research data
-
-Corresponding controls: ISO/IEC 27002:2022 5.14, 5.34, 8.10, 8.12
 
 #### 6.1 Location and processing
 
@@ -553,7 +505,7 @@ Data leaves the PC only when the user performs one of the following actions.
 | Action | Data transmitted | Destination | Handling at the destination |
 |---|---|---|---|
 | Cell detection on the cloud GPU | The plane to detect and the detection parameters. For nucleolar detection, the adopted nuclear labels are added. | The inference server (Modal), via the relay service | The relay service forwards the body without reading it, and the inference server processes it in memory only. Neither stores or logs it. |
-| Analysis consultation with the AI | The research goal, channel names and recorded stains, field names (by default the file name) and records (condition, experimental unit, pair, acquisition date), image dimensions and pixel size, field and group counts, the current analysis settings and the previous proposal, and per-channel display-scaled previews of one representative field (at most 512 px per side; can be disabled in settings) | Anthropic or OpenAI, via the relay service | The relay service neither stores nor logs the body. Requests to OpenAI set `store: false` so that responses are not stored. Transmitted data is not used for model training. Each provider may retain data for a limited period for purposes such as abuse monitoring. |
+| Analysis consultation with the AI | The research goal, channel names and recorded stains, field names (by default the file name) and records (condition, experimental unit, pair, acquisition date), image dimensions and pixel size, field and group counts, the current analysis settings and the previous proposal, and per-channel display-scaled previews of one representative field (at most 512 px per side; can be disabled in settings) | Anthropic or OpenAI, via the relay service | The relay service neither stores nor logs the body. Requests to OpenAI set `store: false` so that responses are not stored. Transmitted data is not used for model training. Each provider retains data for abuse monitoring for the period its API terms define. |
 | Discussion draft generation by the AI | The saved comparison and the experiment purpose. The comparison comprises the summary on screen (heading and points), the metric's name and definition, the stain name, the region, group, run and channel names, group values, differences and confidence intervals, per-experiment values, counts and their breakdown, aggregation and test settings, the researcher's experimental-unit definition and pairing basis, and the test and its p-value. The purpose defaults to the research goal written to the AI in that workspace. | As above | As above |
 | Cloud sign-in | The e-mail address and the sign-in code | Resend | Used solely to deliver the sign-in code by e-mail. |
 
@@ -561,7 +513,7 @@ Data leaves the PC only when the user performs one of the following actions.
 
 | Control | Implementation |
 |---|---|
-| Data not transmitted | Original images, masks, per-object measurements and file paths are not transmitted beyond what 6.2 lists. Fields the user has excluded are used neither for proposals nor for previews. |
+| Data not transmitted | Data transmitted externally is limited to what 6.2 lists. Per-object measurements and file paths are not transmitted by any action. Fields the user has excluded are used neither for proposals nor for previews. |
 | Consent | The scope transmitted to the AI is displayed, and consent obtained, at cloud sign-in and at the first discussion draft. The AI settings panel also displays the scope (decided on 2026-11-16; the summary, n breakdown, method and purpose were added to discussion drafts on 2026-11-17; background in the [AI assistance redesign](docs/drafts/llm-assistant/plan.md)). |
 | Transmission confirmation | Transmission to the AI is accepted only for requests that carry the confirmation given by the user's action. The server on the PC rejects requests without it. |
 | Protection in transit | All external traffic is encrypted with TLS. |
@@ -585,8 +537,6 @@ Data leaves the PC only when the user performs one of the following actions.
 | Update check | The EXE release consults GitHub's public release list for a newer version (at most once every six hours). No research data or account information is transmitted. |
 
 ### 7. Access control and authentication
-
-Corresponding controls: ISO/IEC 27002:2022 5.15–5.18, 8.2–8.5
 
 #### 7.1 Researcher authentication
 
@@ -631,8 +581,6 @@ The Docker analysis worker runs in a container with no network, as a non-root us
 
 ### 8. Cryptography and key management
 
-Corresponding controls: ISO/IEC 27002:2022 8.24
-
 | Purpose | Method | Custody of keys and secrets |
 |---|---|---|
 | Protection in transit | TLS | Each service's certificates. |
@@ -648,21 +596,17 @@ Corresponding controls: ISO/IEC 27002:2022 8.24
 
 ### 9. Communications and network security
 
-Corresponding controls: ISO/IEC 27002:2022 8.20–8.22
-
 | Path | Controls |
 |---|---|
 | Within the PC (screen and the server on the PC) | Listens only on `127.0.0.1`; other machines cannot connect. |
 | Analysis worker | The Docker analysis worker has no network. CI verifies on the real container that outbound connections are denied. |
-| PC to the relay service | HTTPS only (except loopback for tests). URLs containing credentials, a query or a fragment are not accepted. Redirects are not followed, response size is limited, and only defined fields are passed to the screen. |
+| PC to the relay service | Communication with the cloud uses HTTPS only. URLs containing credentials, a query or a fragment are not accepted. Redirects are not followed, response size is limited, and only defined fields are passed to the screen. |
 | Relay service to providers | Outbound requests do not follow redirects, so a key cannot be sent to another host. Only headers describing the content type are forwarded, so the user's device token never reaches the destination. |
 | Inference server | Modal proxy authentication is required, and unauthenticated requests are not accepted. |
 | Update download | Downloads are restricted to GitHub hosts over HTTPS, and redirect targets are checked as well. |
 | Use from browsers | The relay service has no setting (CORS) that permits use from other origins, so browsers on other sites cannot use it. |
 
 ### 10. Application security
-
-Corresponding controls: ISO/IEC 27002:2022 8.26–8.28
 
 #### 10.1 Relay service
 
@@ -709,20 +653,16 @@ Corresponding controls: ISO/IEC 27002:2022 8.26–8.28
 
 ### 11. Logging, monitoring and capacity management
 
-Corresponding controls: ISO/IEC 27002:2022 8.6, 8.15, 8.16
-
 | Control | Implementation |
 |---|---|
 | Information not logged | The relay service does not log request or response bodies, codes or tokens. The server on the PC disables access logging and does not log request bodies, file names or token values. The inference server does not log request content, paths or client addresses. |
 | Information recorded | The relay service records account information and usage (monthly GPU seconds; cost and token counts per analysis proposal). |
 | Quotas | GPU seconds and AI cost are subject to per-user monthly limits and an overall monthly budget. The maximum cost is reserved before a model call, and requests exceeding a limit are rejected without being forwarded. |
 | Cost monitoring | If the cost records become inconsistent, requests to the AI are suspended until the inconsistency is resolved. |
-| Concurrency limits | Each user may have one GPU request in flight at a time. The inference server processes one request at a time. |
+| Concurrency limits | Each user is limited to one GPU request in flight at a time. The inference server processes one request at a time. |
 | Input and job limits | The number and size of inputs and the run time and memory of jobs are bounded ([10.3 Application on the PC](#103-application-on-the-pc)). |
 
 ### 12. Development and change management
-
-Corresponding controls: ISO/IEC 27002:2022 8.25, 8.29, 8.31–8.33
 
 | Control | Implementation |
 |---|---|
@@ -736,8 +676,6 @@ Corresponding controls: ISO/IEC 27002:2022 8.25, 8.29, 8.31–8.33
 | Use of AI agents | The requester reviews an AI agent's output before submitting it for review. Merging to `main` and production release are limited to cases the maintainer has explicitly instructed for the specific target. |
 
 ### 13. External services and supply chain
-
-Corresponding controls: ISO/IEC 27002:2022 5.19–5.23, 8.19
 
 #### 13.1 External services
 
@@ -775,8 +713,6 @@ Adding an external service and any setting that incurs cost are decided by the m
 
 ### 14. Vulnerability management
 
-Corresponding controls: ISO/IEC 27002:2022 8.8
-
 #### 14.1 Supported versions
 
 | Version | Security fixes |
@@ -809,8 +745,6 @@ Published security advisories are available in the [list](https://github.com/gen
 
 ### 15. Incident response
 
-Corresponding controls: ISO/IEC 27002:2022 5.24–5.28
-
 #### 15.1 Impact of a compromise
 
 Data, keys and permissions are separated so that the compromise of a single component does not propagate.
@@ -834,8 +768,6 @@ Data, keys and permissions are separated so that the compromise of a single comp
 
 ### 16. Business continuity
 
-Corresponding controls: ISO/IEC 27002:2022 5.29, 5.30, 8.13
-
 | Event | Response |
 |---|---|
 | Outage of the cloud features | Research data is on the PC, and measurement, statistics and figure rendering do not depend on the cloud. Analysis on the PC continues when the cloud features are unavailable. |
@@ -845,8 +777,6 @@ Corresponding controls: ISO/IEC 27002:2022 5.29, 5.30, 8.13
 
 ### 17. Legal, contractual and licensing matters
 
-Corresponding controls: ISO/IEC 27002:2022 5.31–5.34
-
 | Item | Content |
 |---|---|
 | Privacy | The handling of user information is defined in the [privacy policy](https://cytellect.app/privacy) (in Japanese). |
@@ -855,8 +785,6 @@ Corresponding controls: ISO/IEC 27002:2022 5.31–5.34
 | Intended use | Cytellect is research software and does not output a diagnosis, prognosis or treatment choice. |
 
 ### 18. Document control
-
-Corresponding controls: ISO/IEC 27002:2022 5.1, 5.37
 
 This document is the authoritative statement of Cytellect's security. When a policy, specification or procedure changes, the related documents are updated in the same change. Changes to this document require a pull request and the maintainer's approval.
 
