@@ -105,10 +105,13 @@ the fields (W1) and records the unreadable files as rows with stage `inspect`; w
 shows next and what was not added waits behind 取込 n件 (the chosen files and the saved rows), so nothing that was
 read stands behind a clean-up. The line beside 取込 counts the whole 追加 (「登録：3 視野 · 読み取れない：2 件」),
 however many fields and cells it covered. 閉じる hides the list and keeps the chosen files. 追加して AI に質問 then opens the AI
-input. The names of files not yet added are kept for this tab, with the cell each was chosen in, and come back after
-a reload as 「再選択」 rows (each with its cell), on which the list opens by itself (the browser cannot keep the
-files). A file chosen again, by the row's 選択, by 画像を追加 or in the same cell, takes its row's place, cell and
-path, so it goes where it was going and resolves the row its interrupted upload left. Images added from a group's cell are listed with
+input. The names of files not yet added are kept for this tab, with the cell each was chosen in and the file's size
+and last-modified time, and come back after a reload as 「再選択」 rows (each with its cell), on which the list opens
+by itself (the browser cannot keep the files). A file chosen again, by the row's 選択, by 画像を追加 or in the same
+cell, takes its row's place, cell and path, so it goes where it was going and resolves the row its interrupted upload
+left. With 画像を追加 or a cell the row is recognised by the file's size and time as well as its name (condition
+folders hold the same file names), and rows the file cannot tell apart, going to different cells, are left to their
+own 選択: a cell is never guessed from a name. Images added from a group's cell are listed with
 that run and group, also in 実験. Notes on registered fields (a stain one field has and another lacks) are listed
 apart (チャンネルの構成の違い) and not counted. Choosing and judging go on while images register or an analysis runs;
 追加 waits for them. Development builds log the counts a choice delivered (no names or paths).

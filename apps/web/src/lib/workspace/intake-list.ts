@@ -27,6 +27,8 @@ export interface IntakeItem {
   target: IntakeTarget | null;
   /** An OME-TIFF with its own metadata: registered as a field of its own, its channels from its header. */
   ome: boolean;
+  /** A 「再選択」 row: the file's last-modified time kept with its name and size, to recognise the file chosen again. */
+  modified?: number | null;
 }
 export interface IntakeListState {items: IntakeItem[]; selections: number}
 export interface ListedField {
@@ -64,8 +66,12 @@ export function createIntakeList(dependencies: IntakeDependencies) {
   const publish = (items: IntakeItem[], selections = state.selections) => {
     state = {items, selections};
     try {
-      // The name and the cell it was chosen in: chosen again after a reload, the file goes where it was going.
-      const names = items.filter(item => item.state === "追加待ち" || item.state === "読み込み中" || item.state === "再選択").map(item => ({name: item.name, ...(item.target ? {target: item.target} : {})}));
+      // The name, the cell it was chosen in, and the file's size and time (never its content or its place on the PC):
+      // chosen again after a reload, the same file goes where it was going.
+      const names = items.filter(item => item.state === "追加待ち" || item.state === "読み込み中" || item.state === "再選択").map(item => {
+        const modified = item.file ? item.file.lastModified : item.modified ?? null;
+        return {name: item.name, ...(item.target ? {target: item.target} : {}), ...(modified === null ? {} : {size: item.size, modified})};
+      });
       if (names.length) dependencies.storage?.setItem(storageKey(workspace), JSON.stringify(names)); else dependencies.storage?.removeItem(storageKey(workspace));
     } catch {/* storage is a convenience only */}
     for (const listener of listeners) listener();
@@ -114,11 +120,11 @@ export function createIntakeList(dependencies: IntakeDependencies) {
     open(id: string | null, keep = false) {
       workspace = id;let stored: unknown = [];
       try {stored = JSON.parse(dependencies.storage?.getItem(storageKey(id)) ?? "[]");} catch {stored = [];}
-      const names = (Array.isArray(stored) ? stored : []).flatMap(value => typeof value === "string" ? [{name: value, target: null}] : keptName(value));
+      const names = (Array.isArray(stored) ? stored : []).flatMap(value => typeof value === "string" ? [{name: value, target: null, size: null, modified: null}] : keptName(value));
       // `keep`: the first opening of a page. Files chosen while its workspace was still loading stay; the names kept
       // from before the reload come back beside them.
       const kept = keep ? state.items.filter(item => item.file) : [], chosen = new Set(kept.map(item => item.name));
-      const restored = names.filter(value => !chosen.has(value.name)).map((value, index) => ({...blank(`restored-${index}`, value.name, 0), state: "再選択" as const, target: value.target}));
+      const restored = names.filter(value => !chosen.has(value.name)).map((value, index) => ({...blank(`restored-${index}`, value.name, 0), state: "再選択" as const, target: value.target, size: value.size ?? 0, modified: value.modified}));
       publish([...restored, ...kept], keep ? state.selections : 0);
     },
     /** Moves the names kept for a new workspace to the workspace it became. */
@@ -129,15 +135,20 @@ export function createIntakeList(dependencies: IntakeDependencies) {
       // A file chosen again for a name kept over a reload (a 「再選択」 row) takes that row's place, its cell and its
       // path: however it is chosen again (the row's own button, 画像を追加, a cell), it goes where it was going and is
       // added under the name it was first chosen with. A file chosen in a cell only takes a row of that cell.
+      // The row is recognised by the file's size and time as well as its name: condition folders hold the same file
+      // names, and a name alone would send 処理's image to 対照's cell. Rows that the file cannot tell apart (the same
+      // name, size and time, going to different cells) are left to their own 「選択」.
       const waiting = state.items.filter(item => item.state === "再選択"), taken = new Set<string>(), base = (value: string) => value.split("/").at(-1)!;
-      const claim = (name: string) => {
-        const open = waiting.filter(row => !taken.has(row.id) && (row.name === name || (!name.includes("/") && base(row.name) === name)) && (!target || !row.target || place(row.target) === place(target)));
+      const claim = (file: File, name: string) => {
+        const same = (row: IntakeItem) => row.modified == null ? row.name === name : row.size === file.size && row.modified === file.lastModified;
+        const open = waiting.filter(row => !taken.has(row.id) && (row.name === name || (!name.includes("/") && base(row.name) === name)) && same(row) && (!target || !row.target || place(row.target) === place(target)));
+        if (!target && new Set(open.map(row => place(row.target))).size > 1) return undefined;
         const row = open.find(value => value.name === name && place(value.target) === place(target)) ?? open.find(value => value.name === name) ?? open[0];
         if (row) taken.add(row.id);
         return row;
       };
       const fresh = list.map(file => {
-        const chosen = intakePath(file), row = claim(chosen), name = row?.name ?? chosen;
+        const chosen = intakePath(file), row = claim(file, chosen), name = row?.name ?? chosen;
         if (name !== chosen) keepIntakePath(file, name);
         const item = {...blank(crypto.randomUUID(), name, selection), file, size: file.size, target: target ?? row?.target ?? null};
         if (!isSupportedImage(name)) return {...item, state: "対象外" as const};
@@ -172,12 +183,15 @@ export function createIntakeList(dependencies: IntakeDependencies) {
   };
 }
 
-/** A kept name as read from storage: a name, and the run and group of the cell it was chosen in when it had one. */
-function keptName(value: unknown): Array<{name: string; target: IntakeTarget | null}> {
+/** A kept name as read from storage: a name, the run and group of the cell it was chosen in when it had one, and the file's size and time. */
+function keptName(value: unknown): Array<{name: string; target: IntakeTarget | null; size: number | null; modified: number | null}> {
   if (typeof value !== "object" || !value || typeof (value as {name?: unknown}).name !== "string") return [];
   const target = (value as {target?: Partial<IntakeTarget> | null}).target;
   const valid = !!target && typeof target.run_id === "string" && typeof target.group_id === "string" && (target.sample === null || typeof target.sample === "string");
-  return [{name: (value as {name: string}).name, target: valid ? {run_id: target!.run_id!, group_id: target!.group_id!, sample: target!.sample ?? null} : null}];
+  const {size, modified} = value as {size?: unknown; modified?: unknown};
+  const known = typeof size === "number" && Number.isFinite(size) && size >= 0 && typeof modified === "number" && Number.isFinite(modified);
+  return [{name: (value as {name: string}).name, target: valid ? {run_id: target!.run_id!, group_id: target!.group_id!, sample: target!.sample ?? null} : null,
+    size: known ? size as number : null, modified: known ? modified as number : null}];
 }
 
 function blank(id: string, name: string, selection: number): IntakeItem {

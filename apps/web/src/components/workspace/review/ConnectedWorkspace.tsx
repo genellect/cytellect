@@ -555,13 +555,14 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
     let first:string|undefined;const done:string[]=[];
     try{
       // The additions are the list's own split (the fields it shows, each with its run and group).
-      for(const addition of additions(intakeItems)){
-        const ready=addition.items.filter(item=>item.state==="追加待ち"&&!held.has(item.id));if(!ready.length)continue;
+      const plan=additions(intakeItems).map(addition=>({addition,ready:addition.items.filter(item=>item.state==="追加待ち"&&!held.has(item.id))})).filter(value=>value.ready.length);
+      for(const [index,{addition,ready}] of plan.entries()){
         const files=ready.map(item=>item.file!);
         try{const outcome=await (addition.separate?r.importSeparately(files,addition.target):r.importFiles(files,"automatic",addition.target));
           first??=outcome.registered[0]?.fieldId;count(outcome);done.push(...ready.map(item=>item.id));
           // 実行を中止 pressed while this addition's last field was sent: the additions after it wait in the list.
-          if(r.stopRequested()){total.stopped=true;break;}}
+          // After the last addition nothing was left to stop: the files that could not be read are recorded as usual.
+          if(r.stopRequested()&&index<plan.length-1){total.stopped=true;break;}}
         catch(error){
           // An interrupted addition: what was registered, refused (it has its row) or found to be a copy leaves the
           // list; the rest stays to be added again.

@@ -3,7 +3,8 @@ import {intakePath} from "./dropped-files";
 import {additions, breakdown, createIntakeList, listedFields, matchingFields, type Inspection} from "./intake-list";
 
 /** Synthetic bytes: the names decide the grouping and the mocked judgement decides the role (W4 is tested on its own). */
-const file = (name: string, byte: number) => new File([new Uint8Array([byte, byte + 1])], name);
+/** The same name and byte stand for the same file: the same content, size and last-modified time. */
+const file = (name: string, byte: number) => new File([new Uint8Array([byte, byte + 1])], name, {lastModified: 1_700_000_000_000 + byte});
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 async function settled(list: ReturnType<typeof createIntakeList>) {for (let i = 0; i < 20 && list.getSnapshot().items.some(item => item.state === "読み込み中"); i++) await flush();}
 function memoryStorage() {const values = new Map<string, string>();return {getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => void values.set(key, value), removeItem: (key: string) => void values.delete(key), values};}
@@ -170,6 +171,65 @@ describe("intake list before adding (#284 W5)", () => {
     cell.replace(row.id, file("solo_c1.tif", 9));
     await settled(cell);
     expect(cell.getSnapshot().items.find(item => item.id === row.id)).toMatchObject({name: "Rep1/treated/solo_c1.tif", state: "追加待ち", target: treated});
+  });
+  it("a file chosen again is recognised by its size and time, not by its name alone (independent review, round 5)", async () => {
+    const storage = memoryStorage(), control = {run_id: "r1", group_id: "c", sample: null}, treated = {run_id: "r1", group_id: "t", sample: null};
+    const first = createIntakeList({inspect: async value => judge(value), known: () => new Map(), storage});
+    first.open("w");
+    // Two condition folders with the same file names; one more file from a folder choice.
+    first.add([file("field1-C01.tif", 1), file("field1-C02.tif", 3)], control);
+    first.add([file("field1-C01.tif", 5), file("field1-C02.tif", 7)], treated);
+    const inFolder = file("solo_c1.tif", 9);Object.defineProperty(inFolder, "webkitRelativePath", {value: "Rep1/treated/solo_c1.tif"});
+    first.add([inFolder], treated);
+    await settled(first);
+    // Only the name, the cell, the size and the time are kept: never the content.
+    expect(JSON.parse(storage.values.get("cytellect.intake.v1.w")!)[0]).toEqual({name: "field1-C01.tif", target: control, size: 2, modified: 1_700_000_000_001});
+    const reload = () => {const list = createIntakeList({inspect: async value => judge(value), known: () => new Map(), storage});list.open("w", true);return list;};
+    // 処理's files chosen with 「画像を追加」 take 処理's rows, although 対照's rows of the same names come first.
+    const general = reload();
+    general.add([file("field1-C01.tif", 5), file("field1-C02.tif", 7)]);
+    await settled(general);
+    expect(general.getSnapshot().items.map(item => [item.name, item.state, item.target?.group_id ?? null])).toEqual([
+      ["field1-C01.tif", "再選択", "c"], ["field1-C02.tif", "再選択", "c"], ["Rep1/treated/solo_c1.tif", "再選択", "t"],
+      ["field1-C01.tif", "追加待ち", "t"], ["field1-C02.tif", "追加待ち", "t"]]);
+    // Another file that only shares a name with a kept one takes neither its cell nor its folder path.
+    const other = reload();
+    other.add([file("solo_c1.tif", 11), file("field1-C01.tif", 13)]);
+    await settled(other);
+    expect(other.getSnapshot().items.filter(item => item.file).map(item => [item.name, item.target])).toEqual([["solo_c1.tif", null], ["field1-C01.tif", null]]);
+    expect(other.getSnapshot().items.filter(item => item.state === "再選択")).toHaveLength(5);
+    // The kept rows survive another reload with their size and time.
+    expect(reload().getSnapshot().items.find(item => item.name === "Rep1/treated/solo_c1.tif")).toMatchObject({state: "再選択", size: 2, modified: 1_700_000_000_009});
+  });
+  it("kept names that the file cannot tell apart are left to their own 「選択」 (independent review, round 5)", async () => {
+    const storage = memoryStorage(), control = {run_id: "r1", group_id: "c", sample: null}, treated = {run_id: "r1", group_id: "t", sample: null};
+    const first = createIntakeList({inspect: async value => judge(value), known: () => new Map(), storage});
+    first.open("w");
+    // The same name, size and time in two cells, with different content (files exported together).
+    const twin = () => new File([new Uint8Array([5, 6])], "field1-C01.tif", {lastModified: 1_700_000_000_001});
+    first.add([file("field1-C01.tif", 1)], control);
+    first.add([twin()], treated);
+    await settled(first);
+    // Each reload starts from the names kept by the first page.
+    const keptNames = storage.values.get("cytellect.intake.v1.w")!;
+    const reload = () => {storage.setItem("cytellect.intake.v1.w", keptNames);const list = createIntakeList({inspect: async value => judge(value), known: () => new Map(), storage});list.open("w", true);return list;};
+    const general = reload();
+    general.add([file("field1-C01.tif", 1)]);
+    await settled(general);
+    // No cell is guessed: both rows wait, and the file is listed without a cell.
+    expect(general.getSnapshot().items.map(item => [item.state === "再選択", item.target?.group_id ?? null])).toEqual([[true, "c"], [true, "t"], [false, null]]);
+    // Chosen in 処理's cell, or with the row's own 「選択」, it is the researcher's choice.
+    const cell = reload();
+    cell.add([twin()], treated);
+    await settled(cell);
+    expect(cell.getSnapshot().items.map(item => [item.state === "再選択", item.target?.group_id ?? null])).toEqual([[true, "c"], [false, "t"]]);
+    // A name kept without a size and time (an earlier version) is taken by the same name only, never by a file name inside a folder path.
+    storage.setItem("cytellect.intake.v1.old", JSON.stringify(["Rep1/treated/old_c1.tif", "plain_c1.tif"]));
+    const old = createIntakeList({inspect: async value => judge(value), known: () => new Map(), storage});
+    old.open("old");
+    old.add([file("old_c1.tif", 3), file("plain_c1.tif", 5)]);
+    await settled(old);
+    expect(old.getSnapshot().items.map(item => [item.name, item.state])).toEqual([["Rep1/treated/old_c1.tif", "再選択"], ["old_c1.tif", "追加待ち"], ["plain_c1.tif", "追加待ち"]]);
   });
   it("a copy whose original is removed from the list is no longer a copy: it becomes the image", async () => {
     const list = createIntakeList({inspect: async value => judge(value), known: () => new Map(), storage: null});
