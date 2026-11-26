@@ -75,7 +75,7 @@ def status(messages):
 
 @pytest.mark.parametrize("case,expected", [("no-session", 401), ("foreign", 404), ("deleted", 404),
                                           ("expired", 404), ("oversized-header", 413)])
-@pytest.mark.parametrize("route", ["fields", "region-fields", "region-fields/ome", "tables"])
+@pytest.mark.parametrize("route", ["fields", "region-fields", "region-fields/ome", "tables", "region-fields/ome\n"])
 def test_rejects_before_first_body_read(case, expected, route):
     store = AuthStore()
     scope = context(auth=case != "no-session", route=route)
@@ -204,7 +204,7 @@ def test_every_multipart_route_of_the_api_is_guarded(tmp_path):
     multipart = [path for path, item in app.openapi()["paths"].items()
                  if "multipart/form-data" in item.get("post", {}).get("requestBody", {}).get("content", {})]
     assert "/v1/workspaces/{wid}/region-fields/ome" in multipart
-    unguarded = [path for path in multipart if UPLOAD_ROUTE.fullmatch(path.replace("{wid}", "workspace")) is None]
+    unguarded = [path for path in multipart if UPLOAD_ROUTE.match(path.replace("{wid}", "workspace")) is None]
     assert unguarded == []
 
 
@@ -230,6 +230,22 @@ def test_api_rejects_upload_before_first_body_read(tmp_path, route, case, expect
     messages, reads = asyncio.run(invoke(app, scope))
     body = b"".join(m.get("body", b"") for m in messages if m["type"] == "http.response.body")
     assert (status(messages), json.loads(body)["detail"]) == expected and reads == 0
+
+
+@pytest.mark.parametrize("route", ["fields", "region-fields", "region-fields/ome", "tables"])
+@pytest.mark.parametrize("shape", ["trailing-newline", "root-path"])
+def test_api_guard_matches_every_path_the_router_dispatches(tmp_path, route, shape):
+    # The router accepts a decoded trailing newline (`%0A`) and strips a mount
+    # prefix; the guard must see the same route or the body is parsed first.
+    app, _, headers = api_with_session(tmp_path)
+    scope = context(auth=False, route=route, extra=[(key.encode(), value.encode()) for key, value in headers.items()])
+    if shape == "trailing-newline":
+        scope["path"] += "\n"
+    else:
+        scope["root_path"], scope["path"] = "/api", "/api" + scope["path"]
+    messages, reads = asyncio.run(invoke(app, scope))
+    body = b"".join(m.get("body", b"") for m in messages if m["type"] == "http.response.body")
+    assert (status(messages), json.loads(body)["detail"]) == (401, "session_required") and reads == 0
 
 
 def test_private_tmp_is_explicit_even_if_tempfile_was_previously_cached(tmp_path, monkeypatch):
