@@ -77,7 +77,7 @@ W3（画面の案を実装の前に示す手順）は行っていない。実装
 
 `main` へ入れる前に要ること：
 
-- 中継（Worker）のデプロイ。W7 のプロンプトの版を中継が受け付けてから、この変更を `main` へ入れる（[中継と配布の順序](proposal-deployment.md#order-of-worker-and-client-releases)）。オーナーの許可が要る。
+- 中継（Worker）のデプロイ。W7 のプロンプトの版を中継が受け付けてから、この変更を `main` へ入れる（[中継と配布の順序](proposal-deployment.md#order-of-worker-and-client-releases)）。2026-11-26 にオーナーの許可を得て実施し、課金のない検査で新旧の版が受け付けられることを確かめた（[記録](proposal-deployment.md#production-deployment-record)）。
 - Windows の統合試験（`windows-installer`）の手動での起動（W9・W10）。PR では走らない（[CI の構成](ci.md)）。
 
 未実施：Windows の実機での受入（W11。配布の後に行う）、初見の研究者による評価、新しいプロンプトのモデルによる評価（有料。オーナーの許可が要る）、公開デモのホイールの作り直し（`main` への取り込み後。デモの記録は変えていない）。

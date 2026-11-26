@@ -16,6 +16,14 @@ def test_worker_fixture_is_the_current_clients_validated_payload():
     assert json.loads((ROOT / "fixtures/proposal-version-probes.json").read_text()) == version_payloads()
 
 
+def test_probe_sends_the_context_the_checked_prompt_reads():
+    # A pinned earlier prompt (a service not yet updated) is sent the earlier context by real requests; the check
+    # sends the same pair, so the service that answers it is not reported as incompatible (#284 W7).
+    assert version_payloads()[0]["context"]["protocol"] == "1.3.0"
+    pinned = version_payloads("2026-11-19.1")[0]
+    assert (pinned["prompt_version"], pinned["context"]["protocol"]) == ("2026-11-19.1", "1.2.0")
+
+
 @pytest.mark.parametrize("response,accepted", [((400, "request_id_required"), True),
     ((400, "prompt_version_unsupported"), False), ((400, "request_invalid"), False),
     ((401, "unauthorized"), False), ((503, "proposal_service_disabled"), False),

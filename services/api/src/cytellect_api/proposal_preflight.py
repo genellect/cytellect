@@ -14,9 +14,17 @@ def version_payloads(proposal_prompt: str | None = None, discussion_prompt: str 
         DiscussionContext,
         DiscussionResult,
     )
-    from cytellect_analysis.proposal_contracts import PROPOSAL_PROMPT_VERSION, ProposalContext
+    from cytellect_analysis.proposal_contracts import (
+        PROPOSAL_PROMPT_VERSION,
+        ProposalContext,
+        context_protocol,
+    )
 
-    proposal = ProposalContext(goal="Release compatibility probe", channels=[], field_count=0)
+    # The context the checked prompt version reads, as a real request sends it: an operator who pins an earlier
+    # prompt sends the earlier context, and the check must not report that working pair as incompatible.
+    proposal = ProposalContext.model_validate({
+        "protocol": context_protocol(proposal_prompt or PROPOSAL_PROMPT_VERSION),
+        "goal": "Release compatibility probe", "channels": [], "field_count": 0})
     discussion = DiscussionContext(result=DiscussionResult(
         metric="area_px", scale="difference", control="probe-control", treatment="probe-treatment",
         design="independent", test="none", n_control=0, n_treatment=0, groups=[]))
