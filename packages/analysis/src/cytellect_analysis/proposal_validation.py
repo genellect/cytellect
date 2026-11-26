@@ -25,6 +25,11 @@ FORBIDDEN_TEXT = re.compile(
     r"\bmacro\b|\bsubprocess\b|\bos\.system\b|javascript:)", re.IGNORECASE)
 
 
+# Every other string of a draft (stain names, legend terms as the researcher stated them) may
+# use ordinary words such as "macro" or "import"; none may carry a link or markup.
+FORBIDDEN_REFERENCE = re.compile(r"(https?://|www\.|<\s*script|javascript:)", re.IGNORECASE)
+
+
 class ProposalRejected(ValueError):
     def __init__(self, codes: list[str]):
         super().__init__(",".join(codes))
@@ -38,6 +43,24 @@ def context_sha256(context: ProposalContext) -> str:
 
 def _texts(draft: ProposalDraft) -> list[str]:
     return [draft.rationale, *draft.missing_information, *(channel.reason for channel in draft.channels)]
+
+
+def _strings(draft: ProposalDraft) -> list[str]:
+    """Every string of the draft, wherever it sits: a text field added to the contract is checked without being listed here."""
+    found: list[str] = []
+
+    def collect(value: object):
+        if isinstance(value, str):
+            found.append(value)
+        elif isinstance(value, dict):
+            for item in value.values():
+                collect(item)
+        elif isinstance(value, list):
+            for item in value:
+                collect(item)
+
+    collect(draft.model_dump(mode="json"))
+    return found
 
 
 def validate_draft(context: ProposalContext, raw: object, *, model: str, prompt_version: str) -> ValidatedProposal:
@@ -246,7 +269,8 @@ def validate_draft(context: ProposalContext, raw: object, *, model: str, prompt_
         codes.append("proposal_measurements_required")
     if len(set(draft.reference_ids)) != len(draft.reference_ids):
         codes.append("proposal_reference_duplicate")
-    if any(FORBIDDEN_TEXT.search(text) for text in _texts(draft)):
+    if (any(FORBIDDEN_TEXT.search(text) for text in _texts(draft))
+            or any(FORBIDDEN_REFERENCE.search(text) for text in _strings(draft))):
         codes.append("proposal_text_not_allowed")
     if codes:
         raise ProposalRejected(sorted(set(codes)))

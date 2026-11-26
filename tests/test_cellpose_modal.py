@@ -69,6 +69,8 @@ def test_inflight_inference_is_tracked_and_can_finish_before_shutdown():
 def test_modal_deploy_runs_only_from_main_with_hashed_client():
     workflow = (ROOT / ".github" / "workflows" / "cellpose-modal-deploy.yml").read_text(encoding="utf-8")
     assert "if: github.ref == 'refs/heads/main'" in workflow and "--require-hashes" in workflow
+    # The deploy token is an environment secret: the environment, not the workflow text, limits it to main.
+    assert "\n    environment: modal-deploy\n" in workflow
     requirements = (ROOT / "infra" / "modal-requirements.txt").read_text(encoding="utf-8")
     assert "modal==1.6.2" in requirements and "--hash=sha256:" in requirements
 
@@ -81,3 +83,14 @@ def test_modal_deploy_stops_on_failure_but_not_on_a_missing_url_line():
     assert step.index("modal token info") < step.index("modal deploy infra/modal_cellpose.py")
     summary = next(line for line in step.splitlines() if "GITHUB_STEP_SUMMARY" in line)
     assert r"modal\.(direct|run)" in summary and "|| true" in summary
+
+
+def test_every_workflow_action_is_pinned_to_a_commit():
+    """A moved tag cannot change what runs with the repository's secrets and write permissions."""
+    import re
+
+    references = [(path.name, reference) for path in sorted((ROOT / ".github" / "workflows").glob("*.yml"))
+                  for reference in re.findall(r"^\s*(?:-\s+)?uses:\s*(\S+)", path.read_text(encoding="utf-8"), re.MULTILINE)]
+    assert len(references) > 50
+    unpinned = [item for item in references if not item[1].startswith("./") and not re.fullmatch(r"[^@\s]+@[0-9a-f]{40}", item[1])]
+    assert unpinned == []
