@@ -4,7 +4,7 @@ import {nclObjectDetector} from "@/lib/workspace/nucleolar-definition";
 import type {GroupingIssue} from "@/lib/workspace/grouping";
 import {Suspense,useEffect,useEffectEvent,useMemo,useReducer,useRef,useState,useSyncExternalStore,type CSSProperties,type DragEvent,type ReactNode} from "react";
 import {useSearchParams} from "next/navigation";
-import {IntakeInterrupted,useWorkspaceRuntime,type IntakeOutcome,type RuntimeSettings} from "@/lib/workspace/use-workspace-runtime";
+import {IntakeInterrupted,NUCLEAR_STAIN_REQUIRED,useWorkspaceRuntime,type IntakeOutcome,type RuntimeSettings} from "@/lib/workspace/use-workspace-runtime";
 import type {ReviewField,ReviewTarget} from "@/lib/workspace/review-preview";
 import {metricChoice,metricForSubject,metricStructure,metricTarget,metricUsesChannel,nucleusPositivity} from "@/lib/workspace/metric-catalog";
 import {MetricSelect} from "./MetricSelect";
@@ -623,7 +623,7 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
       {demo&&showcase.scene&&<SceneIntro intro={intro} dataset={showcase.dataset}/>}
       <CloudNotices/>
       <ConnectionNotice onReconnected={()=>void act(()=>r.reconnected())}/>
-      {(r.error||localError)&&connected&&(isShowcaseNotice(localError||r.error)?<div className={`${styles.error} ${showcaseStyles.notice}`} role="status">{localError||r.error}<button aria-label="案内を閉じる" onClick={()=>{setLocalError("");r.dismissError();}}>閉じる</button></div>:<div className={styles.error} role="alert">{localError||r.error}<button aria-label="保存状態を再読み込み" disabled={busy} onClick={()=>void act(()=>r.reload())}>再読み込み</button></div>)}
+      {(r.error||localError)&&connected&&(isShowcaseNotice(localError||r.error)?<div className={`${styles.error} ${showcaseStyles.notice}`} role="status">{localError||r.error}<button aria-label="案内を閉じる" onClick={()=>{setLocalError("");r.dismissError();}}>閉じる</button></div>:<div className={styles.error} role="alert">{localError||r.error}{(localError||r.error)===NUCLEAR_STAIN_REQUIRED&&<button disabled={busy} onClick={()=>{r.dismissError();setLocalError("");showSettings();}}>設定</button>}<button aria-label="保存状態を再読み込み" disabled={busy} onClick={()=>void act(()=>r.reload())}>再読み込み</button></div>)}
       {/* One instance for both views: the first save switches to the experiment view (E-01). */}
       <section hidden={!setupShown} className={styles.imageWork}>{setupShown&&!demo&&intakeShown&&(intakeItems.length>0||intakeSaved||intakeNotes)&&intakeView}{setupShown&&setup}</section>
       <section hidden={mode!=="image"||setupShown} className={styles.imageWork}>

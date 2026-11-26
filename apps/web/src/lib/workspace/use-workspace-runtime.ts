@@ -75,6 +75,8 @@ export interface IntakeOutcome {
 export function isMaskRow(intake:IntakeRecord|undefined|null):boolean{return !!intake&&intake.code===MASK_CANDIDATE_CODE&&intake.stage!=="inspect";}
 /** A name as a row can hold it (255 characters, no control characters): a longer folder-relative path keeps its file name. */
 function recordedName(name:string):string{const clean=name.replace(/[\u0000-\u001f\u007f]/g,"_");return clean.length<=255?clean:(clean.split("/").at(-1)||clean).slice(-255);}
+/** Shown when a nuclear detection is asked for while no chosen field has a nuclear stain; the screen offers 設定 with it. */
+export const NUCLEAR_STAIN_REQUIRED="核の検出には、核染色の指定が必要です。";
 export class IntakeInterrupted extends Error {constructor(public outcome:IntakeOutcome, public cause:unknown){super(message(cause));}}
 /** The bit depth the API refuses as an image: a 32-bit integer label image (a mask), not missing data (#284 input 5). */
 export const MASK_CANDIDATE_CODE="region_image_bit_depth_unsupported";
@@ -382,7 +384,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     const chosen=state.data!.fields.filter(field=>!field.exclusionReason&&(!fieldId||field.id===fieldId));if(!chosen.length)throw new Error("解析する画像を選択してください。");
     if(!preview&&chosen.length===1&&candidate(chosen[0].id,target)?.runId&&candidate(chosen[0].id,target)?.runState==="succeeded"&&!candidate(chosen[0].id,target)?.backgroundPending){await acceptPrepared(chosen[0].id,target);return;}
     // Without a nuclear stain on any chosen field the detection cannot start: said here, by its cause.
-    if(target==="nuclei"&&chosen.every(field=>{try{nuclearChannel(field.id);return false;}catch{return true;}}))throw new Error("核の検出には、核染色の指定が必要です。");
+    if(target==="nuclei"&&chosen.every(field=>{try{nuclearChannel(field.id);return false;}catch{return true;}}))throw new Error(NUCLEAR_STAIN_REQUIRED);
     publish({progress:progressOf(chosen.map(field=>field.id),"準備中")});
     // A request that never started leaves no 準備中 behind: the saved results show again (#284 W8).
     try{await persistSpecification(target);}catch(error){const progress={...state.progress};for(const field of chosen)if(progress[field.id]==="準備中")delete progress[field.id];publish({progress});throw error;}
