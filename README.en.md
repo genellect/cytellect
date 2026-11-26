@@ -86,9 +86,9 @@ Asynchronous responses are displayed only when their analysis target and setting
 
 ## LLM and analysis settings
 
-The LLM receives the instruction text, the mapping between stains and channels, image dimensions and the current settings. The normal application path does not send original images or measurements.
+Within the scope the researcher consented to, the LLM receives the stated goal, channel names and recorded stains, field names and records, the name of the folder chosen when images were added and the folder and file names inside it, the experiment design's run and group names, image dimensions, the current settings and display-scaled previews of one representative field (previews can be turned off in settings). Paths above the chosen folder, original images and measurements are not sent.
 
-The response is structured data containing detection conditions, measurement items, GFP-based selection, statistics and figure settings. The API validates types, numeric ranges and correspondence with registered channels, saves the result through the same path as manual settings and runs a preview on the selected image.
+The response is structured data containing detection conditions, measurement items, GFP-based selection, statistics and figure settings. The API validates types, numeric ranges and correspondence with registered channels. An answer changes no setting and runs no analysis: validated settings are applied only by the researcher's action, then previewed on the selected image and run through the same job as manual settings.
 
 External API spending is managed by the relaying Cloudflare Worker and D1. Costs are reserved before each call and settled afterwards, both atomically. Unsettled reservations count toward the usage limit.
 

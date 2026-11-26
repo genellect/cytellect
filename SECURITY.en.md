@@ -233,7 +233,7 @@ Implementation and tests: [`proposals.py`](services/api/src/cytellect_api/propos
 
 | Measure | Mechanism | Implementation and tests |
 |---|---|---|
-| Consent | The scope transmitted to the AI is displayed, and consent obtained, at cloud sign-in and at the first discussion draft. After the scope has been widened, it is displayed again before the next consultation with the AI. The AI settings panel also displays the scope at all times. | [`CloudAccount.tsx`](apps/web/src/components/workspace/CloudAccount.tsx) [`ConnectedWorkspace.tsx`](apps/web/src/components/workspace/review/ConnectedWorkspace.tsx) [`AiSettings.tsx`](apps/web/src/components/workspace/AiSettings.tsx) |
+| Consent | The scope transmitted to the AI is displayed, and consent obtained, at cloud sign-in and at the first discussion draft. After a scope has been widened, it is displayed again before the next consultation with the AI or discussion draft. The AI settings panel also displays the scope at all times. | [`CloudAccount.tsx`](apps/web/src/components/workspace/CloudAccount.tsx) [`ConnectedWorkspace.tsx`](apps/web/src/components/workspace/review/ConnectedWorkspace.tsx) [`AiSettings.tsx`](apps/web/src/components/workspace/AiSettings.tsx) |
 | Transmission confirmation | The server on the PC sends to the AI only requests the researcher has confirmed on screen, and rejects requests without that confirmation. | [`proposals.py`](services/api/src/cytellect_api/proposals.py) [`discussions.py`](services/api/src/cytellect_api/discussions.py) [`test_proposals.py`](tests/test_proposals.py) [`test_result_discussion_api.py`](tests/test_result_discussion_api.py) |
 
 ### 5.3 Storage and deletion

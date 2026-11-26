@@ -317,9 +317,11 @@ if ($UpdateInstaller) {
         # passes every check before it runs, then Windows refuses to start it (#284). Timeouts
         # and non-zero exits are covered by tests/test_app_update.py.
         # The file carries the MZ and PE signatures with an optional header that is neither PE32
-        # nor PE32+, so the image loader rejects it at once. A file without those signatures (a
-        # text file) is taken for a 16-bit program instead, and starting that did not return on an
-        # unattended runner (Verify run 45797533432: the state stayed "installing" for 300 s).
+        # nor PE32+; Windows refuses to start it and this step passes (Verify run 45802931045).
+        # Observed with a text file instead: the state stayed "installing" for 300 s on an
+        # unattended runner (Verify run 45797533432). Whether the start call or the wait after it
+        # did not return was not determined; a file without the MZ signature being taken for a
+        # 16-bit program is the likely reason, not a verified one.
         $brokenDirectory = Join-Path $feedDirectory 'broken'
         New-Item -ItemType Directory -Path $brokenDirectory | Out-Null
         $brokenInstaller = Join-Path $brokenDirectory $name

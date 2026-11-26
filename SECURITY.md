@@ -233,7 +233,7 @@ AI への相談で送信する情報は、次のとおりである。
 
 | 対策 | 仕組み | 実装と試験 |
 |---|---|---|
-| 同意 | AI への送信範囲は、クラウドへのログイン時と最初の考察の生成時に画面に表示し、同意を得たうえで送信する。送信範囲を広げた後は、次の AI への相談の前に、送信範囲をもう一度表示する。送信範囲は、AI の設定画面にも常に表示する。 | [`CloudAccount.tsx`](apps/web/src/components/workspace/CloudAccount.tsx) [`ConnectedWorkspace.tsx`](apps/web/src/components/workspace/review/ConnectedWorkspace.tsx) [`AiSettings.tsx`](apps/web/src/components/workspace/AiSettings.tsx) |
+| 同意 | AI への送信範囲は、クラウドへのログイン時と最初の考察の生成時に画面に表示し、同意を得たうえで送信する。送信範囲を広げた後は、次の AI への相談または考察の生成の前に、その送信範囲をもう一度表示する。送信範囲は、AI の設定画面にも常に表示する。 | [`CloudAccount.tsx`](apps/web/src/components/workspace/CloudAccount.tsx) [`ConnectedWorkspace.tsx`](apps/web/src/components/workspace/review/ConnectedWorkspace.tsx) [`AiSettings.tsx`](apps/web/src/components/workspace/AiSettings.tsx) |
 | 送信の確認 | PC 上のサーバーは、研究者が画面で送信を確認した要求だけを AI へ送信し、確認のない要求を拒否する。 | [`proposals.py`](services/api/src/cytellect_api/proposals.py) [`discussions.py`](services/api/src/cytellect_api/discussions.py) [`test_proposals.py`](tests/test_proposals.py) [`test_result_discussion_api.py`](tests/test_result_discussion_api.py) |
 
 ### 5.3 保存と削除
