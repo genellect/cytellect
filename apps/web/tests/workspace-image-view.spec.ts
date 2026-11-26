@@ -365,3 +365,56 @@ test("service compatibility is checked only on request and an incompatible servi
   expect(fixture.discussions).toEqual([]);
   expect(fixture.unexpected).toEqual([]);
 });
+
+test("an answer's kind of request only chooses the actions: a question shows choices, a run request its targets, and neither changes or runs anything (#284 W7)",async({context,page})=>{
+  await context.addInitScript(()=>localStorage.setItem("cytellect.ai.proposal-scope-seen.v3","1"));
+  const requests:Array<{goal:string}>=[],changes:string[]=[];
+  const headers=()=>({"Access-Control-Allow-Origin":new URL(page.url()).origin,"Access-Control-Allow-Credentials":"true",
+    "Access-Control-Allow-Headers":"content-type,x-cytellect-request","Access-Control-Allow-Methods":"GET,POST,PATCH,OPTIONS"});
+  const base={channels:[],metrics:[],statistics:{kind:"descriptive",test:null,omnibus:null,association:null},figures:[],missing_information:[],reference_ids:[]};
+  const answers=[
+    {draft:{...base,recipe:"none",rationale:"チャンネルは DAPI と NPM1 の 2 つである。",intent:"answer",answer:"チャンネルは DAPI と NPM1 の 2 つである。",
+      choices:[{question:"核染色のチャンネル",options:["核染色は DAPI","核染色は NPM1"]}]},reply:"チャンネルは DAPI と NPM1 の 2 つである。",applicable:null},
+    {draft:{...base,recipe:"nuclear-intensity",rationale:"DAPI で核を検出し、全視野の核を数える。",intent:"run",scope:"all",answer:"DAPI で核を検出し、全視野の核を数える。",
+      processing:{version:"1.0.0",nuclei:{channel:"ch1",detection_max_side_px:null,detector:{engine:"fiji-stardist-2d",model:"Versatile (fluorescent nuclei)",probability:.5,nms:.3,percentile_low:1,percentile_high:99.8}},nucleoli:null,signal:null}},
+      reply:"DAPI で核を検出し、全視野の核を数える。",applicable:true}];
+  const messages:Array<Record<string,unknown>>=[];
+  await page.route("**/v1/workspaces/w/assistant-messages",async route=>{
+    if(route.request().method()==="OPTIONS")return route.fulfill({status:204,headers:headers()});
+    await route.fulfill({headers:headers(),contentType:"application/json",body:JSON.stringify({messages})});
+  });
+  await page.route("**/v1/workspaces/w/proposal-drafts",async route=>{
+    if(route.request().method()==="OPTIONS")return route.fulfill({status:204,headers:headers()});
+    const body=route.request().postDataJSON();requests.push(body);
+    const answer=answers[Math.min(requests.length-1,answers.length-1)];
+    const message={id:`m${requests.length}`,field_id:"f1",created:requests.length,text:body.goal,state:"answered",reply:answer.reply,applicable:answer.applicable,reasons:[],stage:null,effect:"none"};
+    messages.push(message);
+    await route.fulfill({headers:headers(),contentType:"application/json",body:JSON.stringify({
+      proposal:{draft:answer.draft,needs_confirmation:[]},channels:[{token:"ch1",channel_id:"c1",label:"DAPI"},{token:"ch2",channel_id:"c2",label:"NPM1"}],message,
+      fields:[{token:"f1",field_id:"f1"},{token:"f2",field_id:"f2"}]})});
+  });
+  const fixture=await imageWorkspace(context,page);
+  // Anything that would change the workspace or start an analysis is counted.
+  page.on("request",request=>{const path=new URL(request.url()).pathname;
+    if(["POST","PUT","PATCH","DELETE"].includes(request.method())&&/\/(runs|jobs|selection|channel-assignments|assistant-messages\/[^/]+)$/.test(path))changes.push(`${request.method()} ${path}`);});
+  await page.goto("/workspace?id=w");
+  const input=page.getByRole("textbox",{name:"AIへの指示"}),send=page.getByRole("button",{name:"AIへ送信",exact:true});
+  await input.fill("この画像のチャンネルは？ まだ測らないで");await send.click();
+  const conversation=page.getByRole("list",{name:"AI との会話"});
+  const first=conversation.getByRole("listitem").filter({hasText:"この画像のチャンネルは？"});
+  await expect(first.getByText("チャンネルは DAPI と NPM1 の 2 つである。",{exact:true})).toBeVisible();
+  // A question: its answer and the item to confirm; nothing to apply, run or send again.
+  const choices=first.getByRole("group",{name:"核染色のチャンネル"});
+  await expect(choices.getByRole("button")).toHaveText(["核染色は DAPI","核染色は NPM1"]);
+  for(const name of ["設定を適用","適用して試行","適用して実行","再送"])await expect(first.getByRole("button",{name,exact:true})).toHaveCount(0);
+  // Choosing an option sends it as the next message (Issue priority 8).
+  await choices.getByRole("button",{name:"核染色は DAPI",exact:true}).click();
+  await expect.poll(()=>requests.map(value=>value.goal)).toEqual(["この画像のチャンネルは？ まだ測らないで","核染色は DAPI"]);
+  // A run request: its target fields and 「適用して実行」; the answer alone starts nothing.
+  const second=conversation.getByRole("listitem").filter({hasText:"DAPI で核を検出し"});
+  await expect(second.getByText("対象：全視野 · 2 視野",{exact:true})).toBeVisible();
+  await expect(second.getByRole("button",{name:"適用して実行",exact:true})).toBeEnabled();
+  await expect(second.getByRole("button",{name:"設定を適用",exact:true})).toHaveCount(0);
+  expect(changes).toEqual([]);
+  expect(fixture.unexpected).toEqual([]);
+});

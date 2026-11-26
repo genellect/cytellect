@@ -179,7 +179,7 @@ def designed_workspace(tmp_path, monkeypatch, drafts, prompt=PROPOSAL_PROMPT_VER
         {"draft": next(replies), "model": "gpt-6.1-sol", "prompt_version": prompt}).encode()), upload=False)
     path = f"/v1/workspaces/{wid}/selection"
     selection = client.get(path).json()
-    for row, name in ((ROW_A, "Rep1/未処理/synthetic-A01-DRAQ.tif"), (ROW_B, "C:/Users/someone/Rep1/ActD/synthetic-A02-DRAQ.tif")):
+    for row, name in ((ROW_A, "Rep1/未処理/synthetic-A01-DRAQ.tif"), (ROW_B, "C:/Users/example/Rep1/ActD/synthetic-A02-DRAQ.tif")):
         selection["entries"].append({"id": row, "field_id": None, "revision_id": None, "exclusion_reason": None,
                                      "intake": {"names": [name], "state": "pending"}})
     assert client.post(path, headers=HEADERS, json=selection).status_code == 200
@@ -216,7 +216,7 @@ def test_the_context_names_fields_by_identifier_with_their_folder_relative_names
         ("f1", ["Rep1/未処理/synthetic-A01-DRAQ.tif"], None, None),
         ("f2", ["synthetic-A02-DRAQ.tif"], "Rep1", "ActD")]
     # An absolute path never leaves the PC, nor the private data directory.
-    assert "C:/" not in json.dumps(calls) and "someone" not in json.dumps(calls) and str(tmp_path) not in json.dumps(calls)
+    assert "C:/" not in json.dumps(calls) and "example" not in json.dumps(calls) and str(tmp_path) not in json.dumps(calls)
     assert body["fields"] == [{"token": "f1", "field_id": ids[0]}, {"token": "f2", "field_id": ids[1]}]
     assert body["proposal"]["draft"]["assignments"][0] == {"field": "f1", "run": "Rep1", "group": "未処理"}
     assert body["message"]["reply"] == suggestion["answer"] and body["message"]["applicable"] is None
