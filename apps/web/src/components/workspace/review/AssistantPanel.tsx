@@ -82,23 +82,24 @@ export function targetText(targets: RunTargets): string {
 export function AssistantPanel({field, messages, busy, demo, canApply, canTry, undoable, onApply, onResend, onUndo, onShowSettings, onPlace, onPropose,
   answerOf = () => null, runTargets = () => null, canRun = () => false, onRun, onChoose, confirmationOf = () => [], onConfirm}: Props) {
   const nuclear = field?.channels.find(channel => channel.id === field.nuclearChannelId) ?? field?.channels.find(channel => channel.role === "nuclear");
-  // The newest message starts at the top of the panel when it is sent and when the panel opens: an answer of a few
-  // paragraphs otherwise leaves every later request and its state below the visible part. When its answer arrives the
-  // panel moves only while that message is in view, so a researcher who went back to an earlier answer stays there.
-  // Only the panel's own scrolling box moves, never the page.
-  const newest = useRef<HTMLLIElement>(null), shown = useRef(""), last = messages.at(-1), newestKey = last ? `${last.id}:${last.state}` : "";
+  // The message that was just sent or answered starts at the top of the panel, and the newest one when the panel
+  // opens: an answer of a few paragraphs otherwise leaves every later request, its state and its answer below the
+  // visible part, and a resend (confirmed above the conversation) would be answered out of sight. A message is found
+  // by the change of its state, so applying settings (which changes no state) moves nothing. Only the panel's own
+  // scrolling box moves, never the page.
+  const list = useRef<HTMLOListElement>(null), states = useRef<Map<string, string> | null>(null);
   useEffect(() => {
-    const item = newest.current, sameMessage = shown.current.split(":")[0] === newestKey.split(":")[0];
-    shown.current = newestKey;
+    const before = states.current;
+    states.current = new Map(messages.map(message => [message.id, message.state]));
+    const moved = before ? messages.filter(message => before.get(message.id) !== message.state).at(-1) : messages.at(-1);
+    const item = moved && [...list.current?.children ?? []].find(node => (node as HTMLElement).dataset.message === moved.id);
     if (!item) return;
     for (let box = item.parentElement; box; box = box.parentElement) {
       if (!/auto|scroll/.test(getComputedStyle(box).overflowY) || box.scrollHeight <= box.clientHeight) continue;
-      const frame = box.getBoundingClientRect(), place = item.getBoundingClientRect();
-      if (sameMessage && (place.bottom <= frame.top || place.top >= frame.bottom)) return;
-      box.scrollTop += place.top - frame.top - 8;
+      box.scrollTop += item.getBoundingClientRect().top - box.getBoundingClientRect().top - 8;
       return;
     }
-  }, [newestKey]);
+  }, [messages]);
   return <div className={styles.assistant}>
     {field && <section aria-label="選択した視野の情報" className={styles.assistantFacts}>
       <p><strong>視野：</strong>{field.label} · {field.width} × {field.height} px</p>
@@ -108,12 +109,12 @@ export function AssistantPanel({field, messages, busy, demo, canApply, canTry, u
       <p><strong>核染色のチャンネル：</strong>{nuclear ? nuclear.stain || nuclear.label : "未指定"}</p>
     </section>}
     {onPropose && !demo && <button type="button" disabled={busy} onClick={onPropose}>解析案を作る</button>}
-    <ol className={styles.messages} aria-label="AI との会話" aria-live="polite">
+    <ol ref={list} className={styles.messages} aria-label="AI との会話" aria-live="polite">
       {messages.map(message => {
         const reasons = message.reasons.map(reasonView);
         const view = answerOf(message.id), intent = view?.intent ?? null, targets = intent === "run" ? runTargets(message.id) : null;
         const confirmation = demo ? [] : confirmationOf(message.id);
-        return <li key={message.id} ref={message.id === last?.id ? newest : undefined} className={styles.message} data-state={message.state}>
+        return <li key={message.id} data-message={message.id} className={styles.message} data-state={message.state}>
           <p className={styles.userMessage}>{message.text || "画像からの解析案"}</p>
           <p className={styles.messageState}>状態：{messageState(message)}</p>
           {message.reply && message.reply.split("\n").map((line, index) => <p key={index}>{line}</p>)}

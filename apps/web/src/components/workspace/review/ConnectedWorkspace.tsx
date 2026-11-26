@@ -367,8 +367,13 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
   // A resend keeps its message and its retry flag through the confirmation: it sends the same scope as a new message.
   const [scopePending,setScopePending]=useState<{value:string;retry:boolean;message?:string}|null>(null);
   // A confirmation of the AI panel appears above the conversation: it comes into view and takes the focus when it
-  // opens, wherever the conversation was scrolled to, so its buttons are the next stop of the keyboard.
-  const reveal=useCallback((element:HTMLElement|null)=>{if(!element)return;element.scrollIntoView({block:"nearest"});element.focus({preventScroll:true});},[]);
+  // opens, wherever the conversation was scrolled to, so its buttons are the next stop of the keyboard. Cancelling
+  // gives the focus back to what opened it (the input, or a message's 「再送」).
+  const confirmationOpener=useRef<HTMLElement|null>(null);
+  const reveal=useCallback((element:HTMLElement|null)=>{if(!element)return;
+    const active=document.activeElement;if(active instanceof HTMLElement&&active!==document.body&&!element.contains(active))confirmationOpener.current=active;
+    element.scrollIntoView({block:"nearest"});element.focus({preventScroll:true});},[]);
+  const returnFocus=()=>{const opener=confirmationOpener.current;confirmationOpener.current=null;if(opener?.isConnected)opener.focus();};
   // An earlier request of the same instruction failed or timed out and may have been charged: the service sends it
   // again only when the researcher says so (the same rule as the discussion's 「再生成」).
   // `answered`: a recorded answer is fetched again (after a reload, or one refused on the service's side); its settings
@@ -685,10 +690,10 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
         {scopePending!==null&&<section ref={reveal} tabIndex={-1} role="group" aria-label="AIに送る内容の確認"><p>{AI_SCOPE}</p>
           <div><button disabled={busy} onClick={()=>{markProposalScopeSeen();void sendInstruction(scopePending.value,true,scopePending.retry,scopePending.message);}}>確認して送信</button>
             <button disabled={busy} onClick={()=>{setIncludePreviews(false);markProposalScopeSeen();void sendInstruction(scopePending.value,true,scopePending.retry,scopePending.message);}}>縮小画像なしで送信</button>
-            <button disabled={busy} onClick={()=>setScopePending(null)}>キャンセル</button></div></section>}
+            <button disabled={busy} onClick={()=>{setScopePending(null);returnFocus();}}>キャンセル</button></div></section>}
         {retryPending!==null&&<section ref={reveal} tabIndex={-1} role="group" aria-label="AIへの再送の確認"><p>{retryPending.answered?"記録済みの回答の取り直し。再送は課金の対象になり得ます。":"前回の依頼：未完了。再送は課金の対象になり得ます。"}</p>
           <div><button disabled={busy} onClick={()=>void sendInstruction(retryPending.value,false,retryPending.retry,retryPending.message)}>再送</button>
-            <button disabled={busy} onClick={()=>setRetryPending(null)}>キャンセル</button></div></section>}
+            <button disabled={busy} onClick={()=>{setRetryPending(null);returnFocus();}}>キャンセル</button></div></section>}
         {demoReply&&<p>{demoReply}</p>}
         <AssistantPanel field={field} messages={r.messages} busy={busy} demo={demo} canApply={id=>r.canApply(id,field?.id)} canTry={id=>r.canTry(id,field?.id)}
           confirmationOf={id=>r.confirmationOf(id,field?.id)} onConfirm={(id,channel)=>void act(()=>r.confirmNuclear(id,channel,field?.id))}

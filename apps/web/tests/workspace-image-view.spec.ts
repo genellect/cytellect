@@ -479,3 +479,55 @@ test("the newest message of a long conversation and a confirmation are in view w
   await newest.getByRole("button",{name:"再送",exact:true}).click();
   await expect(page.getByRole("group",{name:/^AI(への再送|に送る内容)の確認$/})).toBeInViewport();
 });
+
+test("a resend confirmed above the conversation is answered in view; cancelling returns the focus (#284 W2)",async({context,page})=>{
+  await context.addInitScript(()=>localStorage.setItem("cytellect.ai.proposal-scope-seen.v3","1"));
+  const headers=()=>({"Access-Control-Allow-Origin":new URL(page.url()).origin,"Access-Control-Allow-Credentials":"true",
+    "Access-Control-Allow-Headers":"content-type,x-cytellect-request","Access-Control-Allow-Methods":"GET,POST,PATCH,OPTIONS"});
+  const long=(word:string)=>Array.from({length:40},(_,index)=>`${word} ${index+1}：記録されたチャンネルと染色の説明。`).join("\n");
+  // Two long answers, then a request that failed: the earlier and the last message are both sent again.
+  const messages:Array<Record<string,unknown>>=[
+    {id:"m1",field_id:"f1",created:1,text:"この画像で何が測れる？",state:"failed",reply:null,applicable:null,reasons:["proposal_service_unavailable"],stage:null,effect:"none"},
+    {id:"m2",field_id:"f1",created:2,text:"チャンネルは何？",state:"answered",reply:long("段落"),applicable:null,reasons:[],stage:null,effect:"none"},
+    {id:"m3",field_id:"f1",created:3,text:"核の面積を測りたい",state:"failed",reply:null,applicable:null,reasons:["proposal_service_unavailable"],stage:null,effect:"none"}];
+  const draft={channels:[],metrics:[],statistics:{kind:"descriptive",test:null,omnibus:null,association:null},figures:[],missing_information:[],reference_ids:[],
+    recipe:"none",rationale:"回答。",intent:"answer",answer:"回答。",choices:[]};
+  const sent:string[]=[];
+  await page.route("**/v1/workspaces/w/assistant-messages",async route=>{
+    if(route.request().method()==="OPTIONS")return route.fulfill({status:204,headers:headers()});
+    await route.fulfill({headers:headers(),contentType:"application/json",body:JSON.stringify({messages})});
+  });
+  await page.route("**/v1/workspaces/w/proposal-drafts",async route=>{
+    if(route.request().method()==="OPTIONS")return route.fulfill({status:204,headers:headers()});
+    const id=route.request().postDataJSON().message_id as string,index=messages.findIndex(item=>item.id===id);sent.push(id);
+    const message={...messages[index],state:"answered",reply:long(`回答 ${id}`),reasons:[]};messages[index]=message;
+    await route.fulfill({headers:headers(),contentType:"application/json",body:JSON.stringify({proposal:{draft,needs_confirmation:[]},
+      channels:[{token:"ch1",channel_id:"c1",label:"DAPI"},{token:"ch2",channel_id:"c2",label:"NPM1"}],message,fields:[{token:"f1",field_id:"f1"},{token:"f2",field_id:"f2"}]})});
+  });
+  await imageWorkspace(context,page);
+  await page.goto("/workspace?id=w");
+  await page.getByRole("textbox",{name:"AIへの指示"}).click();
+  const conversation=page.getByRole("list",{name:"AI との会話"}),items=conversation.getByRole("listitem");
+  const again=page.getByRole("group",{name:"AIへの再送の確認"});
+  const last=items.filter({hasText:"核の面積を測りたい"}),resend=last.getByRole("button",{name:"再送",exact:true});
+  // Cancelling the confirmation gives the focus back to the 「再送」 that opened it.
+  await expect(resend).toBeEnabled();
+  await resend.focus();await page.keyboard.press("Enter");
+  await expect(again).toBeFocused();
+  await again.getByRole("button",{name:"キャンセル",exact:true}).click();
+  await expect(resend).toBeFocused();
+  // The last message, sent again: its answer arrives where it can be read, though the confirmation had moved the panel up.
+  await resend.click();
+  await expect(again).toBeInViewport();
+  await again.getByRole("button",{name:"再送",exact:true}).click();
+  await expect(last).toHaveAttribute("data-state","answered");
+  await expect(last.getByText("核の面積を測りたい",{exact:true})).toBeInViewport();
+  await expect(last.getByText("回答 m3 1：記録されたチャンネルと染色の説明。",{exact:true})).toBeInViewport();
+  // An earlier message, sent again: the panel shows that message, not the newest one.
+  const first=items.filter({hasText:"この画像で何が測れる？"});
+  await first.getByRole("button",{name:"再送",exact:true}).click();
+  await again.getByRole("button",{name:"再送",exact:true}).click();
+  await expect(first).toHaveAttribute("data-state","answered");
+  await expect(first.getByText("回答 m1 1：記録されたチャンネルと染色の説明。",{exact:true})).toBeInViewport();
+  expect(sent).toEqual(["m3","m1"]);
+});
