@@ -14,7 +14,7 @@ import { checkDiscussionRequest, discussionTokenCeiling, draftDiscussion, DISCUS
 import contract from "./contract.json";
 import { matchesSchema } from "./schema";
 import { D1AuthStore } from "./auth-store";
-import { accessOwner, adminAccess, adminOriginRefusal, handleCloud, isCloudPath, lookupDevice, normalizeEmail, type CloudEnv } from "./cloud";
+import { accessOwner, adminAccess, adminOriginRefusal, handleCloud, isCloudPath, legacyRedeemRefusal, lookupDevice, normalizeEmail, type CloudEnv } from "./cloud";
 import { bearer, equal, json, month, nextMonth, readObject, sha256, token } from "./http";
 import { configuredMailer, type Mailer } from "./mail";
 
@@ -257,6 +257,8 @@ export async function handle(request: Request, env: Env, store: Store, options: 
   }
 
   if (url.pathname === "/v1/devices") {
+    const limited = await legacyRedeemRefusal(request, env, auth, now);
+    if (limited) return limited;
     const body = await readJson(request);
     const invitation = typeof body?.invitation === "string" ? body.invitation : "";
     if (!/^[A-Za-z0-9_-]{20,200}$/.test(invitation)) return failure(400, "invitation_invalid");

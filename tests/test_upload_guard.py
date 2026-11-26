@@ -71,7 +71,7 @@ def status(messages):
 
 @pytest.mark.parametrize("case,expected", [("no-session", 401), ("foreign", 404), ("deleted", 404),
                                           ("expired", 404), ("oversized-header", 413)])
-@pytest.mark.parametrize("route", ["fields", "region-fields"])
+@pytest.mark.parametrize("route", ["fields", "region-fields", "region-fields/ome", "tables"])
 def test_rejects_before_first_body_read(case, expected, route):
     store = AuthStore()
     scope = context(auth=case != "no-session", route=route)
@@ -200,3 +200,29 @@ def test_private_tmp_is_explicit_even_if_tempfile_was_previously_cached(tmp_path
     assert tempfile.gettempdir() == str(directory)
     assert Path(os.environ["MPLCONFIGDIR"]) == directory / "matplotlib"
     assert (directory / "matplotlib").is_dir()
+
+
+@pytest.mark.parametrize("route", ["fields", "region-fields", "region-fields/ome", "tables"])
+def test_demo_mode_rejects_every_upload_before_first_body_read(route):
+    demo = settings()
+    demo.demo = True
+    guard = UploadGuardMiddleware(never_called, AuthStore(), demo)
+    messages, reads = asyncio.run(invoke(guard, context(route=route)))
+    assert status(messages) == 403 and reads == 0 and guard.active == 0
+
+
+def test_every_route_that_accepts_a_file_is_guarded(tmp_path):
+    """A new upload route cannot be added without the guard: the guard's pattern is checked against the app."""
+    from cytellect_api.app import create_app
+    from cytellect_api.config import Settings
+    from cytellect_api.upload_guard import UPLOAD_ROUTE
+    from fastapi.routing import APIRoute
+
+    app = create_app(Settings(tmp_path / "private", app_origin="http://localhost:3000", secure_cookies=False))
+    uploads = [route.path for route in app.routes
+               if isinstance(route, APIRoute) and route.body_field is not None
+               and any(getattr(param.field_info, "media_type", "") == "multipart/form-data"
+                       for param in route.dependant.body_params)]
+    assert len(uploads) >= 4
+    for path in uploads:
+        assert UPLOAD_ROUTE.fullmatch(path.replace("{wid}", "workspace")), path

@@ -73,10 +73,26 @@ def test_a_long_explanation_is_kept_as_written():
      "proposal_pairing_required"),
     ({"rationale": "See https://example.org"}, "proposal_text_not_allowed"),
     ({"missing_information": ["run(\"Analyze Particles\")"]}, "proposal_text_not_allowed"),
+    ({"channels": [*draft()["channels"][:2], {"token": "c3", "stain": "www.example.org", "role": "measure", "reason": "x"}]},
+     "proposal_text_not_allowed"),
+    ({"figure_presentation": {"composition": "quantification", "legend_terms": {
+        "cell_line": "HeLa", "treatment": "see https://example.org", "stains": None}}}, "proposal_text_not_allowed"),
+    ({"figure_presentation": {"composition": "quantification", "legend_terms": {
+        "cell_line": None, "treatment": None, "stains": "<script>x</script>"}}}, "proposal_text_not_allowed"),
     ({"figures": [{"kind": "unit-comparison", "metric": "area", "channel": "dapi"}]}, "proposal_figure_metric_not_proposed"),
 ])
 def test_semantic_rejections(change, code):
     assert code in codes(draft(**change))
+
+
+def test_ordinary_biological_words_in_stains_and_legend_terms_are_kept():
+    """Only links and markup are refused outside the explanations: "macro" and "import" are also biology."""
+    context = CONTEXT.model_copy(update={"channels": [*CONTEXT.channels[:2], CONTEXT.channels[2].model_copy(update={"stain": "macro-H2A"})]})
+    raw = draft(channels=[*draft()["channels"][:2], {"token": "c3", "stain": "macro-H2A", "role": "measure", "reason": "測定対象"}],
+                figure_presentation={"composition": "quantification", "legend_terms": {
+                    "cell_line": "HeLa", "treatment": "nuclear import inhibitor, 1 h", "stains": "anti-macro-H2A"}})
+    result = validate_draft(context, raw, model="m", prompt_version="p")
+    assert result.draft.figure_presentation.legend_terms.treatment == "nuclear import inhibitor, 1 h"
 
 
 def test_absent_ncl_and_unknown_units_are_never_filled_in():

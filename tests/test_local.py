@@ -62,6 +62,9 @@ def test_local_bootstrap_cookie_only_and_owner_survives_relaunch(tmp_path):
     assert "frame-ancestors 'none'" in client.get("/").headers["content-security-policy"]
     assert "connect-src 'self'" in client.get("/").headers["content-security-policy"]
     assert "form-action 'self'" in client.get("/").headers["content-security-policy"]
+    # Data routes keep the API's own policy: a result file opened directly runs no script.
+    api_policy = client.get("/v1/local/setup").headers["content-security-policy"]
+    assert "default-src 'none'" in api_policy and "script-src" not in api_policy
 
 
 

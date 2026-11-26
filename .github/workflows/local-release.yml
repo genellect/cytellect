@@ -66,7 +66,7 @@ jobs:
       RELEASE_VERSION: ${{ inputs.version }}
       REQUESTED_COMMIT: ${{ inputs.commit }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         if: env.AUTOMATIC == 'true'
         with:
           fetch-depth: 0
@@ -76,13 +76,13 @@ jobs:
       - name: Select the newest successful main commit
         id: automatic
         if: env.AUTOMATIC == 'true'
-        uses: actions/github-script@v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           script: await require('./scripts/windows_exe_release.cjs').select(github, context, core)
       - name: Resolve the released main commit and require successful checks on it
         id: resolve
         if: env.AUTOMATIC != 'true'
-        uses: actions/github-script@v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           script: |
             if (!/^\d+\.\d+\.\d+-local\.\d+$/.test(process.env.RELEASE_VERSION)) {
@@ -136,12 +136,12 @@ jobs:
       RELEASE_COMMIT: ${{ needs.source.outputs.commit }}
       RELEASE_VERSION: ${{ needs.source.outputs.version }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           sparse-checkout: scripts/windows_exe_release.cjs
           sparse-checkout-cone-mode: false
           persist-credentials: false
-      - uses: actions/github-script@v8
+      - uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           script: await require('./scripts/windows_exe_release.cjs').reserve(github, context)
   proposal-compatibility:
@@ -153,9 +153,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with: {ref: "${{ needs.source.outputs.commit }}", persist-credentials: false}
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with: {python-version: "3.12"}
       - run: python -m pip install uv==0.12.2
       - run: uv sync --locked --dev
@@ -184,7 +184,7 @@ jobs:
       CYTELLECT_WEB_URL: http://127.0.0.1:8765
       CYTELLECT_TEST_API_ORIGIN: http://127.0.0.1:8765
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with: {ref: "${{ needs.source.outputs.commit }}"}
       - name: Build only the resolved commit
         shell: pwsh
@@ -192,9 +192,9 @@ jobs:
           if ($env:RELEASE_COMMIT -cnotmatch '^[0-9a-f]{40}$' -or (git rev-parse HEAD) -cne $env:RELEASE_COMMIT) {
             throw 'The checkout is not the resolved release commit'
           }
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with: {node-version: "24"}
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with: {python-version: "3.12"}
       - run: python -m pip install uv==0.12.2
       - run: uv sync --locked --group build
@@ -225,7 +225,7 @@ jobs:
           "CYTELLECT_RELEASE_DIR=$releaseDir" | Out-File -FilePath $env:GITHUB_ENV -Append
           "CYTELLECT_RELEASE_ZIP=$archive" | Out-File -FilePath $env:GITHUB_ENV -Append
       - name: Restore pinned public downloads (content-addressed, verified again on use)
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ${{ runner.temp }}/installer-cache
           key: windows-installer-${{ hashFiles('engines/fiji/runtime.lock.json', 'engines/fiji/corresponding-source.lock.json', 'engines/fiji/source-exceptions.json', 'engines/python/windows-runtime.lock.json', 'uv.lock', 'scripts/local_setup.ps1', 'scripts/build_windows_installer.py', 'scripts/corresponding_source.py') }}
@@ -376,7 +376,7 @@ jobs:
           }
       - name: Retain scoped acceptance receipts only
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: installed-release-acceptance
           path: |
@@ -384,7 +384,7 @@ jobs:
             ${{ env.CYTELLECT_ACCEPTANCE_DIR }}/generated-regions/receipt.json
           if-no-files-found: ignore
           retention-days: 14
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: ${{ (github.event_name != 'workflow_dispatch' || inputs.automatic) && format('auto-exe-{0}-{1}', needs.source.outputs.version, needs.source.outputs.commit) || 'windows-release' }}
           path: ${{ env.CYTELLECT_RELEASE_DIR }}/*
@@ -406,7 +406,7 @@ jobs:
       RELEASE_VERSION: ${{ needs.source.outputs.version }}
       RELEASE_COMMIT: ${{ needs.source.outputs.commit }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with: {fetch-depth: 0, ref: "${{ needs.source.outputs.commit }}"}
       - name: Sign and tag only the resolved commit, and only while it is on main
         shell: bash
@@ -417,11 +417,11 @@ jobs:
           git merge-base --is-ancestor "$RELEASE_COMMIT" refs/remotes/origin/main
           # The release text is built from this checkout; an older commit would stop after the tag is made.
           test -f scripts/release_notes.py || { echo "::error::The release commit predates scripts/release_notes.py" >&2; exit 1; }
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with: {python-version: "3.12"}
       - run: python -m pip install uv==0.12.2
       - run: uv sync --locked --no-dev
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: ${{ (github.event_name != 'workflow_dispatch' || inputs.automatic) && format('auto-exe-{0}-{1}', needs.source.outputs.version, needs.source.outputs.commit) || 'windows-release' }}
           github-token: ${{ github.token }}
@@ -461,7 +461,7 @@ jobs:
           uv run --no-sync python scripts/update_manifest.py verify --release-dir release --version "$RELEASE_VERSION" --previous-source "$previous"
       - name: Create the exact source tag without overwriting an existing ref
         if: env.AUTOMATIC != 'true'
-        uses: actions/github-script@v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           script: |
             await github.rest.git.createRef({
@@ -511,7 +511,7 @@ jobs:
             fi
             exit 1
           fi
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         if: env.AUTOMATIC == 'true'
         with:
           path: automation
@@ -520,7 +520,7 @@ jobs:
           persist-credentials: false
       - name: Verify the attached files and publish the EXE
         if: env.AUTOMATIC == 'true'
-        uses: actions/github-script@v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           script: await require('./automation/scripts/windows_exe_release.cjs').publish(github, context, core)
   channel:
@@ -543,7 +543,7 @@ jobs:
           owner: genellect
           repositories: cytellect
           permission-contents: write
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           sparse-checkout: |
             scripts/windows_exe_release.cjs
@@ -552,7 +552,7 @@ jobs:
           token: ${{ steps.channel-token.outputs.token }}
           persist-credentials: true
       - name: Verify the public installer and update the website record
-        uses: actions/github-script@v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
           CHANNEL_ONLY: ${{ inputs.channel_only }}
         with:

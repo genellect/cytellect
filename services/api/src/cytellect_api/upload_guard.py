@@ -11,7 +11,7 @@ from starlette.responses import JSONResponse
 
 from .db import digest, fields, sessions, workspaces
 
-UPLOAD_ROUTE = re.compile(r"^/v1/workspaces/([^/]+)/(fields|region-fields|tables)$")
+UPLOAD_ROUTE = re.compile(r"^/v1/workspaces/([^/]+)/(fields|region-fields|region-fields/ome|tables)$")
 # The intake inspection (#284 W4) names no workspace; it is authenticated and bounded like a field upload.
 INTAKE_ROUTE = "/v1/intake/inspect"
 
@@ -71,7 +71,7 @@ class UploadGuardMiddleware:
             # Generic uploads carry their retry key inside the multipart JSON. A
             # full workspace must still reach its atomic key/fingerprint lookup;
             # otherwise a lost success response cannot be recovered at quota.
-            retryable = kind == "region-fields"
+            retryable = kind in ("region-fields", "region-fields/ome")
             if not retryable and kind != "tables" and len(self.store.rows(fields, workspace_id=wid)) >= self.settings.max_fields:
                 await reject(413, "workspace_limit")
                 return

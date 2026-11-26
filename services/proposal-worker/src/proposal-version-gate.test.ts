@@ -2,6 +2,7 @@ import {describe,expect,it,vi} from "vitest";
 import probes from "../../../fixtures/proposal-version-probes.json";
 import {handle,type Env} from "./index";
 import {MemoryStore} from "./store";
+import {redeemSupport} from "./test-support";
 import {INTENT_PROMPT_VERSION} from "./openai";
 import {DISCUSSION_PROMPT_VERSION} from "./discussion";
 
@@ -18,7 +19,8 @@ describe("release prompt probes stop before admission",()=>{
     const invitationResponse=await handle(new Request("https://service.example/v1/admin/invitations",{method:"POST",body:"{}",
       headers:{authorization:`Bearer ${env.ADMIN_TOKEN}`}}),env,store);
     const {invitation}=await invitationResponse.json() as {invitation:string};
-    const deviceResponse=await handle(new Request("https://service.example/v1/devices",{method:"POST",body:JSON.stringify({invitation})}),env,store);
+    const limiter=await redeemSupport();
+    const deviceResponse=await handle(new Request("https://service.example/v1/devices",{method:"POST",body:JSON.stringify({invitation})}),{...env,...limiter.env},store,limiter.options);
     const {device_token:token}=await deviceResponse.json() as {device_token:string};
     const admission=[vi.spyOn(store,"claimRequest"),vi.spyOn(store,"countDeviceRequest"),vi.spyOn(store,"reserve"),
       vi.spyOn(store,"reserveForUser"),vi.spyOn(store,"settle")];

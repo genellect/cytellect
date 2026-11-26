@@ -134,7 +134,7 @@ fi
 | Cloudflare（解析提案の Worker） | API トークン（`api.cloudflare.com` 宛てのネットワークシークレット）と、環境変数 `CLOUDFLARE_ACCOUNT_ID` | `pnpm --filter @cytellect/proposal-worker cf <wrangler の引数>`。wrangler はロックファイルの固定版 |
 | Vercel | claude.ai の Vercel コネクタ（接続済み） | デプロイの状態・ログ・ロールバックはコネクタで行う。Vercel CLI を使う場合だけ、トークンを `api.vercel.com` 宛てのネットワークシークレットに登録する |
 | Hugging Face | モデルを公開するときだけ、書き込みのトークン（`huggingface.co` 宛てのネットワークシークレット）。公開モデルの取得には要らない | `hf` CLI |
-| Modal（GPU サーバー） | `MODAL_TOKEN_ID`・`MODAL_TOKEN_SECRET` は GitHub の Actions の秘密の値 | Actions の「Cellpose Modal deploy」を `main` から起動する。Modal の CLI は gRPC がプロキシを通らないため、クラウドセッションから接続できない |
+| Modal（GPU サーバー） | `MODAL_TOKEN_ID`・`MODAL_TOKEN_SECRET` は GitHub の `modal-deploy` 環境（`main` 限定）のシークレット | Actions の「Cellpose Modal deploy」を `main` から起動する。Modal の CLI は gRPC がプロキシを通らないため、クラウドセッションから接続できない |
 | OpenAI、`ADMIN_TOKEN`（解析提案の Worker） | Worker の secret（`cf secret put`） | セッションに置く必要はない |
 
 ネットワークシークレットの値はコンテナに入らず、環境のプロキシが通信に付ける。wrangler のように、鍵の値がないと動かない CLI のために、環境変数 `CLOUDFLARE_API_TOKEN` には仮の値 `placeholder-replaced-by-network-secret` を置く。プロキシがこれを本物に置き換える。AWS は現在使っていない。
@@ -144,7 +144,7 @@ fi
 | 項目 | 確かめ方 | `[--]` の意味 |
 |---|---|---|
 | GitHub | `gh api` で、オーナーのアカウントと管理者の権限 | ― |
-| Modal のデプロイ | Actions の秘密の値の名前。クラウドセッションからは読めないため、最後に成功したデプロイの日を示す | 秘密の値を、ここからは読めない |
+| Modal のデプロイ | `modal-deploy` 環境のシークレットの名前と、リポジトリ全体に同じ名前が残っていないこと。クラウドセッションからは読めないため、最後に成功したデプロイの日を示す | 秘密の値を、ここからは読めない |
 | Cloudflare | API トークンの検証 | ― |
 | Hugging Face | アカウントの照会 | 鍵がない（モデルを公開するときだけ要る） |
 | Vercel | アカウントの照会 | 鍵がない（コネクタを使う） |

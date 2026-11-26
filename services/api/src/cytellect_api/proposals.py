@@ -19,7 +19,6 @@ import urllib.error
 import urllib.request
 import uuid
 from typing import Annotated, Literal
-from urllib.parse import urlsplit
 
 import numpy as np
 from cytellect_analysis.images import render_preview_with_display
@@ -103,10 +102,11 @@ def service_url(settings) -> str | None:
     url = (settings.proposal_url or "").rstrip("/")
     if not url or not settings.proposal_token:
         return None
-    parts = urlsplit(url)
-    local = parts.hostname in ("127.0.0.1", "localhost")
-    if parts.scheme != "https" and not (local and parts.scheme == "http"):
-        raise ValueError("proposal_service_requires_https")
+    # The same rule as every other service URL: https (http only for loopback), and no
+    # credentials, query or fragment that would travel with each request.
+    from .cloud_account import validated_service_url
+
+    validated_service_url(url, "proposal_service_requires_https")
     return url
 
 

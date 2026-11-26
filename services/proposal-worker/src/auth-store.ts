@@ -108,19 +108,22 @@ export class D1AuthStore {
       .bind(email, purpose).first<CodeRecord>();
   }
 
-  /** Counts one wrong attempt atomically; returns the new count, or null when already void. */
-  async failAttempt(email: string, purpose: CodePurpose, max: number) {
+  /**
+   * Claims one attempt on this very code atomically, before a candidate is compared; returns
+   * the new count, or null when every attempt is claimed or the code is no longer the one read.
+   */
+  async claimAttempt(email: string, purpose: CodePurpose, hash: string, max: number) {
     const row = await this.db.prepare(
-      "UPDATE login_codes SET attempts = attempts + 1 WHERE email = ? AND purpose = ? AND attempts < ? RETURNING attempts",
-    ).bind(email, purpose, max).first<{ attempts: number }>();
+      "UPDATE login_codes SET attempts = attempts + 1 WHERE email = ? AND purpose = ? AND code_hash = ? AND attempts < ? RETURNING attempts",
+    ).bind(email, purpose, hash, max).first<{ attempts: number }>();
     return row?.attempts ?? null;
   }
 
-  /** Consumes a matching, unexpired code exactly once. */
-  async consumeCode(email: string, purpose: CodePurpose, hash: string, now: number, max: number) {
+  /** Consumes a matching, unexpired code exactly once; the caller holds a claimed attempt. */
+  async consumeCode(email: string, purpose: CodePurpose, hash: string, now: number) {
     const result = await this.db.prepare(
-      "DELETE FROM login_codes WHERE email = ? AND purpose = ? AND code_hash = ? AND attempts < ? AND expires_at > ?",
-    ).bind(email, purpose, hash, max, now).run();
+      "DELETE FROM login_codes WHERE email = ? AND purpose = ? AND code_hash = ? AND expires_at > ?",
+    ).bind(email, purpose, hash, now).run();
     return result.meta.changes === 1;
   }
 

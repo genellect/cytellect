@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import hmac
 import importlib.util
 import io
 import json
@@ -27,6 +28,45 @@ ROUTES = ("/", "/v1/cellpose")
 
 class InputError(ValueError):
     pass
+
+
+# The numeric request values, with the same ranges as the client's contract
+# (cytellect_analysis.cellpose_engine); the service checks them itself because it cannot
+# assume that every caller validated its request.
+# name: (kind, low, low inclusive, high, high inclusive, may be null)
+PARAMETER_RANGES = {
+    "diameter_px": (float, 0, False, 4096, True, True),
+    "normalization_percentile_low": (float, 0, True, 100, False, False),
+    "normalization_percentile_high": (float, 0, False, 100, True, False),
+    "flow_threshold": (float, 0, False, 10, True, False),
+    "cellprob_threshold": (float, -20, True, 20, True, False),
+    "minimum_area_px": (int, 1, True, 16777216, True, False),
+    "maximum_size_fraction": (float, 0, False, 1, True, False),
+    "iterations": (int, 1, True, 10000, True, True),
+    "batch_size": (int, 1, True, 8, True, False),
+    "smoothing_sigma_px": (float, 0, False, 16, True, False),
+    "background_radius_px": (int, 1, True, 128, True, False),
+    "parent_background_percentile": (float, 0, True, 100, False, False),
+    "nuclear_diameter_fraction": (float, 0, False, 1, True, False),
+    "crop_padding_px": (int, 1, True, 256, True, False),
+    "minimum_contrast_snr": (float, 0, False, 100, True, False),
+    "local_background_radius_px": (int, 1, True, 128, True, False),
+    "maximum_nuclear_coverage": (float, 0, False, 1, False, False),
+}
+
+
+def check_parameter_ranges(parameters: dict):
+    """Refuses a present value outside its range; which values a protocol requires stays the runner's rule."""
+    for name, (kind, low, low_inclusive, high, high_inclusive, optional) in PARAMETER_RANGES.items():
+        if name not in parameters or (optional and parameters[name] is None):
+            continue
+        value = parameters[name]
+        accepted = (int,) if kind is int else (int, float)
+        # bool is an int in Python; NaN fails every comparison and infinities fail a bound.
+        if (isinstance(value, bool) or not isinstance(value, accepted)
+                or not (low <= value if low_inclusive else low < value)
+                or not (value <= high if high_inclusive else value < high)):
+            raise InputError("cellpose_remote_input_invalid")
 
 
 def digest(path: Path) -> str:
@@ -110,6 +150,7 @@ class Service:
         if parent is not None and (parent.shape != image.shape or parent.dtype.kind not in "iu"):
             raise InputError("cellpose_remote_input_invalid")
         parameters = request["parameters"]
+        check_parameter_ranges(parameters)
         if self.require_gpu and parameters.get("compute_device") == "cpu":
             raise InputError("cellpose_remote_gpu_required")
         profile = self.runner.selected_model(self.runner.runtime_lock(), parameters)
@@ -160,7 +201,8 @@ def handler_for(service: Service, secret: str | None):
             started = time.monotonic()
             if self.path.split("?")[0] not in ROUTES:
                 return self.error(404, "cellpose_remote_route_unknown")
-            if secret is not None and self.headers.get("X-Cytellect-Secret") != secret:
+            presented = self.headers.get("X-Cytellect-Secret") or ""
+            if secret is not None and not hmac.compare_digest(presented.encode("utf-8"), secret.encode("utf-8")):
                 return self.error(403, "cellpose_remote_rejected")
             try:
                 length = int(self.headers.get("Content-Length", ""))

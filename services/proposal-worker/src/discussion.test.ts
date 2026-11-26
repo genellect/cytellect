@@ -3,6 +3,7 @@ import { handle, type Env } from "./index";
 import { DISCUSSION_LEGACY_PROMPT_VERSION, DISCUSSION_LEGACY_SYSTEM_PROMPT, DISCUSSION_PROMPT_VERSION, DISCUSSION_SYSTEM_PROMPT,
   discussionPayload, hasDiscussionShape } from "./discussion";
 import { MemoryStore } from "./store";
+import { redeemSupport } from "./test-support";
 
 // A stand-in model: no request leaves the test.
 const ENV: Env = {
@@ -44,7 +45,8 @@ function post(path: string, body: unknown, token?: string) {
 async function device(store: MemoryStore) {
   const invited = await handle(post("/v1/admin/invitations", {}, ENV.ADMIN_TOKEN), ENV, store);
   const { invitation } = await invited.json() as { invitation: string };
-  const redeemed = await handle(post("/v1/devices", { invitation }), ENV, store);
+  const limiter = await redeemSupport();
+  const redeemed = await handle(post("/v1/devices", { invitation }), { ...ENV, ...limiter.env }, store, limiter.options);
   return (await redeemed.json() as { device_token: string }).device_token;
 }
 

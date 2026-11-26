@@ -185,11 +185,14 @@ def create_local_app(settings: Settings, web_dir: Path, port: int, *, store_vers
             return JSONResponse({"detail": "local_origin_required"}, status_code=403,
                                 headers={"Cache-Control": "no-store"})
         response = await call_next(request)
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
-            "connect-src 'self'; img-src 'self' blob: data:; font-src 'self'; "
-            "form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
-        )
+        # The screen's policy applies to the screen only; /v1/ responses keep the API's
+        # stricter policy (app.py), so a result file opened directly cannot run script.
+        if not request.url.path.startswith("/v1/"):
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
+                "connect-src 'self'; img-src 'self' blob: data:; font-src 'self'; "
+                "form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
+            )
         response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
         response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
         return response

@@ -91,11 +91,17 @@ class RevisionInput(BaseModel):
     revision_id: str
 
 
+API_CONTENT_SECURITY_POLICY = (
+    "default-src 'none'; style-src 'unsafe-inline'; img-src data:; "
+    "frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+)
+
+
 def create_app(settings: Settings | None = None, *, proposal_credentials=None):
     settings = settings or Settings.from_env()
     configure_private_tmp(settings)
     store = Store(settings.data_dir, workspace_retention_mode=settings.workspace_retention_mode)
-    api = FastAPI(title="Cytellect private API", version="0.1.0", docs_url=None, redoc_url=None)
+    api = FastAPI(title="Cytellect private API", version="0.1.0", docs_url=None, redoc_url=None, openapi_url=None)
     api.state.store, api.state.settings = store, settings
     if settings.desktop_owner:
         from .desktop import install_owner_session
@@ -133,6 +139,9 @@ def create_app(settings: Settings | None = None, *, proposal_credentials=None):
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["X-Frame-Options"] = "DENY"
+        # API responses are data, never an application page: a result file (SVG) opened
+        # directly as a document cannot run script or load anything from elsewhere.
+        response.headers["Content-Security-Policy"] = API_CONTENT_SECURITY_POLICY
         return response
 
     @api.exception_handler(RequestValidationError)
