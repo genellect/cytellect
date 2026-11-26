@@ -8,9 +8,9 @@ import {AssistantPanel, targetText} from "./AssistantPanel";
 const message = (id: string): AssistantMessage => ({id, field_id: "f1", created: 1, text: "依頼", state: "answered", reply: "回答", applicable: true, reasons: [], stage: null, effect: "none"});
 const none = () => undefined;
 
-function render(view: AnswerView | null, targets: RunTargets | null = null) {
+function render(view: AnswerView | null, targets: RunTargets | null = null, restored: Partial<AssistantMessage> = {}) {
   return renderToStaticMarkup(createElement(AssistantPanel, {
-    messages: [message("m")], busy: false, demo: false, undoable: null,
+    messages: [{...message("m"), ...restored}], busy: false, demo: false, undoable: null,
     canApply: () => view?.intent !== "answer" && view !== null, canTry: () => view?.intent === null, canRun: () => view?.intent === "run",
     answerOf: () => view, runTargets: () => targets,
     onApply: none, onResend: none, onUndo: none, onShowSettings: none, onPlace: none, onRun: none, onChoose: none,
@@ -45,6 +45,10 @@ describe("the actions of an answer follow its kind of request (#284 W7, plan 5.6
     expect(earlier).toContain("設定を適用");
     expect(earlier).toContain("適用して試行");
     expect(render(null)).toContain("再送");
+  });
+  it("a question's answer restored after a reload has nothing to apply, so it offers no 「再送」", () => {
+    expect(render(null, null, {applicable: null})).not.toContain("再送");
+    expect(render(null, null, {applicable: null, state: "failed", reply: null, reasons: ["proposal_service_unavailable"]})).toContain("再送");
   });
   it("states the selected target as one value", () => {
     expect(targetText({scope: "selected", fields: [{id: "a", label: "A01"}], excluded: 0})).toBe("対象：選択した視野 · A01");

@@ -1543,8 +1543,10 @@ export interface components {
         };
         /**
          * AssistantMessage
-         * @description One message of the researcher to the AI and what came back (#284 W2). `applicable` is false when the
-         *     answer could not be turned into settings; `reasons` and `stage` say why. Nothing here changes settings.
+         * @description One message of the researcher to the AI and what came back (#284 W2). `applicable` is true when the
+         *     answer carries settings the researcher may apply, false when its settings were refused (`reasons` and `stage`
+         *     say why), and null when there is nothing to apply: a question's answer (#284 W7), or a message still pending
+         *     or failed. Nothing here changes settings.
          */
         AssistantMessage: {
             /** Id */

@@ -33,7 +33,8 @@ interface Props {
   onPlace: (place: ReasonPlace) => void;
   /** Sends the images alone (an empty instruction) for a proposal; offered when there are images. */
   onPropose?: () => void;
-  /** What an answer received in this session offers (#284 W7); null for one restored after a reload. */
+  /** What an answer received in this session offers (#284 W7); null for one restored after a reload. A restored
+   * answer with settings (`applicable: true`) offers 「再送」 to apply it; a question's answer has nothing to apply. */
   answerOf?: (id: string) => AnswerView | null;
   runTargets?: (id: string) => RunTargets | null;
   canRun?: (id: string) => boolean;
@@ -102,7 +103,7 @@ export function AssistantPanel({field, messages, busy, demo, canApply, canTry, u
               <button type="button" disabled={busy} onClick={() => onRun(message.id)}>適用して実行</button>}
             {message.effect !== "none" && <button type="button" disabled={busy} onClick={onShowSettings}>解析設定を表示</button>}
             {message.effect !== "none" && undoable === message.id && <button type="button" disabled={busy} onClick={onUndo}>AIによる設定変更を戻す</button>}
-            {!demo && message.state !== "pending" && (message.state === "failed" || (message.applicable !== false && message.effect === "none" && !view)) &&
+            {!demo && message.state !== "pending" && (message.state === "failed" || (message.applicable === true && message.effect === "none" && !view)) &&
               <button type="button" disabled={busy} onClick={() => onResend(message)}>再送</button>}
           </div>
         </li>;

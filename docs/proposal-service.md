@@ -84,7 +84,9 @@ the reasons and the route answers 502 as before. The workspace shows the answer,
 kinds: something the researcher changes, with the place to change it, or a service-side failure, with 「再送」.
 Sending never changes settings or runs anything; applying is the researcher's action (requirement L02). After a
 reload the messages and answers are shown again without a model call; applying a reloaded answer resends its
-message, which the cache answers without the model when the context is unchanged. The text of messages and
+message, which the cache answers without the model when the context is unchanged. A question's answer
+(`intent: answer`) has no settings: its message carries `applicable: null`, so it offers neither an application
+nor a resend after a reload. The text of messages and
 answers stays in the workspace database and is never logged.
 
 Private SQLite migration `0003` stores validated drafts and atomic request claims

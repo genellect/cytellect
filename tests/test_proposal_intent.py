@@ -219,7 +219,7 @@ def test_the_context_names_fields_by_identifier_with_their_folder_relative_names
     assert "C:/" not in json.dumps(calls) and "someone" not in json.dumps(calls) and str(tmp_path) not in json.dumps(calls)
     assert body["fields"] == [{"token": "f1", "field_id": ids[0]}, {"token": "f2", "field_id": ids[1]}]
     assert body["proposal"]["draft"]["assignments"][0] == {"field": "f1", "run": "Rep1", "group": "未処理"}
-    assert body["message"]["reply"] == suggestion["answer"] and body["message"]["applicable"] is True
+    assert body["message"]["reply"] == suggestion["answer"] and body["message"]["applicable"] is None
 
 
 def test_an_installed_clients_prompt_keeps_context_1_2_0(tmp_path, monkeypatch):
@@ -233,7 +233,7 @@ def test_an_installed_clients_prompt_keeps_context_1_2_0(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize(("goal", "draft", "expected"), [
     ("この画像のチャンネル名を教えてください。まだ測定しないでください。",
-     answer(channels=[], choices=[{"question": "核染色", "options": ["核染色は Actin", "核染色なし"]}]), ("answer", True, [])),
+     answer(channels=[], choices=[{"question": "核染色", "options": ["核染色は Actin", "核染色なし"]}]), ("answer", None, [])),
     ("Actin を測定に使う", {**ACTIN_DRAFT, "intent": "settings", "answer": "Actin を測定に使います。", "scope": None},
      ("settings", True, [])),
     ("全視野で測って", {**ACTIN_DRAFT, "intent": "run", "answer": "全視野で測定します。", "scope": "all"}, ("run", True, [])),

@@ -236,8 +236,10 @@ MessageEffect = Literal["none", "settings", "run"]
 
 
 class AssistantMessage(BaseModel):
-    """One message of the researcher to the AI and what came back (#284 W2). `applicable` is false when the
-    answer could not be turned into settings; `reasons` and `stage` say why. Nothing here changes settings."""
+    """One message of the researcher to the AI and what came back (#284 W2). `applicable` is true when the
+    answer carries settings the researcher may apply, false when its settings were refused (`reasons` and `stage`
+    say why), and null when there is nothing to apply: a question's answer (#284 W7), or a message still pending
+    or failed. Nothing here changes settings."""
     id: str
     field_id: str | None
     created: float
@@ -248,6 +250,11 @@ class AssistantMessage(BaseModel):
     reasons: list[str]
     stage: Literal["context", "service", "validation"] | None
     effect: MessageEffect
+
+
+def _applicable(draft) -> bool | None:
+    """A question's answer (`intent: answer`) has no settings: it is neither applicable nor refused."""
+    return None if getattr(draft, "intent", None) == "answer" else True
 
 
 class AssistantMessages(BaseModel):
@@ -760,7 +767,7 @@ def register_proposal_routes(api, store, settings, owner, workspace, credentials
                 mid = open_message(conn, wid, body, now)
                 cached_proposal = ValidatedProposal.model_validate(cached["proposal"])
                 conn.execute(update(assistant_messages).where(assistant_messages.c.id == mid).values(
-                    state="answered", applicable=True, draft_id=cached["id"], request_id=cached["request_id"],
+                    state="answered", applicable=_applicable(cached_proposal.draft), draft_id=cached["id"], request_id=cached["request_id"],
                     reply=reply_text(cached_proposal.draft)))
                 row = conn.execute(select(assistant_messages).where(assistant_messages.c.id == mid)).mappings().one()
                 return ProposalDraftResponse(proposal=cached_proposal, channels=links, message=message_view(row), fields=field_links)
@@ -848,5 +855,5 @@ def register_proposal_routes(api, store, settings, owner, workspace, credentials
         if superseded:
             close_message(mid, state="failed", reasons=["proposal_request_superseded"], stage="service")
             raise HTTPException(409, "proposal_request_superseded")
-        message = close_message(mid, state="answered", applicable=True, draft_id=draft_id, reply=reply_text(proposal.draft))
+        message = close_message(mid, state="answered", applicable=_applicable(proposal.draft), draft_id=draft_id, reply=reply_text(proposal.draft))
         return ProposalDraftResponse(proposal=proposal, channels=links, message=message, fields=field_links)
