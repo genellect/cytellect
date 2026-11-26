@@ -420,7 +420,6 @@
    dark and return to it. The install guide and the privacy page keep the light ground. */
 .page[data-world="dark"]{--fg:#f3f5fa;--ink:#f3f5fa;--rule:#f3f5fa24;--line:#f3f5fa24;--muted:#a4adbf;--ground:#05070d;--paper:#0b101b;--green:#070b16;--edge:#9db8ff3d;--blue:#4d7cff;--cyan:#42d9ff;
   --ray:linear-gradient(90deg,var(--blue),var(--cyan));
-  --demo:#3d68f2;
   --glass:linear-gradient(135deg,#9db8ff1f,#9db8ff0a);--lift:0 50px 100px -48px #000,0 2px 6px #00000066}
 /* The stage's light (LightField places it): the mouse's, then the two the section in view asks for. */
 .page[data-world="dark"] .lightField{position:fixed;z-index:0;inset:0;width:auto;height:auto;opacity:1;pointer-events:none;
@@ -429,22 +428,25 @@
     radial-gradient(58vw 68vh at var(--bx,16%) var(--by,6%),rgb(var(--bc,139 120 240) / calc(.22 * var(--bs,0))),#0000 72%)}
 .page[data-world="dark"] :is(a,button,summary):focus-visible{outline-color:var(--cyan)}
 .page[data-world="dark"] .header,.page[data-world="dark"] .header[data-tone="light"]{--h-fg:#f3f5fa;--h-bg:#070b1699;--h-rule:var(--edge);box-shadow:none}
-.page[data-world="dark"] .header[data-tone="light"] .navigation .navDownload{color:#fff!important}
+.page[data-world="dark"] .header[data-tone="light"] .navigation .navDownload{color:var(--green)!important}
 .page[data-world="dark"] .primary{border-color:#f3f5fa;background:#f3f5fa;color:var(--green)!important;transition:background .2s,box-shadow .3s}
 .page[data-world="dark"] .primary:hover{background:#fff;box-shadow:0 0 0 1px var(--cyan),0 14px 44px -14px #4d7cffd9}
-/* The way into the demo has a colour of its own: one solid blue, the blue of the stage's light, with white
-   text. Nothing else on the page is filled with it, so the demo reads at a glance on the dark ground and on the
-   bright film alike: in the header, the hero, every screen of the product, the phone's bar and the end. */
-.page[data-world="dark"] :is(.hero .primary,.invite .primary,.navDownload,.chapter .button,.demoBar a){border-color:var(--demo);background:var(--demo);box-shadow:inset 0 1px 0 #ffffff2e,0 12px 32px -14px #3d68f2;color:#fff!important;transition:box-shadow .3s,transform .3s cubic-bezier(.2,.7,.1,1)}
-.page[data-world="dark"] :is(.hero .primary,.invite .primary,.navDownload,.chapter .button,.demoBar a):hover{border-color:#9db8ff;background:var(--demo);box-shadow:inset 0 1px 0 #ffffff2e,0 16px 40px -12px #4d7cff;transform:translateY(-1px)}
-.page[data-world="dark"] :is(.primary,.chapter .button) svg{transition:transform .3s cubic-bezier(.2,.7,.1,1)}
-.page[data-world="dark"] :is(.primary,.chapter .button):hover svg{transform:translateX(4px)}
-.page[data-world="dark"] .chapter .button{min-height:52px;padding:0 26px}
+/* The way into the demo is one object, built rather than coloured: a white body (the brightest thing on the
+   dark stage), a round seat of dark ink that carries the arrow, and a ring of the stage's light around it.
+   Its contrast comes from what stands behind it too: the hero's shade is deepest under the copy and the actions.
+   The same object stands in the header, the hero, every screen of the product, the phone's bar and the end. */
+.page[data-world="dark"] :is(.hero .primary,.invite .primary,.navDownload,.chapter .button,.demoBar a){gap:18px;min-height:56px;padding:0 7px 0 28px;border:0;background:#fff;box-shadow:0 0 0 4px #9db8ff38,0 0 0 9px #9db8ff14,0 22px 56px -16px #4d7cff;color:var(--green)!important;font-size:16px;font-weight:600;letter-spacing:.01em;transition:box-shadow .3s,transform .3s cubic-bezier(.2,.7,.1,1)}
+.page[data-world="dark"] :is(.hero .primary,.invite .primary,.navDownload,.chapter .button,.demoBar a)>span{display:grid;flex:none;place-items:center;width:42px;height:42px;border-radius:50%;background:var(--green);color:#f3f5fa;font-size:18px;line-height:1;transition:background .25s,color .25s,transform .3s cubic-bezier(.2,.7,.1,1)}
+.page[data-world="dark"] :is(.hero .primary,.invite .primary,.navDownload,.chapter .button,.demoBar a):hover{background:#fff;box-shadow:0 0 0 4px #42d9ff66,0 0 0 10px #42d9ff1f,0 26px 64px -14px #42d9ff;transform:translateY(-1px)}
+.page[data-world="dark"] :is(.hero .primary,.invite .primary,.navDownload,.chapter .button,.demoBar a):hover>span{background:var(--blue) var(--ray);color:var(--green);transform:translateX(3px)}
+.page[data-world="dark"] .header .navDownload{gap:12px;height:42px;min-height:0;padding:0 4px 0 18px;box-shadow:0 0 0 3px #9db8ff33,0 12px 32px -12px #4d7cff;font-size:13px}
+.page[data-world="dark"] .header .navDownload>span{width:34px;height:34px;font-size:15px}
+.page[data-world="dark"] .chapter .button{min-height:54px;padding:0 6px 0 26px;font-size:15px}
 .page[data-world="dark"] .secondary{border-color:var(--edge);background:#4d7cff14;color:#f3f5fa!important}
 .page[data-world="dark"] .secondary:hover{border-color:var(--cyan);background:#4d7cff29}
 .page[data-world="dark"] .button{border-color:var(--edge);background:#4d7cff14}
 .page[data-world="dark"] .button:hover{border-color:var(--cyan);background:#4d7cff29}
-.page[data-world="dark"] .heroShade{background:linear-gradient(90deg,#05070db3 0%,#05070d66 34%,#05070d00 64%)}
+.page[data-world="dark"] .heroShade{background:radial-gradient(52% 62% at 16% 64%,#05070dc7,#05070d00 72%),linear-gradient(90deg,#05070dc2 0%,#05070d73 34%,#05070d00 66%)}
 .page[data-world="dark"] .eyebrow>span::after{width:44px;background:var(--ray);opacity:1}
 .page[data-world="dark"] :is(.mission,.experience,.download){background:none}
 /* The film leaves the hero into the dark of the stage. */
@@ -498,7 +500,10 @@
   .page[data-world="dark"] .header>div>nav{background:#0b101b;border-color:var(--edge)}
 }
 @media(max-width:760px){
-  .page[data-world="dark"] .heroShade{background:linear-gradient(180deg,#05070db3 0%,#05070d73 42%,#05070d00 74%)}
+  .page[data-world="dark"] .heroShade{background:linear-gradient(180deg,#05070dc2 0%,#05070d8c 46%,#05070d00 78%)}
+  .page[data-world="dark"] :is(.hero .primary,.invite .primary){gap:10px;min-height:50px;padding:0 5px 0 18px;font-size:15px}
+  .page[data-world="dark"] :is(.hero .primary,.invite .primary)>span{width:38px;height:38px}
+  .page[data-world="dark"] .demoBar a{min-height:56px;padding:0 7px 0 24px}
   .page[data-world="dark"] .reasonsPhoto{mask-image:linear-gradient(180deg,#0000 0%,#000 30%)}
   .page[data-world="dark"] .path::before{background:linear-gradient(180deg,#4d7cff40,#6fc3ffb3 55%,#e7b8a4)}
 }
