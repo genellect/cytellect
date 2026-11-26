@@ -432,16 +432,15 @@
 .page[data-world="dark"] .primary{border-color:#f3f5fa;background:#f3f5fa;color:var(--green)!important;transition:background .2s,box-shadow .3s}
 .page[data-world="dark"] .primary:hover{background:#fff;box-shadow:0 0 0 1px var(--cyan),0 14px 44px -14px #4d7cffd9}
 /* The way into the demo is one object, built rather than coloured: a white body (the brightest thing on the
-   dark stage), a round seat of dark ink that carries the arrow, and a ring of the stage's light around it.
+   dark stage) with dark ink, and a ring of the stage's light around it.
    Its contrast comes from what stands behind it too: the hero's shade is deepest under the copy and the actions.
    The same object stands in the header, the hero, every screen of the product, the phone's bar and the end. */
-.page[data-world="dark"] :is(.hero .primary,.invite .primary,.navDownload,.chapter .button,.demoBar a){gap:18px;min-height:56px;padding:0 7px 0 28px;border:0;background:#fff;box-shadow:0 0 0 4px #9db8ff38,0 0 0 9px #9db8ff14,0 22px 56px -16px #4d7cff;color:var(--green)!important;font-size:16px;font-weight:600;letter-spacing:.01em;transition:box-shadow .3s,transform .3s cubic-bezier(.2,.7,.1,1)}
-.page[data-world="dark"] :is(.hero .primary,.invite .primary,.navDownload,.chapter .button,.demoBar a)>span{display:grid;flex:none;place-items:center;width:42px;height:42px;border-radius:50%;background:var(--green);color:#f3f5fa;font-size:18px;line-height:1;transition:background .25s,color .25s,transform .3s cubic-bezier(.2,.7,.1,1)}
+.page[data-world="dark"] :is(.hero .primary,.invite .primary,.navDownload,.chapter .button,.demoBar a){gap:20px;min-height:56px;padding:0 28px;border:0;background:#fff;box-shadow:0 0 0 4px #9db8ff38,0 0 0 9px #9db8ff14,0 22px 56px -16px #4d7cff;color:var(--green)!important;font-size:16px;font-weight:600;letter-spacing:.01em;transition:box-shadow .3s,transform .3s cubic-bezier(.2,.7,.1,1)}
 .page[data-world="dark"] :is(.hero .primary,.invite .primary,.navDownload,.chapter .button,.demoBar a):hover{background:#fff;box-shadow:0 0 0 4px #42d9ff66,0 0 0 10px #42d9ff1f,0 26px 64px -14px #42d9ff;transform:translateY(-1px)}
-.page[data-world="dark"] :is(.hero .primary,.invite .primary,.navDownload,.chapter .button,.demoBar a):hover>span{background:var(--blue) var(--ray);color:var(--green);transform:translateX(3px)}
-.page[data-world="dark"] .header .navDownload{gap:12px;height:42px;min-height:0;padding:0 4px 0 18px;box-shadow:0 0 0 3px #9db8ff33,0 12px 32px -12px #4d7cff;font-size:13px}
-.page[data-world="dark"] .header .navDownload>span{width:34px;height:34px;font-size:15px}
-.page[data-world="dark"] .chapter .button{min-height:54px;padding:0 6px 0 26px;font-size:15px}
+.page[data-world="dark"] .header .navDownload{gap:14px;height:42px;min-height:0;padding:0 20px;box-shadow:0 0 0 3px #9db8ff33,0 12px 32px -12px #4d7cff;font-size:13px}
+.page[data-world="dark"] .chapter .button{min-height:54px;padding:0 26px;font-size:15px}
+.page[data-world="dark"] :is(.hero .primary,.invite .primary,.navDownload,.chapter .button,.demoBar a)>span{transition:transform .3s cubic-bezier(.2,.7,.1,1)}
+.page[data-world="dark"] :is(.hero .primary,.invite .primary,.navDownload,.chapter .button,.demoBar a):hover>span{transform:translateX(4px)}
 .page[data-world="dark"] .secondary{border-color:var(--edge);background:#4d7cff14;color:#f3f5fa!important}
 .page[data-world="dark"] .secondary:hover{border-color:var(--cyan);background:#4d7cff29}
 .page[data-world="dark"] .button{border-color:var(--edge);background:#4d7cff14}
@@ -501,9 +500,8 @@
 }
 @media(max-width:760px){
   .page[data-world="dark"] .heroShade{background:linear-gradient(180deg,#05070dc2 0%,#05070d8c 46%,#05070d00 78%)}
-  .page[data-world="dark"] :is(.hero .primary,.invite .primary){gap:10px;min-height:50px;padding:0 5px 0 18px;font-size:15px}
-  .page[data-world="dark"] :is(.hero .primary,.invite .primary)>span{width:38px;height:38px}
-  .page[data-world="dark"] .demoBar a{min-height:56px;padding:0 7px 0 24px}
+  .page[data-world="dark"] :is(.hero .primary,.invite .primary){gap:12px;min-height:50px;padding:0 20px;font-size:15px}
+  .page[data-world="dark"] .demoBar a{min-height:56px;padding:0 24px}
   .page[data-world="dark"] .reasonsPhoto{mask-image:linear-gradient(180deg,#0000 0%,#000 30%)}
   .page[data-world="dark"] .path::before{background:linear-gradient(180deg,#4d7cff40,#6fc3ffb3 55%,#e7b8a4)}
 }
