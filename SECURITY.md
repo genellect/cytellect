@@ -298,7 +298,7 @@ Cytellect は、genellect が運営する。genellect は、次の責務を負�
 | ログインと管理 | 中継サービスの HMAC 鍵を交換する。 | 未使用のログインコードと承認リンクが、交換と同時に無効になる。 |
 | 外部サービスの API キー | 外部サービスで無効化し、中継サービスのシークレットを更新する。 | 無効化と同時に、古い API キーは使用できなくなる。 |
 | EXE 版の自動の配布 | 自動の配布を無効にし、実行中のワークフローを取り消す。 | 新しいリリースが公開されなくなる。 |
-| 更新の署名鍵 | 署名環境から鍵を削除し、新しい鍵を組み込んだバージョンを配布する（[更新の署名](docs/release-signing.md)）。 | 削除と同時に、その鍵による新しい署名は作成できなくなる。 |
+| 更新の署名鍵 | 署名環境から鍵を削除し、新しい鍵を組み込んだバージョンを配布する（[更新の署名](docs/release-signing.md)）。 | 削除と同時に、署名環境はその鍵で署名できなくなる。以後のバージョンは新しい鍵で署名し、研究者には、新しいインストーラーでの導入を案内する。 |
 | 中継サービスの版 | 以前のバージョンに切り戻す。 | 切り戻しと同時に、以前のバージョンが要求を処理する。 |
 
 実装と試験：[`auth-store.ts`](services/proposal-worker/src/auth-store.ts) [`cloud.ts`](services/proposal-worker/src/cloud.ts) [`index.ts`](services/proposal-worker/src/index.ts) [`wrangler.toml.example`](services/proposal-worker/wrangler.toml.example) [`cloud.test.ts`](services/proposal-worker/src/cloud.test.ts) [`deployment.test.mjs`](services/proposal-worker/scripts/deployment.test.mjs) [`proposal-deployment.md`](docs/proposal-deployment.md) [`release-signing.md`](docs/release-signing.md)
