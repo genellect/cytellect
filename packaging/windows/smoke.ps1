@@ -313,13 +313,22 @@ if ($UpdateInstaller) {
         if ($BuiltInKey) { Remove-Item -LiteralPath (Join-Path $root 'updates\state.json') -Force -ErrorAction SilentlyContinue }
 
         Step 'in-app update whose installer Windows cannot start records the launch stage'
-        # A signed release whose "installer" is a generated text file, not a Windows program: it
+        # A signed release whose "installer" is a generated file that is not a runnable program: it
         # passes every check before it runs, then Windows refuses to start it (#284). Timeouts
         # and non-zero exits are covered by tests/test_app_update.py.
+        # The file carries the MZ and PE signatures with an optional header that is neither PE32
+        # nor PE32+, so the image loader rejects it at once. A file without those signatures (a
+        # text file) is taken for a 16-bit program instead, and starting that did not return on an
+        # unattended runner (Verify run 45797533432: the state stayed "installing" for 300 s).
         $brokenDirectory = Join-Path $feedDirectory 'broken'
         New-Item -ItemType Directory -Path $brokenDirectory | Out-Null
         $brokenInstaller = Join-Path $brokenDirectory $name
-        [IO.File]::WriteAllText($brokenInstaller, "generated update test file, not a Windows program`n")
+        $image = [byte[]]::new(1024)
+        $image[0] = 0x4D; $image[1] = 0x5A; $image[0x3C] = 0x40          # "MZ", e_lfanew = 0x40
+        $image[0x40] = 0x50; $image[0x41] = 0x45                          # "PE\0\0"
+        $image[0x44] = 0x64; $image[0x45] = 0x86; $image[0x46] = 1        # x64, one section
+        $image[0x54] = 0xF0; $image[0x56] = 0x22                          # optional header size, executable
+        [IO.File]::WriteAllBytes($brokenInstaller, $image)
         & $python -B (Join-Path $Checkout 'packaging\windows\update-test\sshsig_test_signer.py') --installer $brokenInstaller --version $UpdateVersion --commit $commit --output-dir $brokenDirectory
         if ($LASTEXITCODE -ne 0) { throw 'signing the generated broken release failed' }
         $brokenFeed = @(@{ tag_name = "v$UpdateVersion"; draft = $false
