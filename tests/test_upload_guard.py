@@ -1,10 +1,14 @@
 import asyncio
+import json
 import time
 from types import SimpleNamespace
 
 import pytest
+from cytellect_api.app import create_app
+from cytellect_api.config import Settings
 from cytellect_api.db import digest
-from cytellect_api.upload_guard import UploadGuardMiddleware
+from cytellect_api.upload_guard import UPLOAD_ROUTE, UploadGuardMiddleware
+from fastapi.testclient import TestClient
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
@@ -71,7 +75,7 @@ def status(messages):
 
 @pytest.mark.parametrize("case,expected", [("no-session", 401), ("foreign", 404), ("deleted", 404),
                                           ("expired", 404), ("oversized-header", 413)])
-@pytest.mark.parametrize("route", ["fields", "region-fields"])
+@pytest.mark.parametrize("route", ["fields", "region-fields", "region-fields/ome", "tables", "region-fields/ome\n"])
 def test_rejects_before_first_body_read(case, expected, route):
     store = AuthStore()
     scope = context(auth=case != "no-session", route=route)
@@ -117,6 +121,36 @@ def test_stream_limit_closes_actual_spooled_files(monkeypatch, false_small_lengt
     assert guard.active == 0
 
 
+def test_ome_region_upload_keeps_stream_cap_and_closes_spools_even_at_quota(monkeypatch):
+    import starlette.formparsers as parsers
+
+    opened = []
+    original = parsers.SpooledTemporaryFile
+
+    def tracked(*args, **kwargs):
+        file = original(*args, **kwargs)
+        opened.append(file)
+        return file
+
+    monkeypatch.setattr(parsers, "SpooledTemporaryFile", tracked)
+
+    async def parse(scope, receive, send):
+        async with Request(scope, receive).form():
+            await JSONResponse({"parsed": True})(scope, receive, send)
+
+    # Like the generic region upload, a retry of an accepted OME upload must
+    # reach the endpoint's key lookup at quota; the body cap still applies.
+    store, configuration = AuthStore(), settings()
+    store.workspace["bytes"] = configuration.max_upload_bytes
+    guard = UploadGuardMiddleware(parse, store, configuration, field_body_limit=1000)
+    prefix = b'--BOUNDARY\r\nContent-Disposition: form-data; name="ome"; filename="public.ome.tif"\r\n\r\n'
+    messages, reads = asyncio.run(invoke(guard, context(route="region-fields/ome"),
+                                        [(prefix, True), (b"x" * 1200, True)]))
+    assert status(messages) == 413 and reads == 2
+    assert opened and all(file.closed for file in opened)
+    assert guard.active == 0
+
+
 def test_concurrency_cap_rejects_third_request_without_consuming_it():
     async def scenario():
         started, release = asyncio.Event(), asyncio.Event()
@@ -154,6 +188,64 @@ def test_valid_multipart_reaches_parser_and_frees_slot():
     guard = UploadGuardMiddleware(parse, AuthStore(), settings())
     messages, reads = asyncio.run(invoke(guard, context(route="tables"), [(body, False)]))
     assert status(messages) == 201 and reads == 1 and guard.active == 0
+
+
+def api_with_session(tmp_path, **options):
+    app = create_app(Settings(tmp_path, app_origin="http://test", secure_cookies=False, **options))
+    client = TestClient(app)
+    headers = {"origin": "http://test", "x-cytellect-request": "1"}
+    assert client.post("/v1/invitations/redeem", headers=headers,
+                       json={"token": app.state.store.invite()}).status_code == 200
+    return app, client, headers
+
+
+def test_every_multipart_route_of_the_api_is_guarded(tmp_path):
+    app, _, _ = api_with_session(tmp_path)
+    multipart = [path for path, item in app.openapi()["paths"].items()
+                 if "multipart/form-data" in item.get("post", {}).get("requestBody", {}).get("content", {})]
+    assert "/v1/workspaces/{wid}/region-fields/ome" in multipart
+    unguarded = [path for path in multipart if UPLOAD_ROUTE.match(path.replace("{wid}", "workspace")) is None]
+    assert unguarded == []
+
+
+@pytest.mark.parametrize("route", ["fields", "region-fields", "region-fields/ome", "tables"])
+@pytest.mark.parametrize("case,expected", [("no-session", (401, "session_required")),
+                                          ("foreign", (404, "workspace_not_found")),
+                                          ("demo", (403, "demo_uploads_disabled")),
+                                          ("oversized-header", (413, "upload_body_limit"))])
+def test_api_rejects_upload_before_first_body_read(tmp_path, route, case, expected):
+    app, client, headers = api_with_session(tmp_path, demo=case == "demo")
+    wid = client.post("/v1/workspaces", headers=headers, json={"title": "Guard fixture"}).json()["id"]
+    if case == "foreign":
+        client = TestClient(app)
+        assert client.post("/v1/invitations/redeem", headers=headers,
+                           json={"token": app.state.store.invite()}).status_code == 200
+    cookie = "; ".join(f"{name}={value}" for name, value in client.cookies.items())
+    scope = context(auth=False, route=route, extra=[(key.encode(), value.encode()) for key, value in headers.items()])
+    scope["path"] = f"/v1/workspaces/{wid}/{route}"
+    if case != "no-session":
+        scope["headers"].append((b"cookie", cookie.encode()))
+    if case == "oversized-header":
+        scope["headers"].append((b"content-length", b"999999999"))
+    messages, reads = asyncio.run(invoke(app, scope))
+    body = b"".join(m.get("body", b"") for m in messages if m["type"] == "http.response.body")
+    assert (status(messages), json.loads(body)["detail"]) == expected and reads == 0
+
+
+@pytest.mark.parametrize("route", ["fields", "region-fields", "region-fields/ome", "tables"])
+@pytest.mark.parametrize("shape", ["trailing-newline", "root-path"])
+def test_api_guard_matches_every_path_the_router_dispatches(tmp_path, route, shape):
+    # The router accepts a decoded trailing newline (`%0A`) and strips a mount
+    # prefix; the guard must see the same route or the body is parsed first.
+    app, _, headers = api_with_session(tmp_path)
+    scope = context(auth=False, route=route, extra=[(key.encode(), value.encode()) for key, value in headers.items()])
+    if shape == "trailing-newline":
+        scope["path"] += "\n"
+    else:
+        scope["root_path"], scope["path"] = "/api", "/api" + scope["path"]
+    messages, reads = asyncio.run(invoke(app, scope))
+    body = b"".join(m.get("body", b"") for m in messages if m["type"] == "http.response.body")
+    assert (status(messages), json.loads(body)["detail"]) == (401, "session_required") and reads == 0
 
 
 def test_private_tmp_is_explicit_even_if_tempfile_was_previously_cached(tmp_path, monkeypatch):
