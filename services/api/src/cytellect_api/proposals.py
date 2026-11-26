@@ -536,8 +536,9 @@ def _label(value) -> str | None:
     return value if isinstance(value, str) and value.strip() and len(value) <= 24 else None
 
 
-# A root, a home, a drive letter, a URL scheme, or a path that names a user's folder.
-_ABSOLUTE = re.compile(r"^(?:/|~|[A-Za-z]:|[A-Za-z][A-Za-z0-9+.-]*:/)|(?:^|/)(?:Users|home)/", re.IGNORECASE)
+# A root, a home, a drive letter, a URL scheme, or a path that starts at the users' folder (`Users/…`, `home/…`).
+# A folder of that name further down a relative path is a folder like any other and keeps its name.
+_ABSOLUTE = re.compile(r"^(?:/|~|[A-Za-z]:|[A-Za-z][A-Za-z0-9+.-]*:/|(?:Users|home)/)", re.IGNORECASE)
 
 
 def _added_name(value) -> str | None:
@@ -548,7 +549,7 @@ def _added_name(value) -> str | None:
         return None
     path = "".join(char for char in value if unicodedata.category(char) not in ("Cc", "Cf", "Zl", "Zp"))
     path = path.replace("\\", "/").strip()
-    if _ABSOLUTE.search(path):
+    if _ABSOLUTE.match(path):
         path = path.rsplit("/", 1)[-1]
     text = "/".join(part for part in path.split("/") if part.strip() and part not in (".", ".."))
     if len(text) > 255:

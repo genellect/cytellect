@@ -78,6 +78,9 @@ describe("the actions of an answer follow its kind of request (#284 W7, plan 5.6
     // A question's answer whose record holds choices or suggestions gets them back by a resend (from the record).
     expect(resendable({...answered, applicable: null, restorable: true}, false, false, false, false)).toBe(true);
     expect(resendable({...answered, applicable: null, restorable: true}, false, true, false, false)).toBe(false);
+    // …and only as the latest message, where its choices are offered; settings are fetched again from any message.
+    expect(resendable({...answered, applicable: null, restorable: true}, false, false, false, false, false)).toBe(false);
+    expect(resendable(answered, false, false, false, false, false)).toBe(true);
     expect(resendable({...answered, state: "failed"}, false, false, false, true)).toBe(false);
   });
   it("states the selected target as one value", () => {

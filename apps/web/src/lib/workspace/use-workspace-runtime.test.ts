@@ -598,13 +598,14 @@ describe("the kind of request (#284 W7)",()=>{
   it("waits for the researcher's nuclear stain before a proposed nuclear channel is applied or run (#284 判定 2, 受入 5)",async()=>{
     // The Issue's input: DRAQ's stain is known from the file name, its role is not recorded yet.
     const context=fixture();let role:"nuclear"|null=null;
-    const channel=()=>({id:"c4",label:"DRAQ",stain:"DRAQ",role});
-    context.loadPreview.mockImplementation(async()=>({workspaceId:"w",title:"fixture",channels:[channel()],fields:[{id:"f1",label:"View",width:10,height:10,channels:[channel()],previews:{},results:{}}]}) as never);
+    // GFP has no role either; the answer proposes to leave it unused.
+    const channels=()=>[{id:"c4",label:"DRAQ",stain:"DRAQ",role},{id:"c5",label:"GFP",stain:"GFP",role:role?"measure" as const:null}];
+    context.loadPreview.mockImplementation(async()=>({workspaceId:"w",title:"fixture",channels:channels(),fields:[{id:"f1",label:"View",width:10,height:10,channels:channels(),previews:{},results:{}}]}) as never);
     const saved:unknown[]=[];
     (context.adapter as unknown as {saveChannelAssignments:unknown}).saveChannelAssignments=vi.fn(async(_workspace:string,body:unknown)=>{saved.push(body);role="nuclear";});
     await context.runtime.load("w");
     const base=(await (context.adapter.draft.getMockImplementation() as unknown as ()=>Promise<{proposal:ValidatedProposal}>)()).proposal;
-    const proposal={...base,needs_confirmation:["c4"],draft:{...base.draft,intent:"run" as const,scope:"all" as const,channels:[{token:"c4",stain:"DRAQ",role:"nuclear"}]}} as ValidatedProposal;
+    const proposal={...base,needs_confirmation:["c4"],draft:{...base.draft,intent:"run" as const,scope:"all" as const,channels:[{token:"c4",stain:"DRAQ",role:"nuclear"},{token:"c5",stain:"GFP",role:"unused"}]}} as ValidatedProposal;
     context.adapter.draft.mockResolvedValueOnce({proposal,message:message("m-run"),fields:[]} as never);
     const {runtime,adapter}=context,id=(await runtime.requestProposal("全視野で核を数えて","f1")).message.id;
     // Until the researcher names the nuclear stain, nothing can be applied or run, and the screen says what is missing.
@@ -612,13 +613,38 @@ describe("the kind of request (#284 W7)",()=>{
     expect([runtime.canApply(id,"f1"),runtime.canRun(id,"f1")]).toEqual([false,false]);
     await runtime.confirmNuclear(id,"c4","f1");
     // Recording the stain's role is the researcher's own choice (as in 染色対応): no settings applied, nothing run.
-    expect(saved).toEqual([expect.objectContaining({assignments:[{channel_id:"c4",stain:"DRAQ",role:"nuclear"}]})]);
+    // Only the named channel's role is recorded as chosen: GFP is measured, not 未使用 as the answer proposed.
+    expect(saved).toEqual([expect.objectContaining({assignments:[{channel_id:"c4",stain:"DRAQ",role:"nuclear"},{channel_id:"c5",stain:"GFP",role:"measure"}]})]);
     expect(adapter.run).not.toHaveBeenCalled();expect(adapter.recordEffect).not.toHaveBeenCalled();
     expect(runtime.confirmationOf(id,"f1")).toEqual([]);
     expect([runtime.canApply(id,"f1"),runtime.canRun(id,"f1")]).toEqual([true,true]);
     await runtime.runAnswer(id,"f1");
     expect(adapter.run).toHaveBeenCalledTimes(1);expect(adapter.recordEffect).toHaveBeenCalledWith("w",id,"run");
     await expect(runtime.confirmNuclear(id,"c9","f1")).rejects.toThrow();
+  });
+  it("judges an answer by the field it was made for, also while a field of other channels is selected",async()=>{
+    // f1 holds DRAQ (no role yet); f2 is another acquisition with other channels.
+    const context=fixture();let role:"nuclear"|null=null;
+    const field=(id:string,channel:{id:string;label:string;stain:string;role:"nuclear"|null})=>({id,label:id,width:10,height:10,channels:[channel],previews:{},results:{}});
+    context.loadPreview.mockImplementation(async()=>({workspaceId:"w",title:"fixture",channels:[],fields:[field("f1",{id:"c4",label:"DRAQ",stain:"DRAQ",role}),field("f2",{id:"c9",label:"DNA",stain:"DNA",role:null})]}) as never);
+    const saved:Array<{assignments:unknown}>=[];
+    (context.adapter as unknown as {saveChannelAssignments:unknown}).saveChannelAssignments=vi.fn(async(_workspace:string,body:{assignments:unknown})=>{saved.push(body);role="nuclear";});
+    await context.runtime.load("w");
+    const base=(await (context.adapter.draft.getMockImplementation() as unknown as ()=>Promise<{proposal:ValidatedProposal}>)()).proposal;
+    const proposal={...base,needs_confirmation:["c4"],draft:{...base.draft,intent:"settings" as const,channels:[{token:"c4",stain:"DRAQ",role:"nuclear"}]}} as ValidatedProposal;
+    context.adapter.draft.mockResolvedValueOnce({proposal,message:{...message("m-f1"),field_id:"f1"},fields:[]} as never);
+    const {runtime,adapter}=context,id=(await runtime.requestProposal("DRAQ を核染色にする","f1")).message.id;
+    // With f2 selected, the answer still waits for f1's nuclear stain, and naming it records f1's channels.
+    expect(runtime.confirmationOf(id,"f2")).toEqual([{channel:"c4",label:"DRAQ"}]);
+    expect(runtime.canApply(id,"f2")).toBe(false);
+    await runtime.confirmNuclear(id,"c4","f2");
+    expect(saved.map(value=>value.assignments)).toEqual([[{channel_id:"c4",stain:"DRAQ",role:"nuclear"}]]);
+    expect(runtime.canApply(id,"f2")).toBe(true);
+    await runtime.applyAnswer(id,false,"f2");
+    expect(adapter.recordEffect).toHaveBeenCalledWith("w",id,"settings");
+    // The next message about f2 does not continue a proposal whose channels f2 does not have.
+    await runtime.requestProposal("この視野の核を数えて","f2");
+    expect((adapter.draft.mock.calls.at(-1) as unknown[]|undefined)?.[3]).toMatchObject({previous_goal:"",previous_proposal:null,field_id:"f2"});
   });
   it("refuses to run a question's answer or a settings request",async()=>{
     for(const intent of ["answer","settings"] as const){

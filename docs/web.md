@@ -60,7 +60,9 @@ the API keeps what was typed). 「設定を適用」 and 「適用して試行�
 settings or runs a preview, followed by 「解析設定を表示」 and 「AIによる設定変更を戻す」; when some fields fail, the
 message still records what was applied and run, and the failed fields are reported. An answer that proposes a nuclear
 stain the workspace has not recorded shows 「設定の適用には、核染色の指定が必要です。」 with 「核染色に … を指定」
-instead: that records the stain's role as 染色対応 does, applies nothing, and then offers the actions. 「再送」 is
+instead: that records that channel's role as 染色対応 does (the other channels keep theirs; what the answer
+proposed for them is not recorded), applies nothing, and then offers the actions. An answer is judged against the
+field its message was sent for, also while a field with other channels is selected. 「再送」 is
 offered for a failed message, for one left 送信中 by a session that ended, for a refusal on the service's side and for
 an answer with settings, choices or run and group suggestions this session no longer holds (after a reload); it asks
 first, since it may call the model, and shows what is sent when this browser has not confirmed the scope. From prompt

@@ -219,12 +219,19 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     const field_ids=selected?[...registered.values()].filter(field=>configuration(field)===configuration(selected)).map(field=>field.id):undefined;
     await adapter.saveChannelAssignments(workspace(),{version:state.assignments.version,assignments,...(field_ids?{field_ids}:{})});histories.clear();publish({proposal:null,processing:null});await refresh(workspace());
   }
-  const answerField=(selectedFieldId?:string)=>selectedFieldId||state.data?.fields.find(value=>!value.exclusionReason)?.id;
+  /** The field an answer is about: the one selected when its message was sent (the model saw that field's channel
+   * configuration), while it is still registered; otherwise the field selected now. */
+  const channelSet=(fieldId:string)=>(state.data?.fields.find(value=>value.id===fieldId)?.channels??[]).map(value=>value.id).sort().join("\u0000");
+  const answerField=(messageId:string,selectedFieldId?:string)=>{
+    const recorded=state.messages.find(value=>value.id===messageId)?.field_id,sent=recorded&&state.data?.fields.some(value=>value.id===recorded)?recorded:undefined;
+    // The selected field, when it has the channels the answer was made for; the answer's own field otherwise.
+    if(sent&&selectedFieldId&&channelSet(sent)!==channelSet(selectedFieldId))return sent;
+    return selectedFieldId||sent||state.data?.fields.find(value=>!value.exclusionReason)?.id;};
   /** The channels an answer proposes as the nuclear stain while the workspace has no nuclear channel for them yet
    * (the API's `needs_confirmation`): the researcher sets the role before the answer's settings can be applied. */
   function pendingConfirmation(messageId:string,selectedFieldId?:string):ChannelConfirmation[]{
     const proposal=answers.get(messageId);if(!proposal?.needs_confirmation.length)return [];
-    const field=state.data?.fields.find(value=>value.id===answerField(selectedFieldId));
+    const field=state.data?.fields.find(value=>value.id===answerField(messageId,selectedFieldId));
     return proposal.needs_confirmation.flatMap(token=>{const channel=field?.channels.find(value=>value.id===token);
       return channel&&channel.role!=="nuclear"?[{channel:token,label:channel.stain||channel.label||token}]:[];});
   }
@@ -747,8 +754,11 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       await checkCurrent();await persistSpecification(state.activeTarget);
       const field=selectedFieldId||state.data?.fields.find(value=>!value.exclusionReason)?.id;let currentProcessing:ProposalProcessing|null=null;
       if(field){try{currentProcessing=runtimeProposalProcessing(nuclearChannel(field),state.settings,currentTargets.get(field)??{},state.processing);}catch{const cell=state.settings.cellDefinition?.channel;const channel=definitions(field).find(ch=>ch.token===cell);currentProcessing=channel&&state.settings.cellDefinition?.source==="cellpose"?savedProcessing(undefined,undefined,undefined,runtimeRecipe("cell",channel,state.settings,currentTargets.get(field)??{},state.processing)):null;}}
+      // A proposal made for another channel configuration is not continued: its channels do not exist in this field.
+      const here=new Set(definitions(field).map(value=>value.token));
+      const continued=lastApplicable&&lastApplicable.proposal.draft.channels.every(value=>here.has(value.token))?lastApplicable:null;
       let response:Awaited<ReturnType<typeof adapter.draft>>;
-      try{response=await adapter.draft(workspace(),goal,retryFailed,{current_processing:currentProcessing,previous_goal:lastApplicable?.goal??"",previous_proposal:lastApplicable?.proposal.draft??null,...(selectedFieldId?{field_id:selectedFieldId}:{})},messageId);}
+      try{response=await adapter.draft(workspace(),goal,retryFailed,{current_processing:currentProcessing,previous_goal:continued?.goal??"",previous_proposal:continued?.proposal.draft??null,...(selectedFieldId?{field_id:selectedFieldId}:{})},messageId);}
       catch(error){publish({messages:await readMessages(workspace())});throw error;}
       rememberGoal(workspace(),goal);
       // An answer to a question continues no settings: the conversation continues from the last proposal (#284 W7).
@@ -775,12 +785,12 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     /** 「核染色に指定」: records the proposed channel as the nuclear stain of the selected field's channel configuration
      * (the researcher's own confirmation, as in 染色対応). It applies no settings and runs nothing. */
     confirmNuclear(messageId:string,channel:string,selectedFieldId?:string){return exclusive("染色設定を保存中",async()=>{
-      const proposal=answers.get(messageId),fieldId=answerField(selectedFieldId),field=state.data?.fields.find(value=>value.id===fieldId);
+      const proposal=answers.get(messageId),fieldId=answerField(messageId,selectedFieldId),field=state.data?.fields.find(value=>value.id===fieldId);
       if(!proposal||!field||!proposal.needs_confirmation.includes(channel)||!field.channels.some(value=>value.id===channel))throw new Error("核染色の指定には、この発言の再送が必要です。");
       await checkCurrent();
-      const proposed=new Map(proposal.draft.channels.map(value=>[value.token,value.role]));
-      await storeAssignments(field.channels.map(value=>({channel_id:value.id,stain:value.stain,
-        role:value.id===channel?"nuclear":value.role==="unused"||(value.role===null&&proposed.get(value.id)==="unused")?"unused":"measure"})),field.id);
+      // Only the named channel's role is the researcher's choice here: the others keep theirs, and one without a role is
+      // measured, as when the nuclear stain is chosen in 染色対応. What the answer proposed for them is not recorded.
+      await storeAssignments(field.channels.map(value=>({channel_id:value.id,stain:value.stain,role:value.id===channel?"nuclear":value.role==="unused"?"unused":"measure"})),field.id);
       answers.set(messageId,{...proposal,needs_confirmation:proposal.needs_confirmation.filter(value=>value!==channel)});
       if(lastApplicable?.proposal===proposal)lastApplicable={...lastApplicable,proposal:answers.get(messageId)!};
       publish({});
@@ -793,7 +803,8 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     runTargets(messageId:string,selectedFieldId?:string):RunTargets|null{
       const proposal=answers.get(messageId);if(!proposal||proposal.draft.intent!=="run"||!state.data)return null;
       const scope=proposal.draft.scope==="selected"?"selected":"all",eligible=state.data.fields.filter(field=>!field.exclusionReason);
-      const fields=(scope==="selected"?eligible.filter(field=>field.id===selectedFieldId):eligible).map(field=>({id:field.id,label:field.label}));
+      const chosen=selectedFieldId?answerField(messageId,selectedFieldId):undefined;
+      const fields=(scope==="selected"?eligible.filter(field=>field.id===chosen):eligible).map(field=>({id:field.id,label:field.label}));
       return {scope,fields,excluded:state.data.fields.length-eligible.length};
     },
     /** True when the message's applicable run request has an analysis and fields to run it on. */
@@ -803,7 +814,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       const proposal=answers.get(messageId),message=state.messages.find(value=>value.id===messageId);
       if(!proposal||!message||message.applicable===false)throw new Error("解析案の適用には、この発言の再送が必要です。");
       await checkCurrent();publish({proposal});
-      const field=selectedFieldId||state.data?.fields.find(value=>!value.exclusionReason)?.id;
+      const field=answerField(messageId,selectedFieldId);
       const run=trial&&!!state.data?.fields.length&&proposal.draft.recipe!=="none";
       if(run&&!field)throw new Error("試行には、視野の選択が必要です。");
       applyProposal(field);
@@ -821,13 +832,17 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       if(!proposal||!message||message.applicable===false||proposal.draft.intent!=="run")throw new Error("解析案の適用には、この発言の再送が必要です。");
       if(proposal.draft.recipe==="none"||!targets?.fields.length)throw new Error("実行には、対象の視野が必要です。");
       await checkCurrent();publish({proposal});
-      applyProposal(targets.scope==="selected"?targets.fields[0].id:selectedFieldId&&targets.fields.some(field=>field.id===selectedFieldId)?selectedFieldId:targets.fields[0].id);
+      // The settings are checked against the channels the answer was made for, whichever field is selected now.
+      const basis=answerField(messageId,selectedFieldId);
+      applyProposal(targets.scope==="selected"?targets.fields[0].id:basis&&targets.fields.some(field=>field.id===basis)?basis:targets.fields[0].id);
       // Some fields may fail (another channel configuration, an unreadable image): the settings are saved and the other
       // fields have candidates, so the message is recorded as run and the failed fields are reported after it.
       const saved=specification.version;let failure:unknown=null;
       try{await runInternal(state.activeTarget,targets.scope==="selected"?targets.fields[0].id:undefined,true);}catch(error){if(specification.version===saved&&!targets.fields.some(field=>candidate(field.id,state.activeTarget)))throw error;failure=error;}
-      const recorded=await adapter.recordEffect(workspace(),messageId,"run");
-      publish({messages:withMessage(recorded??{...message,effect:"run"})});
+      // With no candidate on any field, only the settings were applied.
+      const effect=targets.fields.some(field=>candidate(field.id,state.activeTarget))?"run" as const:"settings" as const;
+      const recorded=await adapter.recordEffect(workspace(),messageId,effect);
+      publish({messages:withMessage(recorded??{...message,effect})});
       if(failure)throw failure;
     });},
   };

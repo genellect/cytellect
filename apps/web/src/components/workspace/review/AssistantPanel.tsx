@@ -22,13 +22,14 @@ export function messageState(message: AssistantMessage): string {
  * reload); and an answer whose settings were refused for a reason on the service's side. A question's plain answer has
  * nothing to send again.
  */
-export function resendable(message: AssistantMessage, serviceReason: boolean, held: boolean, busy: boolean, demo: boolean): boolean {
+export function resendable(message: AssistantMessage, serviceReason: boolean, held: boolean, busy: boolean, demo: boolean, last = true): boolean {
   if (demo) return false;
   if (message.state === "failed") return true;
   if (message.state === "pending") return !busy;
   if (message.applicable === false) return serviceReason;
   // `restorable`: the recorded answer holds choices or run and group suggestions, which a resend returns from the record.
-  return (message.applicable === true || message.restorable === true) && message.effect === "none" && !held;
+  // A question's answer is fetched again only as the latest message: its choices are offered there alone.
+  return (message.applicable === true || (message.restorable === true && last)) && message.effect === "none" && !held;
 }
 
 interface Props {
@@ -128,7 +129,7 @@ export function AssistantPanel({field, messages, busy, demo, canApply, canTry, u
               <button type="button" disabled={busy} onClick={() => onRun(message.id)}>適用して実行</button>}
             {message.effect !== "none" && <button type="button" disabled={busy} onClick={onShowSettings}>解析設定を表示</button>}
             {message.effect !== "none" && undoable === message.id && <button type="button" disabled={busy} onClick={onUndo}>AIによる設定変更を戻す</button>}
-            {resendable(message, reasons.some(reason => reason.kind === "service"), !!view, busy, demo) &&
+            {resendable(message, reasons.some(reason => reason.kind === "service"), !!view, busy, demo, message.id === messages.at(-1)?.id) &&
               <button type="button" disabled={busy} onClick={() => onResend(message)}>再送</button>}
           </div>
         </li>;

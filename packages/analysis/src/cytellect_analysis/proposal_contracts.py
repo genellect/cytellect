@@ -142,8 +142,9 @@ class ContextImage(ProposalModel):
 
 class ProposalContext(ProposalModel):
     """What the proposal service's model reads: the goal, channels with their labels, the fields with their names
-    and recorded metadata, counts and current settings. Paths and measured values are not part of it; downscaled
-    previews travel next to it."""
+    and recorded metadata, counts and current settings. From 1.3.0 a field also carries the names its files were
+    added with, as paths that start at the folder the researcher chose. Locations on the PC above that folder and
+    measured values are not part of it; downscaled previews travel next to it."""
     protocol: Literal["1.1.0", "1.2.0", "1.3.0"] = "1.3.0"
     goal: Annotated[str, Field(max_length=2000)] = ""
     channels: Annotated[list[ContextChannel], Field(min_length=0, max_length=6)]

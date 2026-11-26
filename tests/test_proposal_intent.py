@@ -434,6 +434,10 @@ def test_the_listing_says_which_answers_hold_choices_or_suggestions_to_read_agai
     ("D:\\lab\\A01.tif", "A01.tif"),
     ("file:///C:/Users/example/A01.tif", "A01.tif"),
     ("home/example/secret/A01.tif", "A01.tif"),
+    ("Users/example/Rep1/A01.tif", "A01.tif"),
+    # A folder named home or Users inside the chosen folder is a folder like any other.
+    ("ExpA/home/A01.tif", "ExpA/home/A01.tif"),
+    ("data/Users/Rep1/A01.tif", "data/Users/Rep1/A01.tif"),
     ("\\\\server\\share\\A01.tif", "A01.tif"),
     ("./Rep1/../Rep1/A01.tif", "Rep1/Rep1/A01.tif"),
     # One line of data: line and paragraph separators and direction marks never reach the model.

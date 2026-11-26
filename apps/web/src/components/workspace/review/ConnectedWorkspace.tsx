@@ -393,12 +393,17 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
       // A request the API recorded as failed says why under its own message, with 「再送」; the banner above is for
       // requests that never became a message (no connection, a refused session).
       const recorded=r.getSnapshot().messages.find(item=>!known.has(item.id)||item.id===message);
-      if(recorded?.state==="failed"){r.dismissError();return;}
+      // Only when this attempt is what the message records (its reasons name this error): an attempt that never
+      // reached the API leaves an earlier failure under the message, and is reported above.
+      const codes=error instanceof ApiError?[error.code,...(error.reasons??[])]:[];
+      if(recorded?.state==="failed"&&recorded.reasons.some(reason=>codes.includes(reason))){r.dismissError();return;}
       throw error;}));
   }
-  const applyAnswer=(id:string,trial:boolean)=>void act(async()=>{await r.applyAnswer(id,trial,field?.id);setAppliedMessage(id);});
+  // The message whose settings were applied offers the undo, also when a field then failed (the failure is reported after).
+  const applied=(id:string)=>{if(r.getSnapshot().messages.find(item=>item.id===id)?.effect!=="none")setAppliedMessage(id);};
+  const applyAnswer=(id:string,trial:boolean)=>void act(async()=>{try{await r.applyAnswer(id,trial,field?.id);}finally{applied(id);}});
   // 「適用して実行」 of a run request (#284 W7): candidates on its target fields; adopting them stays the researcher's.
-  const runAnswer=(id:string)=>void act(async()=>{await r.runAnswer(id,field?.id);setAppliedMessage(id);});
+  const runAnswer=(id:string)=>void act(async()=>{try{await r.runAnswer(id,field?.id);}finally{applied(id);}});
   const placeOf=(place:ReasonPlace)=>{if(place==="channels"){setMode("image");setAssignments(true);}else if(place==="experiment")changeMode("experiment");else if(place==="settings")showSettings();else chooseFiles();};
   // The 画像 and フォルダー buttons and a drop of files or folders add images the same way. A chosen list is read at once
   // (the input is cleared right after); a drop's files arrive once its folders are read.
@@ -666,7 +671,7 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
         <AssistantPanel field={field} messages={r.messages} busy={busy} demo={demo} canApply={id=>r.canApply(id,field?.id)} canTry={id=>r.canTry(id,field?.id)}
           confirmationOf={id=>r.confirmationOf(id,field?.id)} onConfirm={(id,channel)=>void act(()=>r.confirmNuclear(id,channel,field?.id))}
           undoable={r.canUndoProposal()?appliedMessage:null} onApply={applyAnswer} onShowSettings={showSettings} onPlace={placeOf}
-          onUndo={()=>void act(()=>r.undoProposal())} onResend={message=>setRetryPending({value:message.text,message:message.id,retry:message.state!=="answered",answered:message.state==="answered"})}
+          onUndo={()=>void act(()=>r.undoProposal())} onResend={message=>setRetryPending({value:message.text,message:message.id,retry:message.state!=="answered"||message.applicable===false,answered:message.state==="answered"})}
           onPropose={fields.length&&aiAccess.available?()=>void sendInstruction(""):undefined}
           answerOf={id=>r.answerOf(id)} runTargets={id=>r.runTargets(id,field?.id)} canRun={id=>r.canRun(id,field?.id)} onRun={runAnswer}
           onChoose={option=>void sendInstruction(option)}/>
