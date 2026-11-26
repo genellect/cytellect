@@ -73,6 +73,12 @@ def test_a_long_explanation_is_kept_as_written():
      "proposal_pairing_required"),
     ({"rationale": "See https://example.org"}, "proposal_text_not_allowed"),
     ({"missing_information": ["run(\"Analyze Particles\")"]}, "proposal_text_not_allowed"),
+    ({"channels": [*draft()["channels"][:2], {"token": "c3", "stain": "www.example.org", "role": "measure", "reason": "x"}]},
+     "proposal_text_not_allowed"),
+    ({"figure_presentation": {"composition": "quantification", "legend_terms": {
+        "cell_line": "HeLa", "treatment": "see https://example.org", "stains": None}}}, "proposal_text_not_allowed"),
+    ({"figure_presentation": {"composition": "quantification", "legend_terms": {
+        "cell_line": None, "treatment": None, "stains": "<script>x</script>"}}}, "proposal_text_not_allowed"),
     ({"figures": [{"kind": "unit-comparison", "metric": "area", "channel": "dapi"}]}, "proposal_figure_metric_not_proposed"),
 ])
 def test_semantic_rejections(change, code):

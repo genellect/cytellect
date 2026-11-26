@@ -37,7 +37,21 @@ def context_sha256(context: ProposalContext) -> str:
 
 
 def _texts(draft: ProposalDraft) -> list[str]:
-    return [draft.rationale, *draft.missing_information, *(channel.reason for channel in draft.channels)]
+    """Every string of the draft, wherever it sits: a text field added to the contract is checked without being listed here."""
+    found: list[str] = []
+
+    def collect(value: object):
+        if isinstance(value, str):
+            found.append(value)
+        elif isinstance(value, dict):
+            for item in value.values():
+                collect(item)
+        elif isinstance(value, list):
+            for item in value:
+                collect(item)
+
+    collect(draft.model_dump(mode="json"))
+    return found
 
 
 def validate_draft(context: ProposalContext, raw: object, *, model: str, prompt_version: str) -> ValidatedProposal:

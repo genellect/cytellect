@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { checkRequest, handle, readConfig, worstCaseUsd, type Env } from "./index";
 import { hasDraftShape, observedCost, PROMPT_VERSION, NUCLEAR_FILTER_PREVIOUS_PROMPT_VERSION } from "./openai";
 import { MemoryStore } from "./store";
+import { redeemSupport } from "./test-support";
 
 const DRAFT = {
   recipe: "nuclear-intensity",
@@ -34,10 +35,11 @@ function post(path: string, body: unknown, token?: string) {
 async function device(store: MemoryStore, env = ENV) {
   const invited = await handle(post("/v1/admin/invitations", {}, env.ADMIN_TOKEN), env, store);
   const { invitation } = await invited.json() as { invitation: string };
-  const redeemed = await handle(post("/v1/devices", { invitation }), env, store);
+  const limiter = await redeemSupport();
+  const redeemed = await handle(post("/v1/devices", { invitation }), { ...env, ...limiter.env }, store, limiter.options);
   expect(redeemed.status).toBe(201);
   // One-use invitation.
-  expect((await handle(post("/v1/devices", { invitation }), env, store)).status).toBe(403);
+  expect((await handle(post("/v1/devices", { invitation }), { ...env, ...limiter.env }, store, limiter.options)).status).toBe(403);
   return (await redeemed.json() as { device_token: string }).device_token;
 }
 

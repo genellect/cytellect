@@ -34,3 +34,12 @@ export async function sqliteDatabase(migrations = MIGRATIONS): Promise<D1Databas
   };
   return { prepare: (query: string) => statement(query), batch } as unknown as D1Database;
 }
+
+/**
+ * What the legacy invitation redemption needs besides the invitation itself: the rate
+ * limiter's database and the key its entries are derived from.
+ */
+export async function redeemSupport() {
+  const { D1AuthStore } = await import("./auth-store");
+  return { env: { OWNER_EMAIL: "owner@example.org", ADMIN_SIGNING_KEY: "s".repeat(48) }, options: { auth: new D1AuthStore(await sqliteDatabase()) } };
+}

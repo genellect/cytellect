@@ -202,7 +202,8 @@ window.
 | Code requests (`/v1/auth/code`) | 20 per hour per IP; 6 per hour per address; 60 s between codes. A request during those 60 s gets `retry_after_seconds`: it counts against the IP but not against the address |
 | Device codes sent | 10 per day per address, whatever the requesting IP |
 | Admin codes sent to the owner (only while Cloudflare Access is not configured) | 5 per hour and 10 per day; 10 admin code requests per hour per IP, counting requests during the owner's 60-second resend interval (those get `retry_after_seconds` and send nothing) |
-| Code checks | 30 per hour per IP (admin: 20); 5 wrong guesses void a code |
+| Code checks | 30 per hour per IP (admin: 20); at most 5 candidates are compared against one code. Each check claims its attempt before the comparison, so requests that arrive together cannot exceed the 5; the fifth wrong guess voids the code |
+| Invitation redemption (`/v1/devices`, while `LEGACY_INVITATIONS` is on) | 10 per hour per IP. Without the database or `ADMIN_SIGNING_KEY` (the key of the counters) the route answers 503 `auth_unavailable` |
 | Wrong codes per address | 20 within a day lock that address for 24 hours (device and admin separately). The lock also voids the current code and stops new codes |
 | Access requests | 240 request-state checks per hour per IP; 20 owner notices per day in total |
 

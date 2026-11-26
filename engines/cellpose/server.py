@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import hmac
 import importlib.util
 import io
 import json
@@ -27,6 +28,35 @@ ROUTES = ("/", "/v1/cellpose")
 
 class InputError(ValueError):
     pass
+
+
+# The numeric request values that size the computation, with the same ranges as the client's
+# contract (cytellect_analysis.cellpose_engine); the service checks them itself because it
+# cannot assume that every caller validated its request. (kind, low, low inclusive, high, optional)
+PARAMETER_RANGES = {
+    "diameter_px": (float, 0, False, 4096, True),
+    "flow_threshold": (float, 0, False, 10, False),
+    "cellprob_threshold": (float, -20, True, 20, False),
+    "iterations": (int, 1, True, 10000, True),
+    "batch_size": (int, 1, True, 8, False),
+    "nuclear_diameter_fraction": (float, 0, False, 1, False),
+    "crop_padding_px": (int, 1, True, 256, False),
+    "local_background_radius_px": (int, 1, True, 128, False),
+    "background_radius_px": (int, 1, True, 128, False),
+    "smoothing_sigma_px": (float, 0, False, 16, False),
+}
+
+
+def check_parameter_ranges(parameters: dict):
+    for name, (kind, low, inclusive, high, optional) in PARAMETER_RANGES.items():
+        if name not in parameters or (optional and parameters[name] is None):
+            continue
+        value = parameters[name]
+        accepted = (int,) if kind is int else (int, float)
+        # bool is an int in Python; NaN and infinities fail both comparisons or the upper bound.
+        if (isinstance(value, bool) or not isinstance(value, accepted)
+                or not (low <= value if inclusive else low < value) or not value <= high):
+            raise InputError("cellpose_remote_input_invalid")
 
 
 def digest(path: Path) -> str:
@@ -110,6 +140,7 @@ class Service:
         if parent is not None and (parent.shape != image.shape or parent.dtype.kind not in "iu"):
             raise InputError("cellpose_remote_input_invalid")
         parameters = request["parameters"]
+        check_parameter_ranges(parameters)
         if self.require_gpu and parameters.get("compute_device") == "cpu":
             raise InputError("cellpose_remote_gpu_required")
         profile = self.runner.selected_model(self.runner.runtime_lock(), parameters)
@@ -160,7 +191,8 @@ def handler_for(service: Service, secret: str | None):
             started = time.monotonic()
             if self.path.split("?")[0] not in ROUTES:
                 return self.error(404, "cellpose_remote_route_unknown")
-            if secret is not None and self.headers.get("X-Cytellect-Secret") != secret:
+            presented = self.headers.get("X-Cytellect-Secret") or ""
+            if secret is not None and not hmac.compare_digest(presented.encode("utf-8"), secret.encode("utf-8")):
                 return self.error(403, "cellpose_remote_rejected")
             try:
                 length = int(self.headers.get("Content-Length", ""))

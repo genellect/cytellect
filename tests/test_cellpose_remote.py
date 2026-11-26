@@ -252,3 +252,57 @@ def test_baseline_client_compatibility_and_network_release(service, monkeypatch)
     engine._remote_inference(image(), np.ones(image().shape, np.uint32), selected)
     assert not legacy._NETWORK
     assert state.runner.calls[-1]["model"] == engine.NCL_750_MODEL_ID
+
+
+@pytest.mark.parametrize("name,value", [
+    ("batch_size", 9), ("batch_size", 0), ("batch_size", 2.0), ("batch_size", True), ("batch_size", "4"),
+    ("iterations", 10001), ("iterations", 0), ("diameter_px", 0), ("diameter_px", 5000), ("diameter_px", float("nan")),
+    ("diameter_px", float("inf")), ("flow_threshold", 0), ("cellprob_threshold", 21), ("local_background_radius_px", 129),
+    ("nuclear_diameter_fraction", 1.5), ("batch_size", None),
+])
+def test_service_refuses_out_of_range_request_values_before_inference(service, name, value):
+    state = service.start()
+    parameters = {**CellposeDetectorSpec().model_dump(mode="json"), name: value}
+    body = state.module.write_archive(request=np.frombuffer(json.dumps({"parameters": parameters}).encode(), np.uint8), image=image())
+    with pytest.raises(state.module.InputError, match="cellpose_remote_input_invalid"):
+        state.service.infer(body)
+    assert state.runner.calls == []
+
+
+def test_service_ranges_are_the_clients_contract_and_accept_its_defaults(service):
+    from cytellect_analysis.cellpose_engine import NclCellposeDetectorSpec, NclParentCellposeDetectorSpec
+
+    state = service.start()
+    contract = {}
+    for spec in (CellposeDetectorSpec, NclCellposeDetectorSpec, NclParentCellposeDetectorSpec):
+        for name, field in spec.model_fields.items():
+            bounds = {type(item).__name__: getattr(item, type(item).__name__.lower()) for item in field.metadata
+                      if type(item).__name__ in ("Gt", "Ge", "Le")}
+            if name in state.module.PARAMETER_RANGES:
+                contract[name] = (bounds.get("Ge", bounds.get("Gt")), "Ge" in bounds, bounds["Le"])
+        state.module.check_parameter_ranges(spec().model_dump(mode="json"))
+    assert contract == {name: (low, inclusive, high)
+                        for name, (_, low, inclusive, high, _) in state.module.PARAMETER_RANGES.items()}
+    for name, (_, _, _, high, optional) in state.module.PARAMETER_RANGES.items():
+        state.module.check_parameter_ranges({name: high})
+        if optional:
+            state.module.check_parameter_ranges({name: None})
+
+
+def test_service_secret_is_required_exactly(service):
+    import urllib.error
+    import urllib.request
+
+    state = service.start(secret="expected-secret-value")
+    target = state.httpd.server_address
+    for presented in (None, "", "expected-secret-valu", "expected-secret-value-and-more", "ｅxpected-secret-value"):
+        headers = {} if presented is None else {"X-Cytellect-Secret": presented.encode("utf-8").decode("latin-1")}
+        request = urllib.request.Request(f"http://{target[0]}:{target[1]}/v1/cellpose", data=b"x", method="POST", headers=headers)
+        with pytest.raises(urllib.error.HTTPError) as refused:
+            urllib.request.urlopen(request)
+        assert refused.value.code == 403
+    request = urllib.request.Request(f"http://{target[0]}:{target[1]}/v1/cellpose", data=b"x", method="POST",
+                                     headers={"X-Cytellect-Secret": "expected-secret-value"})
+    with pytest.raises(urllib.error.HTTPError) as accepted:
+        urllib.request.urlopen(request)
+    assert accepted.value.code == 400  # Past the secret; the body is not an archive.

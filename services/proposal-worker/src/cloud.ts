@@ -73,6 +73,7 @@ export const RATE = {
   codeSendDay: ["code-send-day", 10, DAY],
   verifyIp: ["verify-ip", 30, HOUR],
   requestIp: ["request-ip", 240, HOUR],
+  deviceIp: ["device-ip", 10, HOUR],
   adminIp: ["admin-ip", 10, HOUR],
   adminVerifyIp: ["admin-verify-ip", 20, HOUR],
   adminSendHour: ["admin-send-hour", 5, HOUR],
@@ -150,10 +151,20 @@ const rateKey = (cfg: AuthConfig, kind: string, value: string) =>
 
 const retryAfter = (until: number, now: number) => Math.max(1, Math.ceil((until - now) / SECOND));
 
-async function limited(ctx: CloudContext, cfg: AuthConfig, [kind, max, window]: readonly [string, number, number], value: string) {
+async function limited(ctx: Pick<CloudContext, "auth" | "now">, cfg: AuthConfig, [kind, max, window]: readonly [string, number, number], value: string) {
   const { count, window_start } = await ctx.auth.hit(await rateKey(cfg, kind, value), ctx.now, window);
   if (count <= max) return null;
   return fail(429, "rate_limited", { retry_after_seconds: retryAfter(window_start + window, ctx.now) });
+}
+
+/**
+ * The limit on redeeming a legacy invitation, per client address like every other sign-in
+ * route. Without a limiter (no database, or no signing key for its keys) the route is closed.
+ */
+export async function legacyRedeemRefusal(request: Request, env: CloudEnv, auth: D1AuthStore | undefined, now: number) {
+  const cfg = authConfig(env);
+  if (!auth || !cfg) return fail(503, "auth_unavailable");
+  return limited({ auth, now }, cfg, RATE.deviceIp, clientIp(request));
 }
 
 /** 429 while the address is locked after too many wrong codes for this purpose. */
@@ -233,16 +244,18 @@ async function verifyCode(ctx: CloudContext, cfg: AuthConfig, email: string, cod
     await ctx.auth.deleteCode(email, purpose);
     return fail(400, "code_expired");
   }
-  if (row.attempts >= AUTH.maxAttempts) return fail(400, "too_many_attempts");
+  // An attempt is claimed atomically before the code is compared: requests that arrive
+  // together cannot compare more than maxAttempts candidates against one code.
+  const attempts = await ctx.auth.claimAttempt(email, purpose, AUTH.maxAttempts);
+  if (attempts === null) return fail(400, "too_many_attempts");
   const candidate = typeof code === "string" ? code.replace(/\s/g, "") : "";
   const hash = /^\d{6}$/.test(candidate) ? await codeHash(cfg, email, purpose, candidate) : "";
   if (hash && equal(hash, row.code_hash)) {
-    return await ctx.auth.consumeCode(email, purpose, hash, ctx.now, AUTH.maxAttempts) ? null : fail(400, "code_expired");
+    return await ctx.auth.consumeCode(email, purpose, hash, ctx.now) ? null : fail(400, "code_expired");
   }
-  const attempts = await ctx.auth.failAttempt(email, purpose, AUTH.maxAttempts);
-  const lockedNow = attempts === null ? null : await recordFailure(ctx, cfg, email, purpose);
+  const lockedNow = await recordFailure(ctx, cfg, email, purpose);
   if (lockedNow) return lockedNow;
-  if (attempts === null || attempts >= AUTH.maxAttempts) return fail(400, "too_many_attempts");
+  if (attempts >= AUTH.maxAttempts) return fail(400, "too_many_attempts");
   return fail(400, "code_invalid", { attempts_left: AUTH.maxAttempts - attempts });
 }
 
