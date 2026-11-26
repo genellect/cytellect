@@ -54,7 +54,13 @@ the origin of its name and its role, and the nuclear channel. Below are the work
 (送信中, 回答, 失敗, 設定を適用済み, 実行済み), its answer and, when its settings cannot be used, the reasons: a place the
 researcher changes (画像, 染色対応, 実験デザイン, 解析設定) or a service-side failure with its code and 「再送」. Sending
 clears the input and changes nothing; 「設定を適用」 and 「適用して試行」 under an answer are the only ways an answer
-changes settings or runs a preview, followed by 「解析設定を表示」 and 「AIによる設定変更を戻す」. An empty instruction is
+changes settings or runs a preview, followed by 「解析設定を表示」 and 「AIによる設定変更を戻す」. From prompt
+`2026-11-26.1` (W7) the answer declares the kind of request, which only chooses these actions: a question shows its
+answer and the items to confirm as buttons (a choice is sent as the next message), a settings request 「設定を適用」, and a
+run request its target fields (「対象：選択した視野 · …」 or 「対象：全視野 · n 視野」, excluded fields left out) and
+「適用して実行」, which applies the settings and makes detection candidates on those fields; adopting them stays with
+「測定」. An answer with run and group suggestions says 「割付の案：n 視野」 with 「実験」; the suggestions appear, marked
+「AI」, in the table of unassigned fields and are saved only by 「案を適用」. An empty instruction is
 not sent; 「解析案を作る」 asks for a proposal from the images alone. A new workspace starts with an empty conversation and
 input, and reopening a workspace shows its messages again.
 

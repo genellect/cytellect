@@ -1,6 +1,6 @@
 "use client";
 import {useState} from "react";
-import {applySuggestions, suggestAssignments, type FieldPaths} from "@/lib/workspace/assignment-suggestions";
+import {applySuggestions, mergeSuggestions, suggestAssignments, type FieldPaths, type Suggestion} from "@/lib/workspace/assignment-suggestions";
 import {assignFields, type ExperimentDesign} from "@/lib/workspace/experiment-design";
 import styles from "./experiment-setup.module.css";
 
@@ -10,6 +10,8 @@ interface Props {
   locked: boolean;
   onSave: (design: ExperimentDesign) => Promise<unknown>;
   onOpenField: (id: string) => void;
+  /** Suggestions from an AI answer (#284 W7); for a listed field they replace the rule's and are marked 「AI」. */
+  aiSuggestions?: readonly Suggestion[];
 }
 
 /**
@@ -18,9 +20,10 @@ interface Props {
  * run and group of a one-screen design) and are saved only by 「案を適用」; nothing places several fields in one
  * group without the researcher choosing it.
  */
-export function UnassignedFields({design, fields, locked, onSave, onOpenField}: Props) {
+export function UnassignedFields({design, fields, locked, onSave, onOpenField, aiSuggestions = []}: Props) {
   const [chosen, setChosen] = useState<Set<string>>(new Set()), [target, setTarget] = useState("");
-  const suggestions = suggestAssignments(design, fields), byField = new Map(suggestions.map(value => [value.fieldId, value]));
+  const suggestions = mergeSuggestions(suggestAssignments(design, fields), aiSuggestions, fields.map(field => field.id));
+  const byField = new Map(suggestions.map(value => [value.fieldId, value]));
   const runs = design.runs ?? [];
   const toggle = (id: string) => setChosen(previous => {const next = new Set(previous);if (next.has(id)) next.delete(id);else next.add(id);return next;});
   const assign = () => {const [runId, groupId] = target.split("\u0000");if (!runId || !groupId || !chosen.size) return;
@@ -42,7 +45,7 @@ export function UnassignedFields({design, fields, locked, onSave, onOpenField}: 
         <td>{field.preview ? <img src={field.preview} alt=""/> : <span aria-hidden="true"/>}</td>
         <th scope="row"><button type="button" className={styles.link} onClick={() => onOpenField(field.id)}>{field.label}</button></th>
         <td>{field.channels.join(" · ") || "—"}</td>
-        <td>{suggestion ? `${suggestion.runLabel} · ${suggestion.groupLabel}` : "案なし"}</td>
+        <td>{suggestion ? <>{suggestion.source === "ai" && <small className={styles.suggestionSource}>AI</small>}{suggestion.runLabel} · {suggestion.groupLabel}</> : "案なし"}</td>
       </tr>;})}</tbody>
     </table>
   </section>;

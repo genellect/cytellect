@@ -108,8 +108,17 @@ export interface ProposalDraft {
   processing?: ProposalProcessing | null;
   background?:{mode:"raw"|"automatic"|"confirmed_roi"}|null;
   gfp_selection?:{channel:string;unit:"nucleus"|"cell_roi";method:"manual"|"batch_otsu"|"negative_control";threshold:number|null;values:"raw"|"corrected";keep:"positive"|"negative";percentile:number}|null;
+  /** Prompt 2026-11-26.1 (#284 W7): the kind of request chooses the actions shown; absent in earlier drafts. */
+  intent?: "answer" | "settings" | "run" | null;
+  answer?: string | null;
+  scope?: "selected" | "all" | null;
+  choices?: Array<{question: string; options: string[]}>;
+  /** Run and group suggestions; `field` is the context's identifier (`f1`…), resolved through the response's `fields`. */
+  assignments?: Array<{field: string; run: string; group: string}>;
 }
 export interface ValidatedProposal {draft: ProposalDraft; needs_confirmation: string[]}
+/** The context's field identifier and the workspace field it names (context 1.3.0). */
+export interface ProposalFieldLink {token: string; field_id: string}
 export interface GfpGateResult {unit?: "nucleus" | "cell_roi"; objects?: Array<{field_id:string;region_id:number;gfp_mean:number|null;gfp_positive:boolean|null;gfp_gate_reason:string}>; protocol?: string; method?: "negative_control" | "manual" | "batch_otsu"; nuclei?: Array<{field_id:string;region_id:number;gfp_mean:number|null;gfp_positive:boolean|null;gfp_gate_reason:string}>; percentile: number; dates: Record<string, {threshold: number | null; control_nuclei: number; missing_reason: string | null}>; field_counts: Record<string, {positive: number; negative: number; control: number; unselected: number}>}
 export type NucleusTableData = components["schemas"]["NucleusTable"];
 export type RegionPartitionData = components["schemas"]["RegionPartitionTable"];
@@ -479,15 +488,15 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
     async draftDiscussion(job: string, experiment: ExperimentNote, retryFailed = false, summary?: ShownSummary): Promise<DiscussionView> {
       return client.post<DiscussionView>(`/v1/jobs/${job}/discussion`, {transmission_confirmed: true, experiment, ...(summary ? {summary} : {}), ...(retryFailed ? {retry_failed: true} : {})});
     },
-    async draft(workspace: string, goal: string, retryFailed = false, continuation?: {current_processing: ProposalProcessing | null; previous_goal: string; previous_proposal: ProposalDraft | null;field_id?:string}, messageId?: string): Promise<{proposal: ValidatedProposal | null; message: AssistantMessage}> {
+    async draft(workspace: string, goal: string, retryFailed = false, continuation?: {current_processing: ProposalProcessing | null; previous_goal: string; previous_proposal: ProposalDraft | null;field_id?:string}, messageId?: string): Promise<{proposal: ValidatedProposal | null; message: AssistantMessage; fields: ProposalFieldLink[]}> {
       // Called only after the one-time scope notice has been accepted in this workspace. Previews are on by
       // default in the API; only turning them off is sent, so the default request body is unchanged.
-      const response = await client.post<{proposal: ValidatedProposal | null; channels: ProposalChannelLink[]; message?: AssistantMessage | null}>(`/v1/workspaces/${workspace}/proposal-drafts`, {goal, transmission_confirmed: true, ...(includePreviews() ? {} : {include_previews: false}), ...(retryFailed ? {retry_failed: true} : {}), ...continuation, ...(messageId ? {message_id: messageId} : {})});
+      const response = await client.post<{proposal: ValidatedProposal | null; channels: ProposalChannelLink[]; message?: AssistantMessage | null; fields?: ProposalFieldLink[]}>(`/v1/workspaces/${workspace}/proposal-drafts`, {goal, transmission_confirmed: true, ...(includePreviews() ? {} : {include_previews: false}), ...(retryFailed ? {retry_failed: true} : {}), ...continuation, ...(messageId ? {message_id: messageId} : {})});
       const proposal = response.proposal ? localProposal(response.proposal,response.channels) : null;
       // A recorded demo answer (the earlier response shape) carries no message: it is shown as answered and applicable.
       const message: AssistantMessage = response.message ?? {id: `local-${crypto.randomUUID()}`, field_id: continuation?.field_id ?? null, created: Date.now() / 1000, text: goal,
         state: "answered", reply: proposal ? [proposal.draft.rationale, ...(proposal.draft.missing_information ?? [])].join("\n") : null, applicable: !!proposal, reasons: [], stage: null, effect: "none"};
-      return {proposal, message};
+      return {proposal, message, fields: response.fields ?? []};
     },
     /** The researcher's messages to the AI in this workspace, oldest first. The public demo records none. */
     async listMessages(workspace: string): Promise<AssistantMessage[]> {

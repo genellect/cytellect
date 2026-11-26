@@ -511,3 +511,61 @@ describe("connection loss and reconnection (#284 W9)",()=>{
     expect(runtime.getSnapshot().error).toBe("");
   });
 });
+describe("the kind of request (#284 W7)",()=>{
+  type Draft=ValidatedProposal["draft"];
+  async function answered(intent:Draft["intent"],extra:Partial<Draft>={},links:Array<{token:string;field_id:string}>=[]){
+    const context=fixture();await context.runtime.load("w");
+    const base=(await (context.adapter.draft.getMockImplementation() as unknown as ()=>Promise<{proposal:ValidatedProposal}>)()).proposal;
+    const proposal={...base,draft:{...base.draft,intent,...extra}};
+    context.adapter.draft.mockResolvedValueOnce({proposal,message:message(`m-${intent}`),fields:links} as never);
+    const settings=context.runtime.getSnapshot().settings,writes=context.writeSpecification.mock.calls.length;
+    const response=await context.runtime.requestProposal("依頼","f1");
+    return {...context,response,settings,writes};
+  }
+  it.each(["answer","settings","run"] as const)("an answer of intent %s changes no setting and runs nothing until the researcher acts",async intent=>{
+    const {runtime,adapter,response,settings,writes,writeSpecification}=await answered(intent,{scope:intent==="run"?"all":null});
+    expect(adapter.run).not.toHaveBeenCalled();expect(adapter.recordEffect).not.toHaveBeenCalled();
+    expect(runtime.getSnapshot().settings).toEqual(settings);expect(runtime.getSnapshot().proposal).toBeNull();
+    // Sending saves the current specification at most once, as before (#284 W2); the answer adds nothing to it.
+    expect(writeSpecification.mock.calls.length).toBeLessThanOrEqual(writes+1);
+    const id=response.message.id;
+    expect(runtime.answerOf(id)?.intent).toBe(intent);
+    // The actions follow the intent: none for a question, 「設定を適用」 for settings, 「適用して実行」 for a run.
+    expect([runtime.canApply(id),runtime.canTry(id),runtime.canRun(id,"f1")]).toEqual(
+      intent==="answer"?[false,false,false]:intent==="settings"?[true,false,false]:[true,false,true]);
+  });
+  it("runs a run request only from 「適用して実行」, as candidates on its target fields",async()=>{
+    const {runtime,adapter,response}=await answered("run",{scope:"selected"});
+    expect(runtime.runTargets(response.message.id,"f1")).toEqual({scope:"selected",fields:[{id:"f1",label:"View"}],excluded:0});
+    expect(runtime.runTargets(response.message.id,undefined)?.fields).toEqual([]);
+    await runtime.runAnswer(response.message.id,"f1");
+    expect(adapter.run).toHaveBeenCalledTimes(1);expect(adapter.run.mock.calls[0][1]).toBe("f1");
+    // Candidates only: adopting them stays the researcher's.
+    expect(adapter.run.mock.calls[0][5]).toEqual({adopt:false});
+    expect(adapter.recordEffect).toHaveBeenCalledWith("w",response.message.id,"run");
+  });
+  it("refuses to run a question's answer or a settings request",async()=>{
+    for(const intent of ["answer","settings"] as const){
+      const {runtime,adapter,response}=await answered(intent);
+      await expect(runtime.runAnswer(response.message.id,"f1")).rejects.toThrow();
+      expect(adapter.run).not.toHaveBeenCalled();expect(runtime.runTargets(response.message.id,"f1")).toBeNull();
+    }
+  });
+  it("offers a question's choices and keeps no settings to continue from",async()=>{
+    const choices=[{question:"核染色のチャンネル",options:["核染色は DRAQ","核染色は GFP"]}];
+    const {runtime,adapter,response}=await answered("answer",{recipe:"none",choices});
+    expect(runtime.answerOf(response.message.id)?.choices).toEqual(choices);
+    await runtime.requestProposal("核染色は DRAQ","f1");
+    expect((adapter.draft.mock.calls.at(-1) as unknown[]|undefined)?.[3]).toMatchObject({previous_goal:"",previous_proposal:null});
+  });
+  it("holds the answer's assignment suggestions by field, without saving them",async()=>{
+    const assignments=[{field:"f1",run:"Rep1",group:"未処理"},{field:"f9",run:"Rep1",group:"ActD"},{field:"f1",run:"Rep · 1",group:"x"}];
+    const {runtime,writeSpecification,writes}=await answered("answer",{recipe:"none",assignments},[{token:"f1",field_id:"f1"}]);
+    // Only fields the response names (an unknown identifier is dropped) and labels the design can hold; nothing is
+    // written to the design. The experiment table shows them only for its unassigned fields.
+    expect(runtime.getSnapshot().assignmentSuggestions).toEqual([{fieldId:"f1",runLabel:"Rep1",groupLabel:"未処理",source:"ai"}]);
+    expect(writeSpecification.mock.calls.length).toBeLessThanOrEqual(writes+1);
+    expect(writeSpecification.mock.calls.every(call=>!JSON.stringify(call[1]).includes("Rep1"))).toBe(true);
+    runtime.newWorkspace();expect(runtime.getSnapshot().assignmentSuggestions).toEqual([]);
+  });
+});

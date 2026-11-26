@@ -20,11 +20,25 @@ from .region_contracts import NuclearDetectorSpec
 from .signal_engine import SignalDetectorSpec
 
 PROPOSAL_PROTOCOL = "1.1.0"
-# 2026-11-19.1 adds the figure presentation (publication figures plan.md FM-01); the service keeps 2026-11-16.1.
-PROPOSAL_PROMPT_VERSION = "2026-11-19.1"
+# 2026-11-26.1 (genellect/cytellect#284 W7) adds the kind of request (`intent`), the direct answer, the fields a run
+# covers (`scope`), the items to confirm (`choices`) and run and group suggestions (`assignments`), and reads context
+# 1.3.0. The service keeps answering 2026-11-19.1 (the figure presentation, publication figures plan.md FM-01) and the
+# earlier versions of installed clients.
+PROPOSAL_PROMPT_VERSION = "2026-11-26.1"
+FIGURE_PROMPT_VERSION = "2026-11-19.1"
 # Context 1.2.0 (docs/drafts/llm-assistant/plan.md) adds the researcher's channel labels, field names and
-# metadata; installed clients up to 0.1.0-local.23 send 1.1.0.
-PROPOSAL_CONTEXT_PROTOCOL = "1.2.0"
+# metadata; installed clients up to 0.1.0-local.23 send 1.1.0. Context 1.3.0 (#284 W7) adds, per field, an opaque
+# identifier, the folder-relative names the field was added with and its run and group, and the design's run and
+# group names; only the prompt that reads it (INTENT_PROMPT_VERSIONS) is sent it.
+PROPOSAL_CONTEXT_PROTOCOL = "1.3.0"
+LEGACY_CONTEXT_PROTOCOL = "1.2.0"
+INTENT_PROMPT_VERSIONS = frozenset({PROPOSAL_PROMPT_VERSION})
+
+
+def context_protocol(prompt_version: str) -> str:
+    """The context a prompt version reads: 1.3.0 for the intent prompt, 1.2.0 for every earlier or unknown one, so an
+    operator who pins an earlier prompt (a service not yet updated) sends exactly what that prompt was written for."""
+    return PROPOSAL_CONTEXT_PROTOCOL if prompt_version in INTENT_PROMPT_VERSIONS else LEGACY_CONTEXT_PROTOCOL
 PROPOSAL_MODEL = "gpt-6.1-sol"
 # Models the service may answer with (docs/drafts/llm-assistant/plan.md): the response names the one it used, and
 # the workspace stores that name with the draft. A model outside this list is refused as a version mismatch.
@@ -62,15 +76,37 @@ class ContextChannel(ProposalModel):
 
 
 FieldText = Annotated[str, Field(min_length=1, max_length=120)]
+# A name a file was added with, relative to the folder the researcher chose (or the file name alone); never absolute.
+AddedName = Annotated[str, Field(min_length=1, max_length=255)]
+FieldToken = Annotated[str, Field(pattern=r"^f[1-9][0-9]{0,2}$")]
+DesignLabel = Annotated[str, Field(min_length=1, max_length=24)]
+
+
+def _absent(value) -> bool:
+    return value is None or value == []
 
 
 class ContextField(ProposalModel):
-    """One image field as the researcher recorded it: its name and metadata, never a path."""
+    """One image field as the researcher recorded it: its name and metadata. From context 1.3.0 also an opaque
+    identifier (`f1`, `f2`…) that assignment suggestions name, the folder-relative names its files were added with, and
+    its run and group in the experiment design. Never an absolute path. Absent values are left out of the context, so
+    a 1.2.0 context is unchanged."""
     name: FieldText | None = None
     condition: FieldText | None = None
     experimental_unit: FieldText | None = None
     pair: FieldText | None = None
     acquisition_date: FieldText | None = None
+    id: FieldToken | None = Field(default=None, exclude_if=_absent)
+    paths: Annotated[list[AddedName], Field(max_length=4)] = Field(default_factory=list, exclude_if=_absent)
+    run: DesignLabel | None = Field(default=None, exclude_if=_absent)
+    group: DesignLabel | None = Field(default=None, exclude_if=_absent)
+
+
+class ContextDesign(ProposalModel):
+    """The experiment design's run and group names (context 1.3.0); no dates, samples or statements."""
+    layout: Literal["single", "pair"]
+    runs: Annotated[list[DesignLabel], Field(max_length=50)] = Field(default_factory=list)
+    groups: Annotated[list[DesignLabel], Field(min_length=1, max_length=2)]
 
 
 class DraftBackground(ProposalModel):
@@ -108,7 +144,7 @@ class ProposalContext(ProposalModel):
     """What the proposal service's model reads: the goal, channels with their labels, the fields with their names
     and recorded metadata, counts and current settings. Paths and measured values are not part of it; downscaled
     previews travel next to it."""
-    protocol: Literal["1.1.0", "1.2.0"] = "1.2.0"
+    protocol: Literal["1.1.0", "1.2.0", "1.3.0"] = "1.3.0"
     goal: Annotated[str, Field(max_length=2000)] = ""
     channels: Annotated[list[ContextChannel], Field(min_length=0, max_length=6)]
     field_count: Annotated[int, Field(ge=0, le=10000)]
@@ -129,9 +165,17 @@ class ProposalContext(ProposalModel):
     fields: list[ContextField] = Field(default_factory=list, max_length=200)
     previous_goal: Annotated[str, Field(max_length=2000)] = ""
     previous_proposal: ProposalDraft | None = None
+    design: ContextDesign | None = Field(default=None, exclude_if=_absent)
 
     @model_validator(mode="after")
     def unique_channels(self):
+        if self.protocol != "1.3.0" and (self.design is not None or any(
+                field.id or field.paths or field.run or field.group for field in self.fields)):
+            # Identifiers, added names and the design are read only by the prompt written for context 1.3.0.
+            raise ValueError("proposal_context_protocol_mismatch")
+        ids = [field.id for field in self.fields if field.id]
+        if len(set(ids)) != len(ids):
+            raise ValueError("proposal_context_field_duplicate")
         if self.field_count == 0:
             if (self.channels or self.condition_count or self.units_known or self.pairing_known
                     or self.units_per_condition or self.complete_pair_count or self.supplied_regions
@@ -221,6 +265,27 @@ class DraftProcessing(ProposalModel):
     cells: DraftCellProcessing | None = None
 
 
+class DraftChoice(ProposalModel):
+    """An item the researcher decides and the images and records do not (which channel is the nuclear stain, which
+    group a field belongs to): a short question and options, each written as the researcher's next message. Lengths
+    and counts are checked by validation, so a long option refuses the settings but keeps the answer's text."""
+    question: str
+    options: list[str]
+
+
+class DraftAssignment(ProposalModel):
+    """A run and group suggestion for one field (`field` is a context field identifier). Shown in the experiment
+    table and saved only by the researcher's 「案を適用」; checked against the fields and the design by validation."""
+    field: str
+    run: str
+    group: str
+
+
+Intent = Literal["answer", "settings", "run"]
+Scope = Literal["selected", "all"]
+INTENT_FIELDS = ("intent", "answer", "scope", "choices", "assignments")
+
+
 class ProposalDraft(ProposalModel):
     recipe: RecipeId
     channels: Annotated[list[DraftChannel], Field(max_length=6)]
@@ -237,6 +302,14 @@ class ProposalDraft(ProposalModel):
     gfp_selection: DraftGfpSelection | None = None
     # Prompt 2026-11-19.1 and later; earlier drafts have none.
     figure_presentation: DraftFigurePresentation | None = None
+    # Prompt 2026-11-26.1 and later (#284 W7); earlier drafts have none and keep their earlier meaning. `intent` only
+    # chooses which actions the workspace shows: an answer never changes a setting or runs anything by itself.
+    # Absent values are left out, so an earlier draft (a stored one, or a previous proposal in a context) keeps its bytes.
+    intent: Intent | None = Field(default=None, exclude_if=_absent)
+    answer: str | None = Field(default=None, exclude_if=_absent)
+    scope: Scope | None = Field(default=None, exclude_if=_absent)
+    choices: list[DraftChoice] = Field(default_factory=list, exclude_if=_absent)
+    assignments: list[DraftAssignment] = Field(default_factory=list, exclude_if=_absent)
 
 
 class ValidatedProposal(ProposalModel):
@@ -281,7 +354,8 @@ def _strict_model_schema(model) -> dict[str, Any]:
     return convert(schema)
 
 
-def draft_json_schema(*, legacy: bool = False, processing_only: bool = False, figure: bool = False) -> dict[str, Any]:
+def draft_json_schema(*, legacy: bool = False, processing_only: bool = False, figure: bool = False,
+                      intent: bool = False) -> dict[str, Any]:
     """Strict Structured Outputs schema for ProposalDraft.
 
     Length and pattern limits are enforced by local validation; the strict
@@ -313,9 +387,17 @@ def draft_json_schema(*, legacy: bool = False, processing_only: bool = False, fi
             schema["properties"]["background"] = _nullable(_strict_model_schema(DraftBackground))
             schema["properties"]["gfp_selection"] = _nullable(_strict_model_schema(DraftGfpSelection))
             schema["required"].extend(["background", "gfp_selection"])
-    if figure:
+    if figure or intent:
         schema["properties"]["figure_presentation"] = _nullable(_strict_model_schema(DraftFigurePresentation))
         schema["required"].append("figure_presentation")
+    if intent:
+        text = {"type": "string"}
+        schema["properties"].update({
+            "intent": _enum(Intent), "answer": _nullable(text), "scope": _nullable(_enum(Scope)),
+            "choices": {"type": "array", "items": _object({"question": text, "options": {"type": "array", "items": text}})},
+            "assignments": {"type": "array", "items": _object({"field": text, "run": text, "group": text})},
+        })
+        schema["required"].extend(INTENT_FIELDS)
     return schema
 
 

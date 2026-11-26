@@ -7,7 +7,8 @@
 import {addRun, assignFields, labelProblem, renameGroup, updateRun, type ExperimentDesign} from "./experiment-design";
 
 export interface FieldPaths {id: string; label: string; paths: string[]}
-export interface Suggestion {fieldId: string; runLabel: string; groupLabel: string}
+/** `source`: fixed rules (folders, a one-screen design) or an AI answer (#284 W7). Absent means the rules. */
+export interface Suggestion {fieldId: string; runLabel: string; groupLabel: string; source?: "rules" | "ai"}
 
 const folders = (path: string) => path.replaceAll("\\", "/").split("/").filter(Boolean).slice(0, -1);
 const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
@@ -24,6 +25,16 @@ export function suggestAssignments(design: ExperimentDesign | null, fields: read
     else if (runs.length === 1 && groups.length === 1) push({fieldId: field.id, runLabel: runs[0].label, groupLabel: groups[0].label});
   }
   return result;
+}
+
+/** The rule suggestions with the AI's for the listed fields: the AI's replaces the rule's for the same field, since the
+ * researcher asked for it. AI suggestions for other fields (already assigned, or not listed) are left out, so applying
+ * never moves a field the table does not show. */
+export function mergeSuggestions(rules: readonly Suggestion[], ai: readonly Suggestion[], fieldIds: readonly string[]): Suggestion[] {
+  const listed = new Set(fieldIds), chosen = new Map<string, Suggestion>();
+  for (const value of rules) if (listed.has(value.fieldId)) chosen.set(value.fieldId, {...value, source: "rules"});
+  for (const value of ai) if (listed.has(value.fieldId) && !labelProblem(value.runLabel) && !labelProblem(value.groupLabel)) chosen.set(value.fieldId, {...value, source: "ai"});
+  return fieldIds.flatMap(id => chosen.has(id) ? [chosen.get(id)!] : []);
 }
 
 /** The number of groups the suggestions name, for proposing 1 画面 or 2 画面 before a design exists. */

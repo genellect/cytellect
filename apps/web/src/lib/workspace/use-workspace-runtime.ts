@@ -5,6 +5,7 @@ import type {Point} from "../types";
 import type {PrimaryOutcome} from "./primary-outcome";
 import {automaticBackground, createApiAdapter, nuclearRecipe, rawMeasurement, type ChannelAssignment, type ChannelAssignments, type AssistantMessage, type ImportedField, type IntakeTarget, type SelectionEntry, type MaskOperation, type Recipe, type SavedResult, type ValidatedProposal, type WorkspaceRun} from "./api-adapter";
 import {rememberGoal} from "./ai-settings";
+import type {Suggestion} from "./assignment-suggestions";
 import {effectiveChannelAssignments} from "./channel-assignments";
 import {intakePath} from "./dropped-files";
 import {groupFiles, isSupportedImage, type AddedFile, type ChannelDefinition, type Grouping} from "./grouping";
@@ -14,7 +15,7 @@ import {applicableProcessing, preserveNclModelSelection, savedProcessing, withPr
 import {loadReviewPreview, newestWorkspaceId, releaseReviewPreview, type ReviewData, type ReviewTarget} from "./review-preview";
 import {validTargetResults, type TargetResult} from "./target-results";
 import {tiffInputMode,tiffHasOmeMetadata} from "./tiff-intake";
-import {assignFields,openingPair,type ExperimentDesign} from "./experiment-design";
+import {assignFields,labelProblem,openingPair,type ExperimentDesign} from "./experiment-design";
 import {completedFields,fieldProgress,progressLine,type FieldProgress} from "./run-progress";
 
 export interface RuntimeSettings {
@@ -41,7 +42,15 @@ export interface RuntimeSnapshot {
   messages: AssistantMessage[];
   /** Each field's state in the current or last analysis run (#284 W8); absent for fields outside it. */
   progress: Record<string, FieldProgress>;
+  /** Run and group suggestions from the latest AI answer that made any (#284 W7). Shown in the experiment table and
+   * saved only by the researcher's 「案を適用」; nothing here changes the design. */
+  assignmentSuggestions: Suggestion[];
 }
+/** What an answer received in this session offers (#284 W7, plan 5.6): the kind of request, the fields a run covers,
+ * the items to confirm, and how many assignment suggestions it made. `intent` null is an earlier draft. */
+export interface AnswerView {intent: "answer" | "settings" | "run" | null; scope: "selected" | "all" | null; choices: Array<{question: string; options: string[]}>; assignments: number}
+/** The fields 「適用して実行」 runs: the selected one, or every registered field the researcher has not excluded. */
+export interface RunTargets {scope: "selected" | "all"; fields: Array<{id: string; label: string}>; excluded: number}
 /** A saved row without a field. `legacy` rows come from before rows carried names (#284). */
 export interface IntakeRow {entry:string; names:string[]; state:"pending"|"rejected"|"legacy"; code:string|null; mask:boolean; target:IntakeTarget|null}
 /** The result of adding images, item by item (#284 implementation plan, section 5.4): one item's failure is not the batch's. */
@@ -171,7 +180,7 @@ export function runtimeProposalProcessing(channel:ChannelDefinition,settings:Run
 }
 export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   const adapter=dependencies.adapter ?? createApiAdapter(), loadPreview=dependencies.loadPreview ?? loadReviewPreview, releasePreview=dependencies.releasePreview ?? releaseReviewPreview;
-  let state:RuntimeSnapshot={data:null,busy:false,loading:false,operation:"",error:"",assignments:{version:0,assignments:[]},activeTarget:"nuclei",settings:defaultRuntimeSettings(),proposal:null,processing:null,importIssues:[],intakeRows:[],intake:null,messages:[],progress:{}};
+  let state:RuntimeSnapshot={data:null,busy:false,loading:false,operation:"",error:"",assignments:{version:0,assignments:[]},activeTarget:"nuclei",settings:defaultRuntimeSettings(),proposal:null,processing:null,importIssues:[],intakeRows:[],intake:null,messages:[],progress:{},assignmentSuggestions:[]};
   const readSpecification=dependencies.readSpecification ?? ((id:string)=>request<RuntimeSpecification>(`/v1/workspaces/${id}/analysis-spec`));
   // Only the version and the spec are written: read-only fields of the response (e.g. experiment_sha256) are never sent back.
   const writeSpecification=dependencies.writeSpecification ?? ((id:string,value:RuntimeSpecification)=>request<RuntimeSpecification>(`/v1/workspaces/${id}/analysis-spec`,{method:"PUT",body:JSON.stringify({version:value.version,spec:value.spec})}));
@@ -189,6 +198,13 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   // again needs the message's 「再送」, answered from the record without a model call). The latest applicable answer and
   // the message that produced it continue the conversation (previous_goal, previous_proposal).
   const answers=new Map<string,ValidatedProposal>();let lastApplicable:{goal:string;proposal:ValidatedProposal}|null=null;
+  /** The run and group suggestions of an answer, by workspace field (the response's `fields` resolve `f1`…). */
+  function suggestionsOf(proposal:ValidatedProposal,links:readonly {token:string;field_id:string}[]):Suggestion[]{
+    const byToken=new Map(links.map(link=>[link.token,link.field_id]));
+    return (proposal.draft.assignments??[]).flatMap(value=>{const fieldId=byToken.get(value.field);
+      return fieldId&&!labelProblem(value.run)&&!labelProblem(value.group)?[{fieldId,runLabel:value.run,groupLabel:value.group,source:"ai" as const}]:[];});
+  }
+  const intentOf=(id:string)=>answers.get(id)?.draft.intent??null;
   const withMessage=(message:AssistantMessage)=>state.messages.some(value=>value.id===message.id)?state.messages.map(value=>value.id===message.id?message:value):[...state.messages,message];
   async function readMessages(id:string){try{return await adapter.listMessages(id);}catch{return state.messages;}}
   const candidateStore=new Map<string,Partial<Record<ReviewTarget,RuntimeCandidate>>>();
@@ -537,7 +553,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   async function travel(field:string,target:ReviewTarget,direction:"undo"|"redo"){return exclusive(direction==="undo"?"前の版に戻しています":"次の版を採用しています",async()=>{await checkCurrent();const stack=history(field,target),destination=stack[direction].at(-1);if(!destination)return;const previous=bound(field,target),result=await adapter.selectRevision(workspace(),destination.result.revision,field);stack[direction].pop();stack[direction==="undo"?"redo":"undo"].push(previous);adopted(field,target,result,destination.recipe);await refresh(workspace());});}
   const runtime={
     adapter,subscribe(listener:()=>void){listeners.add(listener);return()=>{listeners.delete(listener);};},getSnapshot:()=>state,
-    async load(id?:string){closed=false;opened=id;publish({busy:true,loading:true,error:"",operation:"画像と保存結果を読み込み中"});
+    async load(id?:string){closed=false;opened=id;publish({busy:true,loading:true,error:"",operation:"画像と保存結果を読み込み中",...(id!==state.data?.workspaceId?{assignmentSuggestions:[]}:{})});
       // What is shown first loads first: a two-group design opens side by side on the first run's field
       // of each group (V-01), both together; any other design on its first field. The others follow.
       try{const opening=await openingFields(id);await refresh(id,true,opening?undefined:1,opening);if(state.data?.workspaceId)publish({messages:await readMessages(state.data.workspaceId)});}catch(error){publish({busy:false,loading:false,operation:"",error:message(error)});throw error;}
@@ -554,7 +570,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     },
     /** Hide the last message (used for demo notices, which need no reload). */
     dismissError(){if(state.error)publish({error:""});},
-    newWorkspace(){if(state.busy)throw new Error("現在の処理が終わるまでお待ちください。");++epoch;beforeProposal=null;runRequests.clear();added.length=0;omeFiles.clear();files.clear();uploadKeys.clear();uploaded.clear();names.clear();hashes.clear();copies.clear();histories.clear();candidateStore.clear();currentTargets.clear();registered.clear();specification={version:0,spec:null};publish({assignments:{version:0,assignments:[]},activeTarget:"nuclei",settings:defaultRuntimeSettings(),processing:null,proposal:null,error:"",importIssues:[],intakeRows:[],intake:null,messages:[],progress:{}});answers.clear();lastApplicable=null;replaceData(emptyData());},
+    newWorkspace(){if(state.busy)throw new Error("現在の処理が終わるまでお待ちください。");++epoch;beforeProposal=null;runRequests.clear();added.length=0;omeFiles.clear();files.clear();uploadKeys.clear();uploaded.clear();names.clear();hashes.clear();copies.clear();histories.clear();candidateStore.clear();currentTargets.clear();registered.clear();specification={version:0,spec:null};publish({assignments:{version:0,assignments:[]},activeTarget:"nuclei",settings:defaultRuntimeSettings(),processing:null,proposal:null,error:"",importIssues:[],intakeRows:[],intake:null,messages:[],progress:{},assignmentSuggestions:[]});answers.clear();lastApplicable=null;replaceData(emptyData());},
     dispose(){closed=true;++epoch;if(state.data)releasePreview(state.data);},
     nclDetector(field:string){
       try {const recipe=runtimeNucleolarRecipe(nuclearChannel(field),state.settings,currentTargets.get(field)??{},state.processing);return recipe.detector?.engine==="cytellect-ncl-objects"?recipe.detector:undefined;}catch{return undefined;}
@@ -704,8 +720,11 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       try{response=await adapter.draft(workspace(),goal,retryFailed,{current_processing:currentProcessing,previous_goal:lastApplicable?.goal??"",previous_proposal:lastApplicable?.proposal.draft??null,...(selectedFieldId?{field_id:selectedFieldId}:{})},messageId);}
       catch(error){publish({messages:await readMessages(workspace())});throw error;}
       rememberGoal(workspace(),goal);
-      if(response.proposal){answers.set(response.message.id,response.proposal);if(response.message.applicable!==false)lastApplicable={goal,proposal:response.proposal};}
-      publish({messages:withMessage(response.message)});
+      // An answer to a question continues no settings: the conversation continues from the last proposal (#284 W7).
+      if(response.proposal){answers.set(response.message.id,response.proposal);if(response.message.applicable!==false&&response.proposal.draft.intent!=="answer")lastApplicable={goal,proposal:response.proposal};}
+      // Assignment suggestions are shown in the experiment table; they replace the previous answer's only when made.
+      const suggested=response.proposal?suggestionsOf(response.proposal,response.fields??[]):[];
+      publish({messages:withMessage(response.message),...(suggested.length?{assignmentSuggestions:suggested}:{})});
       return response;
     });},
     /** A field's run state, without a 候補を確認 whose candidates were since discarded or adopted (#284 W8). */
@@ -714,10 +733,24 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     markPreparing(ids:string[]){if(!state.busy)publish({progress:progressOf(ids,"準備中")});},
     /** Removes 準備中 that no request followed (a preview that did not start, or one that ran without a server run). */
     clearPreparing(ids:string[]){if(!ids.some(id=>state.progress[id]==="準備中"))return;const progress={...state.progress};for(const id of ids)if(progress[id]==="準備中")delete progress[id];publish({progress});},
-    /** True when the applicable answer proposes an analysis that can be tried on an image. */
-    canTry(messageId:string){return this.canApply(messageId)&&!!state.data?.fields.length&&answers.get(messageId)?.draft.recipe!=="none";},
-    /** True when this session holds the applicable answer of the message. */
-    canApply(messageId:string){const message=state.messages.find(value=>value.id===messageId);return answers.has(messageId)&&message?.applicable!==false;},
+    /** True when the applicable answer proposes an analysis that can be tried on an image. An answer that declares its
+     * kind of request (#284 W7) offers 「設定を適用」 or 「適用して実行」 instead. */
+    canTry(messageId:string){return this.canApply(messageId)&&intentOf(messageId)===null&&!!state.data?.fields.length&&answers.get(messageId)?.draft.recipe!=="none";},
+    /** True when this session holds the applicable answer of the message and it proposes settings (not a question's answer). */
+    canApply(messageId:string){const message=state.messages.find(value=>value.id===messageId);return answers.has(messageId)&&message?.applicable!==false&&intentOf(messageId)!=="answer";},
+    /** What the answer of a message received in this session offers; null when it is not held (a reload, a failure). */
+    answerOf(messageId:string):AnswerView|null{const proposal=answers.get(messageId);if(!proposal)return null;const draft=proposal.draft;
+      return {intent:draft.intent??null,scope:draft.scope??null,choices:draft.choices??[],assignments:(draft.assignments??[]).length};},
+    /** The fields a run request covers: the selected field, or every registered field that is not excluded. A row
+     * without a field (an image that was not registered) is not a field and is never among them. */
+    runTargets(messageId:string,selectedFieldId?:string):RunTargets|null{
+      const proposal=answers.get(messageId);if(!proposal||proposal.draft.intent!=="run"||!state.data)return null;
+      const scope=proposal.draft.scope==="selected"?"selected":"all",eligible=state.data.fields.filter(field=>!field.exclusionReason);
+      const fields=(scope==="selected"?eligible.filter(field=>field.id===selectedFieldId):eligible).map(field=>({id:field.id,label:field.label}));
+      return {scope,fields,excluded:state.data.fields.length-eligible.length};
+    },
+    /** True when the message's applicable run request has an analysis and fields to run it on. */
+    canRun(messageId:string,selectedFieldId?:string){return this.canApply(messageId)&&answers.get(messageId)?.draft.recipe!=="none"&&!!this.runTargets(messageId,selectedFieldId)?.fields.length;},
     /** Applies the answer's settings and, with `trial`, previews them on the selected field (the researcher's action). */
     applyAnswer(messageId:string,trial:boolean,selectedFieldId?:string){return exclusive(trial?"AIの解析案を試行中":"AIの解析案を適用中",async()=>{
       const proposal=answers.get(messageId),message=state.messages.find(value=>value.id===messageId);
@@ -730,6 +763,18 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       if(run)await runInternal(state.activeTarget,field!,true);else await persistSpecification(state.activeTarget);
       const recorded=await adapter.recordEffect(workspace(),messageId,run?"run":"settings");
       publish({messages:withMessage(recorded??{...message,effect:run?"run":"settings"})});
+    });},
+    /** 「適用して実行」 of a run request (#284 W7): applies its settings and makes detection candidates on its target fields
+     * (the selected one, or all eligible). Only from the researcher's action; adopting the candidates stays theirs. */
+    runAnswer(messageId:string,selectedFieldId?:string){return exclusive("AIの解析案を実行中",async()=>{
+      const proposal=answers.get(messageId),message=state.messages.find(value=>value.id===messageId),targets=runtime.runTargets(messageId,selectedFieldId);
+      if(!proposal||!message||message.applicable===false||proposal.draft.intent!=="run")throw new Error("解析案の適用には、この発言の再送が必要です。");
+      if(proposal.draft.recipe==="none"||!targets?.fields.length)throw new Error("実行には、対象の視野が必要です。");
+      await checkCurrent();publish({proposal});
+      applyProposal(targets.scope==="selected"?targets.fields[0].id:selectedFieldId&&targets.fields.some(field=>field.id===selectedFieldId)?selectedFieldId:targets.fields[0].id);
+      await runInternal(state.activeTarget,targets.scope==="selected"?targets.fields[0].id:undefined,true);
+      const recorded=await adapter.recordEffect(workspace(),messageId,"run");
+      publish({messages:withMessage(recorded??{...message,effect:"run"})});
     });},
   };
   return runtime;

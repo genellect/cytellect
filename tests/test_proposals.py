@@ -102,10 +102,13 @@ def test_shape_errors_and_unregistered_values_are_rejected():
 
 
 def test_strict_schema_matches_the_pydantic_draft():
-    # Prompt 2026-11-19.1 adds the figure presentation; the earlier schema keeps the other fields.
-    schema = draft_json_schema(figure=True)
+    # Prompt 2026-11-26.1 adds the kind of request (#284 W7) and 2026-11-19.1 the figure presentation; the earlier
+    # schemas keep the other fields.
+    schema = draft_json_schema(intent=True)
+    intent = {"intent", "answer", "scope", "choices", "assignments"}
     assert set(schema["required"]) == set(ProposalDraft.model_fields) == set(schema["properties"])
-    assert set(draft_json_schema()["properties"]) == set(ProposalDraft.model_fields) - {"figure_presentation"}
+    assert set(draft_json_schema(figure=True)["properties"]) == set(ProposalDraft.model_fields) - intent
+    assert set(draft_json_schema()["properties"]) == set(ProposalDraft.model_fields) - {"figure_presentation"} - intent
     assert schema["additionalProperties"] is False
     stats = schema["properties"]["statistics"]
     assert "regression" not in json.dumps(stats)
@@ -166,7 +169,7 @@ def test_only_a_goal_is_asked_and_the_context_is_derived_from_the_workspace(tmp_
     # Derived, not entered (docs/drafts/llm-assistant/plan.md): the model reads the researcher's channel label and
     # field records, the counts and flags, and a downscaled preview of a representative field. No paths.
     fields_sent = sent.pop("fields")
-    assert sent == {"protocol": "1.2.0", "goal": "細胞ごとのアクチン輝度",
+    assert sent == {"protocol": "1.3.0", "goal": "細胞ごとのアクチン輝度",
                     "channels": [{"token": "ch1", "stain": None, "role": None, "label": "Actin"}],
                     "field_count": 1, "condition_count": 1, "units_known": False, "pairing_known": False,
                     "supplied_regions": True, "measured_table": False, "background_available": False,
@@ -176,7 +179,9 @@ def test_only_a_goal_is_asked_and_the_context_is_derived_from_the_workspace(tmp_
                     "negative_control_fields_known": False, "acquired_dates_known": False,
                     "image_metadata": [{"width": 12, "height": 12, "axes": "YX", "input_mode": "native",
                                         "pixel_size_x_um": None, "pixel_size_y_um": None}]}
-    assert len(fields_sent) == 1 and set(fields_sent[0]) == {"name", "condition", "experimental_unit", "pair", "acquisition_date"}
+    # Context 1.3.0 (#284 W7): an opaque identifier, and no names the field was added with (this upload has none).
+    assert len(fields_sent) == 1 and set(fields_sent[0]) == {"id", "name", "condition", "experimental_unit", "pair", "acquisition_date"}
+    assert fields_sent[0]["id"] == "f1" and [link["token"] for link in first.json()["fields"]] == ["f1"]
     assert all("/" not in (value or "") and "\\" not in (value or "") for value in fields_sent[0].values())
     [preview] = calls[0]["previews"]
     assert preview["channel"] == "ch1" and preview["png_base64"].startswith("iVBORw0KGgo")

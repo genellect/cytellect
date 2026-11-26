@@ -2915,6 +2915,19 @@ export interface components {
             created: number;
             discussion: components["schemas"]["ValidatedDiscussion"];
         };
+        /**
+         * DraftAssignment
+         * @description A run and group suggestion for one field (`field` is a context field identifier). Shown in the experiment
+         *     table and saved only by the researcher's 「案を適用」; checked against the fields and the design by validation.
+         */
+        DraftAssignment: {
+            /** Field */
+            field: string;
+            /** Run */
+            run: string;
+            /** Group */
+            group: string;
+        };
         /** DraftBackground */
         DraftBackground: {
             /**
@@ -2942,6 +2955,18 @@ export interface components {
             role: "nuclear" | "measure" | "unused";
             /** Reason */
             reason: string;
+        };
+        /**
+         * DraftChoice
+         * @description An item the researcher decides and the images and records do not (which channel is the nuclear stain, which
+         *     group a field belongs to): a short question and options, each written as the researcher's next message. Lengths
+         *     and counts are checked by validation, so a long option refuses the settings but keeps the answer's text.
+         */
+        DraftChoice: {
+            /** Question */
+            question: string;
+            /** Options */
+            options: string[];
         };
         /** DraftFigure */
         DraftFigure: {
@@ -5030,6 +5055,16 @@ export interface components {
             background?: components["schemas"]["DraftBackground"] | null;
             gfp_selection?: components["schemas"]["DraftGfpSelection"] | null;
             figure_presentation?: components["schemas"]["DraftFigurePresentation"] | null;
+            /** Intent */
+            intent?: ("answer" | "settings" | "run") | null;
+            /** Answer */
+            answer?: string | null;
+            /** Scope */
+            scope?: ("selected" | "all") | null;
+            /** Choices */
+            choices?: components["schemas"]["DraftChoice"][];
+            /** Assignments */
+            assignments?: components["schemas"]["DraftAssignment"][];
         };
         /**
          * ProposalDraftRequest
@@ -5084,6 +5119,18 @@ export interface components {
             /** Channels */
             channels: components["schemas"]["ProposalChannelLink"][];
             message?: components["schemas"]["AssistantMessage"] | null;
+            /** Fields */
+            fields?: components["schemas"]["ProposalFieldLink"][];
+        };
+        /**
+         * ProposalFieldLink
+         * @description The context's opaque field identifier (`f1`…) and the workspace field it names (context 1.3.0, #284 W7).
+         */
+        ProposalFieldLink: {
+            /** Token */
+            token: string;
+            /** Field Id */
+            field_id: string;
         };
         /** PublicationPackageRequest */
         PublicationPackageRequest: {

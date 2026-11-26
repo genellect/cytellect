@@ -60,7 +60,7 @@ function Application(){
    {!API_CONFIGURED&&<NavigationLink href="/demo" className={styles.demoLink}>公開画像サンプルを開く</NavigationLink>}
    {error&&<div role="alert" className={styles.error}>{error}</div>}
    {session.error && !(session.error instanceof ApiError && session.error.status===401) && <div role="alert" className={styles.error}>{errorMessage(session.error)}</div>}
-   {!WINDOWS_RELEASE_URL&&<div className={styles.privacyBox}><b>アップロード前の確認事項</b><ul><li>{LOCAL_MODE?"画像と結果はローカル環境に保存します。":"画像と結果は非公開の解析サーバーに保存します。"}</li><li><RetentionNotice policy={localSetup.data} beforeSession/></li><li>結果を手元に保存してから作業を終了してください。</li><li>外部の AI に送るのは、AI への相談と考察を使うときに、示した範囲（目的、チャンネル名、視野の名前と記録、代表的な視野の縮小画像、保存した結果の値）だけです。</li></ul></div>}
+   {!WINDOWS_RELEASE_URL&&<div className={styles.privacyBox}><b>アップロード前の確認事項</b><ul><li>{LOCAL_MODE?"画像と結果はローカル環境に保存します。":"画像と結果は非公開の解析サーバーに保存します。"}</li><li><RetentionNotice policy={localSetup.data} beforeSession/></li><li>結果を手元に保存してから作業を終了してください。</li><li>外部の AI に送るのは、AI への相談と考察を使うときに、示した範囲（目的、チャンネル名、視野の名前と記録、追加した画像のフォルダー内の名前、実験回と群の名前、代表的な視野の縮小画像、保存した結果の値）だけです。</li></ul></div>}
   </section>
  </main>;
  return <div className={styles.app}>

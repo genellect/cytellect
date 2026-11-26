@@ -12,6 +12,7 @@ import functools
 import hashlib
 import io
 import json
+import re
 import time
 import urllib.error
 import urllib.request
@@ -22,13 +23,21 @@ from urllib.parse import urlsplit
 import numpy as np
 from cytellect_analysis.images import render_preview_with_display
 from cytellect_analysis.proposal_contracts import (
+    INTENT_FIELDS,
+    PROPOSAL_CONTEXT_PROTOCOL,
     PROPOSAL_PROTOCOL,
     DraftProcessing,
     ProposalContext,
     ProposalDraft,
     ValidatedProposal,
+    context_protocol,
 )
-from cytellect_analysis.proposal_validation import ProposalRejected, context_sha256, validate_draft
+from cytellect_analysis.proposal_validation import (
+    ProposalRejected,
+    context_sha256,
+    reply_text,
+    validate_draft,
+)
 from cytellect_analysis.region_contracts import (
     AdoptedNuclearRecipe,
     AutoScaledNuclearRecipe,
@@ -218,7 +227,7 @@ class ProposalDraftRequest(BaseModel):
     field_id: Annotated[str, Field(min_length=1, max_length=128)] | None = None
     current_processing: Annotated[dict, Field(max_length=4)] | None = None
     previous_goal: Annotated[str, Field(max_length=2000)] = ""
-    previous_proposal: Annotated[dict, Field(max_length=13)] | None = None
+    previous_proposal: Annotated[dict, Field(max_length=18)] | None = None
     # The message this request sends again (its 「再送」); a new message otherwise (#284 W2).
     message_id: Annotated[str, Field(min_length=1, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")] | None = None
 
@@ -256,11 +265,19 @@ class ProposalChannelLink(BaseModel):
     stain: str | None
 
 
+class ProposalFieldLink(BaseModel):
+    """The context's opaque field identifier (`f1`…) and the workspace field it names (context 1.3.0, #284 W7)."""
+    token: str
+    field_id: str
+
+
 class ProposalDraftResponse(BaseModel):
     # None when the model answered but its settings cannot be applied: the answer is in `message.reply`.
     proposal: ValidatedProposal | None
     channels: list[ProposalChannelLink]
     message: AssistantMessage | None = None
+    # The fields an answer's assignment suggestions name; empty for a context before 1.3.0.
+    fields: list[ProposalFieldLink] = Field(default_factory=list)
 
 
 def message_view(row) -> AssistantMessage:
@@ -269,9 +286,9 @@ def message_view(row) -> AssistantMessage:
                             reasons=list(row["reasons"] or []), stage=row["stage"], effect=row["effect"])
 
 
-def answer_text(rationale: str, missing: tuple[str, ...] | list[str]) -> str:
-    """The answer as the researcher reads it: the rationale, then each item the model needs confirmed."""
-    return "\n".join([rationale, *missing]).strip()
+def answer_text(rationale: str, missing: tuple[str, ...] | list[str], answer: str | None = None) -> str:
+    """The answer as the researcher reads it: the direct answer, the rationale, then each item to confirm."""
+    return "\n".join(text.strip() for text in [answer or "", rationale, *missing] if text and text.strip())
 
 
 class AiStatus(BaseModel):
@@ -299,12 +316,15 @@ def _adopted_selection(store, wid: str) -> tuple[dict, set[str]]:
     return selection, {entry["field_id"] for entry in selection["entries"] if entry.get("exclusion_reason")}
 
 
-def build_context(store, wid: str, goal: str, field_id: str | None = None) -> tuple[ProposalContext, list[ProposalChannelLink]]:
+def build_context(store, wid: str, goal: str, field_id: str | None = None, *, protocol: str = PROPOSAL_CONTEXT_PROTOCOL,
+                  field_links: list | None = None) -> tuple[ProposalContext, list[ProposalChannelLink]]:
     """Derive every proposal input from the workspace; nothing else is asked of the researcher.
 
     The model reads the workspace as the researcher recorded it (docs/drafts/llm-assistant/plan.md): channel
     tokens with their labels and recorded stains, every field's name and metadata, counts and current settings.
-    Paths and measured values stay local; downscaled previews are built separately (`representative_previews`).
+    Context 1.3.0 (#284 W7) adds an opaque identifier per field, the folder-relative names its files were added with
+    and its run and group, and the design's run and group names; `field_links` then receives identifier → field.
+    Absolute paths and measured values stay local; downscaled previews are built separately (`representative_previews`).
     """
     rows = store.rows(fields, workspace_id=wid)
     adopted_selection, excluded = _adopted_selection(store, wid)
@@ -430,6 +450,26 @@ def build_context(store, wid: str, goal: str, field_id: str | None = None) -> tu
             cell_recipe = cell_record["config"].get("recipe", {}) if cell_record else {}
             if cell_record and cell_record["state"] == "succeeded" and cell_recipe.get("source") == "manual" and cell_recipe.get("region_set_id") == "cell":
                 adopted_cells.add(entry["field_id"])
+    sent = rows[:200]
+    extended = protocol == "1.3.0"
+    experiment = specification.get("experiment") if extended and isinstance(specification.get("experiment"), dict) else {}
+    added = {entry["field_id"]: entry["intake"].get("names") or [] for entry in adopted_selection["entries"]
+             if entry.get("field_id") and isinstance(entry.get("intake"), dict)}
+    field_records = [_field_record(row, display_names.get(row["id"])) for row in sent]
+    if extended:
+        assigned = experiment.get("fields") if isinstance(experiment.get("fields"), dict) else {}
+        run_names = {run.get("id"): _label(run.get("label")) for run in experiment.get("runs") or [] if isinstance(run, dict)}
+        group_names = {group.get("id"): _label(group.get("label")) for group in experiment.get("groups") or [] if isinstance(group, dict)}
+        for index, (row, record) in enumerate(zip(sent, field_records)):
+            placed = assigned.get(row["id"]) if isinstance(assigned.get(row["id"]), dict) else {}
+            names = [name for name in (_added_name(value) for value in added.get(row["id"], [])[:4]) if name]
+            record.update({"id": f"f{index + 1}", "paths": names, "run": run_names.get(placed.get("run_id")),
+                           "group": group_names.get(placed.get("group_id"))})
+            if field_links is not None:
+                field_links.append(ProposalFieldLink(token=f"f{index + 1}", field_id=row["id"]))
+    groups = [label for label in group_names.values() if label] if extended else []
+    design = ({"layout": experiment.get("layout"), "runs": [label for label in run_names.values() if label][:50],
+               "groups": groups} if extended and experiment.get("layout") in ("single", "pair") and 1 <= len(groups) <= 2 else None)
     image_metadata: list[dict] = []
     for row in region:
         info = row["image_info"]
@@ -441,7 +481,7 @@ def build_context(store, wid: str, goal: str, field_id: str | None = None) -> tu
         if image not in image_metadata and len(image_metadata) < 8:
             image_metadata.append(image)
     context = ProposalContext.model_validate(dict(
-        goal=goal, channels=channels, field_count=len(rows), condition_count=len(conditions),
+        protocol=protocol, design=design, goal=goal, channels=channels, field_count=len(rows), condition_count=len(conditions),
         units_known=_complete(rows, "experimental_unit") and _complete(rows, "condition"), pairing_known=pairing_known,
         units_per_condition=unit_counts, complete_pair_count=len(pair_groups) if pairing_known else 0,
         supplied_regions=bool(region) and all(row["image_info"].get("labels_array") or row["id"] in adopted_cells for row in region),
@@ -451,13 +491,35 @@ def build_context(store, wid: str, goal: str, field_id: str | None = None) -> tu
         current_gfp=current_gfp, negative_control_fields_known=registered_controls,
         acquired_dates_known=_complete(rows, "acquisition_date"),
         image_metadata=image_metadata,
-        fields=[_field_record(row, display_names.get(row["id"])) for row in rows[:200]],
+        fields=field_records,
     ))
     return context, links
 
 
 def _text(value) -> str | None:
     return value.strip()[:120] if isinstance(value, str) and value.strip() else None
+
+
+def _label(value) -> str | None:
+    """A run or group name of the design (at most 24 characters, as the design stores it)."""
+    return value if isinstance(value, str) and value.strip() and len(value) <= 24 else None
+
+
+_ABSOLUTE = re.compile(r"^(?:/|~|[A-Za-z]:)")
+
+
+def _added_name(value) -> str | None:
+    """A name a file was added with, relative to the folder the researcher chose. An absolute path is never sent:
+    only its file name is. Empty, `.` and `..` segments are dropped."""
+    if not isinstance(value, str):
+        return None
+    path = value.replace("\\", "/")
+    if _ABSOLUTE.match(path):
+        path = path.rsplit("/", 1)[-1]
+    text = "/".join(part for part in path.split("/") if part.strip() and part not in (".", ".."))
+    if len(text) > 255:
+        text = text.rsplit("/", 1)[-1]
+    return text[:255] or None
 
 
 def _field_record(row, display_name: str | None) -> dict:
@@ -560,7 +622,11 @@ def _continuation_context(context: ProposalContext, links: list[ProposalChannelL
         return value
 
     current = DraftProcessing.model_validate(normalized(body.current_processing)) if body.current_processing else None
-    previous = ProposalDraft.model_validate(normalized(body.previous_proposal)) if body.previous_proposal else None
+    prior = normalized(body.previous_proposal) if body.previous_proposal else None
+    if isinstance(prior, dict) and context.protocol != "1.3.0":
+        # A prompt before 2026-11-26.1 reads the previous proposal without the kind of request.
+        prior = {key: value for key, value in prior.items() if key not in INTENT_FIELDS}
+    previous = ProposalDraft.model_validate(prior) if prior else None
     if not context.field_count and current is not None:
         raise ValueError("proposal_continuation_requires_images")
     return ProposalContext.model_validate({**context.model_dump(), "current_processing":current,
@@ -661,8 +727,10 @@ def register_proposal_routes(api, store, settings, owner, workspace, credentials
         workspace(wid, who)
         if body.transmission_confirmed is not True:
             raise HTTPException(428, "proposal_transmission_not_confirmed")
+        protocol = context_protocol(settings.proposal_prompt_version)
+        field_links: list[ProposalFieldLink] = []
         try:
-            context, links = build_context(store, wid, body.goal, body.field_id)
+            context, links = build_context(store, wid, body.goal, body.field_id, protocol=protocol, field_links=field_links)
             context = _continuation_context(context, links, body)
         except (ValueError, HTTPException) as error:
             # The message is kept with why it could not be sent, under the message itself.
@@ -693,9 +761,9 @@ def register_proposal_routes(api, store, settings, owner, workspace, credentials
                 cached_proposal = ValidatedProposal.model_validate(cached["proposal"])
                 conn.execute(update(assistant_messages).where(assistant_messages.c.id == mid).values(
                     state="answered", applicable=True, draft_id=cached["id"], request_id=cached["request_id"],
-                    reply=answer_text(cached_proposal.draft.rationale, cached_proposal.draft.missing_information)))
+                    reply=reply_text(cached_proposal.draft)))
                 row = conn.execute(select(assistant_messages).where(assistant_messages.c.id == mid)).mappings().one()
-                return ProposalDraftResponse(proposal=cached_proposal, channels=links, message=message_view(row))
+                return ProposalDraftResponse(proposal=cached_proposal, channels=links, message=message_view(row), fields=field_links)
             if cached:
                 if cached["state"] == "pending" and cached["lease_until"] > now:
                     raise HTTPException(409, "proposal_request_in_progress")
@@ -754,11 +822,11 @@ def register_proposal_routes(api, store, settings, owner, workspace, credentials
             # The answer is shown; its settings are not applicable. The cached request stays failed, so the same
             # question needs an explicit resend as before (the answer is already in the message).
             message = close_message(mid, state="answered", applicable=False, reasons=refused.codes, stage="validation",
-                                    reply=answer_text(refused.rationale or "", refused.missing_information))
-            return ProposalDraftResponse(proposal=None, channels=links, message=message)
+                                    reply=answer_text(refused.rationale or "", refused.missing_information, refused.answer))
+            return ProposalDraftResponse(proposal=None, channels=links, message=message, fields=field_links)
         workspace(wid, who)  # Revocation/expiry during the external call blocks publication.
         try:
-            refreshed, refreshed_links = build_context(store, wid, body.goal, body.field_id)
+            refreshed, refreshed_links = build_context(store, wid, body.goal, body.field_id, protocol=protocol)
             refreshed = _continuation_context(refreshed, refreshed_links, body)
             changed = (context_sha256(refreshed) != context_sha256(context) or refreshed_links != links
                        or _source_stamp(store, wid) != source_stamp)
@@ -780,6 +848,5 @@ def register_proposal_routes(api, store, settings, owner, workspace, credentials
         if superseded:
             close_message(mid, state="failed", reasons=["proposal_request_superseded"], stage="service")
             raise HTTPException(409, "proposal_request_superseded")
-        message = close_message(mid, state="answered", applicable=True, draft_id=draft_id,
-                                reply=answer_text(proposal.draft.rationale, proposal.draft.missing_information))
-        return ProposalDraftResponse(proposal=proposal, channels=links, message=message)
+        message = close_message(mid, state="answered", applicable=True, draft_id=draft_id, reply=reply_text(proposal.draft))
+        return ProposalDraftResponse(proposal=proposal, channels=links, message=message, fields=field_links)

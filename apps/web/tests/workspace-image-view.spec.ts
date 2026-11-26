@@ -90,7 +90,7 @@ async function imageWorkspace(context:BrowserContext,page:Page,options:{pair?:bo
 }
 
 test("a failed AI instruction can be resent explicitly, with one confirmation and no automatic retry",async({context,page})=>{
-  await context.addInitScript(()=>localStorage.setItem("cytellect.ai.proposal-scope-seen.v2","1"));
+  await context.addInitScript(()=>localStorage.setItem("cytellect.ai.proposal-scope-seen.v3","1"));
   const requests:Array<{goal:string;retry_failed?:boolean;message_id?:string}>=[];
   const headers=()=>({"Access-Control-Allow-Origin":new URL(page.url()).origin,"Access-Control-Allow-Credentials":"true",
     "Access-Control-Allow-Headers":"content-type,x-cytellect-request","Access-Control-Allow-Methods":"GET,POST,PATCH,OPTIONS"});
@@ -262,13 +262,14 @@ test("before the first proposal after the scope widened, the AI panel asks once 
   await page.getByRole("button",{name:"AIへ送信"}).click();
   const scope=page.getByRole("group",{name:"AIに送る内容の確認"});
   await expect(scope).toContainText("代表的な視野の縮小画像");
+  await expect(scope).toContainText("追加した画像のフォルダー内の名前、実験回と群の名前");
   await scope.getByRole("button",{name:"キャンセル"}).click();
   await expect(scope).toHaveCount(0);
   expect(proposals).toEqual([]);
   // Sending without previews turns the setting off and records the confirmation, so the next request asks no more.
   await page.getByRole("button",{name:"AIへ送信"}).click();
   await page.getByRole("group",{name:"AIに送る内容の確認"}).getByRole("button",{name:"縮小画像なしで送信"}).click();
-  expect(await page.evaluate(()=>[localStorage.getItem("cytellect.ai.include-previews"),localStorage.getItem("cytellect.ai.proposal-scope-seen.v2")])).toEqual(["0","1"]);
+  expect(await page.evaluate(()=>[localStorage.getItem("cytellect.ai.include-previews"),localStorage.getItem("cytellect.ai.proposal-scope-seen.v3")])).toEqual(["0","1"]);
   expect(fixture.unexpected.filter(route=>!route.includes("proposal")&&!route.includes("analysis-spec"))).toEqual([]);
 });
 

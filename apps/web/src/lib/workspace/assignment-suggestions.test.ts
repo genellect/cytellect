@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest";
 import {addRun, emptyDesign, fieldsIn} from "./experiment-design";
-import {applySuggestions, suggestAssignments, suggestedGroups} from "./assignment-suggestions";
+import {applySuggestions, mergeSuggestions, suggestAssignments, suggestedGroups} from "./assignment-suggestions";
 
 /** DS6a's layout (Issue input 4): one run folder, two group folders, one field each (names only; no pixels). */
 const ds6a = [
@@ -43,5 +43,32 @@ describe("run and group suggestions for unassigned fields (#284 W6)", () => {
     const {left} = applySuggestions({...design, groups: [{id: "group-1", label: "対照"}, {id: "group-2", label: "処理"}]},
       [{fieldId: "a", runLabel: "Rep1", groupLabel: "対照"}, {fieldId: "b", runLabel: "Rep1", groupLabel: "別の群"}]);
     expect(left).toEqual(["b"]);
+  });
+});
+
+describe("suggestions from an AI answer (#284 W7)", () => {
+  it("files picked one by one: the AI's suggestions split them, marked as the AI's, and applying places one field per group", () => {
+    // Names only (no folders): the rules suggest nothing for a two-screen design, the answer to 「未処理と ActD に分けて」 does.
+    const picked = [{id: "a", label: "視野01-未処理", paths: ["視野01-未処理-Hoechst.tif"]}, {id: "b", label: "視野01-ActD", paths: ["視野01-ActD-Hoechst.tif"]}];
+    const design = addRun(emptyDesign("pair"), {label: "2026-11-26"});
+    const rules = suggestAssignments(design, picked);
+    expect(rules).toEqual([]);
+    const ai = [{fieldId: "a", runLabel: "Rep1", groupLabel: "未処理", source: "ai" as const}, {fieldId: "b", runLabel: "Rep1", groupLabel: "ActD", source: "ai" as const}];
+    const merged = mergeSuggestions(rules, ai, picked.map(field => field.id));
+    expect(merged.map(value => value.source)).toEqual(["ai", "ai"]);
+    const {design: applied, left} = applySuggestions(design, merged);
+    expect(left).toEqual([]);
+    expect(applied.groups.map(group => group.label)).toEqual(["未処理", "ActD"]);
+    expect(applied.runs?.map(run => run.label)).toEqual(["Rep1"]);
+    expect(applied.groups.map(group => fieldsIn(applied, group.id, applied.runs![0].id).map(([id]) => id))).toEqual([["a"], ["b"]]);
+  });
+  it("replaces the rule's suggestion for the same field, and never suggests for a field the table does not list", () => {
+    const rules = suggestAssignments(null, ds6a);
+    const ai = [{fieldId: "f-actd", runLabel: "Rep2", groupLabel: "ActD", source: "ai" as const},
+      {fieldId: "assigned", runLabel: "Rep1", groupLabel: "未処理", source: "ai" as const},
+      {fieldId: "f-untreated", runLabel: "Rep · 1", groupLabel: "未処理", source: "ai" as const}];
+    expect(mergeSuggestions(rules, ai, ds6a.map(field => field.id))).toEqual([
+      {fieldId: "f-untreated", runLabel: "Rep1", groupLabel: "未処理", source: "rules"},
+      {fieldId: "f-actd", runLabel: "Rep2", groupLabel: "ActD", source: "ai"}]);
   });
 });

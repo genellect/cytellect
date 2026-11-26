@@ -28,6 +28,7 @@ const RESEARCHER: Record<string, Omit<ReasonView, "kind">> = {
   proposal_supplied_regions_absent: {text: "領域のマスク：なし"},
   proposal_background_not_available: {text: "背景領域：未確定", place: "settings"},
   proposal_model_not_selected: {text: "検出モデル：未選択", place: "settings"},
+  proposal_assignment_group_invalid: {text: "割付の案の群：実験デザインより多い", place: "experiment"},
 };
 
 const SERVICE: Record<string, string> = {
@@ -41,6 +42,15 @@ const SERVICE: Record<string, string> = {
   proposal_service_version_mismatch: "AI のサービスの版の不一致",
   proposal_request_superseded: "同じ依頼の重複",
   proposal_internal_error: "アプリ内の処理の失敗",
+  // The kind of request and its parts (#284 W7): the model's answer did not keep the contract.
+  proposal_answer_has_settings: "AI の回答に含まれた設定の変更",
+  proposal_answer_missing: "AI の回答の本文なし",
+  proposal_assignment_field_unknown: "割付の案と視野の不一致",
+  proposal_assignment_duplicate: "割付の案の視野の重複",
+  proposal_assignment_label_invalid: "割付の案の名前の不備",
+  proposal_choice_invalid: "確認の項目の形式の不備",
+  proposal_scope_required: "実行の対象の指定なし",
+  proposal_run_requires_analysis: "実行する解析の指定なし",
 };
 
 export function reasonView(code: string): ReasonView {

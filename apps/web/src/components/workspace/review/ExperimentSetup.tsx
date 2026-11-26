@@ -5,7 +5,7 @@ import {experimentHeading,statusChips,summaryCounts,type SummaryField} from "@/l
 import type {ShowcaseDataset} from "@/lib/showcase";
 import {StrataEditor} from "./StrataEditor";
 import {UnassignedFields} from "./UnassignedFields";
-import {suggestAssignments,suggestedGroups} from "@/lib/workspace/assignment-suggestions";
+import {mergeSuggestions,suggestAssignments,suggestedGroups,type Suggestion} from "@/lib/workspace/assignment-suggestions";
 import styles from "./experiment-setup.module.css";
 
 /** `paths`: the file names the field was added with (folder-relative from a folder or a drop), for W6 suggestions. */
@@ -26,6 +26,8 @@ interface Props {
   source?:ShowcaseDataset|null;
   /** The fields are still loading: the state and the counts would describe only the fields loaded so far. */
   loading?:boolean;
+  /** Run and group suggestions of the latest AI answer that made any (#284 W7); saved only by 「案を適用」. */
+  aiSuggestions?:readonly Suggestion[];
 }
 
 const today=()=>new Date().toISOString().slice(0,10);
@@ -34,7 +36,7 @@ function uniqueRunLabel(date:string,taken:string[]){const used=new Set(taken.map
 
 /** Chooses one screen (describe one group) or two screens (compare two groups), then
  * groups, independent runs and samples before images are added (requirements E-01–E-08). */
-export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,onOpenField,onCsv,onNext,source,loading=false}:Props){
+export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,onOpenField,onCsv,onNext,source,loading=false,aiSuggestions=[]}:Props){
   const [draft,setDraft]=useState<ExperimentDesign|null>(design);
   const [labels,setLabels]=useState<Record<string,string>>({});
   const [runDate,setRunDate]=useState(today());
@@ -67,8 +69,8 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,onOpen
   if(!draft)return <section className={styles.choice} aria-label="実験デザイン">
     <h1>実験デザイン</h1>
     <p>実験デザインに合わせて画面の数を選びます。1 画面は後から 2 画面に拡張できます。</p>
-    {(()=>{const proposed=suggestAssignments(null,fields.map(field=>({id:field.id,label:field.label,paths:field.paths??[]})));const groups=suggestedGroups(proposed),runs=new Set(proposed.map(value=>value.runLabel));
-      return groups.length>0&&<p className={styles.pending} role="status">フォルダーからの案：{groups.length} 群（{groups.join("、")}） · 実験回 {runs.size}</p>;})()}
+    {(()=>{const proposed=mergeSuggestions(suggestAssignments(null,fields.map(field=>({id:field.id,label:field.label,paths:field.paths??[]}))),aiSuggestions,fields.map(field=>field.id));const groups=suggestedGroups(proposed),runs=new Set(proposed.map(value=>value.runLabel));
+      return groups.length>0&&<p className={styles.pending} role="status">{proposed.some(value=>value.source==="ai")?"割付の案":"フォルダーからの案"}：{groups.length} 群（{groups.join("、")}） · 実験回 {runs.size}</p>;})()}
     <div className={styles.choices}>
       <button className={styles.choiceCard} disabled={busy||readOnly} onClick={()=>choose("single")}><strong>1 画面</strong><span>1 群の記述</span><small>核の大きさや数の分布を実験回ごとに示します。検定はしません。</small></button>
       <button className={styles.choiceCard} disabled={busy||readOnly} onClick={()=>choose("pair")}><strong>2 画面</strong><span>2 群の比較</span><small>対照と処理（例：WT と変異体、溶媒と薬剤）を、同じ実験回で対にして比較します。</small></button>
@@ -171,7 +173,7 @@ export function ExperimentSetup({design,fields,busy,readOnly,onSave,onAdd,onOpen
         the spatial sampling of a comparison. The key is written only while it is stated (an additive field). */}
     {!readOnly&&<label className={styles.independence} title="輝度と画素数：全視野で同じ撮影設定（露光・ゲイン・対物レンズ・画素の大きさ）。面積（µm²）：画素の大きさを較正済み。表示をそろえても、撮影の違いは解消されません。"><input type="checkbox" checked={draft.acquisition_confirmed??false} disabled={locked} onChange={event=>void save(withAcquisition(draft,event.target.checked))}/>群の間で撮影・画素条件を比べられる</label>}
     <StrataEditor design={draft} locked={locked} readOnly={readOnly} onSave={save}/>
-    {unassigned.length>0&&<UnassignedFields design={draft} locked={locked} onSave={save} onOpenField={onOpenField}
+    {unassigned.length>0&&<UnassignedFields design={draft} locked={locked} onSave={save} onOpenField={onOpenField} aiSuggestions={aiSuggestions}
       fields={unassigned.map(field=>({id:field.id,label:field.label,preview:field.preview,paths:field.paths??[],channels:field.channels??[]}))}/>}
     {(issues.length>0||error)&&<ul className={styles.issues} aria-label="統計の前の確認事項">
       {error&&<li role="alert">{error}</li>}

@@ -381,6 +381,8 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
       throw error;}));
   }
   const applyAnswer=(id:string,trial:boolean)=>void act(async()=>{await r.applyAnswer(id,trial,field?.id);setAppliedMessage(id);});
+  // 「適用して実行」 of a run request (#284 W7): candidates on its target fields; adopting them stays the researcher's.
+  const runAnswer=(id:string)=>void act(async()=>{await r.runAnswer(id,field?.id);setAppliedMessage(id);});
   const placeOf=(place:ReasonPlace)=>{if(place==="channels"){setMode("image");setAssignments(true);}else if(place==="experiment")changeMode("experiment");else if(place==="settings")showSettings();else chooseFiles();};
   // The 画像 and フォルダ buttons and a drop of files or folders add images the same way. A chosen list is read at once
   // (the input is cleared right after); a drop's files arrive once its folders are read.
@@ -542,7 +544,7 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
   const addedNames=new Map((r.adapter.selection()?.entries??[]).filter(entry=>entry.field_id&&entry.intake).map(entry=>[entry.field_id!,entry.intake!.names]));
   const setup=<ExperimentSetup design={experiment} fields={fields.filter(value=>value.kind!=="reference").map(value=>{const ch=value.nuclearChannelId||value.channels[0]?.id,nuclear=r.currentResult(value.id,"nuclei");return {id:value.id,label:value.label,preview:ch?value.previews[ch]:undefined,nuclei:nuclear?adoptedNuclei(nuclear):null,measured:!!nuclear||!!r.currentResult(value.id,"cell"),excluded:!!value.exclusionReason,
       paths:addedNames.get(value.id)??[],channels:value.channels.map(channel=>channel.stain||channel.id)};})}
-    onNext={()=>changeMode("statistics")} source={demo?showcase.dataset:null} loading={r.loading}
+    onNext={()=>changeMode("statistics")} source={demo?showcase.dataset:null} loading={r.loading} aiSuggestions={r.assignmentSuggestions}
     busy={r.busy||!transportAvailable} readOnly={demo} onSave={saveExperiment} onAdd={addToExperiment} onOpenField={id=>{setSelected(id);changeMode("image");}} onCsv={()=>changeMode("statistics")}/>;
   const setupShown=experimentSetupShown(mode);
   // The saved rows and last outcome of W1 belong to the same list (W5 change 6).
@@ -629,7 +631,9 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
         <AssistantPanel field={field} messages={r.messages} busy={busy} demo={demo} canApply={id=>r.canApply(id)} canTry={id=>r.canTry(id)}
           undoable={r.canUndoProposal()?appliedMessage:null} onApply={applyAnswer} onShowSettings={showSettings} onPlace={placeOf}
           onUndo={()=>void act(()=>r.undoProposal())} onResend={message=>{if(message.state==="failed")setRetryPending({value:message.text,message:message.id});else void sendInstruction(message.text,true,false,message.id);}}
-          onPropose={fields.length&&aiAccess.available?()=>void sendInstruction(""):undefined}/>
+          onPropose={fields.length&&aiAccess.available?()=>void sendInstruction(""):undefined}
+          answerOf={id=>r.answerOf(id)} runTargets={id=>r.runTargets(id,field?.id)} canRun={id=>r.canRun(id,field?.id)} onRun={runAnswer}
+          onChoose={option=>void sendInstruction(option)}/>
         {!demo&&r.messages.some(message=>message.reply)&&<GeneratedContentReportLink/>}
         {demo&&<ProposalExamples examples={showcase.examples} disabled={busy} onChoose={value=>{setInstruction(value);void sendInstruction(value);}}/>}
       </>:<>

@@ -8080,6 +8080,31 @@
         ],
         "title": "DiscussionView"
       },
+      "DraftAssignment": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "run": {
+            "type": "string",
+            "title": "Run"
+          },
+          "group": {
+            "type": "string",
+            "title": "Group"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "field",
+          "run",
+          "group"
+        ],
+        "title": "DraftAssignment",
+        "description": "A run and group suggestion for one field (`field` is a context field identifier). Shown in the experiment\ntable and saved only by the researcher's \u300c\u6848\u3092\u9069\u7528\u300d; checked against the fields and the design by validation."
+      },
       "DraftBackground": {
         "properties": {
           "mode": {
@@ -8161,6 +8186,29 @@
           "reason"
         ],
         "title": "DraftChannel"
+      },
+      "DraftChoice": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "options": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Options"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "question",
+          "options"
+        ],
+        "title": "DraftChoice",
+        "description": "An item the researcher decides and the images and records do not (which channel is the nuclear stain, which\ngroup a field belongs to): a short question and options, each written as the researcher's next message. Lengths\nand counts are checked by validation, so a long option refuses the settings but keeps the answer's text."
       },
       "DraftFigure": {
         "properties": {
@@ -13736,6 +13784,62 @@
                 "type": "null"
               }
             ]
+          },
+          "intent": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "answer",
+                  "settings",
+                  "run"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intent"
+          },
+          "answer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "selected",
+                  "all"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope"
+          },
+          "choices": {
+            "items": {
+              "$ref": "#/components/schemas/DraftChoice"
+            },
+            "type": "array",
+            "title": "Choices"
+          },
+          "assignments": {
+            "items": {
+              "$ref": "#/components/schemas/DraftAssignment"
+            },
+            "type": "array",
+            "title": "Assignments"
           }
         },
         "additionalProperties": false,
@@ -13812,7 +13916,7 @@
               {
                 "additionalProperties": true,
                 "type": "object",
-                "maxProperties": 13
+                "maxProperties": 18
               },
               {
                 "type": "null"
@@ -13868,6 +13972,13 @@
                 "type": "null"
               }
             ]
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/ProposalFieldLink"
+            },
+            "type": "array",
+            "title": "Fields"
           }
         },
         "type": "object",
@@ -13876,6 +13987,25 @@
           "channels"
         ],
         "title": "ProposalDraftResponse"
+      },
+      "ProposalFieldLink": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          },
+          "field_id": {
+            "type": "string",
+            "title": "Field Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token",
+          "field_id"
+        ],
+        "title": "ProposalFieldLink",
+        "description": "The context's opaque field identifier (`f1`\u2026) and the workspace field it names (context 1.3.0, #284 W7)."
       },
       "PublicationPackageRequest": {
         "properties": {

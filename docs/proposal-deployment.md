@@ -310,6 +310,19 @@ every proposal and discussion from the updated client would fail. Deploy the Wor
 distribute the client. The newer Worker keeps answering installed clients (up to 0.1.0-local.23) with their own prompt
 versions and OpenAI model.
 
+[#284](https://github.com/genellect/cytellect/issues/284) W7 adds prompt `2026-11-26.1` (the kind of request, the
+answer, the fields a run covers, the items to confirm and assignment suggestions) with proposal context 1.3.0 (field
+identifiers, the names fields were added with relative to the chosen folder, the design's run and group names). A
+Worker without it answers the client with HTTP 400 `request_invalid` (the context) or `prompt_version_unsupported`, so
+**the Worker must be deployed and checked before the W7 change reaches `main`**: a push to `main` can start the
+automatic Windows release and the Store submission. The new Worker keeps answering `2026-11-19.1` with context 1.2.0
+for clients already distributed, refuses context 1.3.0 with any other prompt version (400 `request_invalid`, before
+admission), and routes `2026-11-26.1` to Claude when it is configured. Until the Worker is deployed, an operator can keep
+an updated client working by setting `CYTELLECT_PROPOSAL_PROMPT_VERSION=2026-11-19.1`: the local API then sends
+context 1.2.0 without the additions, and answers have no kind of request (the earlier 「設定を適用」 and 「適用して試行」).
+The model's behaviour on the new prompt has not been evaluated yet; a paid evaluation on public cases needs the owner's
+permission.
+
 ### Required prompt-version check before distribution
 
 Run `uv run python scripts/dev.py doctor --proposal-version` from the exact client commit to distribute, with `CYTELLECT_PROPOSAL_URL` and an operator-issued device token (`CYTELLECT_PROPOSAL_TOKEN` or `CYTELLECT_PROPOSAL_TOKEN_FILE`) configured privately. The proposal/discussion prompt overrides in that environment are checked too. Compose inherits the installed package's prompt defaults instead of pinning another version in YAML. For Windows distribution add `--packaged-client`: it checks the compiled prompt defaults and refuses a preflight URL different from `cloud_account.DEFAULT_CLOUD_URL`, the connection bundled in the client. This mode checks only the AI service; it does not run normal doctor checks or contact/start the GPU. It sends validated public protocol sentinels **without Idempotency-Key**. Only HTTP 400 `request_id_required` passes: version and provider selection happened, but request admission, usage count, reservation and model calls did not. Unsupported versions, invalid context, unavailable service, authentication failures and unexpected successes fail closed. There is no retry or fallback.
