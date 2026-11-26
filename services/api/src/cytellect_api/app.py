@@ -105,7 +105,7 @@ def create_app(settings: Settings | None = None, *, proposal_credentials=None):
         CORSMiddleware,
         allow_origins=[settings.app_origin],
         allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "DELETE"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["Content-Type", "X-Cytellect-Request"],
         expose_headers=[PREVIEW_DISPLAY_HEADER],
     )

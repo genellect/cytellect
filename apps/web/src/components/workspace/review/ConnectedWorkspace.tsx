@@ -358,7 +358,8 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
   // The demo answers any wording: it maps the request onto the closest recorded analysis, or explains what this dataset supports.
   const [demoReply,setDemoReply]=useState("");
   // A proposal sends the scope in AI_SCOPE; it is confirmed once before the first request after it widened (L03).
-  const [scopePending,setScopePending]=useState<string|null>(null);
+  // A resend keeps its message and its retry flag through the confirmation: it sends the same scope as a new message.
+  const [scopePending,setScopePending]=useState<{value:string;retry:boolean;message?:string}|null>(null);
   // An earlier request of the same instruction failed or timed out and may have been charged: the service sends it
   // again only when the researcher says so (the same rule as the discussion's 「再生成」).
   const [retryPending,setRetryPending]=useState<{value:string;message?:string}|null>(null);
@@ -369,7 +370,7 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
   async function sendInstruction(value:string,confirmed=false,retry=false,message?:string){
     if(!aiAccess.available){dispatchPanel("open-ai");return;}
     dispatchPanel("open-ai");setDemoReply("");setRetryPending(null);
-    if(!demo&&!confirmed&&!proposalScopeSeen()){setScopePending(value);return;}
+    if(!demo&&!confirmed&&!proposalScopeSeen()){setScopePending({value,retry,message});return;}
     setScopePending(null);if(!demo)setInstruction("");
     if(demo){
       const example=showcase.examples.find(item=>item.instruction===value.trim())??closestExample(value,showcase.examples);
@@ -621,16 +622,16 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
         <AiSettings/>
         <button onClick={showSettings}>解析設定を表示</button>
         {scopePending!==null&&<section role="group" aria-label="AIに送る内容の確認"><p>{AI_SCOPE}</p>
-          <div><button disabled={busy} onClick={()=>{markProposalScopeSeen();void sendInstruction(scopePending,true);}}>確認して送信</button>
-            <button disabled={busy} onClick={()=>{setIncludePreviews(false);markProposalScopeSeen();void sendInstruction(scopePending,true);}}>縮小画像なしで送信</button>
+          <div><button disabled={busy} onClick={()=>{markProposalScopeSeen();void sendInstruction(scopePending.value,true,scopePending.retry,scopePending.message);}}>確認して送信</button>
+            <button disabled={busy} onClick={()=>{setIncludePreviews(false);markProposalScopeSeen();void sendInstruction(scopePending.value,true,scopePending.retry,scopePending.message);}}>縮小画像なしで送信</button>
             <button disabled={busy} onClick={()=>setScopePending(null)}>キャンセル</button></div></section>}
         {retryPending!==null&&<section role="group" aria-label="AIへの再送の確認"><p>前回の依頼：未完了。再送は課金の対象になり得ます。</p>
-          <div><button disabled={busy} onClick={()=>void sendInstruction(retryPending.value,true,true,retryPending.message)}>再送</button>
+          <div><button disabled={busy} onClick={()=>void sendInstruction(retryPending.value,false,true,retryPending.message)}>再送</button>
             <button disabled={busy} onClick={()=>setRetryPending(null)}>キャンセル</button></div></section>}
         {demoReply&&<p>{demoReply}</p>}
         <AssistantPanel field={field} messages={r.messages} busy={busy} demo={demo} canApply={id=>r.canApply(id)} canTry={id=>r.canTry(id)}
           undoable={r.canUndoProposal()?appliedMessage:null} onApply={applyAnswer} onShowSettings={showSettings} onPlace={placeOf}
-          onUndo={()=>void act(()=>r.undoProposal())} onResend={message=>{if(message.state==="failed")setRetryPending({value:message.text,message:message.id});else void sendInstruction(message.text,true,false,message.id);}}
+          onUndo={()=>void act(()=>r.undoProposal())} onResend={message=>{if(message.state==="failed")setRetryPending({value:message.text,message:message.id});else void sendInstruction(message.text,false,false,message.id);}}
           onPropose={fields.length&&aiAccess.available?()=>void sendInstruction(""):undefined}
           answerOf={id=>r.answerOf(id)} runTargets={id=>r.runTargets(id,field?.id)} canRun={id=>r.canRun(id,field?.id)} onRun={runAnswer}
           onChoose={option=>void sendInstruction(option)}/>

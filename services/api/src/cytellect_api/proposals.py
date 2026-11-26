@@ -14,6 +14,7 @@ import io
 import json
 import re
 import time
+import unicodedata
 import urllib.error
 import urllib.request
 import uuid
@@ -515,16 +516,19 @@ def _label(value) -> str | None:
     return value if isinstance(value, str) and value.strip() and len(value) <= 24 else None
 
 
-_ABSOLUTE = re.compile(r"^(?:/|~|[A-Za-z]:)")
+# A root, a home, a drive letter, a URL scheme, or a path that names a user's folder.
+_ABSOLUTE = re.compile(r"^(?:/|~|[A-Za-z]:|[A-Za-z][A-Za-z0-9+.-]*:/)|(?:^|/)(?:Users|home)/", re.IGNORECASE)
 
 
 def _added_name(value) -> str | None:
     """A name a file was added with, relative to the folder the researcher chose. An absolute path is never sent:
-    only its file name is. Empty, `.` and `..` segments are dropped."""
+    only its file name is. Empty, `.` and `..` segments are dropped, and so are control and format characters
+    (line and paragraph separators, direction marks): a name is data for the model, one line of it."""
     if not isinstance(value, str):
         return None
-    path = value.replace("\\", "/")
-    if _ABSOLUTE.match(path):
+    path = "".join(char for char in value if unicodedata.category(char) not in ("Cc", "Cf", "Zl", "Zp"))
+    path = path.replace("\\", "/").strip()
+    if _ABSOLUTE.search(path):
         path = path.rsplit("/", 1)[-1]
     text = "/".join(part for part in path.split("/") if part.strip() and part not in (".", ".."))
     if len(text) > 255:

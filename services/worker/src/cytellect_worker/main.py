@@ -417,6 +417,9 @@ def cleanup(store):
             reap_owned_temporaries(store.safe_path("runs"), recursive=True)
         except (OSError, ValueError):
             pass
+        # Inspection copies of a process that stopped mid-inspection belong to no workspace (#284 W4).
+        from cytellect_api.intake import remove_stale_intake
+        remove_stale_intake(store, now)
     removed = 0
     with store.transaction() as conn:
         expired = (

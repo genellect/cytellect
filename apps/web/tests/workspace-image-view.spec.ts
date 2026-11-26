@@ -418,3 +418,33 @@ test("an answer's kind of request only chooses the actions: a question shows cho
   expect(changes).toEqual([]);
   expect(fixture.unexpected).toEqual([]);
 });
+
+test("a resend from a browser that has not confirmed the scope asks what is sent before it sends (requirement L03)",async({context,page})=>{
+  const requests:Array<{goal:string;message_id?:string}>=[];
+  const headers=()=>({"Access-Control-Allow-Origin":new URL(page.url()).origin,"Access-Control-Allow-Credentials":"true",
+    "Access-Control-Allow-Headers":"content-type,x-cytellect-request","Access-Control-Allow-Methods":"GET,POST,PATCH,OPTIONS"});
+  // The conversation is kept by the API; the confirmation is kept by this browser. Another browser opens the
+  // conversation without having confirmed.
+  const restored={id:"m1",field_id:"f1",created:1,text:"核を数えて",state:"answered",reply:"DAPI で核を検出する。",applicable:true,reasons:[],stage:null,effect:"none"};
+  await page.route("**/v1/workspaces/w/assistant-messages",async route=>{
+    if(route.request().method()==="OPTIONS")return route.fulfill({status:204,headers:headers()});
+    await route.fulfill({headers:headers(),contentType:"application/json",body:JSON.stringify({messages:[restored]})});
+  });
+  await page.route("**/v1/workspaces/w/proposal-drafts",async route=>{
+    if(route.request().method()==="OPTIONS")return route.fulfill({status:204,headers:headers()});
+    requests.push(route.request().postDataJSON());
+    await route.fulfill({status:503,headers:headers(),contentType:"application/json",body:JSON.stringify({detail:"proposal_service_unavailable"})});
+  });
+  await imageWorkspace(context,page);
+  await page.goto("/workspace?id=w");
+  await page.getByRole("textbox",{name:"AIへの指示"}).click();
+  const conversation=page.getByRole("list",{name:"AI との会話"});
+  await conversation.getByRole("button",{name:"再送",exact:true}).click();
+  const scope=page.getByRole("group",{name:"AIに送る内容の確認"});
+  await expect(scope).toContainText("追加した画像のフォルダー内の名前、実験回と群の名前");
+  expect(requests).toEqual([]);
+  await scope.getByRole("button",{name:"確認して送信",exact:true}).click();
+  await expect.poll(()=>requests.length).toBe(1);
+  // The same message is sent again, not a new one.
+  expect(requests[0]).toMatchObject({goal:"核を数えて",message_id:"m1"});
+});

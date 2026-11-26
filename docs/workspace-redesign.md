@@ -194,10 +194,11 @@ Methods and input/mask identities.
   version.
 - **Proposals show the model what the researcher recorded.** Since the
   2026-11-16 redesign ([LLM assistance redesign](drafts/llm-assistant/plan.md)),
-  requests send the goal, channel labels, every field's name and records, and up
-  to six display-scaled previews of one representative field unless the
-  researcher turns previews off (requirement L03). Paths and measured values are
-  not sent.
+  requests send the goal, channel labels, every field's name and records, the
+  names its files were added with (relative to the folder the researcher chose),
+  the run and group names, and up to six display-scaled previews of one
+  representative field unless the researcher turns previews off (requirement
+  L03). Paths above the chosen folder and measured values are not sent.
 - **Segmentation validity is a separate gate.** Execution success on public
   images and same-mask ImageJ agreement are not detection accuracy. D04
   annotated evaluation remains required before claiming nuclear, nucleolar or

@@ -10,6 +10,7 @@ import base64
 import io
 import math
 import shutil
+import time
 from typing import Annotated, Literal
 
 import numpy as np
@@ -112,8 +113,34 @@ def inspect_region_file(path, kind):
             "thumbnail": _thumbnail(pixels)}
 
 
+# An inspection takes seconds; a folder this old belongs to a process that stopped while reading it.
+STALE_INTAKE_SECONDS = 3600
+
+
+def remove_stale_intake(store, now: float | None = None) -> int:
+    """Removes inspection copies a stopped process left behind (a crash or power loss mid-inspection).
+
+    The copy belongs to no workspace, so neither deleting a workspace nor retention would remove it. Called
+    when the API starts and by the worker's cleanup; folders in use (younger than an hour) are left.
+    """
+    root = store.safe_path("tmp")
+    if not root.is_dir():
+        return 0
+    limit = (time.time() if now is None else now) - STALE_INTAKE_SECONDS
+    removed = 0
+    for folder in root.glob("intake-*"):
+        try:
+            if folder.is_dir() and not folder.is_symlink() and folder.stat().st_mtime < limit:
+                shutil.rmtree(folder)
+                removed += 1
+        except OSError:
+            continue  # Another process removed it, or it is still being written.
+    return removed
+
+
 def register_intake_routes(api, store, settings, owner):
     Owner = Annotated[str, Depends(owner)]
+    remove_stale_intake(store)
 
     @api.post(INTAKE_ROUTE, response_model=IntakeInspection)
     async def inspect_intake(_owner: Owner, file: UploadFile = File(...), kind: IntakeKind = Form(...)):

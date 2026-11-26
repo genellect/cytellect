@@ -13,7 +13,8 @@ Target = Literal["nuclei", "gfp", "ncl", "nucleoli", "nucleoplasm", "cell"]
 
 
 # A file name as the researcher chose it (a folder-relative path when one is known). Names are research data:
-# they stay in this database and the researcher's own export, never in logs or AI requests (SECURITY.md).
+# they stay in this database and the researcher's own export and are never logged. A proposal request sends the
+# names of a registered field, relative to the folder the researcher chose, within the consented scope (SECURITY.md).
 IntakeName = Annotated[str, Field(min_length=1, max_length=255, pattern=r"^[^\x00-\x1f\x7f]+$")]
 ReasonCode = Annotated[str, Field(min_length=1, max_length=80, pattern=r"^[a-z0-9_]+$")]
 

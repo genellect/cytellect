@@ -422,3 +422,15 @@ def test_previews_average_blocks_so_small_structures_stay_visible():
     assert reduced.shape == (512, 512) and reduced[25, 25] == 250
     assert _block_mean(np.ones((300, 700), dtype=np.uint16), 512).shape == (150, 350)
     assert _block_mean(np.ones((400, 500), dtype=np.uint16), 512).shape == (400, 500)
+
+
+def test_the_browser_may_record_an_effect_from_the_app_origin(tmp_path):
+    """The effect of a message is recorded with PATCH; a hosted or development screen on another origin sends a
+    preflight first, so the method has to be allowed for the app's own origin (and only for it)."""
+    client, _, _ = authenticated(tmp_path)
+    preflight = {"origin": "http://test", "access-control-request-method": "PATCH", "access-control-request-headers": "content-type,x-cytellect-request"}
+    allowed = client.options("/v1/workspaces/w/assistant-messages/m", headers=preflight)
+    assert allowed.status_code == 200 and "PATCH" in allowed.headers["access-control-allow-methods"]
+    assert allowed.headers["access-control-allow-origin"] == "http://test"
+    other = client.options("/v1/workspaces/w/assistant-messages/m", headers={**preflight, "origin": "http://other.example"})
+    assert "access-control-allow-origin" not in other.headers

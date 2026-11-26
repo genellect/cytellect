@@ -221,3 +221,33 @@ def test_inspection_requires_a_session_and_the_request_headers(tmp_path):
     refused = inspect(stranger, DAPI)
     assert refused.status_code == 401 and refused.json()["detail"] == "session_required"
     assert not list((tmp_path / "tmp").glob("intake-*"))
+
+
+def test_a_copy_left_by_a_stopped_process_is_removed_at_start_and_by_cleanup(tmp_path):
+    """An inspection interrupted by a crash leaves its copy under tmp; it belongs to no workspace, so the API's
+    start and the worker's cleanup remove it once it is older than any inspection could be."""
+    import os
+    import time
+
+    from cytellect_worker.main import cleanup
+
+    client, app, _ = authenticated(tmp_path)
+    store = app.state.store
+    stale, live = tmp_path / "tmp" / "intake-stale", tmp_path / "tmp" / "intake-live"
+    for folder in (stale, live):
+        folder.mkdir(parents=True)
+        (folder / "upload.tif").write_bytes(TRUNCATED)
+    old = time.time() - intake.STALE_INTAKE_SECONDS - 60
+    os.utime(stale, (old, old))
+    # An inspection in progress (a young folder) is never touched.
+    assert intake.remove_stale_intake(store) == 1
+    assert not stale.exists() and (live / "upload.tif").exists()
+    os.utime(live, (old, old))
+    cleanup(store)
+    assert not live.exists()
+    # A new start removes what the previous process left.
+    stale.mkdir()
+    (stale / "upload.tif").write_bytes(TRUNCATED)
+    os.utime(stale, (old, old))
+    create_app(Settings(tmp_path, app_origin="http://test", secure_cookies=False))
+    assert not stale.exists()
