@@ -375,7 +375,8 @@ page that has not used a session yet (it starts from 「解析を開始」) are 
 renewed. When the service answers again, the runtime's `reconnected` reads the
 rows and fields again: a row whose upload reached the API shows as registered,
 a `pending` row keeps its names for 「差し替え」 under the same row ID, and
-recorded targets are placed. The notice also shows the previous launcher run's
+recorded targets are placed. A new workspace with nothing saved yet has nothing
+to re-read and is never replaced by the workspace that was open before it. The notice also shows the previous launcher run's
 abnormal stop from `GET /v1/local/previous-stop`
 (「前回の停止：計算処理の停止 · 11月23日 18:28」; codes in
 [local delivery](local.md#stop-and-restart-停止と再開)) until the researcher closes it; the browser

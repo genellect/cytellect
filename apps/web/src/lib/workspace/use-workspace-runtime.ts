@@ -651,7 +651,10 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
      * Nothing is sent again here; sending a row again uses the same row ID, so the API returns the same field. */
     reconnected(){
       if(state.busy)return Promise.resolve();
-      if(!state.data?.workspaceId)return runtime.load(opened);
+      // The first load never finished: open what the page was opening. A new workspace the researcher started has
+      // nothing saved to re-read, and is never replaced by the workspace that was open before it.
+      if(!state.data)return runtime.load(opened);
+      if(!state.data.workspaceId)return Promise.resolve();
       return exclusive("保存結果を再読み込み中",reloadSaved);
     },
     /** Hide the last message (used for demo notices, which need no reload). */
@@ -750,12 +753,15 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     /** Shows the result of one 追加 as a whole, when it took several calls of registration (the list before adding). */
     reportIntake(outcome:IntakeOutcome){publish({intake:outcome});},
     /** Records files the judgement before adding found unreadable, as rows with their reason (stage inspect, W5). */
-    recordRefused(refused:Array<{names:string[];code:string;target:IntakeTarget|null}>){return exclusive("取り込みの記録を保存中",async()=>{
-      if(!refused.length)return;
+    /** Returns how many were recorded, in order: at the record's limit the rest is not saved, and the caller says so. */
+    recordRefused(refused:Array<{names:string[];code:string;target:IntakeTarget|null}>):Promise<number>{return exclusive("取り込みの記録を保存中",async()=>{
+      if(!refused.length)return 0;
       if(!state.data?.workspaceId){const created=await adapter.create();replaceData({...emptyData(),workspaceId:created.id,title:created.title});}else await checkCurrent();
+      let saved=0;
       for(const item of refused){if((adapter.selection()?.entries.length??0)>=LEDGER_LIMIT)break;
-        await adapter.registerImport(workspace(),crypto.randomUUID(),{names:item.names,state:"rejected",stage:"inspect",code:item.code,...(item.target?{target:item.target}:{})});}
+        await adapter.registerImport(workspace(),crypto.randomUUID(),{names:item.names,state:"rejected",stage:"inspect",code:item.code,...(item.target?{target:item.target}:{})});saved++;}
       await refresh(workspace());
+      return saved;
     });},
     /** What the list before adding compares against: the hashes of registered inputs and each field's size. */
     registeredFacts(){const known=new Map<string,string>(),fields:Array<{name:string;shape:readonly number[]}>=[];

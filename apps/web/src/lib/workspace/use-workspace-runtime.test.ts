@@ -622,6 +622,25 @@ describe("connection loss and reconnection (#284 W9)",()=>{
     expect(runtime.getSnapshot().data?.workspaceId).toBe("w");
     expect(runtime.getSnapshot().error).toBe("");
   });
+  it("reconnected: a new workspace started after a saved one is not replaced by the saved one (automated review)",async()=>{
+    const {runtime,adapter}=fixture();await runtime.load("w");
+    runtime.newWorkspace();
+    const reads=adapter.restore.mock.calls.length;
+    await runtime.reconnected();
+    expect(runtime.getSnapshot().data?.workspaceId).toBe("");
+    expect(adapter.restore).toHaveBeenCalledTimes(reads);
+  });
+  it("recordRefused says how many rows it saved, and stops at the record's limit (automated review)",async()=>{
+    const {runtime,adapter}=withDesign();await runtime.load("w");const ledger=withLedger(adapter);
+    const refused=(name:string)=>({names:[name],code:"unsupported_or_invalid_region_image",target:null});
+    expect(await runtime.recordRefused([refused("a_c1.tif"),refused("b_c1.tif")])).toBe(2);
+    expect(ledger.entries().filter(entry=>entry.intake).map(entry=>entry.intake)).toEqual([
+      {names:["a_c1.tif"],state:"rejected",stage:"inspect",code:"unsupported_or_invalid_region_image"},{names:["b_c1.tif"],state:"rejected",stage:"inspect",code:"unsupported_or_invalid_region_image"}]);
+    ledger.fill(99);
+    expect(await runtime.recordRefused([refused("c_c1.tif"),refused("d_c1.tif")])).toBe(1);
+    expect(ledger.entries().filter(entry=>entry.intake).map(entry=>entry.intake!.names[0])).toEqual(["a_c1.tif","b_c1.tif","c_c1.tif"]);
+    expect(await runtime.recordRefused([])).toBe(0);
+  });
 });
 describe("the kind of request (#284 W7)",()=>{
   type Draft=ValidatedProposal["draft"];

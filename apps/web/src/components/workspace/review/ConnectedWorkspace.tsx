@@ -574,9 +574,10 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
           r.dismissError();break;}
       }
       if(!total.stopped){
-        await r.recordRefused(refused.map(item=>({names:[item.name],code:item.code??"unsupported_or_invalid_region_image",target:item.target})));
+        const saved=await r.recordRefused(refused.map(item=>({names:[item.name],code:item.code??"unsupported_or_invalid_region_image",target:item.target})));
         done.push(...refused.map(item=>item.id));
-        total.rejected.push(...refused.map(item=>({entry:"recorded",names:[item.name],code:item.code??"unsupported_or_invalid_region_image",stage:"inspect" as const})));
+        // At the record's limit the rest has no row: it is listed with that reason, never counted as recorded.
+        total.rejected.push(...refused.map((item,index)=>index<saved?{entry:"recorded",names:[item.name],code:item.code??"unsupported_or_invalid_region_image",stage:"inspect" as const}:{entry:null,names:[item.name],code:"ledger_full",stage:"inspect" as const}));
       }
     }finally{
       intakeList.clear(done);
