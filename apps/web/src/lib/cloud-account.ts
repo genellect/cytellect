@@ -277,7 +277,7 @@ export const UPDATE_SESSION_LOST_TEXT = "更新の状態を確認できません
  * session is opened again with `reconnect` (as the workspace opens it) and following goes on.
  * A 401 that a new session does not resolve, or a refused reconnect, is "session_lost".
  */
-export async function followUpdate(get: () => Promise<UpdateInfo | null>, options: {sleep?: (ms: number) => Promise<void>; now?: () => number; pollMs?: number; limitMs?: number; signal?: AbortSignal; reconnect?: () => Promise<unknown>} = {}): Promise<UpdateInfo | "timeout" | "cancelled" | "session_lost"> {
+export async function followUpdate(get: () => Promise<UpdateInfo | null>, options: {sleep?: (ms: number) => Promise<void>; now?: () => number; pollMs?: number; limitMs?: number; signal?: AbortSignal; reconnect?: () => Promise<unknown>; progress?: (info: UpdateInfo) => void} = {}): Promise<UpdateInfo | "timeout" | "cancelled" | "session_lost"> {
   const sleep = options.sleep ?? ((ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms)));
   const now = options.now ?? Date.now;
   const deadline = now() + (options.limitMs ?? UPDATE_FOLLOW_MS);
@@ -302,6 +302,8 @@ export async function followUpdate(get: () => Promise<UpdateInfo | null>, option
     }
     if (options.signal?.aborted) return "cancelled";
     if (info && UPDATE_SETTLED.has(info.state ?? "idle")) return info;
+    // Still running: the banner shows the stage it has reached.
+    if (info) options.progress?.(info);
   }
   return "timeout";
 }

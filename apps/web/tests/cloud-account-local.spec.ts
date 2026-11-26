@@ -90,9 +90,11 @@ test("first launch offers this PC or the cloud features, and local analysis need
   await expect(page.getByRole("button", {name: "ログイン", exact: true})).toBeVisible();
   expect(mock.calls).not.toContain("POST /v1/account/code");
   expect(unauthorized).toEqual([]);
-  // The choice is remembered: the next start shows the usual start screen.
+  // The choice is remembered: the next start shows the usual start screen. The page is left first:
+  // an open workspace renews its session by itself when a request meets a 401 (#284 W9).
+  await page.goto("about:blank");
   mock.session = false;
-  await page.reload();
+  await page.goto(origin + "/workspace");
   await expect(page.getByRole("button", {name: "解析を開始"})).toBeVisible();
   await expect(page.getByRole("heading", {name: "インストール完了"})).toHaveCount(0);
 });
@@ -102,7 +104,7 @@ test("sign-in with an e-mail code: resend waits, wrong codes count down, success
   await mockLocalApi(page);
   await page.goto(origin + "/workspace");
   await page.getByRole("button", {name: /クラウド機能を有効化/}).click();
-  const dialog = page.getByRole("dialog", {name: "クラウド機能を有効化"});
+  const dialog = page.getByRole("dialog", {name: "クラウド機能の有効化"});
   await dialog.getByLabel("メールアドレス").fill(" Researcher@Example.org ");
   await dialog.getByRole("button", {name: "コードを送信"}).click();
   await expect(dialog.getByText(`${EMAIL} にコードを送りました。`)).toBeVisible();
@@ -127,7 +129,7 @@ test("sign-in with an e-mail code: resend waits, wrong codes count down, success
   await dialog.getByRole("button", {name: "ログイン", exact: true}).click();
   await expect(page.getByRole("heading", {name: "ログイン完了"})).toBeVisible();
   await page.getByRole("button", {name: "作業に戻る"}).click();
-  await expect(page.getByText("GPU・解析提案：利用可")).toBeVisible();
+  await expect(page.getByText("GPU・解析提案・考察：利用可")).toBeVisible();
   await expect(page.getByText(EMAIL).first()).toBeVisible();
 });
 
@@ -376,7 +378,7 @@ test("while the first account check waits for the network, the header offers no 
   await expect(page.getByRole("button", {name: "確認中"})).toBeDisabled();
   await expect(page.getByRole("button", {name: "ログイン", exact: true})).toHaveCount(0);
   release();
-  await expect(page.getByText("GPU・解析提案：利用可")).toBeVisible();
+  await expect(page.getByText("GPU・解析提案・考察：利用可")).toBeVisible();
   expect(mock.calls).not.toContain("POST /v1/account/code");
 });
 

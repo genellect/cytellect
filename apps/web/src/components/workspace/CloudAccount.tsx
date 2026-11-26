@@ -205,7 +205,8 @@ function UpdateBanner() {
     const controller = new AbortController();
     run.current = controller;
     setFollowing(true); setOutcome(null);
-    const result = await followUpdate(accountApi.update, {signal: controller.signal, reconnect: accountApi.reconnect});
+    const result = await followUpdate(accountApi.update, {signal: controller.signal, reconnect: accountApi.reconnect,
+      progress: value => {if (run.current === controller && live.current) setUpdate(value);}});
     if (result === "cancelled" || run.current !== controller || !live.current) return;
     setFollowing(false);
     if (result === "timeout" || result === "session_lost") setOutcome(result); else show(result);

@@ -26,6 +26,8 @@ async function mockLocalApi(page: Page, overrides: Partial<Mock> = {}): Promise<
     if (path === "/v1/local/setup") return json(route, 200, {mode: "local", ready: true, fiji_configured: true, retention_mode: "manual", retention_hours: null});
     if (path === "/v1/local/previous-stop") return json(route, 200, mock.previous);
     if (mock.origin) return json(route, 403, {detail: "local_origin_required"});
+    // The check after 「再接続」 reads the session, as the real local API answers it.
+    if (path === "/v1/session") return json(route, 200, {authenticated: true, mode: "local", retention_mode: "manual", retention_hours: null});
     if (path === "/v1/workspaces" && method === "GET") return json(route, 200, []);
     return json(route, 404, {detail: "workspace_not_found"});
   });

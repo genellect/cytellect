@@ -274,9 +274,12 @@ describe("update banner", () => {
       async () => ({available: false, state: "updated"}),
     ];
     const get = vi.fn(() => replies.shift()!());
-    const result = await followUpdate(get, {sleep: async ms => {clock += ms;}, now: () => clock, pollMs: 1000, limitMs: 60_000});
+    const stages: unknown[] = [];
+    const result = await followUpdate(get, {sleep: async ms => {clock += ms;}, now: () => clock, pollMs: 1000, limitMs: 60_000, progress: info => stages.push(info)});
     expect(result).toEqual({available: false, state: "updated"});
     expect(get).toHaveBeenCalledTimes(3);
+    // A stage on the way is reported; the settled result is returned, not reported.
+    expect(stages).toEqual([{available: true, state: "installing"}]);
     clock = 0;
     clock = 0;
     const deferred = await followUpdate(async () => ({available: false, state: "installed"}), {sleep: async ms => {clock += ms;}, now: () => clock, pollMs: 1000, limitMs: 60_000});
