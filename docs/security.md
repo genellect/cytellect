@@ -1,6 +1,6 @@
 # Data protection and operations
 
-The security policy and current measures are maintained in [SECURITY.md](../SECURITY.md). This document gives the data-protection specification and operating details behind them.
+The security policy and current measures are maintained in [SECURITY.en.md](../SECURITY.en.md). This document gives the data-protection specification and operating details behind them.
 
 The [Microsoft Store privacy policy](https://cytellect.app/privacy) describes the Windows app's data use in Japanese and links to the existing contact form for privacy requests.
 
@@ -101,7 +101,7 @@ Run `cytellect cleanup` manually if the worker was offline. Durable leases recov
 
 Alembic upgrades execute under the SQLite write lock at startup, including adoption of the initial unversioned checkpoint. Deploy code/schema changes with API and worker stopped together. Do not automatically downgrade or copy live WAL files. Before any operator-approved schema recovery, use an offline, private, short-lived metadata snapshot and follow the workspace retention policy. Research-file backups are outside this PoC.
 
-See [SECURITY](../SECURITY.md) for private vulnerability reporting.
+See [SECURITY](../SECURITY.en.md) for private vulnerability reporting.
 
 
 ## Watchdog and container verification
