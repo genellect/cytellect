@@ -540,8 +540,15 @@ describe("proposals with user-bound tokens", () => {
     t.time.now += 3_600_000;
     expect((await redeem("192.0.2.1")).status).toBe(403);
 
-    t.setEnv({ ...BASE_ENV, ADMIN_SIGNING_KEY: undefined });
-    const closed = await redeem("203.0.113.9");
+    // An invitation-only installation (no e-mail login configured) keeps redeeming, under the same limit.
+    t.setEnv({ ...BASE_ENV, OWNER_EMAIL: "", ADMIN_SIGNING_KEY: undefined });
+    const issued = await (await t.call(new Request(`${ORIGIN}/v1/admin/invitations`, { method: "POST", headers: t.bearer(BASE_ENV.ADMIN_TOKEN!) }))).json() as { invitation: string };
+    expect((await redeem("203.0.113.9", issued.invitation)).status).toBe(201);
+    for (let index = 0; index < 9; index += 1) expect((await redeem("203.0.113.9")).status).toBe(403);
+    expect((await redeem("203.0.113.9")).status).toBe(429);
+
+    t.setEnv({ ...BASE_ENV, OWNER_EMAIL: "", ADMIN_SIGNING_KEY: undefined, ADMIN_TOKEN: undefined });
+    const closed = await redeem("203.0.113.10");
     expect([closed.status, await closed.json()]).toEqual([503, { error: "auth_unavailable" }]);
     expect((await handle(new Request(`${ORIGIN}/v1/devices`, { method: "POST", body: "{}" }), BASE_ENV, t.store)).status).toBe(503);
   });

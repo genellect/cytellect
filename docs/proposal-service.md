@@ -203,7 +203,7 @@ window.
 | Device codes sent | 10 per day per address, whatever the requesting IP |
 | Admin codes sent to the owner (only while Cloudflare Access is not configured) | 5 per hour and 10 per day; 10 admin code requests per hour per IP, counting requests during the owner's 60-second resend interval (those get `retry_after_seconds` and send nothing) |
 | Code checks | 30 per hour per IP (admin: 20); at most 5 candidates are compared against one code. Each check claims its attempt before the comparison, so requests that arrive together cannot exceed the 5; the fifth wrong guess voids the code |
-| Invitation redemption (`/v1/devices`, while `LEGACY_INVITATIONS` is on) | 10 per hour per IP. The counters need the database, `OWNER_EMAIL` and an `ADMIN_SIGNING_KEY` of at least 32 characters (the same condition as the e-mail login); without them the route answers 503 `auth_unavailable` |
+| Invitation redemption (`/v1/devices`, while `LEGACY_INVITATIONS` is on) | 10 per hour per IP. The counters are keyed hashes like the login's: with `ADMIN_SIGNING_KEY` when the e-mail login is configured, otherwise with `ADMIN_TOKEN`, so an installation that only uses invitations (steps 1–7 below) keeps working. They live in the `rate_limits` table of migration `0004` (step 2 applies every migration). Without the database or either key the route answers 503 `auth_unavailable` |
 | Wrong codes per address | 20 within a day lock that address for 24 hours (device and admin separately). The lock also voids the current code and stops new codes |
 | Access requests | 240 request-state checks per hour per IP; 20 owner notices per day in total |
 

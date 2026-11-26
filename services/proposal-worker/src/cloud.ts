@@ -159,10 +159,14 @@ async function limited(ctx: Pick<CloudContext, "auth" | "now">, cfg: AuthConfig,
 
 /**
  * The limit on redeeming a legacy invitation, per client address like every other sign-in
- * route. Without a limiter (no database, or no signing key for its keys) the route is closed.
+ * route. Its counters are keyed with the login's signing key when the e-mail login is
+ * configured, and otherwise with ADMIN_TOKEN, which the invitation flow needs anyway: an
+ * installation that only uses invitations keeps working. Without a database or either key
+ * the route is closed.
  */
-export async function legacyRedeemRefusal(request: Request, env: CloudEnv, auth: D1AuthStore | undefined, now: number) {
-  const cfg = authConfig(env);
+export async function legacyRedeemRefusal(request: Request, env: CloudEnv & { ADMIN_TOKEN?: string }, auth: D1AuthStore | undefined, now: number) {
+  const adminToken = env.ADMIN_TOKEN ?? "";
+  const cfg = authConfig(env) ?? (adminToken.length >= 20 ? { owner: "", key: adminToken } : null);
   if (!auth || !cfg) return fail(503, "auth_unavailable");
   return limited({ auth, now }, cfg, RATE.deviceIp, clientIp(request));
 }

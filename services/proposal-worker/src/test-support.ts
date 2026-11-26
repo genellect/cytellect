@@ -37,9 +37,9 @@ export async function sqliteDatabase(migrations = MIGRATIONS): Promise<D1Databas
 
 /**
  * What the legacy invitation redemption needs besides the invitation itself: the rate
- * limiter's database and the key its entries are derived from.
+ * limiter's database. Its counters are keyed with ADMIN_TOKEN, as on an invitation-only Worker.
  */
 export async function redeemSupport() {
   const { D1AuthStore } = await import("./auth-store");
-  return { env: { OWNER_EMAIL: "owner@example.org", ADMIN_SIGNING_KEY: "s".repeat(48) }, options: { auth: new D1AuthStore(await sqliteDatabase()) } };
+  return { env: {}, options: { auth: new D1AuthStore(await sqliteDatabase()) } };
 }
