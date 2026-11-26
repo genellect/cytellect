@@ -88,6 +88,17 @@ export function createIntakeList(dependencies: IntakeDependencies) {
       void judge(item).finally(() => {running--;pump();});
     }
   }
+  /** A copy whose original left the list (and is not a registered field) is a copy of nothing: it is judged again. */
+  function rejudgeOrphans() {
+    const known = dependencies.known();
+    for (const item of state.items) {
+      if (item.state !== "同一内容" || !item.file || !item.sha256) continue;
+      if (known.has(item.sha256) || state.items.some(other => other.id !== item.id && other.state !== "同一内容" && other.sha256 === item.sha256)) continue;
+      const next = {...item, state: "読み込み中" as const, sameAs: null};
+      update(item.id, next);queue.push(next);
+    }
+    pump();
+  }
   return {
     subscribe(listener: () => void) {listeners.add(listener);return () => {listeners.delete(listener);};},
     getSnapshot: () => state,
@@ -118,9 +129,9 @@ export function createIntakeList(dependencies: IntakeDependencies) {
       pump();
       return {received: list.length, images: fresh.filter(item => item.state === "読み込み中").length};
     },
-    remove(id: string) {publish(state.items.filter(item => item.id !== id));},
+    remove(id: string) {publish(state.items.filter(item => item.id !== id));rejudgeOrphans();},
     /** Takes back the latest selection only (Issue input 3: 「その時点で選んだ操作だけを戻せる」). */
-    undoLast() {const last = Math.max(0, ...state.items.map(item => item.selection));if (last) publish(state.items.filter(item => item.selection !== last));},
+    undoLast() {const last = Math.max(0, ...state.items.map(item => item.selection));if (last) {publish(state.items.filter(item => item.selection !== last));rejudgeOrphans();}},
     /** Chooses a file again for one row (a file that could not be read, or a 「再選択」 row). */
     replace(id: string, file: File) {
       const old = state.items.find(item => item.id === id);if (!old) return;
@@ -132,7 +143,7 @@ export function createIntakeList(dependencies: IntakeDependencies) {
     /** Records that a copy is a separate acquisition; it is then judged and added like any image. */
     keepSeparately(id: string) {const item = state.items.find(value => value.id === id);if (!item?.file) return;const next = {...item, separate: true, state: "読み込み中" as const, sameAs: null};update(id, next);queue.push(next);pump();},
     /** Removes the given rows (after they were added or recorded). */
-    clear(ids?: Iterable<string>) {const gone = ids ? new Set(ids) : null;publish(gone ? state.items.filter(item => !gone.has(item.id)) : []);},
+    clear(ids?: Iterable<string>) {const gone = ids ? new Set(ids) : null;publish(gone ? state.items.filter(item => !gone.has(item.id)) : []);rejudgeOrphans();},
   };
 }
 

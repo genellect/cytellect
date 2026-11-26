@@ -9,6 +9,9 @@ import {LOCAL_MODE, post, request} from "@/lib/api";
 import {connectionNotice, localConnection, previousStopText, RECONNECT_INTERVAL_MS, subscribeConnection, type LocalConnection, type PreviousStop} from "@/lib/local-connection";
 import styles from "../cloud-account.module.css";
 
+/** The abnormal stop whose notice the researcher closed (its reason and time); never research data. */
+const STOP_SEEN = "cytellect.local.previous-stop-seen";
+
 export function useLocalConnection(): LocalConnection {
   return useSyncExternalStore(subscribeConnection, localConnection, () => "connected");
 }
@@ -17,6 +20,7 @@ export function ConnectionNotice({onReconnected}: {onReconnected: () => void}) {
   const state = useLocalConnection();
   const [checking, setChecking] = useState(false);
   const [previous, setPrevious] = useState<string | null>(null);
+  const stopKey = useRef("");
   const last = useRef<LocalConnection>(state);
   const reconnected = useRef(onReconnected);
   useEffect(() => {reconnected.current = onReconnected;}, [onReconnected]);
@@ -42,7 +46,13 @@ export function ConnectionNotice({onReconnected}: {onReconnected: () => void}) {
   useEffect(() => {
     if (!LOCAL_MODE) return;
     let current = true;
-    void request<PreviousStop>("/v1/local/previous-stop").then(value => {if (current) setPrevious(previousStopText(value));}).catch(() => {});
+    void request<PreviousStop>("/v1/local/previous-stop").then(value => {
+      // Shown until it is closed, then not again for the same stop (a reload is not another stop).
+      const key = `${value?.reason ?? ""}:${value?.time ?? ""}`;
+      let seen = false;
+      try {seen = localStorage.getItem(STOP_SEEN) === key;} catch {/* storage is a convenience only */}
+      if (current && !seen) {stopKey.current = key;setPrevious(previousStopText(value));}
+    }).catch(() => {});
     return () => {current = false;};
   }, []);
   if (!LOCAL_MODE) return null;
@@ -55,7 +65,7 @@ export function ConnectionNotice({onReconnected}: {onReconnected: () => void}) {
     </div>}
     {previous && <div className={styles.notice} data-tone="info" role="status">
       <p>{previous}</p>
-      <button className={styles.quiet} onClick={() => setPrevious(null)}>閉じる</button>
+      <button className={styles.quiet} onClick={() => {try {localStorage.setItem(STOP_SEEN, stopKey.current);} catch {/* shown again after a reload */}setPrevious(null);}}>閉じる</button>
     </div>}
   </div>;
 }

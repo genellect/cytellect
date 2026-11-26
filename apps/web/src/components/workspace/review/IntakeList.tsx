@@ -68,7 +68,7 @@ export function IntakeList({items, registered, busy, targetLabel, onAdd, onMore,
             <button type="button" className={styles.remove} aria-label={`${field.name} を一覧から外す`} onClick={() => onRemove(field.items.map(item => item.id))}>×</button></td>
         </tr>)}
         {others.map(item => <tr key={item.id} data-state={item.state}>
-          <td>{item.thumbnail ? <img className={styles.thumb} src={item.thumbnail} alt=""/> : <span className={styles.thumb} aria-hidden="true"/>}</td>
+          <td>{thumbnailOf(item, items) ? <img className={styles.thumb} src={thumbnailOf(item, items)!} alt=""/> : <span className={styles.thumb} aria-hidden="true"/>}</td>
           <th scope="row">{item.name}</th>
           <td>{item.channelNames.length ? channelText(item.channelNames) : "—"}</td>
           <td>{item.state}{detail(item, items, registered) && <small>{detail(item, items, registered)}</small>}</td>
@@ -89,6 +89,11 @@ export function IntakeList({items, registered, busy, targetLabel, onAdd, onMore,
       if (id && file) onReplace(id, file);
     }}/>
   </section>;
+}
+
+/** A row's thumbnail; a copy shows the image it copies when that image is in the list (the same bytes). */
+function thumbnailOf(item: IntakeItem, items: readonly IntakeItem[]): string | null {
+  return item.thumbnail ?? (item.state === "同一内容" && item.sha256 ? items.find(other => other.sha256 === item.sha256 && other.thumbnail)?.thumbnail ?? null : null);
 }
 
 function detail(item: IntakeItem, items: readonly IntakeItem[], registered: Props["registered"]): string {

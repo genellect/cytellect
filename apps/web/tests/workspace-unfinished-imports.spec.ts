@@ -134,3 +134,28 @@ test("images added in a group's cell go to that group, though another image of t
   expect(state.unexpected).toEqual([]);
   expect(state.pageErrors).toEqual([]);
 });
+
+test("files chosen and not yet added are named again after a reload as 「再選択」 rows, in a saved and in a new workspace (#284 priority 7)",async({page,context})=>{
+  const state=await serve(page,context,{existing:true});
+  const loaded=()=>page.waitForResponse(response=>new URL(response.url()).pathname.endsWith("/analysis-spec"));
+  let ready=loaded();
+  await page.goto("/workspace?id=w");
+  await ready;
+  await page.getByTestId("file-input").setInputFiles([tiff("A01_c1.tif","ok-1"),tiff("A02_c1.tif","ok-2")]);
+  const list=page.getByRole("region",{name:"取り込みの一覧"});
+  await expect(list.getByRole("status").first()).toHaveText("受け取り：2 · 画像：2（2 視野）");
+  // The browser cannot keep the files over a reload; it keeps their names, and the list opens on them by itself.
+  ready=loaded();
+  await page.reload();
+  await ready;
+  await expect(list.getByRole("status").first()).toHaveText("受け取り：0 · 画像：0（0 視野） · 再選択：2");
+  const row=list.getByRole("row").filter({hasText:"A01_c1.tif"});
+  await expect(row).toContainText("再選択");
+  expect(state.selection.entries).toEqual([]);
+  // Choosing the file again for its row makes it an image to add.
+  await row.getByRole("button",{name:"選択",exact:true}).click();
+  await page.getByTestId("intake-replace-input").setInputFiles(tiff("A01_c1.tif","ok-1"));
+  await expect(list.getByRole("status").first()).toHaveText("受け取り：1 · 画像：1（1 視野） · 再選択：1");
+  expect(state.unexpected).toEqual([]);
+  expect(state.pageErrors).toEqual([]);
+});

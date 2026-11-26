@@ -70,6 +70,16 @@ describe("intake list before adding (#284 W5)", () => {
     list.remove(a9.conflicts[0].items[1].id);
     expect(listedFields(list.getSnapshot().items).find(field => field.name === "BBBC007-a9")?.conflicts).toEqual([]);
   });
+  it("a copy whose original is removed from the list is no longer a copy: it becomes the image", async () => {
+    const list = createIntakeList({inspect: async value => judge(value), known: () => new Map(), storage: null});
+    list.add([file("BBBC007-a9-C01.tif", 1), file("copy/BBBC007-a9-C01.tif", 1)]);
+    await settled(list);
+    const [original, copy] = list.getSnapshot().items;
+    expect(copy).toMatchObject({state: "同一内容", sameAs: "BBBC007-a9-C01.tif"});
+    list.remove(original.id);
+    await settled(list);
+    expect(list.getSnapshot().items).toEqual([expect.objectContaining({name: "copy/BBBC007-a9-C01.tif", state: "追加待ち", sameAs: null})]);
+  });
   it("finds a copy of a registered field, replaces an unreadable file in its row, and records a separate acquisition", async () => {
     const digest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array([1, 2]))), value => value.toString(16).padStart(2, "0")).join("");
     const list = createIntakeList({inspect: async value => judge(value), known: () => new Map([[digest, "BBBC007-a9"]]), storage: null});

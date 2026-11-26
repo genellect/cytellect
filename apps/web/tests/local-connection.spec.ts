@@ -60,6 +60,12 @@ test("an abnormal previous stop is named in one line that can be closed", async 
   await page.goto(origin + "/workspace");
   const line = page.getByRole("status").filter({hasText: "前回の停止"});
   await expect(line).toContainText("前回の停止：計算処理の停止 · 11月23日 18:28");
+  // Until it is closed, a reload shows it again; once closed, the same stop is not shown again.
+  await page.reload();
+  await expect(line).toContainText("前回の停止：計算処理の停止");
   await line.getByRole("button", {name: "閉じる"}).click();
+  await expect(line).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole("navigation", {name: "作業の切替"})).toBeVisible();
   await expect(line).toHaveCount(0);
 });

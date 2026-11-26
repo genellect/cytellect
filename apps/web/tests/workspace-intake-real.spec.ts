@@ -66,8 +66,13 @@ test.describe("#284 W1, W4, W5 intake against the real API", () => {
     await addListed(page);
     await expect(status(page, "登録：2 視野")).toBeVisible({timeout:120000});
     await expect(fieldCards(page)).toHaveCount(2);
-    // What was not added stays in the list, also when the addition created the workspace (#284 input 5).
+    // With fields registered, the image shows next; what was not added waits behind 「取込」, also when the addition
+    // created the workspace (#284 input 5: nothing read stands behind a clean-up).
+    await expect(list(page)).toHaveCount(0);
+    await page.getByRole("button", {name:"取込 4件", exact:true}).click();
     await expect(list(page).getByRole("status").first()).toHaveText("受け取り：3 · 画像：0（0 視野） · マスクの候補：1 · 同一内容：1 · 対象外：1");
+    await expect(page.locator("li").filter({hasText:"test-truncated-DRAQ.tif：不正または未対応の TIFF"})).toBeVisible();
+    await list(page).getByRole("button", {name:"閉じる", exact:true}).click();
     await expect(page.getByRole("alert").filter({hasText:/\S/})).toHaveCount(0);
     await expect(page.getByLabel(/除外の理由/)).toHaveCount(0);
     const saved = await entries(page);
@@ -87,12 +92,20 @@ test.describe("#284 W1, W4, W5 intake against the real API", () => {
     const input = await files();await signIn(page);
     await page.getByTestId("file-input").setInputFiles([...input.bbbc007, input.conflict]);
     await expect(list(page).getByRole("status")).toHaveText("受け取り：5 · 画像：5（2 視野）", {timeout:120000});
+    // The conflict is shown before anything is added: the field, its channel and the two files by name.
+    const a9 = list(page).getByRole("row").filter({hasText:"BBBC007-a9"}).first();
+    await expect(a9).toContainText("要確認");
+    await expect(a9).toContainText("同じチャンネルに 2 枚 · C01：BBBC007-a9-C01.tif、BBBC007-a9_c01.tif");
+    // The other field is added; the field in conflict waits in the list, unsent.
     await addListed(page);
-    await expect(status(page, "登録：1 視野 · 要確認：1 視野")).toBeVisible({timeout:120000});
-    await expect(page.locator("li").filter({hasText:"要確認 · 同じ視野・チャンネルに 2 枚"})).toContainText("BBBC007-a9-C01.tif、BBBC007-a9_c01.tif、BBBC007-a9-C02.tif");
+    await expect(status(page, "登録：1 視野")).toBeVisible({timeout:120000});
     await expect(fieldCards(page)).toHaveCount(1);
     await expect(fieldCards(page)).toContainText("BBBC007-f9620");
-    await page.getByTestId("file-input").setInputFiles(input.bbbc007.slice(0, 2));
+    expect((await entries(page)).filter(entry => !entry.field_id)).toEqual([]);
+    // Keeping one of the two files resolves it in its own row; the field then registers with both of its stains.
+    await page.getByRole("button", {name:"取込 3件", exact:true}).click();
+    await list(page).getByRole("button", {name:"BBBC007-a9-C01.tif を使用", exact:true}).click();
+    await expect(list(page).getByRole("row").filter({hasText:"BBBC007-a9"}).first()).toContainText("追加待ち");
     await addListed(page);
     await expect(status(page, "登録：1 視野")).toBeVisible({timeout:120000});
     await expect(page.getByText(/要確認/)).toHaveCount(0);
