@@ -329,6 +329,60 @@ describe("functional workspace runtime",()=>{
     const fields=writeSpecification.mock.calls.at(-1)![1].spec!.experiment!.fields as Record<string,{group_id:string}>;
     expect(Object.fromEntries(Object.entries(fields).map(([id,value])=>[id,value.group_id]))).toEqual({"f-BBBC007-a9":"c","f-BBBC007-f9620":"c","f-A01":"c","f-A06":"t"});
   });
+  it("keeps nothing unsent when an addition ends before sending or is stopped (#284 independent re-review)",async()=>{
+    const design={version:"1.0.0",layout:"pair",control_group_id:"c",independence_confirmed:false,groups:[{id:"t",label:"処理"},{id:"c",label:"対照"}],runs:[{id:"r1",label:"実験回1"}],fields:{}};
+    const {runtime,adapter,writeSpecification}=fixture(true,{version:1,spec:{channel_assignment_version:1,target:"nuclei",settings:defaultRuntimeSettings(),processing:null,measurement:null,experiment:design as never}});
+    await runtime.load("w");const ledger=withLedger(adapter);
+    adapter.upload.mockImplementation(async(_workspace,field,_channels,_files,entry)=>ledger.accept(entry!,`f-${field.key.split("/").at(-1)}`));
+    const control={run_id:"r1",group_id:"c",sample:null},treated={run_id:"r1",group_id:"t",sample:null};
+    // The first request of the addition meets a changed workspace: nothing was sent.
+    adapter.isSelectionCurrent.mockResolvedValueOnce(false);
+    await expect(runtime.importFiles(bbbc007(),"automatic",control)).rejects.toThrow();
+    expect(adapter.upload).not.toHaveBeenCalled();
+    // Adding the same files again: they are not copies of themselves, and they go to the cell they were added in.
+    const again=await runtime.importFiles(bbbc007(),"automatic",control);
+    expect(again.duplicates).toEqual([]);expect(again.registered).toHaveLength(2);
+    // 実行を中止 while the second of two fields waits: the first is registered, the second is not kept here…
+    const a01=()=>[new File([new Uint8Array([40])],"A01_c1.tif")],a06=()=>[new File([new Uint8Array([41])],"A06_c1.tif")],a12=()=>[new File([new Uint8Array([42])],"A12_c1.tif")];
+    adapter.upload.mockImplementationOnce(async(_workspace,field,_channels,_files,entry)=>{runtime.stop();return ledger.accept(entry!,`f-${field.key.split("/").at(-1)}`);});
+    const stopped=await runtime.importFiles([...a01(),...a06()],"automatic",control).catch((error:unknown)=>error);
+    expect(stopped).toBeInstanceOf(IntakeInterrupted);
+    expect((stopped as IntakeInterrupted).outcome.registered).toHaveLength(1);
+    // …so the next addition, to 処理, sends its own image only.
+    const sent=adapter.upload.mock.calls.length;
+    const next=await runtime.importFiles(a12(),"automatic",treated);
+    expect(next.registered.map(item=>item.fieldId)).toEqual(["f-A12"]);
+    expect(adapter.upload).toHaveBeenCalledTimes(sent+1);
+    const fields=writeSpecification.mock.calls.at(-1)![1].spec!.experiment!.fields as Record<string,{group_id:string}>;
+    expect(Object.values(fields).filter(value=>value.group_id==="t")).toHaveLength(1);
+  });
+  it("resolves a row by its names only when the upload was interrupted and the images go where it was going",async()=>{
+    const design={version:"1.0.0",layout:"pair",control_group_id:"c",independence_confirmed:false,groups:[{id:"t",label:"処理"},{id:"c",label:"対照"}],runs:[{id:"r1",label:"実験回1"}],fields:{}};
+    const {runtime,adapter,writeSpecification}=fixture(true,{version:1,spec:{channel_assignment_version:1,target:"nuclei",settings:defaultRuntimeSettings(),processing:null,measurement:null,experiment:design as never}});
+    await runtime.load("w");const ledger=withLedger(adapter);
+    const control={run_id:"r1",group_id:"c",sample:null},treated={run_id:"r1",group_id:"t",sample:null};
+    const image=(byte:number)=>[new File([new Uint8Array([byte])],"Image001.tif")];
+    // 対照: Image001.tif is refused (its row is a missing image of 対照).
+    adapter.upload.mockImplementationOnce(async()=>{throw new ApiError("unsupported_or_invalid_region_image",422);});
+    const refused=(await runtime.importFiles(image(1),"automatic",control)).rejected[0].entry!;
+    let serial=0;adapter.upload.mockImplementation(async(_workspace,field,_channels,_files,entry)=>ledger.accept(entry!,`f-${++serial}-${field.key.split("/").at(-1)}`));
+    // Another readable Image001.tif, added without a cell and then from 処理: neither takes the refused row or its group.
+    const plain=await runtime.importFiles(image(2));
+    const other=await runtime.importFiles(image(3),"automatic",treated);
+    expect(ledger.entries().find(entry=>entry.id===refused)).toMatchObject({field_id:null,intake:{state:"rejected",target:{group_id:"c"}}});
+    const placed=()=>writeSpecification.mock.calls.at(-1)![1].spec!.experiment!.fields as Record<string,{group_id:string}>;
+    expect(placed()[plain.registered[0].fieldId]).toBeUndefined();
+    expect(placed()[other.registered[0].fieldId].group_id).toBe("t");
+    // An interrupted row of 対照 is not resolved by same-named images that go to 処理; it is by images added to 対照.
+    adapter.upload.mockImplementationOnce(async()=>{throw new TypeError("Failed to fetch");});
+    await runtime.importFiles([new File([new Uint8Array([9])],"field1-C01.tif")],"automatic",control).catch(()=>undefined);
+    const pending=ledger.entries().find(entry=>!entry.field_id&&entry.intake?.state==="pending")!;
+    await runtime.importFiles([new File([new Uint8Array([10])],"field1-C01.tif")],"automatic",treated);
+    expect(ledger.entries().find(entry=>entry.id===pending.id)?.field_id).toBeNull();
+    const resolved=await runtime.importFiles([new File([new Uint8Array([9])],"field1-C01.tif")],"automatic",control);
+    expect(ledger.entries().find(entry=>entry.id===pending.id)?.field_id).toBe(resolved.registered[0].fieldId);
+    expect(placed()[resolved.registered[0].fieldId].group_id).toBe("c");
+  });
   it("images added again after a restart resolve the row their names left pending, so it is not counted as missing",async()=>{
     const {runtime,adapter}=fixture();await runtime.load("w");const ledger=withLedger(adapter);
     adapter.upload.mockImplementationOnce(async()=>{throw new TypeError("Failed to fetch");});

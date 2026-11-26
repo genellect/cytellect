@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest";
 import {addRun, emptyDesign, fieldsIn} from "./experiment-design";
-import {applySuggestions, mergeSuggestions, planSuggestions, suggestAssignments, suggestedGroups} from "./assignment-suggestions";
+import {applySuggestions, mergeSuggestions, planSuggestions, runChanges, suggestAssignments, suggestedGroups} from "./assignment-suggestions";
 
 /** DS6a's layout (Issue input 4): one run folder, two group folders, one field each (names only; no pixels). */
 const ds6a = [
@@ -79,6 +79,23 @@ describe("applying never changes what the researcher set (#284 W6, independent r
     expect(applied.left).toEqual([]);
     expect(applied.design.groups.map(group => group.label)).toEqual(["対照", "ActD"]);
     expect(applied.design.control_group_id).toBe("group-1");
+  });
+  it("naming the control group, the only one left to name, waits for the researcher to say it is the control", () => {
+    // 処理 holds a field; 対照 (the control group) is empty. A folder named drugY would name the control group.
+    let design = addRun(emptyDesign("pair"), {label: "Rep1"});
+    design = {...design, fields: {p: {group_id: "group-2", run_id: design.runs![0].id, sample: null, acquired_on: null}}};
+    const suggestions = [{fieldId: "a", runLabel: "Rep1", groupLabel: "drugY"}];
+    expect(planSuggestions(design, suggestions)).toEqual({renames: [], controlChoice: ["drugY"], unplaced: ["drugY"]});
+    expect(applySuggestions(design, suggestions)).toEqual({design, left: ["a"]});
+    const confirmed = applySuggestions(design, suggestions, "drugY");
+    expect(confirmed.left).toEqual([]);
+    expect(confirmed.design.groups.find(group => group.id === confirmed.design.control_group_id)?.label).toBe("drugY");
+  });
+  it("states the runs an application names or adds before it is applied", () => {
+    const dated = addRun(emptyDesign("pair"), {label: "2026-11-26"});
+    const two = [{fieldId: "a", runLabel: "Rep1", groupLabel: "対照"}, {fieldId: "b", runLabel: "Rep2", groupLabel: "処理"}];
+    expect(runChanges(dated, two)).toEqual({renamed: {from: "2026-11-26", to: "Rep1"}, added: ["Rep2"]});
+    expect(runChanges(addRun(emptyDesign("pair"), {label: "Rep1"}), two.slice(0, 1))).toEqual({renamed: null, added: []});
   });
   it("adds no run for a suggestion it cannot place, and leaves no unused dated run when the folders name several", () => {
     const design = addRun(emptyDesign("pair"), {label: "2026-11-26"});

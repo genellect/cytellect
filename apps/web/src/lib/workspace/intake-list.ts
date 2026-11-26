@@ -25,18 +25,24 @@ export interface IntakeItem {
   selection: number;
   /** The run and group of the cell it was added from, or null. */
   target: IntakeTarget | null;
+  /** An OME-TIFF with its own metadata: registered as a field of its own, its channels from its header. */
+  ome: boolean;
 }
 export interface IntakeListState {items: IntakeItem[]; selections: number}
 export interface ListedField {
   key: string; name: string; channels: string[]; items: IntakeItem[]; loading: boolean; thumbnail: string | null;
-  /** A field whose names are already in the list from an earlier selection (or a copy kept as a separate
-   * acquisition): it is added as its own field, never merged into the earlier one. */
+  /** A field whose names are already in the list from an earlier selection: it is added as its own field, never
+   * merged into the earlier one. */
   repeated: boolean;
+  /** Copies the researcher keeps as a separate acquisition (「別の撮影として追加」). */
+  separate: boolean;
+  /** The run and group the field is added to (the cell it was chosen in), or null. */
+  target: IntakeTarget | null;
   /** Two files of different content for the same channel of this field: the researcher keeps one before it is added. */
   conflicts: Array<{channel: string; items: IntakeItem[]}>;
 }
-/** The images one call of registration receives together. */
-export interface Addition {items: IntakeItem[]; separate: boolean; repeated: boolean}
+/** The images one call of registration receives together, with the run and group they are added to. */
+export interface Addition {items: IntakeItem[]; separate: boolean; repeated: boolean; target: IntakeTarget | null}
 export interface IntakeDependencies {
   inspect: (file: File, kind: IntakeKind) => Promise<Inspection>;
   /** Hashes of the inputs of registered fields, with the field's name (copies are found against them too). */
@@ -70,9 +76,9 @@ export function createIntakeList(dependencies: IntakeDependencies) {
       const kind: IntakeKind = await tiffHasOmeMetadata(file) ? "ome" : await tiffInputMode(file);
       const digest = hex(await crypto.subtle.digest("SHA-256", await file.arrayBuffer()));
       const same = dependencies.known().get(digest) ?? state.items.find(other => other.id !== item.id && other.sha256 === digest && other.state !== "同一内容" && other.selection <= item.selection)?.name;
-      if (same && !item.separate) {update(item.id, {sha256: digest, state: "同一内容", sameAs: same}); return;}
+      if (same && !item.separate) {update(item.id, {sha256: digest, state: "同一内容", sameAs: same, ome: kind === "ome"}); return;}
       const found = await dependencies.inspect(file, kind);
-      update(item.id, {sha256: digest, code: found.code ?? null, shape: found.shape ?? null, channelNames: (found.channel_names ?? []).map((name, index) => name?.trim() || `c${index + 1}`),
+      update(item.id, {sha256: digest, ome: kind === "ome", code: found.code ?? null, shape: found.shape ?? null, channelNames: (found.channel_names ?? []).map((name, index) => name?.trim() || `c${index + 1}`),
         thumbnail: found.thumbnail_png ? `data:image/png;base64,${found.thumbnail_png}` : null,
         state: found.role === "image" ? "追加待ち" : found.role === "label" ? "マスクの候補" : "読み取れない"});
     } catch (error) {
@@ -148,24 +154,32 @@ export function createIntakeList(dependencies: IntakeDependencies) {
 }
 
 function blank(id: string, name: string, selection: number): IntakeItem {
-  return {id, name, file: null, size: 0, state: "読み込み中", code: null, shape: null, thumbnail: null, channelNames: [], sha256: null, sameAs: null, separate: false, selection, target: null};
+  return {id, name, file: null, size: 0, state: "読み込み中", code: null, shape: null, thumbnail: null, channelNames: [], sha256: null, sameAs: null, separate: false, selection, target: null, ome: false};
 }
 
-const added = (item: IntakeItem): AddedFile => ({path: item.name, size: item.size, ...(item.sha256 ? {sha256: item.sha256} : {}), ...(item.channelNames.length ? {omeChannels: item.channelNames} : {})});
+const added = (item: IntakeItem): AddedFile => ({path: item.name, size: item.size, ...(item.sha256 ? {sha256: item.sha256} : {})});
+const place = (target: IntakeTarget | null) => target ? `${target.run_id}\u0000${target.group_id}\u0000${target.sample ?? ""}` : "";
+/** A multi-channel OME-TIFF is registered as a field of its own (its channels come from its header). */
+const container = (item: IntakeItem) => item.ome;
 
 /**
  * The images of the list in the additions registration receives (W5 change 4; the list and registration use this one
- * split, so the list shows the fields that will be made). Every selection is added together, so another stain of the
- * same field chosen later joins it. Files whose names are already in the list from an earlier selection (the same file
- * names in another condition's folder, chosen one folder at a time) are not that field again: with the rest of their
- * field in that selection they form an addition of their own. A copy kept as a separate acquisition is added alone.
+ * split, so the list shows the fields that will be made).
+ * - Every selection is added together, so another stain of the same field chosen later joins it.
+ * - Files whose names are already in the list from an earlier selection (the same file names in another condition's
+ *   folder, chosen one folder at a time) are not that field again: with the rest of their field in that selection
+ *   they form an addition of their own.
+ * - A field goes to one run and group: a stain chosen without a cell joins the cell its field was chosen in, and
+ *   stains of one field chosen in two cells are two fields, one per cell.
+ * - Copies kept as a separate acquisition are added apart, the stains of one copied field together.
  */
 export function additions(items: readonly IntakeItem[]): Addition[] {
-  const images = items.filter(item => (item.state === "追加待ち" || item.state === "読み込み中") && item.file), plain = images.filter(item => !item.separate);
-  const grouping = groupFiles([...new Map(plain.map(item => [item.name, added(item)])).values()]), keys = new Map<string, string>();
+  const images = items.filter(item => (item.state === "追加待ち" || item.state === "読み込み中") && item.file);
+  const grouping = groupFiles([...new Map(images.filter(item => !container(item)).map(item => [item.name, added(item)])).values()]), keys = new Map<string, string>();
   for (const field of grouping.fields) for (const file of Object.values(field.files)) keys.set(file.path, field.key);
   for (const issue of grouping.issues) if (issue.kind === "duplicate_channel") for (const path of issue.paths) keys.set(path, issue.field);
-  const keyOf = (item: IntakeItem) => keys.get(item.name) ?? item.name;
+  const keyOf = (item: IntakeItem) => container(item) ? `\u0000container:${item.id}` : keys.get(item.name) ?? item.name;
+  const plain = images.filter(item => !item.separate);
   const first: IntakeItem[] = [], later = new Map<number, IntakeItem[]>(), seen = new Set<string>();
   for (const selection of [...new Set(plain.map(item => item.selection))].sort((a, b) => a - b)) {
     const mine = plain.filter(item => item.selection === selection), again = new Set(mine.filter(item => seen.has(item.name)).map(keyOf));
@@ -175,22 +189,41 @@ export function additions(items: readonly IntakeItem[]): Addition[] {
     }
     for (const item of mine) seen.add(item.name);
   }
-  return [{items: first, separate: false, repeated: false}, ...[...later.values()].map(value => ({items: value, separate: false, repeated: true})),
-    ...images.filter(item => item.separate).map(item => ({items: [item], separate: true, repeated: true}))].filter(value => value.items.length);
+  // Within a wave, each field's files go to one run and group.
+  const byTarget = (wave: IntakeItem[], flags: {separate: boolean; repeated: boolean}): Addition[] => {
+    const fields = new Map<string, IntakeItem[]>();
+    for (const item of wave) fields.set(keyOf(item), [...(fields.get(keyOf(item)) ?? []), item]);
+    const buckets = new Map<string, Addition>();
+    for (const members of fields.values()) {
+      const targets = new Map(members.filter(item => item.target).map(item => [place(item.target), item.target!]));
+      for (const item of members) {
+        const target = item.target ?? (targets.size === 1 ? [...targets.values()][0] : null);
+        const bucket = buckets.get(place(target)) ?? {items: [], target, ...flags};
+        bucket.items.push(item);buckets.set(place(target), bucket);
+      }
+    }
+    return [...buckets.values()];
+  };
+  const separate = new Map<string, IntakeItem[]>();
+  for (const item of images.filter(value => value.separate)) {const key = `${item.selection}\u0000${keyOf(item)}\u0000${place(item.target)}`;separate.set(key, [...(separate.get(key) ?? []), item]);}
+  return [...byTarget(first, {separate: false, repeated: false}), ...[...later.values()].flatMap(wave => byTarget(wave, {separate: false, repeated: true})),
+    ...[...separate.values()].map(members => ({items: members, separate: true, repeated: false, target: members[0].target}))];
 }
 
 /** The images of the list as the fields they will make, addition by addition. The grouping is the one registration uses. */
 export function listedFields(items: readonly IntakeItem[]): ListedField[] {
   return additions(items).flatMap((addition, index) => {
-    const pathToItem = new Map(addition.items.map(item => [item.name, item])), grouping = groupFiles(addition.items.map(added));
-    return grouping.fields.map(field => {
+    const flags = {repeated: addition.repeated, separate: addition.separate, target: addition.target};
+    const containers = addition.items.filter(container).map(item => ({key: `${index}:${item.id}`, name: item.name.replace(/\.ome\.tiff?$|\.tiff?$/i, "").split("/").at(-1) || item.name,
+      channels: item.channelNames, items: [item], loading: item.state === "読み込み中", thumbnail: item.thumbnail, conflicts: [], ...flags}));
+    const planes = addition.items.filter(item => !container(item)), pathToItem = new Map(planes.map(item => [item.name, item])), grouping = groupFiles(planes.map(added));
+    return [...grouping.fields.map(field => {
       const conflicts = grouping.issues.flatMap(issue => issue.kind === "duplicate_channel" && issue.field === field.key
         ? [{channel: issue.token, items: issue.paths.map(path => pathToItem.get(path)!).filter(Boolean)}] : []);
       const members = [...new Set([...Object.values(field.files).map(file => pathToItem.get(file.path)!), ...conflicts.flatMap(value => value.items)].filter(Boolean))];
       return {key: `${index}:${field.key}`, name: field.key.split("/").at(-1) || field.key, channels: Object.keys(field.files), items: members,
-        loading: members.some(item => item.state === "読み込み中"), thumbnail: members.find(item => item.thumbnail)?.thumbnail ?? null,
-        repeated: addition.repeated, conflicts};
-    });
+        loading: members.some(item => item.state === "読み込み中"), thumbnail: members.find(item => item.thumbnail)?.thumbnail ?? null, conflicts, ...flags};
+    }), ...containers];
   });
 }
 

@@ -45,7 +45,7 @@ export function IntakeList({items, registered, busy, targetLabel, onAdd, onMore,
       <div className={styles.listActions}>
         {items.length > 0 && <>
           <button type="button" className={styles.primary} disabled={busy || loading || !addable} onClick={() => onAdd(false)}>追加</button>
-          <button type="button" disabled={busy || loading || !fields.length} onClick={() => onAdd(true)}>追加して AI に質問</button>
+          <button type="button" disabled={busy || loading || !fields.some(field => !field.conflicts.length)} onClick={() => onAdd(true)}>追加して AI に質問</button>
         </>}
         <button type="button" onClick={onMore}>画像を追加</button>
         {items.length > 0 && <button type="button" disabled={!items.some(item => item.selection > 0)} onClick={onUndoLast}>直前の選択を取り消し</button>}
@@ -57,11 +57,12 @@ export function IntakeList({items, registered, busy, targetLabel, onAdd, onMore,
       <tbody>
         {fields.map(field => <tr key={field.key}>
           <td>{field.thumbnail ? <img className={styles.thumb} src={field.thumbnail} alt=""/> : <span className={styles.thumb} aria-hidden="true"/>}</td>
-          <th scope="row">{field.name}{field.items[0]?.target && <small>{targetLabel(field.items[0].target)}</small>}</th>
+          <th scope="row">{field.name}{field.target && <small>{targetLabel(field.target)}</small>}</th>
           <td>{channelText(field.channels)}</td>
           <td>{field.loading ? "読み込み中" : field.conflicts.length ? "要確認" : "追加待ち"}
             {field.conflicts.map(conflict => <small key={conflict.channel}>同じチャンネルに {conflict.items.length} 枚 · {conflict.channel.toUpperCase()}：{conflict.items.map(item => item.name).join("、")}</small>)}
-            {field.repeated && !field.conflicts.length && <small>同じ名前 · 別の視野として追加</small>}</td>
+            {field.repeated && !field.conflicts.length && <small>同じ名前 · 別の視野として追加</small>}
+            {field.separate && !field.conflicts.length && <small>別の撮影として追加</small>}</td>
           <td className={styles.rowActions}>
             {field.conflicts.flatMap(conflict => conflict.items.map(item => <button key={item.id} type="button" aria-label={`${item.name} を使用`} title={`${item.name} を使用`}
               onClick={() => onRemove(conflict.items.filter(other => other.id !== item.id).map(other => other.id))}>{shortName(item.name)} を使用</button>))}

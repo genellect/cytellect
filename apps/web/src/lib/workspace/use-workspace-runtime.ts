@@ -197,7 +197,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   const runRequests=new Map<string,string>();
   let currentTargets=new Map<string,RuntimeTargets>(),registered=new Map<string,ImportedField>();
   const omeFiles=new Map<string,File>();
-  const added:AddedFile[]=[],files=new Map<string,File>(),uploadKeys=new Map<string,string>(),uploaded=new Map<string,string>(),names=new Map<string,string>();
+  const added:AddedFile[]=[],files=new Map<string,File>(),uploadKeys=new Map<string,string>(),sentPaths=new Set<string>(),uploaded=new Map<string,string>(),names=new Map<string,string>();
   // Hashes of files waiting to be sent (copies are found by content, #284 control A) and copies kept for
   // "別の撮影として追加" until the researcher decides or the workspace changes.
   const hashes=new Map<string,string>(),copies=new Map<string,{file:File;name:string}>();
@@ -381,6 +381,8 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   async function runServer(target:ReviewTarget,fieldId?:string,preview=false){
     const chosen=state.data!.fields.filter(field=>!field.exclusionReason&&(!fieldId||field.id===fieldId));if(!chosen.length)throw new Error("解析する画像を選択してください。");
     if(!preview&&chosen.length===1&&candidate(chosen[0].id,target)?.runId&&candidate(chosen[0].id,target)?.runState==="succeeded"&&!candidate(chosen[0].id,target)?.backgroundPending){await acceptPrepared(chosen[0].id,target);return;}
+    // Without a nuclear stain on any chosen field the detection cannot start: said here, by its cause.
+    if(target==="nuclei"&&chosen.every(field=>{try{nuclearChannel(field.id);return false;}catch{return true;}}))throw new Error("核の検出には、核染色の指定が必要です。");
     publish({progress:progressOf(chosen.map(field=>field.id),"準備中")});
     // A request that never started leaves no 準備中 behind: the saved results show again (#284 W8).
     try{await persistSpecification(target);}catch(error){const progress={...state.progress};for(const field of chosen)if(progress[field.id]==="準備中")delete progress[field.id];publish({progress});throw error;}
@@ -508,8 +510,24 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   /** An addition interrupted before its fields were placed is placed when the workspace opens again. */
   async function placeAfterRestart(){if(!state.data?.workspaceId||!adapter.selection()?.entries.some(entry=>entry.field_id&&entry.intake?.target))return false;await applyTargets();return true;}
   /** Adds images (implementation plan, sections 5.2-5.4). Order: not a TIFF → same content → fields → name conflicts. */
+  /** Forgets every file this session holds that did not become a field. Whatever ends an addition early (no answer
+   * before or while sending, a changed workspace, 実行を中止, a file that cannot be read any more), nothing unsent
+   * stays behind for a later addition to send on its own, into that addition's run and group. */
+  function dropUnsent(){
+    for(const path of [...files.keys()])if(!sentPaths.has(path)){files.delete(path);omeFiles.delete(path);hashes.delete(path);}
+    for(let index=added.length-1;index>=0;index--)if(!sentPaths.has(added[index].path))added.splice(index,1);
+    for(const key of [...uploadKeys.keys()])if(!uploaded.has(key))uploadKeys.delete(key);
+  }
   async function intake(list:File[],mode:"automatic"|"single",target:IntakeTarget|null,options:{entry?:string;separate?:boolean}={}):Promise<IntakeOutcome>{
-    stopped=false;const outcome=emptyOutcome();
+    try{return await intakeOnce(list,mode,target,options);}
+    catch(error){
+      dropUnsent();
+      publish({importIssues:groupFiles(added,mode).issues.filter(issue=>issue.kind!=="duplicate_content"&&issue.kind!=="duplicate_channel").map(shownIssue)});
+      throw error;
+    }
+  }
+  async function intakeOnce(list:File[],mode:"automatic"|"single",target:IntakeTarget|null,options:{entry?:string;separate?:boolean}):Promise<IntakeOutcome>{
+    stopped=false;const outcome=emptyOutcome();let halted=false;
     if(!list.length){outcome.empty="nothing";publish({intake:outcome});return outcome;}
     // A batch has its own identity: names in a later drop cannot overwrite earlier pixels.
     const batch=`import-${crypto.randomUUID()}`,fresh:AddedFile[]=[],freshOme:string[]=[],oversized=new Set<string>();
@@ -554,10 +572,12 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
         const shown=paths.map(path=>recordedName(shownPath(path)));
         if(options.entry)uploadKeys.set(key,options.entry);
         if(!uploadKeys.has(key)){
-          // Images added again under the names of a row that never became a field (interrupted, or refused before)
-          // resolve that row instead of leaving it beside the new field as a missing image.
-          const taken=new Set(uploadKeys.values()),wanted=[...shown].sort().join("\u0000");
-          const earlier=adapter.selection()?.entries.find(value=>!value.field_id&&!value.exclusion_reason&&!taken.has(value.id)&&!!value.intake&&[...value.intake.names].sort().join("\u0000")===wanted);
+          // Images added again under the names of a row whose upload was interrupted resolve that row, when they go
+          // where the row was going (the same run and group, or a row without one). A refused row, or a row of
+          // another group, is another image's record: it stays, and never passes its group on.
+          const taken=new Set(uploadKeys.values()),wanted=[...shown].sort().join("\u0000"),place=(value:IntakeTarget|null|undefined)=>value?`${value.run_id}\u0000${value.group_id}\u0000${value.sample??""}`:"";
+          const earlier=adapter.selection()?.entries.find(value=>!value.field_id&&!value.exclusion_reason&&!taken.has(value.id)&&value.intake?.state==="pending"
+            &&[...value.intake.names].sort().join("\u0000")===wanted&&(!value.intake.target||place(value.intake.target)===place(target)));
           if(earlier)uploadKeys.set(key,earlier.id);
           else{if(ledgerSize()>=LEDGER_LIMIT){outcome.rejected.push({entry:null,names:shown,code:"ledger_full"});dropImport(key,paths);return;}uploadKeys.set(key,crypto.randomUUID());}
         }
@@ -571,22 +591,28 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
         catch(error){if(!itemRefusal(error))throw error;
           await adapter.recordImport(workspace(),entry,{state:"rejected",stage:"register",code:error.code});
           outcome.rejected.push({entry,names:shown,code:error.code});dropImport(key,paths);return;}
+        for(const path of paths)sentPaths.add(path);
         await showImported(saved,key);outcome.registered.push({fieldId:saved.id,names:shown});
       };
-      for(const field of batchFields){if(stopped||closed)break;
+      for(const field of batchFields){if(stopped||closed){halted=true;break;}
         const present=grouping.channels.filter(channel=>field.files[channel.token]),paths=Object.values(field.files).map(file=>file.path);
         const modes=new Set(present.map(channel=>field.files[channel.token].inputMode||"native"));
         const refusal=paths.some(path=>oversized.has(path))||paths.reduce((sum,path)=>sum+(files.get(path)?.size??0),0)>FIELD_FILE_LIMIT?"field_upload_limit":present.length>4?"field_channel_limit":modes.size>1?"field_input_modes_mixed":null;
         await send(field.key,paths,refusal,entry=>adapter.upload(workspace(),field,present,files,entry));}
-      for(const key of batchOme){if(stopped||closed)break;const file=omeFiles.get(key)!;await send(key,[key],null,entry=>adapter.uploadOme(workspace(),file,entry));}
+      for(const key of batchOme){if(stopped||closed){halted=true;break;}const file=omeFiles.get(key)!;await send(key,[key],null,entry=>adapter.uploadOme(workspace(),file,entry));}
     }catch(error){
-      // What was registered stays; rows not answered stay "pending" and are named after a restart (#284 W1). Nothing
-      // unsent is kept here: a later addition never sends it on its own, into that addition's run and group. The
-      // list before adding still holds the files, and adding them again resolves the pending row by its names.
-      for(const field of groupFiles(added,mode).fields)if(!uploaded.has(field.key))dropImport(field.key,Object.values(field.files).map(file=>file.path));
-      for(const key of [...omeFiles.keys()])if(!uploaded.has(key))dropImport(key,[key]);
+      // What was registered stays; rows not answered stay "pending" and are named after a restart (#284 W1). The
+      // list before adding still holds the files (`intake` forgets them here), and adding them again resolves the
+      // pending row.
+      dropUnsent();
       try{await refresh(workspace());await applyTargets();}catch{/* the interruption is what is reported */}
       publish({intake:outcome});throw new IntakeInterrupted(outcome,error);
+    }
+    if(halted&&!closed){
+      // 実行を中止: the fields not sent yet stay in the list of chosen files, never in this session's memory.
+      dropUnsent();
+      await refresh(workspace());await applyTargets();await refresh(workspace());
+      publish({intake:outcome});throw new IntakeInterrupted(outcome,new Error("追加を中止しました。登録済みの視野は保持されています。"));
     }
     await refresh(workspace());await applyTargets();await refresh(workspace());
     // Refused, held and copied files have left the record: the grouping notes describe what remains.
@@ -614,7 +640,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     },
     /** Hide the last message (used for demo notices, which need no reload). */
     dismissError(){if(state.error)publish({error:""});},
-    newWorkspace(){if(state.busy)throw new Error("現在の処理が終わるまでお待ちください。");++epoch;beforeProposal=null;runRequests.clear();added.length=0;omeFiles.clear();files.clear();uploadKeys.clear();uploaded.clear();names.clear();hashes.clear();copies.clear();histories.clear();candidateStore.clear();currentTargets.clear();registered.clear();specification={version:0,spec:null};publish({assignments:{version:0,assignments:[]},activeTarget:"nuclei",settings:defaultRuntimeSettings(),processing:null,proposal:null,error:"",importIssues:[],intakeRows:[],intake:null,messages:[],progress:{},assignmentSuggestions:[]});answers.clear();lastApplicable=null;replaceData(emptyData());},
+    newWorkspace(){if(state.busy)throw new Error("現在の処理が終わるまでお待ちください。");++epoch;beforeProposal=null;runRequests.clear();added.length=0;omeFiles.clear();files.clear();uploadKeys.clear();sentPaths.clear();uploaded.clear();names.clear();hashes.clear();copies.clear();histories.clear();candidateStore.clear();currentTargets.clear();registered.clear();specification={version:0,spec:null};publish({assignments:{version:0,assignments:[]},activeTarget:"nuclei",settings:defaultRuntimeSettings(),processing:null,proposal:null,error:"",importIssues:[],intakeRows:[],intake:null,messages:[],progress:{},assignmentSuggestions:[]});answers.clear();lastApplicable=null;replaceData(emptyData());},
     dispose(){closed=true;++epoch;if(state.data)releasePreview(state.data);},
     nclDetector(field:string){
       try {const recipe=runtimeNucleolarRecipe(nuclearChannel(field),state.settings,currentTargets.get(field)??{},state.processing);return recipe.detector?.engine==="cytellect-ncl-objects"?recipe.detector:undefined;}catch{return undefined;}
@@ -703,6 +729,8 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     });},
     /** Registers a copy the researcher recorded as a separate acquisition (from the list before adding, #284 W5). */
     importSeparately(list:File[],target?:IntakeTarget|null){return exclusive("別の撮影として追加中",()=>intake(list,"automatic",target??null,{separate:true}));},
+    /** Shows the result of one 追加 as a whole, when it took several calls of registration (the list before adding). */
+    reportIntake(outcome:IntakeOutcome){publish({intake:outcome});},
     /** Records files the judgement before adding found unreadable, as rows with their reason (stage inspect, W5). */
     recordRefused(refused:Array<{names:string[];code:string;target:IntakeTarget|null}>){return exclusive("取り込みの記録を保存中",async()=>{
       if(!refused.length)return;

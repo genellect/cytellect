@@ -37,9 +37,11 @@ when it was added from a group's cell, that run and group. A refused image keeps
 API's reason code (a 32-bit integer label image is shown as a mask candidate, not as missing data); an
 image whose answer never arrived stays 「登録未完了」. Rows keep their names after a reload.
 A row is resolved by 「差し替え」 (choosing all of its files again, sent under the same row key, so no
-second row or field is made), by adding images of the same names again (they resolve that row instead of
-leaving it beside the new field), or removed with 「記録から削除」. An addition that was interrupted keeps
-nothing unsent: a later addition never sends its images on its own, and they stay in the list of chosen files. Registered fields are placed in the run
+second row or field is made) or removed with 「記録から削除」. A row whose upload was interrupted (登録未完了) is also
+resolved by adding images of the same names again to where it was going (the same run and group, or a row without
+one); a refused row, or a row of another group, is another image's record and stays. An addition that ends early
+(no answer before or while sending, a changed workspace, 実行を中止) keeps nothing unsent: a later addition never
+sends its images on its own, and they stay in the list of chosen files. Registered fields are placed in the run
 and group of their row when the addition ends and when the workspace opens again, never from the
 caller's returned IDs. The researcher is never asked for a reason: the comparison counts rows without
 a field in its n breakdown, by group and reason, from the selection saved with it. Every choice shows
@@ -72,8 +74,9 @@ run request its target fields (「対象：選択した視野 · …」 or 「�
 「適用して実行」, which applies the settings and makes detection candidates on those fields; adopting them stays with
 「測定」. An answer with run and group suggestions says 「割付の案：n 視野」 with 「実験」; the suggestions appear, marked
 「AI」, in the table of unassigned fields and are saved only by 「案を適用」. Applying never renames a group that has
-fields or decides the control: when both groups would take a suggested name, 「案の対照の群」 is chosen first, and
-the names that change are stated above the table (「群の名前の変更：対照 → 未処理、処理 → ActD」). An empty instruction is
+fields or decides the control: when both groups would take a suggested name, or the only group left to name is the
+control group, 「案の対照の群」 is chosen first, and what changes besides the fields is stated above the table
+(「群の名前の変更：対照 → 未処理、処理 → ActD · 実験回の名前の変更：2026-11-26 → Rep1」). An empty instruction is
 not sent; 「解析案を作る」 asks for a proposal from the images alone. A new workspace starts with an empty conversation and
 input, and reopening a workspace shows its messages again.
 
@@ -89,11 +92,15 @@ later joins its field; 直前の選択を取り消し takes back the last choice
 the images as registration will: file names chosen again in a later selection with other content (the same names in
 another condition's folder) are their own field with their stains together (「同じ名前 · 別の視野として追加」), and two
 files of different content for one channel of a field are shown in that field's row (要確認, both names) with
-「… を使用」 to keep one; that field waits in the list while the others are added. A 32-bit float or signed 16-bit
+「… を使用」 to keep one; that field waits in the list while the others are added. A field goes to one run and
+group: a stain chosen without a cell joins the cell its field was chosen in, and stains of one field chosen in two
+cells are two fields. An OME-TIFF with its own metadata is a field of its own, and the stains of a copy kept as a
+separate acquisition stay one field. A 32-bit float or signed 16-bit
 image is 読み取れない (「8/16-bit 以外の画像」), not a mask candidate, and counts as a missing image. 追加 registers
 the fields (W1) and records the unreadable files as rows with stage `inspect`; with a field registered the image
 shows next and what was not added waits behind 取込 n件 (the chosen files and the saved rows), so nothing that was
-read stands behind a clean-up. 閉じる hides the list and keeps the chosen files. 追加して AI に質問 then opens the AI
+read stands behind a clean-up. The line beside 取込 counts the whole 追加 (「登録：3 視野 · 読み取れない：2 件」),
+however many fields and cells it covered. 閉じる hides the list and keeps the chosen files. 追加して AI に質問 then opens the AI
 input. The names of files not yet added are kept for this tab and come back after a reload as 「再選択」 rows, on
 which the list opens by itself (the browser cannot keep the files). Images added from a group's cell are listed with
 that run and group, also in 実験. Notes on registered fields (a stain one field has and another lacks) are listed
@@ -106,7 +113,8 @@ the run is accepted), 待機, 検出中, 検出候補 (candidates to review), �
 「視野 1/2 · BBBC007-a9：核小体を検出中」. The run continues in the API, so a lost connection while following it is retried
 (「接続：確認中」) and never starts the same run again. When one field fails, the same run without it is requested
 again (its finished steps are reused, not recomputed) and the fields that succeeded are adopted; the failed field keeps
-「失敗」, its reason and 「再試行」.
+「失敗」, its reason and 「再試行」. A nuclear detection asked for while no chosen field has a nuclear
+stain does not start and says so (「核の検出には、核染色の指定が必要です。」).
 
 Statistics display cells/fields/independent units separately. The paired option is
 initially selected because synthetic controls and treatments share pair IDs. Confirm

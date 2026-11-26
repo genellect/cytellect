@@ -1,6 +1,6 @@
 "use client";
 import {useState} from "react";
-import {applySuggestions, mergeSuggestions, planSuggestions, suggestAssignments, type FieldPaths, type Suggestion} from "@/lib/workspace/assignment-suggestions";
+import {applySuggestions, mergeSuggestions, planSuggestions, runChanges, suggestAssignments, type FieldPaths, type Suggestion} from "@/lib/workspace/assignment-suggestions";
 import {assignFields, type ExperimentDesign} from "@/lib/workspace/experiment-design";
 import styles from "./experiment-setup.module.css";
 
@@ -29,6 +29,7 @@ export function UnassignedFields({design, fields, locked, onSave, onOpenField, a
   const plan = planSuggestions(design, suggestions, control), named = new Set([...design.groups.map(group => group.label.trim().toLowerCase()), ...plan.renames.map(value => value.to.trim().toLowerCase())]);
   const placeable = (value: Suggestion) => named.has(value.groupLabel.trim().toLowerCase());
   const awaitingControl = !!plan.controlChoice && !plan.renames.length;
+  const runPlan = runChanges(design, suggestions, control);
   const toggle = (id: string) => setChosen(previous => {const next = new Set(previous);if (next.has(id)) next.delete(id);else next.add(id);return next;});
   const assign = () => {const [runId, groupId] = target.split("\u0000");if (!runId || !groupId || !chosen.size) return;
     void onSave(assignFields(design, [...chosen], {run_id: runId, group_id: groupId})).then(() => {setChosen(new Set());setTarget("");});};
@@ -46,10 +47,12 @@ export function UnassignedFields({design, fields, locked, onSave, onOpenField, a
       </select></label>
       <button type="button" disabled={locked || !chosen.size || !target} onClick={assign}>選択した視野を割付（{chosen.size}）</button>
     </div>
-    {(plan.renames.length > 0 || plan.unplaced.length > 0 || awaitingControl) && <p role="status" className={styles.unassignedPlan}>
+    {(plan.renames.length > 0 || plan.unplaced.length > 0 || awaitingControl || !!runPlan.renamed || runPlan.added.length > 0) && <p role="status" className={styles.unassignedPlan}>
       {[awaitingControl ? "案の適用には、対照の群の指定が必要です。" : "",
         plan.renames.length ? `群の名前の変更：${plan.renames.map(value => `${value.from} → ${value.to}`).join("、")}` : "",
-        !awaitingControl && plan.unplaced.length ? `実験デザインにない群：${plan.unplaced.join("、")}` : ""].filter(Boolean).join(" ")}
+        runPlan.renamed ? `実験回の名前の変更：${runPlan.renamed.from} → ${runPlan.renamed.to}` : "",
+        runPlan.added.length ? `実験回の追加：${runPlan.added.join("、")}` : "",
+        !awaitingControl && plan.unplaced.length ? `実験デザインにない群：${plan.unplaced.join("、")}` : ""].filter(Boolean).join(" · ")}
     </p>}
     <table className={styles.unassignedTable}>
       <thead><tr><th scope="col"><span className={styles.hidden}>選択</span></th><th scope="col"><span className={styles.hidden}>縮小画像</span></th><th scope="col">視野</th><th scope="col">チャンネル</th><th scope="col">案（実験回 · 群）</th></tr></thead>

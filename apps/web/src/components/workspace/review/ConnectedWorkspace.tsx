@@ -4,7 +4,7 @@ import {nclObjectDetector} from "@/lib/workspace/nucleolar-definition";
 import type {GroupingIssue} from "@/lib/workspace/grouping";
 import {Suspense,useEffect,useEffectEvent,useMemo,useReducer,useRef,useState,useSyncExternalStore,type CSSProperties,type DragEvent,type ReactNode} from "react";
 import {useSearchParams} from "next/navigation";
-import {IntakeInterrupted,useWorkspaceRuntime,type RuntimeSettings} from "@/lib/workspace/use-workspace-runtime";
+import {IntakeInterrupted,useWorkspaceRuntime,type IntakeOutcome,type RuntimeSettings} from "@/lib/workspace/use-workspace-runtime";
 import type {ReviewField,ReviewTarget} from "@/lib/workspace/review-preview";
 import {metricChoice,metricForSubject,metricStructure,metricTarget,metricUsesChannel,nucleusPositivity} from "@/lib/workspace/metric-catalog";
 import {MetricSelect} from "./MetricSelect";
@@ -41,7 +41,7 @@ import {additions,createIntakeList,listedFields} from "@/lib/workspace/intake-li
 import type {IntakeTarget} from "@/lib/workspace/api-adapter";
 import type {ReasonPlace} from "@/lib/workspace/assistant-reasons";
 import {ConnectionNotice,useLocalConnection} from "./ConnectionNotice";
-import {needsAttention,outcomeLine} from "@/lib/workspace/intake-record";
+import {outcomeLine} from "@/lib/workspace/intake-record";
 import {PairStage,pairDisplayText,pairRuns,type Historical,type PairDisplay} from "./PairStage";
 import {fieldsIn,type ExperimentDesign} from "@/lib/workspace/experiment-design";
 import {centre,densestPoint,imageStageLayout} from "./image-stage-layout";
@@ -138,13 +138,12 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
     diagnose:process.env.NODE_ENV==="development"?counts=>console.debug("intake",counts):undefined}));
   const intakeItems=useSyncExternalStore(intakeList.subscribe,intakeList.getSnapshot,intakeList.getSnapshot).items;
   const [intakeShown,setIntakeShown]=useState(false);
-  // An addition that needs a look (refused, held, copied or empty) opens the list.
-  useEffect(()=>{if(needsAttention(r.intake))setIntakeShown(true);},[r.intake]);
   // Each workspace keeps its own list; a new workspace's list moves to the ID it receives at the first addition.
   const listWorkspace=useRef<string|null|undefined>(undefined);
   // While a saved workspace is still loading there is no ID yet: the list waits, so the names kept for that workspace
   // are read (not overwritten by an empty list) and come back as 「再選択」 rows, shown at once (#284 priority 7).
-  useEffect(()=>{if(r.loading)return;const id=data?.workspaceId||null;if(listWorkspace.current===id)return;
+  // Before the first load ends there is no data at all (not even an empty workspace): nothing is opened or renamed.
+  useEffect(()=>{if(r.loading||!data)return;const id=data.workspaceId||null;if(listWorkspace.current===id)return;
     if(listWorkspace.current===null&&id)intakeList.rename(id);else{intakeList.open(id);if(intakeList.getSnapshot().items.length)setIntakeShown(true);}
     listWorkspace.current=id;},[data?.workspaceId,intakeList,r.loading]);
   // A closed file dialog changes nothing (the earlier choice stays); it is said so, not left silent (#284 input 6).
@@ -549,29 +548,32 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
     // A field with two files for one channel waits in the list until the researcher keeps one; the others are added.
     const held=new Set(listedFields(intakeItems).filter(value=>value.conflicts.length).flatMap(value=>value.items.map(item=>item.id)));
     const refused=intakeItems.filter(item=>item.state==="読み取れない"&&item.file);
-    let first:string|undefined,registered=0;const done:string[]=[];
+    // One line for the whole 追加, however many calls of registration it took (#284 inputs 2 and 5: it can be checked).
+    const total:IntakeOutcome={registered:[],rejected:[],held:[],duplicates:[],skipped:[]};
+    const count=(outcome:IntakeOutcome)=>{total.registered.push(...outcome.registered);total.rejected.push(...outcome.rejected);total.held.push(...outcome.held);total.duplicates.push(...outcome.duplicates);total.skipped.push(...outcome.skipped);};
+    let first:string|undefined;const done:string[]=[];
     try{
+      // The additions are the list's own split (the fields it shows, each with its run and group).
       for(const addition of additions(intakeItems)){
-        const ready=addition.items.filter(item=>item.state==="追加待ち"&&!held.has(item.id));
-        const groups=new Map<string,typeof ready>();
-        for(const item of ready){const key=item.target?`${item.target.run_id}\u0000${item.target.group_id}\u0000${item.target.sample??""}`:"";groups.set(key,[...(groups.get(key)??[]),item]);}
-        for(const group of groups.values()){
-          const files=group.map(item=>item.file!),target=group[0].target;
-          try{const outcome=await (addition.separate?r.importSeparately(files,target):r.importFiles(files,"automatic",target));
-            first??=outcome.registered[0]?.fieldId;registered+=outcome.registered.length;done.push(...group.map(item=>item.id));}
-          catch(error){
-            // An interrupted addition: what was registered leaves the list; the rest stays to be added again.
-            if(error instanceof IntakeInterrupted){const names=new Set(error.outcome.registered.flatMap(item=>item.names));done.push(...group.filter(item=>names.has(item.name)).map(item=>item.id));registered+=error.outcome.registered.length;}
-            throw error;}
-        }
+        const ready=addition.items.filter(item=>item.state==="追加待ち"&&!held.has(item.id));if(!ready.length)continue;
+        const files=ready.map(item=>item.file!);
+        try{const outcome=await (addition.separate?r.importSeparately(files,addition.target):r.importFiles(files,"automatic",addition.target));
+          first??=outcome.registered[0]?.fieldId;count(outcome);done.push(...ready.map(item=>item.id));}
+        catch(error){
+          // An interrupted addition: what was registered leaves the list; the rest stays to be added again.
+          if(error instanceof IntakeInterrupted){const names=new Set(error.outcome.registered.flatMap(item=>item.names));done.push(...ready.filter(item=>names.has(item.name)).map(item=>item.id));count(error.outcome);}
+          throw error;}
       }
       await r.recordRefused(refused.map(item=>({names:[item.name],code:item.code??"unsupported_or_invalid_region_image",target:item.target})));
       done.push(...refused.map(item=>item.id));
+      total.rejected.push(...refused.map(item=>({entry:"recorded",names:[item.name],code:item.code??"unsupported_or_invalid_region_image"})));
     }finally{
       intakeList.clear(done);
+      r.reportIntake(total);
       // With a field registered, the image is what shows next; what was not registered waits behind 「取込 n件」 and
-      // never stands between the researcher and the images that were read (#284: no clean-up before starting).
-      if(registered)setIntakeShown(false);
+      // never stands between the researcher and the images that were read (#284: no clean-up before starting). Files
+      // chosen meanwhile, still to be added, keep the list open.
+      if(total.registered.length&&!intakeList.getSnapshot().items.some(item=>item.state==="追加待ち"||item.state==="読み込み中"))setIntakeShown(false);
       if(first&&!field)setSelected(first);
     }
     if(askAi){dispatchPanel("open-ai");requestAnimationFrame(()=>document.querySelector<HTMLTextAreaElement>("textarea[aria-label='AIへの指示']")?.focus());}

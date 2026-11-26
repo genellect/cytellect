@@ -57,6 +57,44 @@ describe("intake list before adding (#284 W5)", () => {
     expect(additions(items).map(value => [value.repeated, value.items.map(item => `${item.selection}:${item.name}`)])).toEqual([
       [false, ["1:field01-C01.tif", "1:field01-C02.tif", "2:field02-C01.tif"]], [true, ["2:field01-C01.tif", "2:field01-C02.tif"]]]);
   });
+  it("a field goes to one run and group: a stain chosen without a cell joins its field's cell, and two cells make two fields", async () => {
+    const control = {run_id: "r1", group_id: "c", sample: null}, treated = {run_id: "r1", group_id: "t", sample: null};
+    const list = createIntakeList({inspect: async value => judge(value), known: () => new Map(), storage: null});
+    // C01 chosen in 対照's cell; C02 then chosen with 「画像を追加」 in the list (no cell).
+    list.add([file("BBBC007-a9-C01.tif", 1)], control);
+    list.add([file("BBBC007-a9-C02.tif", 3)]);
+    // f9620's two stains chosen in two different cells.
+    list.add([file("BBBC007-f9620-C01.tif", 5)], control);
+    list.add([file("BBBC007-f9620-C02.tif", 7)], treated);
+    await settled(list);
+    const items = list.getSnapshot().items;
+    expect(listedFields(items).map(field => [field.name, field.channels, field.target?.group_id ?? null])).toEqual([
+      ["BBBC007-a9", ["c01", "c02"], "c"], ["BBBC007-f9620", ["c01"], "c"], ["BBBC007-f9620", ["c02"], "t"]]);
+    expect(breakdown(items)).toBe("受け取り：4 · 画像：4（3 視野）");
+    // Registration receives exactly these groups, each with its cell.
+    expect(additions(items).map(value => [value.target?.group_id ?? null, value.items.map(item => item.name)])).toEqual([
+      ["c", ["BBBC007-a9-C01.tif", "BBBC007-a9-C02.tif", "BBBC007-f9620-C01.tif"]], ["t", ["BBBC007-f9620-C02.tif"]]]);
+  });
+  it("an OME-TIFF is a field of its own beside single planes of the same name, and a copied field kept apart stays one field", async () => {
+    const inspect = async (value: File): Promise<Inspection> => value.name.endsWith(".ome.tif") ? {role: "image", shape: [400, 400], channel_names: ["DRAQ", "GFP"]} : judge(value);
+    const ome = Object.assign(file("A01.ome.tif", 1), {});
+    // The OME header is read from the bytes: these synthetic bytes carry none, so the kind is given by the test.
+    const list = createIntakeList({inspect, known: () => new Map(), storage: null});
+    list.add([ome, file("A01-rfp.tif", 3)]);
+    await settled(list);
+    list.getSnapshot().items[0].ome = true;
+    expect(listedFields(list.getSnapshot().items).map(field => [field.name, field.channels])).toEqual([["A01", ["rfp"]], ["A01", ["DRAQ", "GFP"]]]);
+    // Two stains of a registered field, chosen again and kept as a separate acquisition: one field, stains together.
+    const known = new Map([["x", "BBBC007-a9"]]);
+    const copies = createIntakeList({inspect: async value => judge(value), known: () => known, storage: null});
+    copies.add([file("copy/BBBC007-a9-C01.tif", 1), file("copy/BBBC007-a9-C02.tif", 3)]);
+    await settled(copies);
+    for (const item of copies.getSnapshot().items) copies.keepSeparately(item.id);
+    await settled(copies);
+    const kept = listedFields(copies.getSnapshot().items);
+    expect(kept.map(field => [field.name, field.channels, field.separate])).toEqual([["BBBC007-a9", ["c01", "c02"], true]]);
+    expect(additions(copies.getSnapshot().items)).toHaveLength(1);
+  });
   it("shows two files of different content for one channel of a field as a conflict of that field only", async () => {
     const list = createIntakeList({inspect: async value => judge(value), known: () => new Map(), storage: null});
     list.add([file("BBBC007-a9-C01.tif", 1), file("BBBC007-a9-C02.tif", 3), file("BBBC007-a9_c01.tif", 5), file("BBBC007-f9620-C01.tif", 7)]);

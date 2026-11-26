@@ -141,13 +141,18 @@ test("files chosen and not yet added are named again after a reload as 「再選
   let ready=loaded();
   await page.goto("/workspace?id=w");
   await ready;
+  // The saved workspace has finished loading before anything is chosen: the names are kept under its own ID.
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByTestId("file-input")).toBeEnabled();
   await page.getByTestId("file-input").setInputFiles([tiff("A01_c1.tif","ok-1"),tiff("A02_c1.tif","ok-2")]);
   const list=page.getByRole("region",{name:"取り込みの一覧"});
   await expect(list.getByRole("status").first()).toHaveText("受け取り：2 · 画像：2（2 視野）");
   // The browser cannot keep the files over a reload; it keeps their names, and the list opens on them by itself.
+  expect(await page.evaluate(()=>Object.keys(sessionStorage).filter(key=>key.startsWith("cytellect.intake.")))).toEqual(["cytellect.intake.v1.w"]);
   ready=loaded();
   await page.reload();
   await ready;
+  await page.waitForLoadState("networkidle");
   await expect(list.getByRole("status").first()).toHaveText("受け取り：0 · 画像：0（0 視野） · 再選択：2");
   const row=list.getByRole("row").filter({hasText:"A01_c1.tif"});
   await expect(row).toContainText("再選択");

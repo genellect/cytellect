@@ -176,7 +176,8 @@ test.describe("#284 W1, W4, W5 intake against the real API", () => {
     await expect(apply).toBeDisabled();
     await expect(table.getByRole("status")).toHaveText("案の適用には、対照の群の指定が必要です。");
     await table.getByLabel("案の対照の群").selectOption("treated");
-    await expect(table.getByRole("status")).toHaveText("群の名前の変更：対照 → treated、処理 → control");
+    // What applying changes besides placing the fields is stated first: the groups' names and the run's name.
+    await expect(table.getByRole("status")).toHaveText(/^群の名前の変更：対照 → treated、処理 → control · 実験回の名前の変更：\d{4}-\d{2}-\d{2} → Rep1$/);
     await apply.click();
     await expect(table).toHaveCount(0);
     await expect.poll(async () => Object.keys((await specification()).experiment.fields ?? {}).length, {timeout:60000}).toBe(2);

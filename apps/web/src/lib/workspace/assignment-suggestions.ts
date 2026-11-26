@@ -37,6 +37,14 @@ export function mergeSuggestions(rules: readonly Suggestion[], ai: readonly Sugg
   return fieldIds.flatMap(id => chosen.has(id) ? [chosen.get(id)!] : []);
 }
 
+/** The runs an application names anew or adds, stated before it is applied: `renamed` is the design's only, still empty
+ * run taking a suggested name. */
+export function runChanges(design: ExperimentDesign, suggestions: readonly Suggestion[], control = ""): {renamed: {from: string; to: string} | null; added: string[]} {
+  const before = design.runs ?? [], after = applySuggestions(design, suggestions, control).design.runs ?? [];
+  const renamed = before.flatMap(run => {const next = after.find(value => value.id === run.id);return next && next.label !== run.label ? [{from: run.label, to: next.label}] : [];})[0] ?? null;
+  return {renamed, added: after.filter(run => !before.some(value => value.id === run.id)).map(run => run.label)};
+}
+
 /** The number of groups the suggestions name, for proposing 1 画面 or 2 画面 before a design exists. */
 export function suggestedGroups(suggestions: readonly Suggestion[]): string[] {
   return [...new Set(suggestions.map(value => value.groupLabel))];
@@ -69,7 +77,14 @@ export function planSuggestions(design: ExperimentDesign, suggestions: readonly 
     const controlGroup = free.find(group => group.id === design.control_group_id) ?? free[0], treated = free.find(group => group.id !== controlGroup.id)!;
     return {renames: [{groupId: controlGroup.id, from: controlGroup.label, to: chosen}, {groupId: treated.id, from: treated.label, to: other}], controlChoice: unmatched, unplaced: []};
   }
-  if (unmatched.length === 1 && free.length === 1) return {renames: [{groupId: free[0].id, from: free[0].label, to: unmatched[0]}], controlChoice: null, unplaced: []};
+  if (unmatched.length === 1 && free.length === 1) {
+    const rename = {groupId: free[0].id, from: free[0].label, to: unmatched[0]};
+    // The only group left to name is the control group: naming it makes the suggested group the control, which the
+    // researcher confirms first, as when both groups are named.
+    if (design.layout === "pair" && free[0].id === design.control_group_id)
+      return control === unmatched[0] ? {renames: [rename], controlChoice: unmatched, unplaced: []} : {renames: [], controlChoice: unmatched, unplaced: unmatched};
+    return {renames: [rename], controlChoice: null, unplaced: []};
+  }
   return {renames: [], controlChoice: null, unplaced: unmatched};
 }
 
