@@ -35,8 +35,9 @@ Rate limits, gateway errors and dropped connections are retried with backoff; an
 other HTTP status stops setup. When the retries run out, the error names the last
 failure (for example `HTTP 429`) and the URL. `--cache-dir <dir>` keeps each verified
 download under its SHA-256 and reuses it on the next setup after checking the hash
-again; a copy with another digest is discarded and downloaded anew. CI keeps this
-directory between runs (see [CI](ci.md#外部からの取得)).
+again; a copy with another digest, or one that cannot be read, is downloaded anew.
+CI keeps this directory between runs once a setup has succeeded (see
+[CI](ci.md#外部からの取得)).
 
 ## CPU/headless compatibility and privacy
 

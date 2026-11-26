@@ -35,10 +35,20 @@ def sha(path: Path) -> str:
 # Rate limits, gateway errors and dropped connections are retried with backoff;
 # any other HTTP status stops setup.
 TRANSIENT_HTTP = frozenset({408, 425, 429, 500, 502, 503, 504})
+TRANSIENT_ERRORS = (urllib.error.URLError, http.client.HTTPException, ConnectionError, TimeoutError)
 
 
-def transfer(url: str, target: Path, attempt: int) -> str | None:
-    """Write one response to target, resuming a partial file; the reason after a transient failure."""
+def transient(error: Exception) -> tuple[str, str]:
+    """The reason and Retry-After of a transient failure; any other HTTP status is raised."""
+    if isinstance(error, urllib.error.HTTPError):
+        if error.code not in TRANSIENT_HTTP:
+            raise error
+        return f"HTTP {error.code}", error.headers.get("Retry-After", "")
+    return type(error).__name__, ""
+
+
+def transfer(url: str, target: Path) -> tuple[str, str] | None:
+    """Write one response to target, resuming a partial file; (reason, Retry-After) after a transient failure."""
     offset = target.stat().st_size if target.exists() else 0
     request = urllib.request.Request(url, headers={"Range": f"bytes={offset}-"} if offset else {})
     try:
@@ -48,15 +58,13 @@ def transfer(url: str, target: Path, attempt: int) -> str | None:
                 shutil.copyfileobj(response, stream, 1024 * 1024)
         return None
     except urllib.error.HTTPError as error:
-        if error.code not in TRANSIENT_HTTP:
-            raise
-        reason, wait = f"HTTP {error.code}", error.headers.get("Retry-After", "")
-    except (urllib.error.URLError, http.client.HTTPException, ConnectionError, TimeoutError) as error:
-        reason, wait = type(error).__name__, ""
-    delay = min(int(wait), 120) if wait.isdigit() else min(5 * 2 ** attempt, 60)
-    print("Transient download failure;", reason, "; retry in", delay, "s", flush=True)
-    time.sleep(delay)
-    return reason
+        if error.code == 416 and offset:
+            # The kept bytes already reach the end of the resource, so they are wrong: start from byte zero.
+            target.unlink()
+            return transfer(url, target)
+        return transient(error)
+    except TRANSIENT_ERRORS as error:
+        return transient(error)
 
 
 def copy_offline(directory: Path, target: Path, expected: str) -> None:
@@ -77,14 +85,18 @@ def copy_cached(cache: Path, target: Path, expected: str) -> bool:
     if not re.fullmatch(r"[0-9a-f]{64}", expected):
         raise RuntimeError("cached_artifact_digest_invalid")
     source = cache / expected
-    if source.is_symlink() or not source.is_file():
-        return False
-    shutil.copyfile(source, target)
-    if sha(target) == expected:
-        print("Reused verified download from the cache", flush=True)
-        return True
-    target.unlink()
-    source.unlink()
+    try:
+        if source.is_symlink() or not source.is_file():
+            return False
+        shutil.copyfile(source, target)
+        if sha(target) == expected:
+            print("Reused verified download from the cache", flush=True)
+            return True
+        source.unlink()
+    except OSError as error:
+        # The cache only saves time; an unreadable or undeletable copy falls back to downloading.
+        print("Download cache not used;", type(error).__name__, flush=True)
+    target.unlink(missing_ok=True)
     return False
 
 
@@ -109,11 +121,16 @@ def download(url: str, target: Path, expected: str, offline: Path | None = None,
         return
     # Some proxies end large streaming responses early without a read exception.
     # Always check the complete byte count/hash; resume verified HTTP ranges only.
-    failure = "SHA-256 mismatch"
+    failure, retry = "SHA-256 mismatch", None
     for attempt in range(6):
-        transient = transfer(url, target, attempt)
-        if transient is not None:
-            failure = transient
+        if retry is not None:
+            # Wait only before another attempt, never after the last one.
+            failure, wait = retry
+            delay = min(int(wait), 120) if wait.isdigit() else min(5 * 2 ** (attempt - 1), 60)
+            print("Transient download failure;", failure, "; retry in", delay, "s", flush=True)
+            time.sleep(delay)
+        retry = transfer(url, target)
+        if retry is not None:
             continue
         received = sha(target)
         if received == expected:
@@ -126,13 +143,14 @@ def download(url: str, target: Path, expected: str, offline: Path | None = None,
         try:
             with urllib.request.urlopen(urllib.request.Request(url, method="HEAD"), timeout=30) as response:
                 size = int(response.headers.get("Content-Length", "0"))
-        except urllib.error.HTTPError as error:
-            if error.code not in TRANSIENT_HTTP:
-                raise
-            size = 0
-            target.unlink()  # the size is unknown, so start the next attempt from byte zero
+        except TRANSIENT_ERRORS as error:
+            # The size is unknown: keep the bytes so the next attempt resumes them (416 resets a full copy).
+            retry = transient(error)
+            continue
         if size and target.stat().st_size >= size:
             target.unlink()
+    if retry is not None:
+        failure = retry[0]
     # Name the last failure: a rate limit that outlasts the retries is not a corrupted artifact.
     raise RuntimeError(f"Download failed after retries (last: {failure}): {url}")
 

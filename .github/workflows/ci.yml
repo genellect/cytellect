@@ -270,21 +270,30 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @cytellect/web exec playwright install --with-deps chromium
       # The pinned Fiji archive and plugins come from public hosts that rate-limit CI runners
-      # (Maven Central answered 429 and 404 on main); reuse verified copies instead.
+      # (Maven Central answered 429 and 404 on main); reuse verified copies after one successful run.
+      # Cache entries cannot be overwritten, so each save gets a new key and the newest one is restored.
       - name: Restore pinned Fiji downloads (content-addressed, verified again on use)
-        id: fiji-downloads
         uses: actions/cache/restore@v5
         with:
           path: ${{ runner.temp }}/fiji-downloads
-          key: fiji-downloads-linux-x64-${{ hashFiles('engines/fiji/runtime.lock.json') }}
-      - run: uv run python scripts/fiji_setup.py /tmp/cytellect-fiji --platform linux-x64 --cache-dir "${{ runner.temp }}/fiji-downloads"
+          key: fiji-downloads-linux-x64-${{ hashFiles('engines/fiji/runtime.lock.json') }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
+          restore-keys: fiji-downloads-linux-x64-${{ hashFiles('engines/fiji/runtime.lock.json') }}-
+      - name: Install pinned Fiji
+        id: fiji-setup
+        run: |
+          downloads="$RUNNER_TEMP/fiji-downloads"
+          listing() { { find "$downloads" -maxdepth 1 -type f -printf '%f %s %T@\n' 2>/dev/null || true; } | sort | sha256sum; }
+          before=$(listing)
+          uv run python scripts/fiji_setup.py /tmp/cytellect-fiji --platform linux-x64 --cache-dir "$downloads"
+          # Save only when setup added or replaced a file, so a missing or discarded copy is kept next time.
+          [ "$before" = "$(listing)" ] || echo "changed=true" >> "$GITHUB_OUTPUT"
       # Saved right after setup, so a later failing step does not force the next run to download again.
       - name: Keep the verified Fiji downloads for later runs
-        if: steps.fiji-downloads.outputs.cache-hit != 'true'
+        if: steps.fiji-setup.outputs.changed == 'true'
         uses: actions/cache/save@v5
         with:
           path: ${{ runner.temp }}/fiji-downloads
-          key: fiji-downloads-linux-x64-${{ hashFiles('engines/fiji/runtime.lock.json') }}
+          key: fiji-downloads-linux-x64-${{ hashFiles('engines/fiji/runtime.lock.json') }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
       - run: uv run pytest -m fiji
       - name: Published DNA-actin inputs and independent ImageJ arithmetic
         timeout-minutes: 10
@@ -369,21 +378,30 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @cytellect/web exec playwright install --with-deps chromium
       # The pinned Fiji archive and plugins come from public hosts that rate-limit CI runners
-      # (Maven Central answered 429 and 404 on main); reuse verified copies instead.
+      # (Maven Central answered 429 and 404 on main); reuse verified copies after one successful run.
+      # Cache entries cannot be overwritten, so each save gets a new key and the newest one is restored.
       - name: Restore pinned Fiji downloads (content-addressed, verified again on use)
-        id: fiji-downloads
         uses: actions/cache/restore@v5
         with:
           path: ${{ runner.temp }}/fiji-downloads
-          key: fiji-downloads-linux-x64-${{ hashFiles('engines/fiji/runtime.lock.json') }}
-      - run: uv run python scripts/fiji_setup.py /tmp/cytellect-fiji --platform linux-x64 --cache-dir "${{ runner.temp }}/fiji-downloads"
+          key: fiji-downloads-linux-x64-${{ hashFiles('engines/fiji/runtime.lock.json') }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
+          restore-keys: fiji-downloads-linux-x64-${{ hashFiles('engines/fiji/runtime.lock.json') }}-
+      - name: Install pinned Fiji
+        id: fiji-setup
+        run: |
+          downloads="$RUNNER_TEMP/fiji-downloads"
+          listing() { { find "$downloads" -maxdepth 1 -type f -printf '%f %s %T@\n' 2>/dev/null || true; } | sort | sha256sum; }
+          before=$(listing)
+          uv run python scripts/fiji_setup.py /tmp/cytellect-fiji --platform linux-x64 --cache-dir "$downloads"
+          # Save only when setup added or replaced a file, so a missing or discarded copy is kept next time.
+          [ "$before" = "$(listing)" ] || echo "changed=true" >> "$GITHUB_OUTPUT"
       # Saved right after setup, so a later failing step does not force the next run to download again.
       - name: Keep the verified Fiji downloads for later runs
-        if: steps.fiji-downloads.outputs.cache-hit != 'true'
+        if: steps.fiji-setup.outputs.changed == 'true'
         uses: actions/cache/save@v5
         with:
           path: ${{ runner.temp }}/fiji-downloads
-          key: fiji-downloads-linux-x64-${{ hashFiles('engines/fiji/runtime.lock.json') }}
+          key: fiji-downloads-linux-x64-${{ hashFiles('engines/fiji/runtime.lock.json') }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
       - name: Registered public BBBC007 inputs for the workspace tests
         timeout-minutes: 10
         run: |
