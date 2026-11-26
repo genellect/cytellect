@@ -64,16 +64,18 @@ export function createIntakeList(dependencies: IntakeDependencies) {
   const publish = (items: IntakeItem[], selections = state.selections) => {
     state = {items, selections};
     try {
-      const names = items.filter(item => item.state === "追加待ち" || item.state === "読み込み中" || item.state === "再選択").map(item => item.name);
+      // The name and the cell it was chosen in: chosen again after a reload, the file goes where it was going.
+      const names = items.filter(item => item.state === "追加待ち" || item.state === "読み込み中" || item.state === "再選択").map(item => ({name: item.name, ...(item.target ? {target: item.target} : {})}));
       if (names.length) dependencies.storage?.setItem(storageKey(workspace), JSON.stringify(names)); else dependencies.storage?.removeItem(storageKey(workspace));
     } catch {/* storage is a convenience only */}
     for (const listener of listeners) listener();
   };
   const update = (id: string, patch: Partial<IntakeItem>) => publish(state.items.map(item => item.id === id ? {...item, ...patch} : item));
   async function judge(item: IntakeItem) {
-    const file = item.file!;
+    const file = item.file!;let ome = false;
     try {
       const kind: IntakeKind = await tiffHasOmeMetadata(file) ? "ome" : await tiffInputMode(file);
+      ome = kind === "ome";
       const digest = hex(await crypto.subtle.digest("SHA-256", await file.arrayBuffer()));
       const same = dependencies.known().get(digest) ?? state.items.find(other => other.id !== item.id && other.sha256 === digest && other.state !== "同一内容" && other.selection <= item.selection)?.name;
       if (same && !item.separate) {update(item.id, {sha256: digest, state: "同一内容", sameAs: same, ome: kind === "ome"}); return;}
@@ -85,7 +87,7 @@ export function createIntakeList(dependencies: IntakeDependencies) {
       // A refusal of this file names its reason; an unanswered judgement leaves the file to registration's own check.
       const code = typeof error === "object" && error && "code" in error && typeof (error as {code: unknown}).code === "string" ? (error as {code: string}).code : null;
       const status = typeof error === "object" && error && "status" in error ? (error as {status: number}).status : 0;
-      update(item.id, [403, 413, 415, 422].includes(status) && code ? {state: "読み取れない", code} : {state: "追加待ち"});
+      update(item.id, [403, 413, 415, 422].includes(status) && code ? {state: "読み取れない", code, ome} : {state: "追加待ち", ome});
     }
   }
   function pump() {
@@ -110,12 +112,13 @@ export function createIntakeList(dependencies: IntakeDependencies) {
     getSnapshot: () => state,
     /** Opens the list of a workspace: names chosen there and not added before a reload come back as 「再選択」. */
     open(id: string | null, keep = false) {
-      workspace = id;let names: string[] = [];
-      try {names = JSON.parse(dependencies.storage?.getItem(storageKey(id)) ?? "[]");} catch {names = [];}
+      workspace = id;let stored: unknown = [];
+      try {stored = JSON.parse(dependencies.storage?.getItem(storageKey(id)) ?? "[]");} catch {stored = [];}
+      const names = (Array.isArray(stored) ? stored : []).flatMap(value => typeof value === "string" ? [{name: value, target: null}] : keptName(value));
       // `keep`: the first opening of a page. Files chosen while its workspace was still loading stay; the names kept
       // from before the reload come back beside them.
       const kept = keep ? state.items.filter(item => item.file) : [], chosen = new Set(kept.map(item => item.name));
-      const restored = Array.isArray(names) ? names.filter(name => typeof name === "string" && !chosen.has(name)).map((name, index) => ({...blank(`restored-${index}`, name, 0), state: "再選択" as const})) : [];
+      const restored = names.filter(value => !chosen.has(value.name)).map((value, index) => ({...blank(`restored-${index}`, value.name, 0), state: "再選択" as const, target: value.target}));
       publish([...restored, ...kept], keep ? state.selections : 0);
     },
     /** Moves the names kept for a new workspace to the workspace it became. */
@@ -155,6 +158,14 @@ export function createIntakeList(dependencies: IntakeDependencies) {
     /** Removes the given rows (after they were added or recorded). */
     clear(ids?: Iterable<string>) {const gone = ids ? new Set(ids) : null;publish(gone ? state.items.filter(item => !gone.has(item.id)) : []);rejudgeOrphans();},
   };
+}
+
+/** A kept name as read from storage: a name, and the run and group of the cell it was chosen in when it had one. */
+function keptName(value: unknown): Array<{name: string; target: IntakeTarget | null}> {
+  if (typeof value !== "object" || !value || typeof (value as {name?: unknown}).name !== "string") return [];
+  const target = (value as {target?: Partial<IntakeTarget> | null}).target;
+  const valid = !!target && typeof target.run_id === "string" && typeof target.group_id === "string" && (target.sample === null || typeof target.sample === "string");
+  return [{name: (value as {name: string}).name, target: valid ? {run_id: target!.run_id!, group_id: target!.group_id!, sample: target!.sample ?? null} : null}];
 }
 
 function blank(id: string, name: string, selection: number): IntakeItem {

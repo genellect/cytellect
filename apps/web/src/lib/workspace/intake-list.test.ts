@@ -119,6 +119,25 @@ describe("intake list before adding (#284 W5)", () => {
     list.open("other");
     expect(list.getSnapshot().items).toEqual([]);
   });
+  it("keeps the cell a file was chosen in over a reload, so choosing it again goes where it was going (independent review)", async () => {
+    const storage = memoryStorage(), control = {run_id: "r1", group_id: "c", sample: null};
+    const list = createIntakeList({inspect: async value => judge(value), known: () => new Map(), storage});
+    list.open("w");
+    list.add([file("BBBC007-a9-C01.tif", 1)], control);
+    list.add([file("plain_c1.tif", 3)]);
+    await settled(list);
+    // A reload: another list reads the same storage. The names come back with their cells.
+    const reloaded = createIntakeList({inspect: async value => judge(value), known: () => new Map(), storage});
+    reloaded.open("w", true);
+    expect(reloaded.getSnapshot().items.map(item => [item.name, item.state, item.target?.group_id ?? null])).toEqual([["BBBC007-a9-C01.tif", "再選択", "c"], ["plain_c1.tif", "再選択", null]]);
+    reloaded.replace(reloaded.getSnapshot().items[0].id, file("BBBC007-a9-C01.tif", 1));
+    await settled(reloaded);
+    expect(listedFields(reloaded.getSnapshot().items).map(field => [field.name, field.target?.group_id ?? null])).toEqual([["BBBC007-a9", "c"]]);
+    // Names kept by an earlier version (plain strings) are read as names without a cell; anything else is ignored.
+    storage.setItem("cytellect.intake.v1.old", JSON.stringify(["old_c1.tif", {name: 3}, {name: "bad_c1.tif", target: {run_id: 1}}]));
+    reloaded.open("old");
+    expect(reloaded.getSnapshot().items.map(item => [item.name, item.target])).toEqual([["old_c1.tif", null], ["bad_c1.tif", null]]);
+  });
   it("a copy whose original is removed from the list is no longer a copy: it becomes the image", async () => {
     const list = createIntakeList({inspect: async value => judge(value), known: () => new Map(), storage: null});
     list.add([file("BBBC007-a9-C01.tif", 1), file("copy/BBBC007-a9-C01.tif", 1)]);

@@ -11,6 +11,11 @@ describe("intake record", () => {
     expect(outcomeLine(null)).toBe("");
     expect(outcomeLine({registered:[{fieldId:"a",names:["a.tif"]},{fieldId:"b",names:["b.tif"]}],rejected:[{entry:"e",names:["x.tif"],code:"unsupported_or_invalid_region_image"},{entry:"m",names:["mask.tif"],code:"region_image_bit_depth_unsupported"}],held:[],duplicates:[{id:"d",name:"a copy.tif",sameAs:"a.tif"}],skipped:[{name:"readme.txt"}]}))
       .toBe("登録：2 視野 · 読み取れない：1 件 · マスクの候補：1 件 · 同一内容：1 件 · 対象外：1 件");
+    // A 32-bit float image the judgement before adding found unreadable shares the mask candidate's code and is not one.
+    expect(outcomeLine({registered:[{fieldId:"a",names:["a.tif"]}],rejected:[{entry:"recorded",names:["float.tif"],code:"region_image_bit_depth_unsupported",stage:"inspect"}],held:[],duplicates:[],skipped:[]}))
+      .toBe("登録：1 視野 · 読み取れない：1 件");
+    // 実行を中止 is a result of the addition, not an error.
+    expect(outcomeLine({registered:[{fieldId:"a",names:["a.tif"]}],rejected:[],held:[],duplicates:[],skipped:[],stopped:true})).toBe("登録：1 視野 · 追加：中止");
     expect(outcomeLine({registered:[],rejected:[],held:[],duplicates:[],skipped:[],empty:"nothing"})).toBe("受け取ったファイル：0 件");
     expect(outcomeLine({registered:[],rejected:[],held:[],duplicates:[],skipped:[{name:"a.txt"}],empty:"no_images"})).toBe("TIFF：0 件 · 対象外：1 件");
     expect(needsAttention({registered:[{fieldId:"a",names:["a.tif"]}],rejected:[],held:[],duplicates:[],skipped:[{name:"a.txt"}]})).toBe(false);

@@ -243,7 +243,9 @@ class AssistantMessage(BaseModel):
     or failed. `restorable` is true when the answer recorded for the message holds items to confirm (`choices`) or
     run and group suggestions (`assignments`): the listing carries the text only, so after a reload the workspace
     offers the message's 「再送」 to read them again, which the record answers without a model call while the context
-    is unchanged. Nothing here changes settings."""
+    is unchanged. `suggests_assignments` names the second kind apart: the experiment table shows the suggestions
+    whichever message is the latest, while items to confirm are offered under the latest message only. Nothing here
+    changes settings."""
     id: str
     field_id: str | None
     created: float
@@ -255,6 +257,8 @@ class AssistantMessage(BaseModel):
     stage: Literal["context", "service", "validation"] | None
     effect: MessageEffect
     restorable: bool
+    # The recorded answer holds run and group suggestions (shown in the experiment table, whichever message is latest).
+    suggests_assignments: bool = False
 
 
 def _applicable(draft) -> bool | None:
@@ -306,12 +310,19 @@ def _restorable(recorded) -> bool:
     return isinstance(draft, dict) and bool(draft.get("choices") or draft.get("assignments"))
 
 
+def _suggests_assignments(recorded) -> bool:
+    """Whether a recorded proposal holds run and group suggestions."""
+    draft = recorded.get("draft") if isinstance(recorded, dict) else None
+    return isinstance(draft, dict) and bool(draft.get("assignments"))
+
+
 def message_view(row) -> AssistantMessage:
     """One row of `MESSAGE_ROWS` as the workspace reads it."""
     return AssistantMessage(id=row["id"], field_id=row["field_id"], created=row["created"], text=row["text"],
                             state=row["state"], reply=row["reply"], applicable=row["applicable"],
                             reasons=list(row["reasons"] or []), stage=row["stage"], effect=row["effect"],
-                            restorable=_restorable(row["recorded_proposal"]))
+                            restorable=_restorable(row["recorded_proposal"]),
+                            suggests_assignments=_suggests_assignments(row["recorded_proposal"]))
 
 
 def answer_text(rationale: str, missing: tuple[str, ...] | list[str], answer: str | None = None) -> str:
@@ -549,7 +560,9 @@ def _added_name(value) -> str | None:
         return None
     path = "".join(char for char in value if unicodedata.category(char) not in ("Cc", "Cf", "Zl", "Zp"))
     path = path.replace("\\", "/").strip()
-    if _ABSOLUTE.match(path):
+    # Judged on the path as it will be sent: `./Users/…` and `../home/…` are the users' folder too.
+    parts = [part for part in path.split("/") if part.strip() and part not in (".", "..")]
+    if _ABSOLUTE.match(path) or _ABSOLUTE.match("/".join(parts)):
         path = path.rsplit("/", 1)[-1]
     text = "/".join(part for part in path.split("/") if part.strip() and part not in (".", ".."))
     if len(text) > 255:

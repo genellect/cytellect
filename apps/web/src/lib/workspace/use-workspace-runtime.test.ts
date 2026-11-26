@@ -700,6 +700,12 @@ describe("the kind of request (#284 W7)",()=>{
     await runtime.requestProposal("この視野の核を数えて","f2");
     expect((adapter.draft.mock.calls.at(-1) as unknown[]|undefined)?.[3]).toMatchObject({previous_goal:"",previous_proposal:null,field_id:"f2"});
   });
+  it("offers nothing to apply for a settings answer without an analysis, so the saved measurements are not cleared",async()=>{
+    // 「核染色は DRAQ」 answered as a settings request that only names roles: recipe none, no processing.
+    const {runtime,response}=await answered("settings",{recipe:"none",processing:undefined});
+    expect(runtime.canApply(response.message.id,"f1")).toBe(false);
+    expect(runtime.canTry(response.message.id,"f1")).toBe(false);
+  });
   it("refuses to run a question's answer or a settings request",async()=>{
     for(const intent of ["answer","settings"] as const){
       const {runtime,adapter,response}=await answered(intent);

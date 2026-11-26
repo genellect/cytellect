@@ -28,8 +28,9 @@ export function resendable(message: AssistantMessage, serviceReason: boolean, he
   if (message.state === "pending") return !busy;
   if (message.applicable === false) return serviceReason;
   // `restorable`: the recorded answer holds choices or run and group suggestions, which a resend returns from the record.
-  // A question's answer is fetched again only as the latest message: its choices are offered there alone.
-  return (message.applicable === true || (message.restorable === true && last)) && message.effect === "none" && !held;
+  // A question's answer is fetched again as the latest message (its choices are offered there alone), or from any
+  // message when it holds run and group suggestions (the experiment table shows them).
+  return (message.applicable === true || (message.restorable === true && last) || message.suggests_assignments === true) && message.effect === "none" && !held;
 }
 
 interface Props {

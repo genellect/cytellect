@@ -404,6 +404,8 @@ def test_the_listing_says_which_answers_hold_choices_or_suggestions_to_read_agai
     assert [response.json()["message"]["restorable"] for response in sent[:5]] == expected[:5]
     listed = client.get(f"/v1/workspaces/{wid}/assistant-messages").json()["messages"]
     assert [(message["text"], message["restorable"]) for message in listed] == list(zip(goals, expected))
+    # Run and group suggestions are named apart: the experiment table shows them whichever message is the latest.
+    assert [message["suggests_assignments"] for message in listed] == [False, False, False, True, False, False]
     assert [(message["state"], message["applicable"]) for message in listed] == [
         ("answered", None), ("answered", True), ("answered", None), ("answered", True), ("answered", False), ("failed", None)]
     # Recording what the researcher did keeps the flag.
@@ -438,6 +440,8 @@ def test_the_listing_says_which_answers_hold_choices_or_suggestions_to_read_agai
     # A folder named home or Users inside the chosen folder is a folder like any other.
     ("ExpA/home/A01.tif", "ExpA/home/A01.tif"),
     ("data/Users/Rep1/A01.tif", "data/Users/Rep1/A01.tif"),
+    ("./Users/example/exp/A01.tif", "A01.tif"),
+    ("../home/example/A01.tif", "A01.tif"),
     ("\\\\server\\share\\A01.tif", "A01.tif"),
     ("./Rep1/../Rep1/A01.tif", "Rep1/Rep1/A01.tif"),
     # One line of data: line and paragraph separators and direction marks never reach the model.

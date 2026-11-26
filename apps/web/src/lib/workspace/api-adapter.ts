@@ -512,7 +512,7 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
 }
 export type ApiAdapter = ReturnType<typeof createApiAdapter>;
 /** One message to the AI and what came back (#284 W2); see the API's AssistantMessage. */
-export type AssistantMessage = Omit<components["schemas"]["AssistantMessage"], "restorable"> & {restorable?: boolean};
+export type AssistantMessage = Omit<components["schemas"]["AssistantMessage"], "restorable" | "suggests_assignments"> & {restorable?: boolean; suggests_assignments?: boolean};
 export type DiscussionView = components["schemas"]["DiscussionView"];
 export type ExperimentNote = components["schemas"]["ExperimentNote"];
 export type ShownSummary = components["schemas"]["ShownSummary"];

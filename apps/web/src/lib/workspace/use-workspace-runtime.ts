@@ -59,7 +59,10 @@ export interface IntakeRow {entry:string; names:string[]; state:"pending"|"rejec
 export interface IntakeOutcome {
   registered: Array<{fieldId:string; names:string[]}>;
   /** entry is null when no row could be written (the record is full). */
-  rejected: Array<{entry:string|null; names:string[]; code:string}>;
+  /** `stage: "inspect"`: the judgement before adding found the file unreadable (never a mask candidate). */
+  rejected: Array<{entry:string|null; names:string[]; code:string; stage?:"inspect"|"register"}>;
+  /** 実行を中止 ended the addition: the fields not sent stay in the list of chosen files. */
+  stopped?: boolean;
   /** Two different images name the same field and channel: the field waits for the researcher (not sent). */
   held: Array<{names:string[]; reason:"duplicate_channel"}>;
   /** Same bytes as another image: not a field unless the researcher records it as a separate acquisition. */
@@ -75,6 +78,8 @@ export interface IntakeOutcome {
 export function isMaskRow(intake:IntakeRecord|undefined|null):boolean{return !!intake&&intake.code===MASK_CANDIDATE_CODE&&intake.stage!=="inspect";}
 /** A name as a row can hold it (255 characters, no control characters): a longer folder-relative path keeps its file name. */
 function recordedName(name:string):string{const clean=name.replace(/[\u0000-\u001f\u007f]/g,"_");return clean.length<=255?clean:(clean.split("/").at(-1)||clean).slice(-255);}
+/** The cause of an `IntakeInterrupted` that 実行を中止 raised: the researcher's own action, reported as a status. */
+export const ADD_STOPPED="追加：中止";
 /** Shown when a nuclear detection is asked for while no chosen field has a nuclear stain; the screen offers 設定 with it. */
 export const NUCLEAR_STAIN_REQUIRED="核の検出には、核染色の指定が必要です。";
 export class IntakeInterrupted extends Error {constructor(public outcome:IntakeOutcome, public cause:unknown){super(message(cause));}}
@@ -393,7 +398,9 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
     try{let {run,key}=await followRun(target,chosen.map(field=>field.id),preview);
       await readCandidates(run,signatures);
       if(run.state==="cancelled"){runRequests.delete(key);throw new Error("処理を中止しました。採用済みの領域は保持されています。");}
-      const failure=()=>run.steps.filter(step=>step.error).map(step=>`${fieldName(step.field_id)}：${errorCodeMessage(step.error!)}`).join("\n");
+      // A field without a nuclear stain fails its nuclear detection for that reason, not for its settings' values.
+      const unstained=(field:string)=>{if(target!=="nuclei")return false;try{nuclearChannel(field);return false;}catch{return true;}};
+      const failure=()=>run.steps.filter(step=>step.error).map(step=>`${fieldName(step.field_id)}：${unstained(step.field_id)?"核染色の指定なし":errorCodeMessage(step.error!)}`).join("\n");
       if(run.state==="failed"){runRequests.delete(key);
         // One field's failure does not hold the others back (#284 W8): the same run without the failed fields reuses
         // their finished steps, and its fields are adopted. The failed fields keep 「失敗」 and their reason.
@@ -575,11 +582,11 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
         if(options.entry)uploadKeys.set(key,options.entry);
         if(!uploadKeys.has(key)){
           // Images added again under the names of a row whose upload was interrupted resolve that row, when they go
-          // where the row was going (the same run and group, or a row without one). A refused row, or a row of
-          // another group, is another image's record: it stays, and never passes its group on.
+          // where the row was going (the same run and group, or none for both). A refused row, or a row going
+          // elsewhere, is another image's record: it stays, and never passes its group on.
           const taken=new Set(uploadKeys.values()),wanted=[...shown].sort().join("\u0000"),place=(value:IntakeTarget|null|undefined)=>value?`${value.run_id}\u0000${value.group_id}\u0000${value.sample??""}`:"";
           const earlier=adapter.selection()?.entries.find(value=>!value.field_id&&!value.exclusion_reason&&!taken.has(value.id)&&value.intake?.state==="pending"
-            &&[...value.intake.names].sort().join("\u0000")===wanted&&(!value.intake.target||place(value.intake.target)===place(target)));
+            &&[...value.intake.names].sort().join("\u0000")===wanted&&place(value.intake.target)===place(target));
           if(earlier)uploadKeys.set(key,earlier.id);
           else{if(ledgerSize()>=LEDGER_LIMIT){outcome.rejected.push({entry:null,names:shown,code:"ledger_full"});dropImport(key,paths);return;}uploadKeys.set(key,crypto.randomUUID());}
         }
@@ -593,8 +600,10 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
         catch(error){if(!itemRefusal(error))throw error;
           await adapter.recordImport(workspace(),entry,{state:"rejected",stage:"register",code:error.code});
           outcome.rejected.push({entry,names:shown,code:error.code});dropImport(key,paths);return;}
+        // Counted as registered once the upload answered, whatever fails after it (reading the preview, a re-read).
         for(const path of paths)sentPaths.add(path);
-        await showImported(saved,key);outcome.registered.push({fieldId:saved.id,names:shown});
+        outcome.registered.push({fieldId:saved.id,names:shown});
+        await showImported(saved,key);
       };
       for(const field of batchFields){if(stopped||closed){halted=true;break;}
         const present=grouping.channels.filter(channel=>field.files[channel.token]),paths=Object.values(field.files).map(file=>file.path);
@@ -614,7 +623,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       // 実行を中止: the fields not sent yet stay in the list of chosen files, never in this session's memory.
       dropUnsent();
       await refresh(workspace());await applyTargets();await refresh(workspace());
-      publish({intake:outcome});throw new IntakeInterrupted(outcome,new Error("追加を中止しました。登録済みの視野は保持されています。"));
+      outcome.stopped=true;publish({intake:outcome});throw new IntakeInterrupted(outcome,new Error(ADD_STOPPED));
     }
     await refresh(workspace());await applyTargets();await refresh(workspace());
     // Refused, held and copied files have left the record: the grouping notes describe what remains.
@@ -808,7 +817,10 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
      * kind of request (#284 W7) offers 「設定を適用」 or 「適用して実行」 instead. */
     canTry(messageId:string,selectedFieldId?:string){return this.canApply(messageId,selectedFieldId)&&intentOf(messageId)===null&&!!state.data?.fields.length&&answers.get(messageId)?.draft.recipe!=="none";},
     /** True when this session holds the applicable answer of the message and it proposes settings (not a question's answer). */
-    canApply(messageId:string,selectedFieldId?:string){const message=state.messages.find(value=>value.id===messageId);return answers.has(messageId)&&message?.applicable!==false&&intentOf(messageId)!=="answer"&&!pendingConfirmation(messageId,selectedFieldId).length;},
+    canApply(messageId:string,selectedFieldId?:string){const message=state.messages.find(value=>value.id===messageId),draft=answers.get(messageId)?.draft;
+      // An answer without an analysis (recipe none, no processing) has no settings: applying it would only clear the
+      // saved measurements. What it settles (a stain's role) is recorded by 「核染色に … を指定」.
+      return !!draft&&message?.applicable!==false&&draft.intent!=="answer"&&(draft.recipe!=="none"||!!draft.processing)&&!pendingConfirmation(messageId,selectedFieldId).length;},
     /** The nuclear channels the answer proposes that the researcher has not set yet; applying and running wait for them. */
     confirmationOf(messageId:string,selectedFieldId?:string):ChannelConfirmation[]{const message=state.messages.find(value=>value.id===messageId);
       return message?.applicable===false||message?.effect!=="none"||intentOf(messageId)==="answer"?[]:pendingConfirmation(messageId,selectedFieldId);},

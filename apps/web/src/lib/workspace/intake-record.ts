@@ -42,12 +42,14 @@ export function outcomeLine(outcome:IntakeOutcome|null):string {
   if (outcome.empty === "nothing") return "受け取ったファイル：0 件";
   if (outcome.empty === "no_images") return `TIFF：0 件 · 対象外：${outcome.skipped.length} 件`;
   const parts = [`登録：${outcome.registered.length} 視野`];
-  const rejected = outcome.rejected.filter(item => item.code !== MASK_CANDIDATE_CODE).length, masks = outcome.rejected.length - rejected;
+  // A mask candidate is a 32-bit image registration refused; a file the judgement before adding found unreadable is not one.
+  const rejected = outcome.rejected.filter(item => item.code !== MASK_CANDIDATE_CODE || item.stage === "inspect").length, masks = outcome.rejected.length - rejected;
   if (rejected) parts.push(`読み取れない：${rejected} 件`);
   if (masks) parts.push(`マスクの候補：${masks} 件`);
   if (outcome.held.length) parts.push(`要確認：${outcome.held.length} 視野`);
   if (outcome.duplicates.length) parts.push(`同一内容：${outcome.duplicates.length} 件`);
   if (outcome.skipped.length) parts.push(`対象外：${outcome.skipped.length} 件`);
+  if (outcome.stopped) parts.push("追加：中止");
   return parts.join(" · ");
 }
 

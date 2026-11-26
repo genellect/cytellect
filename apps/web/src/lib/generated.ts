@@ -1549,7 +1549,9 @@ export interface components {
          *     or failed. `restorable` is true when the answer recorded for the message holds items to confirm (`choices`) or
          *     run and group suggestions (`assignments`): the listing carries the text only, so after a reload the workspace
          *     offers the message's 「再送」 to read them again, which the record answers without a model call while the context
-         *     is unchanged. Nothing here changes settings.
+         *     is unchanged. `suggests_assignments` names the second kind apart: the experiment table shows the suggestions
+         *     whichever message is the latest, while items to confirm are offered under the latest message only. Nothing here
+         *     changes settings.
          */
         AssistantMessage: {
             /** Id */
@@ -1580,6 +1582,11 @@ export interface components {
             effect: "none" | "settings" | "run";
             /** Restorable */
             restorable: boolean;
+            /**
+             * Suggests Assignments
+             * @default false
+             */
+            suggests_assignments: boolean;
         };
         /** AssistantMessages */
         AssistantMessages: {

@@ -88,8 +88,9 @@ message, which the cache answers without the model when the context is unchanged
 (`intent: answer`) has no settings: its message carries `applicable: null` and offers no application.
 The listing carries the text of an answer, not its items to confirm or its run and group suggestions. Each
 message therefore says whether the proposal recorded for it holds any (`restorable`, read from the draft the
-message points to; false without one). For such a message the workspace offers 「再送」 after a reload (for a
-question's answer, as the latest message). The resend is answered from the record when the request is the same as
+message points to; false without one). For such a message the workspace offers 「再送」 after a reload: for
+items to confirm as the latest message, where they are offered, and for run and group suggestions
+(`suggests_assignments`) from any message, since the experiment table shows them. The resend is answered from the record when the request is the same as
 the one recorded; a message that continued an earlier proposal, or a workspace whose context has changed since,
 is another request and calls the model, so the workspace asks before any resend.
 The text of messages and answers stays in the workspace database and is never logged.

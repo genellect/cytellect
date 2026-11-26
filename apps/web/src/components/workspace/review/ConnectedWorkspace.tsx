@@ -4,7 +4,7 @@ import {nclObjectDetector} from "@/lib/workspace/nucleolar-definition";
 import type {GroupingIssue} from "@/lib/workspace/grouping";
 import {Suspense,useEffect,useEffectEvent,useMemo,useReducer,useRef,useState,useSyncExternalStore,type CSSProperties,type DragEvent,type ReactNode} from "react";
 import {useSearchParams} from "next/navigation";
-import {IntakeInterrupted,NUCLEAR_STAIN_REQUIRED,useWorkspaceRuntime,type IntakeOutcome,type RuntimeSettings} from "@/lib/workspace/use-workspace-runtime";
+import {ADD_STOPPED,IntakeInterrupted,NUCLEAR_STAIN_REQUIRED,useWorkspaceRuntime,type IntakeOutcome,type RuntimeSettings} from "@/lib/workspace/use-workspace-runtime";
 import type {ReviewField,ReviewTarget} from "@/lib/workspace/review-preview";
 import {metricChoice,metricForSubject,metricStructure,metricTarget,metricUsesChannel,nucleusPositivity} from "@/lib/workspace/metric-catalog";
 import {MetricSelect} from "./MetricSelect";
@@ -550,7 +550,7 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
     const refused=intakeItems.filter(item=>item.state==="読み取れない"&&item.file);
     // One line for the whole 追加, however many calls of registration it took (#284 inputs 2 and 5: it can be checked).
     const total:IntakeOutcome={registered:[],rejected:[],held:[],duplicates:[],skipped:[]};
-    const count=(outcome:IntakeOutcome)=>{total.registered.push(...outcome.registered);total.rejected.push(...outcome.rejected);total.held.push(...outcome.held);total.duplicates.push(...outcome.duplicates);total.skipped.push(...outcome.skipped);};
+    const count=(outcome:IntakeOutcome)=>{total.registered.push(...outcome.registered);total.rejected.push(...outcome.rejected);total.held.push(...outcome.held);total.duplicates.push(...outcome.duplicates);total.skipped.push(...outcome.skipped);if(outcome.stopped)total.stopped=true;};
     let first:string|undefined;const done:string[]=[];
     try{
       // The additions are the list's own split (the fields it shows, each with its run and group).
@@ -560,13 +560,20 @@ await act(()=>r.run(target,range==="selected"?field?.id:undefined));}
         try{const outcome=await (addition.separate?r.importSeparately(files,addition.target):r.importFiles(files,"automatic",addition.target));
           first??=outcome.registered[0]?.fieldId;count(outcome);done.push(...ready.map(item=>item.id));}
         catch(error){
-          // An interrupted addition: what was registered leaves the list; the rest stays to be added again.
-          if(error instanceof IntakeInterrupted){const names=new Set(error.outcome.registered.flatMap(item=>item.names));done.push(...ready.filter(item=>names.has(item.name)).map(item=>item.id));count(error.outcome);}
-          throw error;}
+          // An interrupted addition: what was registered, refused (it has its row) or found to be a copy leaves the
+          // list; the rest stays to be added again.
+          if(!(error instanceof IntakeInterrupted))throw error;
+          const settled=new Set([...error.outcome.registered.flatMap(item=>item.names),...error.outcome.rejected.flatMap(item=>item.names),...error.outcome.duplicates.map(item=>item.name)]);
+          done.push(...ready.filter(item=>settled.has(item.name)).map(item=>item.id));count(error.outcome);
+          // 実行を中止 is the researcher's own action: reported in the status line, not as an error.
+          if(error.message!==ADD_STOPPED)throw error;
+          r.dismissError();break;}
       }
-      await r.recordRefused(refused.map(item=>({names:[item.name],code:item.code??"unsupported_or_invalid_region_image",target:item.target})));
-      done.push(...refused.map(item=>item.id));
-      total.rejected.push(...refused.map(item=>({entry:"recorded",names:[item.name],code:item.code??"unsupported_or_invalid_region_image"})));
+      if(!total.stopped){
+        await r.recordRefused(refused.map(item=>({names:[item.name],code:item.code??"unsupported_or_invalid_region_image",target:item.target})));
+        done.push(...refused.map(item=>item.id));
+        total.rejected.push(...refused.map(item=>({entry:"recorded",names:[item.name],code:item.code??"unsupported_or_invalid_region_image",stage:"inspect" as const})));
+      }
     }finally{
       intakeList.clear(done);
       r.reportIntake(total);

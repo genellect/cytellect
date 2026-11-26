@@ -38,10 +38,11 @@ API's reason code (a 32-bit integer label image is shown as a mask candidate, no
 image whose answer never arrived stays 「登録未完了」. Rows keep their names after a reload.
 A row is resolved by 「差し替え」 (choosing all of its files again, sent under the same row key, so no
 second row or field is made) or removed with 「記録から削除」. A row whose upload was interrupted (登録未完了) is also
-resolved by adding images of the same names again to where it was going (the same run and group, or a row without
-one); a refused row, or a row of another group, is another image's record and stays. An addition that ends early
+resolved by adding images of the same names again to where it was going (the same run and group, or none for
+both); a refused row, or a row going elsewhere, is another image's record and stays. An addition that ends early
 (no answer before or while sending, a changed workspace, 実行を中止) keeps nothing unsent: a later addition never
-sends its images on its own, and they stay in the list of chosen files. Registered fields are placed in the run
+sends its images on its own, and they stay in the list of chosen files. 実行を中止 is reported in the status line
+(「登録：1 視野 · 追加：中止」), not as an error. Registered fields are placed in the run
 and group of their row when the addition ends and when the workspace opens again, never from the
 caller's returned IDs. The researcher is never asked for a reason: the comparison counts rows without
 a field in its n breakdown, by group and reason, from the selection saved with it. Every choice shows
@@ -65,9 +66,11 @@ stain the workspace has not recorded shows 「設定の適用には、核染色�
 instead: that records that channel's role as 染色対応 does (the other channels keep theirs; what the answer
 proposed for them is not recorded), applies nothing, and then offers the actions. An answer is judged against the
 field its message was sent for, also while a field with other channels is selected. 「再送」 is
-offered for a failed message, for one left 送信中 by a session that ended, for a refusal on the service's side and for
-an answer with settings, choices or run and group suggestions this session no longer holds (after a reload); it asks
-first, since it may call the model, and shows what is sent when this browser has not confirmed the scope. From prompt
+offered for a failed message, for one left 送信中 by a session that ended, for a refusal on the service's side and,
+after a reload, for an answer this session no longer holds: one with settings or with run and group suggestions
+from any message, one with items to confirm as the latest message (where they are offered). It asks first, since it
+may call the model, and shows what is sent when this browser has not confirmed the scope. An answer without an
+analysis (only a stain's role, say) offers nothing to apply: 「核染色に … を指定」 records what it settles. From prompt
 `2026-11-26.1` (W7) the answer declares the kind of request, which only chooses these actions: a question shows its
 answer and the items to confirm as buttons (a choice is sent as the next message), a settings request 「設定を適用」, and a
 run request its target fields (「対象：選択した視野 · …」 or 「対象：全視野 · n 視野」, excluded fields left out) and
@@ -101,8 +104,9 @@ the fields (W1) and records the unreadable files as rows with stage `inspect`; w
 shows next and what was not added waits behind 取込 n件 (the chosen files and the saved rows), so nothing that was
 read stands behind a clean-up. The line beside 取込 counts the whole 追加 (「登録：3 視野 · 読み取れない：2 件」),
 however many fields and cells it covered. 閉じる hides the list and keeps the chosen files. 追加して AI に質問 then opens the AI
-input. The names of files not yet added are kept for this tab and come back after a reload as 「再選択」 rows, on
-which the list opens by itself (the browser cannot keep the files). Images added from a group's cell are listed with
+input. The names of files not yet added are kept for this tab, with the cell each was chosen in, and come back after
+a reload as 「再選択」 rows, on which the list opens by itself (the browser cannot keep the files); a file chosen
+again goes where it was going. Images added from a group's cell are listed with
 that run and group, also in 実験. Notes on registered fields (a stain one field has and another lacks) are listed
 apart (チャンネルの構成の違い) and not counted. Choosing and judging go on while images register or an analysis runs;
 追加 waits for them. Development builds log the counts a choice delivered (no names or paths).
@@ -114,7 +118,8 @@ the run is accepted), 待機, 検出中, 検出候補 (candidates to review), �
 (「接続：確認中」) and never starts the same run again. When one field fails, the same run without it is requested
 again (its finished steps are reused, not recomputed) and the fields that succeeded are adopted; the failed field keeps
 「失敗」, its reason and 「再試行」. A nuclear detection asked for while no chosen field has a nuclear
-stain does not start and says so (「核の検出には、核染色の指定が必要です。」).
+stain does not start and says so (「核の検出には、核染色の指定が必要です。」, with 設定); in a run of several
+fields, a field without one fails as 「核染色の指定なし」.
 
 Statistics display cells/fields/independent units separately. The paired option is
 initially selected because synthetic controls and treatments share pair IDs. Confirm
