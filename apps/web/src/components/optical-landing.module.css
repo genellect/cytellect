@@ -405,44 +405,64 @@
 @keyframes lpFall{from{clip-path:polygon(47% 0,53% 0,53% 0,47% 0)}}
 
 /* ── The dark world (the landing page: `data-world="dark"` on its root). The composition, the measures and the
-   type are the page's own, unchanged; only the ground turns to the deep green of the brand and the text to
-   light. The install guide and the privacy page keep the light ground. */
-.page[data-world="dark"]{--fg:#f2f3ef;--ink:#f2f3ef;--rule:#f2f3ef2b;--line:#f2f3ef2b;--muted:#a9b5af;--ground:#0a1310;--paper:#101b17;--glass:linear-gradient(135deg,#ffffff1c,#ffffff0a);--lift:0 50px 100px -48px #000,0 2px 6px #00000066}
-.page[data-world="dark"] :is(a,button,summary):focus-visible{outline-color:#e7b8a4}
-.page[data-world="dark"] .header[data-tone="light"]{--h-fg:#f6f6f3;--h-bg:#0b14118c;--h-rule:#ffffff2e;box-shadow:none}
+   type are the page's own; the colour is new. The ground is a blue-black, and everything that glows on it (the
+   lines, the edges of the glass, the light behind the copy) runs from blue to cyan, the blue of the product's
+   own screens. The warm colour of culture medium is kept for one place: the patient at the end of the path.
+   A soft light follows the pointer over the dark sections (LandingSpotlight sets --mx and --my). The install
+   guide and the privacy page keep the light ground. */
+.page[data-world="dark"]{--fg:#f3f5fa;--ink:#f3f5fa;--rule:#f3f5fa24;--line:#f3f5fa24;--muted:#a4adbf;--ground:#05070d;--paper:#0b101b;--green:#070b16;--edge:#9db8ff3d;--blue:#4d7cff;--cyan:#42d9ff;
+  --ray:linear-gradient(90deg,var(--blue),var(--cyan));--spot:radial-gradient(560px circle at var(--mx,-999px) var(--my,-999px),#4d7cff21,#4d7cff00 70%);
+  --glass:linear-gradient(135deg,#9db8ff1f,#9db8ff0a);--lift:0 50px 100px -48px #000,0 2px 6px #00000066}
+.page[data-world="dark"] :is(a,button,summary):focus-visible{outline-color:var(--cyan)}
+.page[data-world="dark"] .header,.page[data-world="dark"] .header[data-tone="light"]{--h-fg:#f3f5fa;--h-bg:#070b1699;--h-rule:var(--edge);box-shadow:none}
 .page[data-world="dark"] .header[data-tone="light"] .navigation .navDownload{color:var(--green)!important}
-.page[data-world="dark"] .primary{border-color:#f6f6f3;background:#f6f6f3;color:var(--green)!important}
-.page[data-world="dark"] .primary:hover{background:#fff}
-.page[data-world="dark"] .secondary{border-color:#f2f3ef80;color:#f2f3ef!important}
-.page[data-world="dark"] .secondary:hover{background:#ffffff14}
-.page[data-world="dark"] .button{border-color:#f2f3ef40;background:#ffffff14}
-.page[data-world="dark"] .button:hover{border-color:#f2f3ef;background:#ffffff29}
-.page[data-world="dark"] .mission{background:radial-gradient(48% 60% at 82% 78%,#e7b8a438,#e7b8a400 70%),radial-gradient(60% 50% at 30% 10%,#2f6f5859,#2f6f5800 70%),linear-gradient(180deg,#0c1613,var(--ground))}
-.page[data-world="dark"] .tablist{border-color:#ffffff2e;background:linear-gradient(135deg,#ffffff1f,#ffffff0d);box-shadow:0 24px 50px -30px #000,inset 0 1px 0 #ffffff1f}
-.page[data-world="dark"] .tabPill{background:#f2f3ef;box-shadow:none}
-.page[data-world="dark"] .tabSweep{background:#13221dbf}
-.page[data-world="dark"] .tab:hover{background:#ffffff14}
+.page[data-world="dark"] .primary{border-color:#f3f5fa;background:#f3f5fa;color:var(--green)!important;transition:background .2s,box-shadow .3s}
+.page[data-world="dark"] .primary:hover{background:#fff;box-shadow:0 0 0 1px var(--cyan),0 14px 44px -14px #4d7cffd9}
+.page[data-world="dark"] .secondary{border-color:var(--edge);background:#4d7cff14;color:#f3f5fa!important}
+.page[data-world="dark"] .secondary:hover{border-color:var(--cyan);background:#4d7cff29}
+.page[data-world="dark"] .button{border-color:var(--edge);background:#4d7cff14}
+.page[data-world="dark"] .button:hover{border-color:var(--cyan);background:#4d7cff29}
+.page[data-world="dark"] .heroShade{background:linear-gradient(90deg,#05070db3 0%,#05070d66 34%,#05070d00 64%)}
+.page[data-world="dark"] .eyebrow>span::after{width:44px;background:var(--ray);opacity:1}
+.page[data-world="dark"] .mission{background:radial-gradient(48% 60% at 84% 76%,#4d7cff47,#4d7cff00 70%),radial-gradient(52% 50% at 24% 6%,#8b78f02e,#8b78f000 70%),linear-gradient(180deg,#070a13,var(--ground))}
+.page[data-world="dark"] .experience{background:var(--spot) fixed,var(--ground)}
+.page[data-world="dark"] .tablist{border-color:var(--edge);background:linear-gradient(135deg,#9db8ff1f,#9db8ff0a);box-shadow:0 24px 50px -30px #000,inset 0 1px 0 #9db8ff24}
+.page[data-world="dark"] .tabPill{background:#f3f5fa;box-shadow:0 0 34px -6px #4d7cffb3}
+.page[data-world="dark"] .tabSweep{background:var(--ray)}
+.page[data-world="dark"] .tab:hover{background:#9db8ff1a}
 .page[data-world="dark"] .tab[aria-selected="true"]{color:var(--green)}
 .page[data-world="dark"] .tab[aria-selected="true"]:hover{background:none}
-.page[data-world="dark"] .switchArrow{border-color:#ffffff2e;background:#ffffff14;box-shadow:none}
-.page[data-world="dark"] .switchArrow:hover{border-color:#f2f3ef;background:#f2f3ef;color:var(--green)}
-.page[data-world="dark"] .params li{border-color:#f2f3ef40;background:#ffffff0f}
-.page[data-world="dark"] :is(.plateBack,.plate,.plateWide){border-color:#ffffff2e}
-.page[data-world="dark"] .plates[data-kind="strip"]{background:radial-gradient(70% 90% at 90% 100%,#e7b8a433,#e7b8a400 70%),var(--paper)}
-.page[data-world="dark"] .experienceVeil{background:linear-gradient(90deg,var(--ground) 0%,#0a1310f2 35%,#0a1310a6 45%,#0a131000 57%),linear-gradient(180deg,var(--ground) 0%,#0a131000 14%,#0a131000 84%,var(--ground) 100%)}
+.page[data-world="dark"] .switchArrow{border-color:var(--edge);background:#4d7cff14;box-shadow:none}
+.page[data-world="dark"] .switchArrow:hover{border-color:var(--cyan);background:#f3f5fa;color:var(--green)}
+.page[data-world="dark"] .params li{border-color:var(--edge);background:#4d7cff14}
+/* The two figures a researcher looks for first, in the light of the page. */
+.page[data-world="dark"] .numbers strong{width:fit-content;background:linear-gradient(90deg,#f3f5fa 35%,#8fe6ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.page[data-world="dark"] :is(.plateBack,.plate,.plateWide){border-color:var(--edge)}
+.page[data-world="dark"] .plates[data-kind="strip"]{background:radial-gradient(70% 90% at 90% 100%,#4d7cff3d,#4d7cff00 70%),var(--paper)}
+.page[data-world="dark"] .experienceVeil{background:linear-gradient(90deg,var(--ground) 0%,#05070df2 35%,#05070da6 45%,#05070d00 57%),linear-gradient(180deg,var(--ground) 0%,#05070d00 14%,#05070d00 84%,var(--ground) 100%)}
 /* Reasons: the bench keeps its own light; the claim above it stands on the dark, the four reasons in dark glass. */
 .page[data-world="dark"] .reasonsPhoto{mask-image:linear-gradient(180deg,#0000 0%,#0000 22%,#000 52%,#000 100%)}
-.page[data-world="dark"] .loop li{border-color:#ffffff38;background:linear-gradient(135deg,#0a1310e6,#0a1310b8)}
-.page[data-world="dark"] .journey::before{background:linear-gradient(90deg,#f2f3ef1f,#f2f3ef59 60%,#e7b8a4)}
-.page[data-world="dark"] .stop::before{background:#f2f3ef}
-.page[data-world="dark"] .stop+.stop::before{background:#e7b8a4}
-.page[data-world="dark"] .stop>p{color:#d6dbd7}
-.page[data-world="dark"] .nextSteps{box-shadow:0 0 0 1px #ffffff2e,0 18px 40px #000}
-.page[data-world="dark"] .footer{background:#070d0b}
+.page[data-world="dark"] .loop li{position:relative;border-color:var(--edge);background:linear-gradient(135deg,#070b16eb,#070b16bd)}
+.page[data-world="dark"] .loop li::before{content:"";position:absolute;left:24px;right:24px;top:-1px;height:1px;background:var(--ray);opacity:.9}
+/* Impact: the path runs from the blue of the bench to the warm colour of the patient. */
+.page[data-world="dark"] .impactPanel{background:radial-gradient(46% 90% at 86% 100%,#e7b8a433,#e7b8a400 70%),radial-gradient(60% 120% at 8% 0%,#4d7cff52,#4d7cff00 70%),radial-gradient(40% 80% at 52% 0%,#8b78f026,#8b78f000 70%),#080c18;color:#f3f5fa}
+.page[data-world="dark"] .path::before{background:linear-gradient(90deg,#4d7cff40,#6fc3ffb3 55%,#e7b8a4)}
+.page[data-world="dark"] .path li::before{background:#cfe3ff}
+.page[data-world="dark"] .path li:last-child::before{background:#e7b8a4}
+.page[data-world="dark"] .invite::before{background:linear-gradient(0deg,#05070de0 0%,#05070d8c 38%,#05070d14 72%),linear-gradient(90deg,#05070d80,#05070d00 62%)}
+.page[data-world="dark"] .download{background:var(--spot) fixed,radial-gradient(60% 40% at 88% 0%,#4d7cff24,#4d7cff00 70%),var(--ground)}
+.page[data-world="dark"] .journey::before{background:linear-gradient(90deg,#4d7cff40,#6fc3ffb3 60%,var(--cyan))}
+.page[data-world="dark"] .stop::before{background:#cfe3ff}
+.page[data-world="dark"] .stop+.stop::before{background:var(--cyan);box-shadow:0 0 48px 14px #42d9ff59}
+.page[data-world="dark"] .stop>p{color:#d3d9e6}
+.page[data-world="dark"] .nextSteps{background:#0b101b;box-shadow:0 0 0 1px var(--edge),0 18px 40px #000}
+.page[data-world="dark"] .nextSteps::before{background:#0b101b}
+.page[data-world="dark"] .footer{background:#03050a}
 @media(max-width:1100px){
-  .page[data-world="dark"] .header>div>nav{background:#101b17}
+  .page[data-world="dark"] .header>div>nav{background:#0b101b;border-color:var(--edge)}
 }
 @media(max-width:760px){
+  .page[data-world="dark"] .heroShade{background:linear-gradient(180deg,#05070db3 0%,#05070d73 42%,#05070d00 74%)}
   .page[data-world="dark"] .reasonsPhoto{mask-image:linear-gradient(180deg,#0000 0%,#000 30%)}
-  .page[data-world="dark"] .path::before{background:linear-gradient(180deg,#f2f3ef26,#f2f3ef99 55%,#e7b8a4)}
+  .page[data-world="dark"] .path::before{background:linear-gradient(180deg,#4d7cff40,#6fc3ffb3 55%,#e7b8a4)}
 }

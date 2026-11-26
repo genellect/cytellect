@@ -4,6 +4,7 @@ import { LandingAnalytics } from "./LandingAnalytics";
 import { ProductMenu } from "./ProductMenu";
 import { HeroFilm } from "./HeroFilm";
 import { HeroSpace } from "./HeroSpace";
+import { LandingSpotlight } from "./LandingSpotlight";
 import { LandingExperience, type FeatureLinks } from "./LandingExperience";
 import { LandingHeaderTone } from "./LandingHeaderTone";
 import { LightField } from "./LightField";
@@ -39,6 +40,7 @@ export default function PublicLanding() {
     <a className={styles.skipLink} href="#main">本文へ</a>
     <header className={lp.header} data-lp-header data-tone="dark"><LandingHomeLink className={lp.wordmark} /><nav className={lp.navigation} aria-label="メインナビゲーション"><NavigationLinks /></nav><ProductMenu><NavigationLinks /></ProductMenu></header>
     <LandingHeaderTone />
+    <LandingSpotlight />
     <main id="main">
       <section id="top" className={lp.hero} data-tone="dark" aria-labelledby="hero-title">
         <HeroFilm />

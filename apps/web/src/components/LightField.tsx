@@ -3,8 +3,8 @@
 import { useEffect, useRef } from "react";
 import lp from "./optical-landing.module.css";
 
-/** Light through glass in a dark room: a slow WebGL gradient behind the mission statement, in the deep green
- *  of the page with the warm colour of culture medium. The CSS gradient under it stands in when motion is
+/** Light through glass in a dark room: a slow WebGL gradient behind the mission statement, in the blue-black
+ *  of the page with its blue and violet light. The CSS gradient under it stands in when motion is
  *  reduced or WebGL is unavailable, and the field stops while it is off screen. */
 const FRAGMENT = `#version 300 es
 precision highp float;uniform vec2 res;uniform float time;out vec4 color;
@@ -14,12 +14,13 @@ float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*noise(p);p=p*2.03+ve
 void main(){
   vec2 uv=gl_FragCoord.xy/res;vec2 p=uv*vec2(res.x/res.y,1.);float t=time*.035;
   float flow=fbm(p*1.25+vec2(t,-t*.6));float fine=fbm(p*3.2+flow*1.6-vec2(t*1.4,0.));
-  vec3 c=mix(vec3(.039,.075,.063),vec3(.055,.105,.088),smoothstep(0.,1.,uv.y*.8+flow*.35));
+  vec3 c=mix(vec3(.02,.027,.051),vec3(.03,.045,.095),smoothstep(0.,1.,uv.y*.8+flow*.35));
   vec2 m=uv-vec2(.8+.04*sin(time*.05),.24+.05*cos(time*.04));
-  c+=vec3(.6,.36,.28)*exp(-dot(m*vec2(1.,1.5),m*vec2(1.,1.5))*6.)*(.3+.2*fine);
+  c+=vec3(.22,.38,1.)*exp(-dot(m*vec2(1.,1.5),m*vec2(1.,1.5))*6.)*(.42+.3*fine);
+  vec2 v=uv-vec2(.2,.92);c+=vec3(.42,.34,.95)*exp(-dot(v,v)*5.)*(.14+.1*flow);
   float sheen=pow(.5+.5*sin((p.x*.7+p.y*.45)*2.4+flow*2.2+time*.05),3.);
-  c+=vec3(.5,.75,.68)*sheen*smoothstep(.3,.95,uv.x)*.04;
-  c+=vec3(.1,.26,.21)*smoothstep(.62,.95,fine)*.3*smoothstep(.3,1.,uv.x);
+  c+=vec3(.3,.8,1.)*sheen*smoothstep(.3,.95,uv.x)*.05;
+  c+=vec3(.1,.2,.5)*smoothstep(.62,.95,fine)*.3*smoothstep(.3,1.,uv.x);
   c+=(hash(gl_FragCoord.xy+time)-.5)*.01;
   color=vec4(c,1.);}`;
 const VERTEX = `#version 300 es

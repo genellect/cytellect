@@ -69,28 +69,29 @@ void main(){
   float shape=1.-smoothstep(-aa,aa,outer);
   vec2 inner=size*.5-bezel;float inside=1.-smoothstep(-aa,aa,box(p,inner,max(radius-bezel,.004)));
   vec3 tex=texture2D(map,(p+inner)/(2.*inner)).rgb;
-  vec3 glass=vec3(.075,.085,.08)+.05*vUv.y;
+  vec3 glass=vec3(.06,.075,.12)+.05*vUv.y;
   float rim=1.-smoothstep(0.,aa*3.,abs(outer+aa*1.6));
-  vec3 color=mix(glass,tex,inside)+vec3(.95,.78,.7)*rim*.42*(1.-inside);
-  color=mix(color,vec3(.039,.075,.063),dim*.85);
+  vec3 color=mix(glass,tex,inside)+vec3(.72,.86,1.)*rim*.5*(1.-inside);
+  color=mix(color,vec3(.02,.027,.051),dim*.85);
   gl_FragColor=vec4(color,shape*mix(.78,1.,inside)*opacity);
 }`;
-/** The plate's soft warm glow in the dark behind it. */
+/** The plate's soft blue glow in the dark behind it. */
 const SHADOW_FRAGMENT = /* glsl */`
 uniform vec2 size;uniform float spread;uniform float opacity;varying vec2 vUv;
 float box(vec2 p,vec2 b,float r){vec2 q=abs(p)-b+r;return length(max(q,0.))+min(max(q.x,q.y),0.)-r;}
 void main(){vec2 p=(vUv-.5)*(size+spread*2.);float d=max(box(p,size*.5,.2),0.);float a=exp(-d*d/(spread*spread*.32));
-  gl_FragColor=vec4(.91,.62,.5,a*.09*opacity);}`;
-/** The space itself: the dark green of the page, a little lighter toward the floor, with the warm colour of
- *  culture medium gathering behind the conclusion. */
+  gl_FragColor=vec4(.3,.49,1.,a*.14*opacity);}`;
+/** The space itself: the blue-black of the page, a little lighter toward the floor, with blue light gathering
+ *  behind the screen in view (more of it behind the conclusion). */
 const ROOM_FRAGMENT = /* glsl */`
 uniform float warm;uniform float time;varying vec2 vUv;
 float hash(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
 void main(){vec2 uv=vUv;
-  vec3 color=mix(vec3(.047,.086,.073),vec3(.039,.075,.063),smoothstep(.15,.85,uv.y));
+  vec3 color=mix(vec3(.03,.042,.082),vec3(.02,.027,.051),smoothstep(.15,.85,uv.y));
   vec2 g=uv-vec2(.66+.02*sin(time*.11),.42+.02*cos(time*.09));
-  color+=vec3(.72,.42,.3)*exp(-dot(g*vec2(1.3,1.9),g*vec2(1.3,1.9))*5.)*(.06+.2*warm);
-  vec2 h=uv-vec2(.36,.86);color+=vec3(.02,.05,.04)*exp(-dot(h,h)*7.);
+  color+=vec3(.2,.36,1.)*exp(-dot(g*vec2(1.3,1.9),g*vec2(1.3,1.9))*5.)*(.14+.2*warm);
+  vec2 k=uv-vec2(.9,.84);color+=vec3(.36,.3,.9)*exp(-dot(k,k)*6.)*.1;
+  vec2 h=uv-vec2(.36,.86);color+=vec3(.03,.1,.16)*exp(-dot(h,h)*7.);
   color+=(hash(uv*vec2(1733.,977.)+time)-.5)*.008;
   gl_FragColor=vec4(color,1.);}`;
 
@@ -113,7 +114,7 @@ export async function mountExperience(host: HTMLElement, panels: ExperiencePanel
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
   renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  renderer.setClearColor(0x0a1310, 1);
+  renderer.setClearColor(0x05070d, 1);
   host.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();

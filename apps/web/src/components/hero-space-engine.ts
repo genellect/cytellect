@@ -19,7 +19,7 @@ const APOTHEM = WIDTH / (2 * Math.tan(Math.PI / SIDES));
 const FILL = 0.84;
 /** Where the hero's copy leaves the film free: on a narrow screen the view rests a little right of centre. */
 const FOCUS = 0.62;
-const GROUND = 0x0a1310;
+const GROUND = 0x05070d;
 
 const VERTEX = /* glsl */`varying vec2 vUv;varying vec3 vWorld;void main(){vUv=uv;vec4 w=modelMatrix*vec4(position,1.);vWorld=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}`;
 /** A screen: the film, with a hairline of light along its edges. */
@@ -29,7 +29,7 @@ void main(){
   vec3 c=texture2D(map,vUv).rgb;
   vec2 e=min(vUv,1.-vUv)*vec2(${WIDTH}.,${HEIGHT}.);
   float rim=exp(-min(e.x,e.y)*42.);
-  gl_FragColor=vec4(c*lit+vec3(.95,.86,.8)*rim*.5*lit,1.);
+  gl_FragColor=vec4(c*lit+vec3(.72,.86,1.)*rim*.6*lit,1.);
 }`;
 /** The same screen in the polished floor or ceiling: sharp where they meet, softer and fainter further away. */
 const MIRROR = /* glsl */`
