@@ -53,6 +53,7 @@ from .descriptive import register_descriptive_routes
 from .discussions import register_discussion_routes
 from .field_links import register_field_link_routes
 from .figure_render import register_figure_render_routes
+from .intake import register_intake_routes
 from .nucleus_tables import register_nucleus_table_routes
 from .openapi import register_contract_schemas
 from .planning import bind_revision_plan, inherit_plan_resolution, register_planning_routes
@@ -1171,5 +1172,6 @@ def create_app(settings: Settings | None = None, *, proposal_credentials=None):
     register_figure_render_routes(api, store, owner, job_record, queue)
     register_app_update_routes(api, settings, owner)
     register_region_cohort_routes(api, store, owner, workspace, revision, result_root, queue)
+    register_intake_routes(api, store, settings, owner)
     register_contract_schemas(api, PreviewDisplayMetadata, PagedDescriptiveOutput, PagedDescriptiveResult)
     return api

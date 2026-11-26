@@ -20,7 +20,7 @@ from cytellect_analysis.gfp_gate import (
     control_thresholds,
     exploratory_thresholds,
 )
-from cytellect_analysis.images import read_tiff, render_preview_with_display, sha256
+from cytellect_analysis.images import render_preview_with_display, sha256
 from cytellect_analysis.masks import contours
 from cytellect_analysis.region_contracts import (
     RegionAnalysisRequest,
@@ -45,7 +45,14 @@ from .openapi import register_contract_schemas
 from .planning import bind_revision_plan, inherit_plan_resolution
 from .public_uploads import require_registered
 from .region_enqueue import enqueue_region, validate_region_request
-from .region_inputs import read_label_tiff
+from .region_inputs import (
+    GENERIC_IMAGE_CODE,
+    REGION_IMAGE_ERRORS,
+    REGION_LABEL_ERRORS,
+    RegionReadError,
+    read_label_tiff,
+    read_region_channel,
+)
 from .region_ome import register_region_ome_routes
 from .storage import read_json
 
@@ -129,21 +136,6 @@ class GfpGateRequest(BaseModel):
             raise ValueError("gfp_exploratory_gate_has_no_control_fields")
         return self
 
-
-# Reader causes a researcher can act on, by the slot being read; other causes keep the generic code.
-REGION_IMAGE_ERRORS = {
-    "uint8_or_uint16_required": "region_image_bit_depth_unsupported",
-    "only_2d_supported": "region_image_not_2d",
-    "grayscale_axes_required": "region_image_not_grayscale",
-    "explicit_channels_required": "region_image_multichannel_requires_ome",
-    "channel_dimensions_mismatch": "region_channel_dimensions_mismatch",
-    "pixel_limit": "region_image_pixel_limit",
-}
-REGION_LABEL_ERRORS = {
-    "single_label_plane_required": "region_labels_single_plane_required",
-    "original_coordinate_integer_labels_required": "region_labels_shape_or_type_mismatch",
-    "label_plane_incomplete": "region_labels_incomplete",
-}
 
 def register_region_routes(api, store, settings, owner, workspace, revision,
                            field_record, result_root, queue, touch, child_revision):
@@ -252,7 +244,8 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
             shape = None
             arrays = {}
             for i, channel in enumerate(spec.channels):
-                pixels = read_tiff(folder / f"ch{i}.tif", legacy=spec.input_mode == "display-rgb")
+                # The intake inspection reads with the same function, so both name the same cause (#284 W4).
+                pixels = read_region_channel(folder / f"ch{i}.tif", spec.input_mode)
                 if shape is not None and pixels.shape != shape:
                     raise ValueError("channel_dimensions_mismatch")
                 shape = pixels.shape
@@ -299,11 +292,13 @@ def register_region_routes(api, store, settings, owner, workspace, revision,
             return result
         except HTTPException:
             raise
+        except RegionReadError as exc:
+            raise HTTPException(422, exc.code) from None
         except ValueError as exc:
             # Only known reader causes are named; never the exception text, which can carry paths or bytes.
-            raise HTTPException(422, reading.get(str(exc), "unsupported_or_invalid_region_image")) from None
+            raise HTTPException(422, reading.get(str(exc), GENERIC_IMAGE_CODE)) from None
         except Exception:
-            raise HTTPException(422, "unsupported_or_invalid_region_image") from None
+            raise HTTPException(422, GENERIC_IMAGE_CODE) from None
         finally:
             if not keep_folder:
                 shutil.rmtree(folder)

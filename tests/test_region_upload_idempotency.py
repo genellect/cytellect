@@ -143,13 +143,13 @@ def test_simultaneous_requests_commit_one_field_and_one_quota_charge(tmp_path, m
         second_spec["metadata"]["condition"] = "other"
     rendezvous = []
     barrier = Barrier(2, action=lambda: rendezvous.append(True))
-    original = region_api.read_tiff
+    original = region_api.read_region_channel
 
-    def synchronized_decode(path, **kwargs):
+    def synchronized_decode(path, input_mode):
         barrier.wait(timeout=15)  # Both passed the pre-decode lookup with no committed field.
-        return original(path, **kwargs)
+        return original(path, input_mode)
 
-    monkeypatch.setattr(region_api, "read_tiff", synchronized_decode)
+    monkeypatch.setattr(region_api, "read_region_channel", synchronized_decode)
     # Start both ASGI portals before synchronizing requests. Cold portal startup
     # is not part of the upload race and must not consume its barrier deadline.
     with client, TestClient(client.app) as other:

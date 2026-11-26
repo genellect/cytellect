@@ -16,6 +16,11 @@ export interface IntakeTarget {run_id: string; group_id: string; sample: string 
 /** What the app recorded about one attempted field (#284): its files, how far it got and why it stopped. Values
  * that do not apply are omitted, as the API stores them. File names are research data and stay on this PC. */
 export interface IntakeRecord {names: string[]; state: "pending" | "rejected" | "registered"; stage?: "inspect" | "register"; code?: string; target?: IntakeTarget; separate?: true}
+/** What registration would make of one selected file (#284 W4): image, 32-bit integer label image or unreadable, with
+ * registration's reason code, the shape, type, OME channel names, SHA-256 and a small display PNG. The API stores nothing. */
+export type IntakeInspection = components["schemas"]["IntakeInspection"];
+/** The registration route a file would take: grayscale, RGB display image or OME (`tiffInputMode`, `tiffHasOmeMetadata`). */
+export type IntakeKind = IntakeInspection["kind"];
 export interface SelectionEntry {id: string; field_id: string | null; revision_id: string | null; exclusion_reason: string | null; target_revisions?: Partial<Record<"nuclei" | "gfp" | "ncl" | "nucleoli" | "nucleoplasm" | "cell", string>>; intake?: IntakeRecord}
 export interface WorkspaceSelection {version: number; entries: SelectionEntry[]}
 export interface ChannelAssignment {channel_id: string; stain: string | null; role: "nuclear" | "measure" | "unused"}
@@ -334,6 +339,11 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       const uploaded=await client.request<ImportedField>(`/v1/workspaces/${workspace}/region-fields/ome`,{method:"POST",body:data});
       await settleImport(workspace,entryId,uploaded.id);
       return uploaded;
+    },
+    /** Judges one file before registration with registration's own readers; nothing is saved and no workspace is needed. */
+    async inspect(file: File, kind: IntakeKind, signal?: AbortSignal) {
+      const data = new FormData(); data.set("kind", kind); data.set("file", file);
+      return client.request<IntakeInspection>("/v1/intake/inspect", {method: "POST", body: data, signal});
     },
     async preview(field: string, channel: string) { return client.blob(`/v1/region-fields/${field}/preview?channel_id=${encodeURIComponent(channel)}&gain=1`); },
     async run(workspace: string, field: string, recipe: Recipe, onState?: (state: string) => void, measurement: MeasurementPolicy = rawMeasurement, options: {adopt?: boolean} = {}) {

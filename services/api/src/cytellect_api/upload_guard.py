@@ -12,6 +12,8 @@ from starlette.responses import JSONResponse
 from .db import digest, fields, sessions, workspaces
 
 UPLOAD_ROUTE = re.compile(r"^/v1/workspaces/([^/]+)/(fields|region-fields|tables)$")
+# The intake inspection (#284 W4) names no workspace; it is authenticated and bounded like a field upload.
+INTAKE_ROUTE = "/v1/intake/inspect"
 
 
 class UploadGuardMiddleware:
@@ -34,8 +36,9 @@ class UploadGuardMiddleware:
         self.active = 0
 
     async def __call__(self, scope, receive, send):
-        route = UPLOAD_ROUTE.fullmatch(scope.get("path", ""))
-        if scope["type"] != "http" or scope.get("method") != "POST" or route is None:
+        path = scope.get("path", "")
+        route = UPLOAD_ROUTE.fullmatch(path)
+        if scope["type"] != "http" or scope.get("method") != "POST" or (route is None and path != INTAKE_ROUTE):
             await self.app(scope, receive, send)
             return
 
@@ -50,31 +53,38 @@ class UploadGuardMiddleware:
         if not session or session["revoked"] or session["expires"] <= now:
             await reject(401, "session_required")
             return
-        wid, kind = route.groups()
-        workspace = self.store.one(workspaces, id=wid)
-        if not self.store.workspace_is_live(workspace, now) or workspace["owner"] != session["owner"]:
-            await reject(404, "workspace_not_found")
-            return
-        if self.settings.demo:
-            await reject(403, "demo_uploads_disabled")
-            return
-        # Generic uploads carry their retry key inside the multipart JSON. A
-        # full workspace must still reach its atomic key/fingerprint lookup;
-        # otherwise a lost success response cannot be recovered at quota.
-        retryable = kind == "region-fields"
-        if not retryable and kind != "tables" and len(self.store.rows(fields, workspace_id=wid)) >= self.settings.max_fields:
-            await reject(413, "workspace_limit")
-            return
-        remaining = self.settings.max_upload_bytes - workspace["bytes"]
-        if not retryable and remaining <= 0:
-            await reject(413, "workspace_limit")
-            return
+        if route is None:
+            # An inspection stores nothing, so no workspace quota applies to it; the per-file limit does.
+            if self.settings.demo:
+                await reject(403, "demo_uploads_disabled")
+                return
+            limit = self.field_limit
+        else:
+            wid, kind = route.groups()
+            workspace = self.store.one(workspaces, id=wid)
+            if not self.store.workspace_is_live(workspace, now) or workspace["owner"] != session["owner"]:
+                await reject(404, "workspace_not_found")
+                return
+            if self.settings.demo:
+                await reject(403, "demo_uploads_disabled")
+                return
+            # Generic uploads carry their retry key inside the multipart JSON. A
+            # full workspace must still reach its atomic key/fingerprint lookup;
+            # otherwise a lost success response cannot be recovered at quota.
+            retryable = kind == "region-fields"
+            if not retryable and kind != "tables" and len(self.store.rows(fields, workspace_id=wid)) >= self.settings.max_fields:
+                await reject(413, "workspace_limit")
+                return
+            remaining = self.settings.max_upload_bytes - workspace["bytes"]
+            if not retryable and remaining <= 0:
+                await reject(413, "workspace_limit")
+                return
+            limit = self.field_limit if retryable else min(
+                self.table_limit if kind == "tables" else self.field_limit, remaining + 1024**2,
+            )
         if not request.headers.get("content-type", "").lower().startswith("multipart/form-data;"):
             await reject(415, "multipart_required")
             return
-        limit = self.field_limit if retryable else min(
-            self.table_limit if kind == "tables" else self.field_limit, remaining + 1024**2,
-        )
         length = request.headers.get("content-length")
         if length is not None:
             try:

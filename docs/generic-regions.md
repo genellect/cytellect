@@ -260,6 +260,39 @@ cannot reopen the upgraded database. Keep a compatible package for recovery;
 do not erase the database or create an automatic research-data backup to force
 a rollback. Download needed results before changing the installed application.
 
+### Inspection before registration
+
+`POST /v1/intake/inspect` judges one selected file before it is registered
+([#284](https://github.com/genellect/cytellect/issues/284) W4). It takes the file
+and the route the browser would register it by (`kind`: `native`, `display-rgb`
+or `ome`), and belongs to no workspace. It reads the file with the same functions
+as registration (`read_region_channel` for the channel slots of `/region-fields`,
+`read_region_ome_channels` for `/region-fields/ome`), so both name the same reason
+code for the same bytes; a test sends each sample to both. The answer gives:
+
+- `role`: `image` when registration would accept the file as a one-file field;
+  `label` for a 32-bit integer image, which registration refuses in a channel slot
+  with `region_image_bit_depth_unsupported`; otherwise `unreadable`. An 8- or
+  16-bit mask is an `image`: the role is never inferred from pixel content.
+- `code`: registration's reason code for a label or unreadable file.
+- `shape` and `dtype` of the decoded image (the stored shape of a label image),
+  the OME channel names in order (`null` where unnamed), the SHA-256 and size of
+  the bytes sent, which registration records as the field's inputs.
+- `thumbnail_png`: a base64 PNG of at most 256 px per side for display only. It
+  takes every n-th pixel of the decoded plane (the first channel of an OME file)
+  with the preview's default display, minimum to maximum and gain 1; a label image
+  shows its labelled pixels in white when registration's label reader accepts it.
+  The answer has no other display metadata and is not a measurement input.
+
+It judges only what one file shows: readability, type and shape. Channel shape
+agreement within a field, the four-channel limit and the workspace's field and
+byte limits stay with registration. The route has the field upload's
+authentication, Origin/CSRF, body, time and concurrency limits before parsing and
+its 256 MiB file limit, refuses demo installations and applies
+`CYTELLECT_UPLOAD_ALLOWLIST`. It saves no database row and no file: the bytes go
+to a fresh folder under the private `tmp` directory under a fixed name, which is
+removed before the answer, whatever the outcome. The file name is not read.
+
 ### Evidence boundaries
 
 The 2026-10-04 area source checkpoint passed 150 focused tests across

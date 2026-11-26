@@ -1314,6 +1314,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/intake/inspect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Inspect Intake */
+        post: operations["inspect_intake_v1_intake_inspect_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1855,6 +1872,16 @@ export interface components {
              * @enum {string}
              */
             mode: "experimental-unit" | "descriptive";
+        };
+        /** Body_inspect_intake_v1_intake_inspect_post */
+        Body_inspect_intake_v1_intake_inspect_post: {
+            /** File */
+            file: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "native" | "display-rgb" | "ome";
         };
         /** Body_upload_field_v1_workspaces__wid__fields_post */
         Body_upload_field_v1_workspaces__wid__fields_post: {
@@ -3539,6 +3566,48 @@ export interface components {
             channel_dtypes?: {
                 [key: string]: string;
             };
+        };
+        /**
+         * IntakeInspection
+         * @description What registration would make of one file. Nothing is stored; the file name is neither read nor returned.
+         */
+        IntakeInspection: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "native" | "display-rgb" | "ome";
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "image" | "label" | "unreadable";
+            /**
+             * Code
+             * @description Registration's reason code for a label or unreadable file; null for an image
+             */
+            code: string | null;
+            /** Sha256 */
+            sha256: string;
+            /** Bytes */
+            bytes: number;
+            /**
+             * Shape
+             * @description [Y, X] of a decoded image, or a label image's shape as stored in the file
+             */
+            shape: number[] | null;
+            /** Dtype */
+            dtype: string | null;
+            /**
+             * Channel Names
+             * @description OME channel names in order (null if unnamed); OME only
+             */
+            channel_names: (string | null)[] | null;
+            /**
+             * Thumbnail Png
+             * @description Base64 PNG of at most 256 px per side, for display only (first channel of an OME file)
+             */
+            thumbnail_png: string | null;
         };
         /**
          * IntakeTarget
@@ -10333,6 +10402,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    inspect_intake_v1_intake_inspect_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_inspect_intake_v1_intake_inspect_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntakeInspection"];
                 };
             };
             /** @description Validation Error */

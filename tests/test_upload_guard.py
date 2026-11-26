@@ -88,6 +88,34 @@ def test_rejects_before_first_body_read(case, expected, route):
     assert status(messages) == expected and reads == 0 and guard.active == 0
 
 
+@pytest.mark.parametrize("case,expected", [("no-session", 401), ("oversized-header", 413), ("demo", 403)])
+def test_intake_inspection_is_guarded_like_a_field_upload_without_a_workspace(case, expected):
+    store = AuthStore()
+    # The inspection names no workspace, so a missing one is no reason to refuse it.
+    store.workspace = None
+    scope = context(auth=case != "no-session") | {"path": "/v1/intake/inspect"}
+    if case == "oversized-header":
+        scope["headers"].append((b"content-length", str(257 * 1024**2 + 1).encode()))
+    configured = settings()
+    configured.demo = case == "demo"
+    guard = UploadGuardMiddleware(never_called, store, configured)
+    messages, reads = asyncio.run(invoke(guard, scope))
+    assert status(messages) == expected and reads == 0 and guard.active == 0
+
+
+def test_intake_inspection_has_no_workspace_quota():
+    async def accept(scope, receive, send):
+        await JSONResponse({"ok": True})(scope, receive, send)
+
+    store = AuthStore()
+    store.workspace = None
+    configured = settings()
+    configured.max_upload_bytes = 0
+    scope = context(extra=[(b"content-length", b"4")]) | {"path": "/v1/intake/inspect"}
+    messages, _ = asyncio.run(invoke(UploadGuardMiddleware(accept, store, configured), scope, [(b"body", False)]))
+    assert status(messages) == 200
+
+
 @pytest.mark.parametrize("false_small_length", [False, True])
 def test_stream_limit_closes_actual_spooled_files(monkeypatch, false_small_length):
     import starlette.formparsers as parsers

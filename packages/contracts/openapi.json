@@ -3952,6 +3952,44 @@
           }
         }
       }
+    },
+    "/v1/intake/inspect": {
+      "post": {
+        "summary": "Inspect Intake",
+        "operationId": "inspect_intake_v1_intake_inspect_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_inspect_intake_v1_intake_inspect_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntakeInspection"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -5367,6 +5405,30 @@
           "file"
         ],
         "title": "Body_import_table_v1_workspaces__wid__tables_post"
+      },
+      "Body_inspect_intake_v1_intake_inspect_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "native",
+              "display-rgb",
+              "ome"
+            ],
+            "title": "Kind"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file",
+          "kind"
+        ],
+        "title": "Body_inspect_intake_v1_intake_inspect_post"
       },
       "Body_upload_field_v1_workspaces__wid__fields_post": {
         "properties": {
@@ -9950,6 +10012,122 @@
           "channel_mapping"
         ],
         "title": "ImageInfo"
+      },
+      "IntakeInspection": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "native",
+              "display-rgb",
+              "ome"
+            ],
+            "title": "Kind"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "image",
+              "label",
+              "unreadable"
+            ],
+            "title": "Role"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code",
+            "description": "Registration's reason code for a label or unreadable file; null for an image"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "bytes": {
+            "type": "integer",
+            "title": "Bytes"
+          },
+          "shape": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shape",
+            "description": "[Y, X] of a decoded image, or a label image's shape as stored in the file"
+          },
+          "dtype": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dtype"
+          },
+          "channel_names": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel Names",
+            "description": "OME channel names in order (null if unnamed); OME only"
+          },
+          "thumbnail_png": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thumbnail Png",
+            "description": "Base64 PNG of at most 256 px per side, for display only (first channel of an OME file)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "role",
+          "code",
+          "sha256",
+          "bytes",
+          "shape",
+          "dtype",
+          "channel_names",
+          "thumbnail_png"
+        ],
+        "title": "IntakeInspection",
+        "description": "What registration would make of one file. Nothing is stored; the file name is neither read nor returned."
       },
       "IntakeTarget": {
         "properties": {
