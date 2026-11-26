@@ -22,7 +22,7 @@ Other documents are collected in the [documentation index](docs/README.md).
 
 The frontend is built mainly with Next.js and the server side mainly with FastAPI. When the browser requests an analysis, the API stores the settings and job in a database, and a worker runs inference, measurement, statistics and figure generation. The browser retrieves progress and results from the API and handles image and figure editing.
 
-The LLM (Claude Sonnet 5.5; installed older clients use GPT-6.1 Sol) is called through an AI service on Cloudflare Workers. The API validates the generated analysis settings and passes them to the same job pipeline as manual settings. The Windows and Docker editions use the same API and calculation code.
+The LLM (Claude Sonnet 5.5) is called through an AI service on Cloudflare Workers. It proposes analysis settings and drafts discussions of saved results. The API validates the proposed settings, and once the researcher adopts them they run in the same job pipeline as manual settings. The Windows and Docker editions use the same API and calculation code.
 
 ```mermaid
 flowchart TB
@@ -34,7 +34,7 @@ flowchart TB
     Models["Image recognition<br/>Fiji / StarDist · Cellpose-SAM"]
     Python["Measurement, statistics, figures<br/>NumPy · SciPy · Matplotlib"]
     Relay["AI service<br/>Cloudflare Workers · D1"]
-    LLM["Anthropic Messages API<br/>(installed clients: OpenAI Responses API)"]
+    LLM["Anthropic Messages API"]
 
     Web <-->|settings, edits, results| API
     API <--> State
@@ -86,9 +86,9 @@ Asynchronous responses are displayed only when their analysis target and setting
 
 ## LLM and analysis settings
 
-Within the scope the researcher consented to, the LLM receives the stated goal, channel names and recorded stains, field names and records, the name of the folder chosen when images were added and the folder and file names inside it, the experiment design's run and group names, image dimensions, the current settings and display-scaled previews of one representative field (previews can be turned off in settings). Paths above the chosen folder, original images and measurements are not sent.
+With the researcher's consent, an analysis proposal sends the goal, channel names and recorded stains, each field's name and records, the name of the folder chosen when images were added and the folder and file names inside it, the experiment design's run and group names, display-scaled previews of one representative field (can be turned off in settings) and the current settings. A discussion sends the result summary, metric definitions, group and run names, aggregated values and test results. Paths above the chosen folder are never sent.
 
-The response is structured data containing detection conditions, measurement items, GFP-based selection, statistics and figure settings. The API validates types, numeric ranges and correspondence with registered channels. An answer changes no setting and runs no analysis: validated settings are applied only by the researcher's action, then previewed on the selected image and run through the same job as manual settings.
+A proposal contains detection conditions, measurement items, selection, statistics and figure settings. The API validates types, numeric ranges and correspondence with registered channels. An answer changes no setting and runs no analysis: validated settings apply only when the researcher adopts them, and are then previewed on the selected field and run through the same job as manual settings. Measurements and statistics are computed only by the shared implementation (`packages/analysis`).
 
 External API spending is managed by the relaying Cloudflare Worker and D1. Costs are reserved before each call and settled afterwards, both atomically. Unsettled reservations count toward the usage limit.
 
