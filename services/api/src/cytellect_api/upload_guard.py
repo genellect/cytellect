@@ -11,7 +11,8 @@ from starlette.responses import JSONResponse
 
 from .db import digest, fields, sessions, workspaces
 
-UPLOAD_ROUTE = re.compile(r"^/v1/workspaces/([^/]+)/(fields|region-fields|tables)$")
+# Every multipart route of the API; a test compares this with the OpenAPI schema.
+UPLOAD_ROUTE = re.compile(r"^/v1/workspaces/([^/]+)/(fields|region-fields|region-fields/ome|tables)$")
 
 
 class UploadGuardMiddleware:
@@ -58,10 +59,10 @@ class UploadGuardMiddleware:
         if self.settings.demo:
             await reject(403, "demo_uploads_disabled")
             return
-        # Generic uploads carry their retry key inside the multipart JSON. A
+        # Generic uploads carry their retry key inside the multipart body. A
         # full workspace must still reach its atomic key/fingerprint lookup;
         # otherwise a lost success response cannot be recovered at quota.
-        retryable = kind == "region-fields"
+        retryable = kind in ("region-fields", "region-fields/ome")
         if not retryable and kind != "tables" and len(self.store.rows(fields, workspace_id=wid)) >= self.settings.max_fields:
             await reject(413, "workspace_limit")
             return
