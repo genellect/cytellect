@@ -714,6 +714,119 @@ test("one field of several stains opens as a colour merge, each stain in its own
   await noErrors(page, watch);
 });
 
+/**
+ * One pane's image in the nucleolus view: for each outlined nucleus, a screen point inside it (and inside no
+ * other nucleus) that no nucleolus covers, and how many nucleoli it encloses; and one point outside every nucleus.
+ */
+async function nucleusClickPoints(image: Locator) {
+  return image.evaluate(element => {
+    const svg = element as SVGSVGElement;
+    const at = (x: number, y: number) => {const point = svg.createSVGPoint(); point.x = x; point.y = y; return point;};
+    const nucleoli = [...svg.querySelectorAll<SVGPathElement>("path[data-region]")];
+    const centres = nucleoli.map(path => {const box = path.getBBox(); return at(box.x + box.width / 2, box.y + box.height / 2);});
+    const outlines = [...svg.querySelectorAll<SVGPolygonElement>("polygon[class*=context]")];
+    const onImage = (point: DOMPoint, matrix: DOMMatrix): [number, number] | null => {
+      const screen = point.matrixTransform(matrix), top = document.elementFromPoint(screen.x, screen.y);
+      return top && svg.contains(top) && !top.closest("path[data-region]") ? [screen.x, screen.y] : null;
+    };
+    const nuclei = outlines.map((nucleus, index) => {
+      const box = nucleus.getBBox(), matrix = nucleus.getScreenCTM()!;
+      let free: [number, number] | null = null;
+      for (let i = 1; i < 16 && !free; i++) for (let j = 1; j < 16 && !free; j++) {
+        const point = at(box.x + box.width * i / 16, box.y + box.height * j / 16);
+        if (outlines.filter(outline => outline.isPointInFill(point)).length !== 1 || !nucleus.isPointInFill(point) || nucleoli.some(path => path.isPointInFill(point))) continue;
+        free = onImage(point, matrix);
+      }
+      return {index, free, nucleoli: centres.filter(centre => nucleus.isPointInFill(centre)).length};
+    });
+    let background: [number, number] | null = null;
+    const frame = svg.querySelector("image")!.getBBox(), matrix = svg.querySelector("image")!.getScreenCTM()!;
+    for (let i = 1; i < 24 && !background; i++) for (let j = 1; j < 24 && !background; j++) {
+      const point = at(frame.x + frame.width * i / 24, frame.y + frame.height * j / 24);
+      if (!outlines.some(outline => outline.isPointInFill(point)) && !nucleoli.some(path => path.isPointInFill(point))) background = onImage(point, matrix);
+    }
+    return {nuclei, background};
+  });
+}
+/** Whether the pane's selected nucleolus lies inside its outlined nucleus `index` (by the centre of its outline). */
+const selectedWithin = (image: Locator, index: number) => image.evaluate((element, nucleus) => {
+  const svg = element as SVGSVGElement, path = svg.querySelector<SVGPathElement>("path[data-region][aria-pressed=true]")!;
+  const box = path.getBBox(), point = svg.createSVGPoint();
+  point.x = box.x + box.width / 2; point.y = box.y + box.height / 2;
+  return svg.querySelectorAll<SVGPolygonElement>("polygon[class*=context]")[nucleus].isPointInFill(point);
+}, index);
+
+test("in the nucleolus view a click on a nucleus selects its nearest nucleolus, side by side and on one field; a nucleus without one says so", async ({page}) => {
+  test.setTimeout(300_000);
+  test.skip(!OPENING_NUCLEOLAR, "The fully recorded opening scene has no nucleoli.");
+  const watch = await openDemo(page);
+  const header = page.locator("header");
+  await expect(regions(page).first()).toBeAttached({timeout: live});
+  // Statistics, then back to the image: the image opens on the nucleoli the comparison measures.
+  await header.getByRole("button", {name: "統計", exact: true}).click();
+  await expect(page.getByRole("region", {name: "結果のまとめ"})).toBeVisible({timeout: live});
+  await header.getByRole("button", {name: "画像", exact: true}).click();
+  const images = page.locator("svg[aria-roledescription=画像]");
+  const pair = page.getByRole("button", {name: "2 画面", exact: true});
+  for (const panes of [2, 1]) {
+    if (panes === 1) await pair.click();
+    await expect(pair).toHaveAttribute("aria-pressed", String(panes === 2));
+    await expect(images).toHaveCount(panes, {timeout: live});
+    for (let pane = 0; pane < panes; pane++) {
+      const image = images.nth(pane), pressed = image.locator("path[data-region][aria-pressed=true]");
+      await expect(image.locator("polygon[class*=context]").first()).toBeAttached({timeout: live});
+      await expect(image.locator("path[data-region]").first()).toBeAttached({timeout: live});
+      // Two nuclei in turn: each click, inside the nucleus and outside its nucleoli, selects one nucleolus of that nucleus.
+      const chosen: string[] = [];
+      for (const nth of [0, 1]) {
+        const target = (await nucleusClickPoints(image)).nuclei.filter(nucleus => nucleus.free && nucleus.nucleoli > 0)[nth];
+        expect(target, `pane ${pane}: a nucleus with nucleoli and room to click`).toBeDefined();
+        await page.mouse.click(...target.free!);
+        await expect(pressed).toHaveCount(1);
+        expect(await selectedWithin(image, target.index)).toBe(true);
+        chosen.push((await pressed.getAttribute("data-region"))!);
+        // The selection is the ordinary one: its number is drawn and the outline tools apply to it.
+        await expect(image.locator("text")).toHaveText(chosen[nth]);
+      }
+      expect(chosen[1]).not.toBe(chosen[0]);
+      // Outside every nucleus a click selects nothing and keeps the selection.
+      const {background} = await nucleusClickPoints(image);
+      expect(background, `pane ${pane}: background to click`).not.toBeNull();
+      await page.mouse.click(...background!);
+      await expect(pressed).toHaveCount(1);
+      await expect(pressed).toHaveAttribute("data-region", chosen[1]);
+    }
+  }
+  // A nucleus that encloses no nucleolus is marked and says so; nothing is selected, and the next operation clears it.
+  const image = images.first(), marked = image.locator("polygon[data-context=empty]"), line = page.getByRole("status").filter({hasText: "この核に核小体はありません"});
+  const cards = page.locator("[class*=fieldCard]");
+  let empty: {index: number; free: [number, number] | null} | undefined;
+  for (let card = 0; card < await cards.count() && !empty; card++) {
+    await cards.nth(card).click();
+    await expect(cards.nth(card)).toHaveAttribute("aria-pressed", "true");
+    await expect(image.locator("polygon[class*=context]").first()).toBeAttached({timeout: live});
+    await expect(image.locator("path[data-region][aria-pressed=true]")).toHaveCount(0);
+    empty = (await nucleusClickPoints(image)).nuclei.find(nucleus => nucleus.free && nucleus.nucleoli === 0);
+  }
+  expect(empty, "a field with a nucleus that encloses no nucleolus").toBeDefined();
+  await expect(line).toHaveCount(0);
+  await page.mouse.click(...empty!.free!);
+  await expect(marked).toHaveCount(1);
+  await expect(line).toBeVisible();
+  await expect(image.locator("path[data-region][aria-pressed=true]")).toHaveCount(0);
+  await page.keyboard.press("Shift");
+  await expect(marked).toHaveCount(0);
+  await expect(line).toHaveCount(0);
+  // Choosing a nucleus with nucleoli afterwards replaces the mark with an ordinary selection.
+  await page.mouse.click(...(await nucleusClickPoints(image)).nuclei.find(nucleus => nucleus.index === empty!.index)!.free!);
+  await expect(marked).toHaveCount(1);
+  await page.mouse.click(...(await nucleusClickPoints(image)).nuclei.find(nucleus => nucleus.free && nucleus.nucleoli > 0)!.free!);
+  await expect(marked).toHaveCount(0);
+  await expect(image.locator("path[data-region][aria-pressed=true]")).toHaveCount(1);
+  await expect(notRecorded(page)).toHaveCount(0);
+  await noErrors(page, watch);
+});
+
 test("the ActD scene's statistics open on the nucleolar 5-EU and switch to the eccentricity the source also reports", async ({page}) => {
   // Only the opening comparison and its companion (the story a "story" recording holds).
   test.skip(!ACTD, "The ActD nucleolar scene is not published.");

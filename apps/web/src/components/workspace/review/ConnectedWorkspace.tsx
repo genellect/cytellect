@@ -28,6 +28,7 @@ import {MeasurementTable} from "./MeasurementTable";
 import {ConnectedNucleusTable,type NucleusTableSource} from "./NucleusTable";
 import {ConnectedPartition} from "./ConnectedPartition";
 import {ConnectedChannelGate} from "./ConnectedChannelGate";
+import {NUCLEUS_WITHOUT_NUCLEOLI} from "@/lib/workspace/context-pick";
 import {channelGateRequest,recordedChannelGate,type ChannelGateFilter,type ChannelGateResult} from "@/lib/workspace/channel-gate";
 import {PARTITION_DIRECTION,colorByChoices,gateLegendItems,gateStates,nextComparison,shownColorBy,tableHeading,type ColorBy,type GateStatus,type NextComparison} from "@/lib/workspace/color-by";
 import type {RegionClassification} from "./ReviewImageCanvas";
@@ -834,7 +835,7 @@ function ImageStage({planes,target,fieldId,region,rows,rowsField,onRegion,onSele
           outlineTone={target==="nuclei"||target==="cell"?"nuclear":"marker"}
           layers={single&&composite?compositeLayers(plane.field):undefined}
           // Nucleoli and nucleoplasm are seen within the adopted nuclei, outlined faintly (display only).
-          context={savedView?.context??(target==="nucleoli"||target==="nucleoplasm"?r.currentResult(plane.field.id,"nuclei")?.masks.regions:undefined)} contextSelected={savedView?.nucleus}
+          context={savedView?.context??(target==="nucleoli"||target==="nucleoplasm"?r.currentResult(plane.field.id,"nuclei")?.masks.regions:undefined)} contextSelected={savedView?.nucleus} contextEmptyText={target==="nucleoli"?NUCLEUS_WITHOUT_NUCLEOLI:undefined}
           initialZoom={demo&&single?1.8:undefined} initialFocus={demo&&single?nucleus?centre(nucleus.points):densestPoint(r.currentResult(plane.field.id,"nuclei")?.masks.regions||[],plane.field.width/4):undefined}/>:<p>画像を読み込み中…</p>}
       </div>;
     })}

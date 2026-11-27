@@ -193,7 +193,10 @@ review route `/workspace-review` (the workspace without its session gate) redire
   notices too.
 - The same as in production: several stains open as a colour merge (重ねて表示: the nuclear stain blue,
   each other used stain the colour of its channel position, so assigning the nuclear stain recolours only that channel; choosing one stain shows it alone); nucleoli and nucleoplasm
-  open on the nucleolar marker with the adopted nuclei outlined faintly; side by side (2 画面) each
+  open on the nucleolar marker with the adopted nuclei outlined faintly (in the nucleolar view a click
+  inside a nucleus, outside its nucleoli, selects the nucleolus of that nucleus nearest to the click; a
+  nucleus without one is marked with "この核に核小体はありません" until the next operation; the nucleus
+  itself is never selected); side by side (2 画面) each
   pane has the outline tools of one field; focusing the AI composer opens the AI panel;
   `?step=image|statistics|figure` opens that tab; statistics and figures open on the latest saved
   result, and saved comparisons switch with one click (保存した比較); a condition chosen in the side

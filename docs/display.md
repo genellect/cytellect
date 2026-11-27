@@ -44,7 +44,15 @@ previous label.
 
 Each pane opens with its image filling the pane (the smallest zoom that leaves no
 empty margin), centred. In the public demo, the nucleolar and nucleoplasm views draw the
-adopted nuclei faintly as context; only the shown region's outlines can be selected.
+adopted nuclei faintly as context; only the shown region's outlines can be selected. In the nucleolar
+view (production and the demo, one field or side by side) a click inside a nucleus and outside its nucleoli
+selects the nucleolus of that nucleus nearest to the click, because nucleoli cover little of a nucleus and
+many are only a few screen pixels wide. A nucleolus belongs to the clicked nucleus when the centroid of
+its outline lies inside the nucleus outline; where nucleus outlines overlap, the smaller one containing
+the click is taken. A nucleus that encloses no nucleolus is marked, with one line saying so
+("この核に核小体はありません"), until the next operation. A click outside every nucleus does nothing. This is
+screen-side geometry for choosing what to select; the nucleoplasm view is unchanged, since the nucleoplasm
+itself fills the nucleus.
 
 This is display only. Original pixels, detection, masks, measurements, review
 state and statistics are unchanged, and the shared scale does not correct
