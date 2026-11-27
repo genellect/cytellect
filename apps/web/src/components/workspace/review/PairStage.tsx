@@ -122,7 +122,7 @@ export function PairStage({design,fields,runtime:r,target,channel,selectedField,
           // The whole field at the scale both panes share (V-01), so neither view is chosen by its content.
           style={{width:field.width*layout.scale,height:field.height*layout.scale,flex:"none"}}
           context={savedView?.context??(target==="nucleoli"||target==="nucleoplasm"?r.currentResult(field.id,"nuclei")?.masks.regions:undefined)}
-          contextSelected={savedView?.nucleus} contextNames={target==="nucleoli"?NUCLEOLUS_CONTEXT:undefined} onDeselect={()=>{if(field)onSelect(field.id,channel,undefined);}}/>:<p className={styles.empty}>画像を読み込み中…</p>}</div>
+          contextSelected={savedView?.nucleus} contextNames={target==="nucleoli"?NUCLEOLUS_CONTEXT:undefined} onDeselect={()=>{if(field)onSelect(field.id,channel,undefined);}} active={!!field&&field.id===selectedField}/>:<p className={styles.empty}>画像を読み込み中…</p>}</div>
         {tables&&field&&<div className={styles.paneTable} role="region" aria-label={`${pane.group.label} の測定値`} tabIndex={0}>
           {/* Each table names what it lists; the next step sits once, beside the last group's table (MV-06, MV-09). */}
           {/* The next step sits once, beside the last group's table: on its summary line when the nucleus table is shown. */}

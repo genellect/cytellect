@@ -835,7 +835,7 @@ function ImageStage({planes,target,fieldId,region,rows,rowsField,onRegion,onSele
           outlineTone={target==="nuclei"||target==="cell"?"nuclear":"marker"}
           layers={single&&composite?compositeLayers(plane.field):undefined}
           // Nucleoli and nucleoplasm are seen within the adopted nuclei, outlined faintly (display only).
-          context={savedView?.context??(target==="nucleoli"||target==="nucleoplasm"?r.currentResult(plane.field.id,"nuclei")?.masks.regions:undefined)} contextSelected={savedView?.nucleus} contextNames={target==="nucleoli"?NUCLEOLUS_CONTEXT:undefined} onDeselect={()=>onSelect(plane.field.id,plane.channel.id,undefined)}
+          context={savedView?.context??(target==="nucleoli"||target==="nucleoplasm"?r.currentResult(plane.field.id,"nuclei")?.masks.regions:undefined)} contextSelected={savedView?.nucleus} contextNames={target==="nucleoli"?NUCLEOLUS_CONTEXT:undefined} onDeselect={()=>onSelect(plane.field.id,plane.channel.id,undefined)} active={plane.field.id===fieldId}
           initialZoom={demo&&single?1.8:undefined} initialFocus={demo&&single?nucleus?centre(nucleus.points):densestPoint(r.currentResult(plane.field.id,"nuclei")?.masks.regions||[],plane.field.width/4):undefined}/>:<p>画像を読み込み中…</p>}
       </div>;
     })}

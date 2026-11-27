@@ -73,20 +73,35 @@ export function pickEnclosedRegion(point: Point, context: readonly Ring[], regio
   }
   enclosing ??= hit === undefined ? undefined : context.find(outline => outline.id === hit && outline.points.length >= 3);
   if (!enclosing) return null;
+  const members = new Set(enclosedRegions(enclosing, regions));
   let region: number | undefined, nearest = Infinity;
   for (const candidate of regions) {
-    if (candidate.points.length < 3 || !pointInPolygon(polygonCentroid(candidate.points), enclosing.points)) continue;
+    if (candidate.points.length < 3 || !members.has(candidate.id)) continue;
     const distance = pointInPolygon(point, candidate.points) ? 0 : distanceToOutline(point, candidate.points);
     if (distance < nearest || (distance === nearest && candidate.id < region!)) {region = candidate.id; nearest = distance;}
   }
   return {context: enclosing.id, region};
 }
 
-/** Whether a region belongs to an enclosing outline: the region's outline centroid lies inside it. */
+/**
+ * Each region's outer ring: a region with a hole or a detached part is drawn as several rings under one id, and the
+ * largest of them stands for the region.
+ */
+export function outerRings(regions: readonly Ring[]): Ring[] {
+  const outer = new Map<number, {ring: Ring; area: number}>();
+  for (const ring of regions) {
+    if (ring.points.length < 3) continue;
+    const area = Math.abs(signedArea(ring.points)), held = outer.get(ring.id);
+    if (!held || area > held.area) outer.set(ring.id, {ring, area});
+  }
+  return [...outer.values()].map(value => value.ring);
+}
+
+/** Whether a region's ring lies in an enclosing outline: the ring's centroid lies inside it. */
 export const encloses = (outline: Ring, region: Ring) => region.points.length >= 3 && outline.points.length >= 3 && pointInPolygon(polygonCentroid(region.points), outline.points);
 
-/** The ids of the regions an enclosing outline holds (by their centroids), as pickEnclosedRegion counts them. */
-export const enclosedRegions = (outline: Ring, regions: readonly Ring[]) => regions.filter(region => encloses(outline, region)).map(region => region.id);
+/** The ids of the regions an enclosing outline holds, each region once, by the centroid of its outer ring. */
+export const enclosedRegions = (outline: Ring, regions: readonly Ring[]) => outerRings(regions).filter(region => encloses(outline, region)).map(region => region.id);
 
 /** The enclosing outline that holds a region (the smallest where outlines overlap); undefined when none does. */
 export function enclosingOutline(region: Ring, context: readonly Ring[]): number | undefined {

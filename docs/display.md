@@ -52,8 +52,11 @@ its outline lies inside the nucleus outline; where nucleus outlines overlap, the
 the click is taken. The clicked nucleus is marked and stated as a value, 「核 12：核小体 3」, with the number of
 nucleoli it encloses by that rule; a nucleus that encloses none is marked the same way, 「核 12：核小体 0」, and
 no nucleolus stays selected, so a missed nucleolus can be drawn with the outline tools. A nucleolus selected
-directly or from the table marks and states its nucleus the same way. The count is that screen-side rule, not
-a measured value or an n of the statistics. A click outside every nucleus does nothing. This is
+directly or from the table marks and states its nucleus the same way (the nucleus holding the nucleolus's
+centroid). The count is of the nucleolus outlines drawn, each region once by its outer ring, as the pane heading
+counts outlines; the measured nucleoli per nucleus (`nucleolar_count`) come from the analysis package and can
+differ for a nucleolus across the nucleus border. Side by side, only the pane that holds the selection marks a
+cell. A click outside every nucleus does nothing. This is
 screen-side geometry for choosing what to select; the nucleoplasm view is unchanged, since the nucleoplasm
 itself fills the nucleus.
 

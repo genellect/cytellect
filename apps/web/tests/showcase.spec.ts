@@ -834,6 +834,8 @@ test("in the nucleolus view a click on a nucleus marks it as 核 n：核小体 k
         await expect(markedCell(image)).toHaveCount(1);
         await expect(markedCell(image)).toHaveAttribute("data-context-pick", id!);
         await expect(cellLine(image)).toHaveText(new RegExp(`^核 ${id}：核小体 [1-9]\\d*$`));
+        // Side by side only the pane that holds the selection marks a cell.
+        for (let other = 0; other < panes; other++) if (other !== pane) await expect(markedCell(images.nth(other))).toHaveCount(0);
       }
       expect(chosen[1]).not.toBe(chosen[0]);
       // Outside every nucleus a click selects nothing and keeps the selection.

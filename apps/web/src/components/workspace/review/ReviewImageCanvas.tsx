@@ -4,7 +4,7 @@ import {useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState, t
 import type {Point} from "@/lib/types";
 import type {MaskOperation} from "@/lib/workspace/api-adapter";
 import {compoundOutlines} from "../../../lib/workspace/compound-outlines";
-import {contextLabel, enclosedRegions, enclosingOutline, encloses, pickEnclosedRegion, type ContextNames} from "../../../lib/workspace/context-pick";
+import {contextLabel, enclosedRegions, enclosingOutline, outerRings, pickEnclosedRegion, type ContextNames} from "../../../lib/workspace/context-pick";
 import {regionAnnotations} from "../../../lib/workspace/image-viewport";
 import styles from "./review-image.module.css";
 import {isShowcaseNoticeError} from "./showcase-ui";
@@ -57,6 +57,8 @@ export interface ReviewImageCanvasProps {
   contextNames?: ContextNames;
   /** Clears the selection: a picked enclosing outline that encloses no region leaves no region selected. */
   onDeselect?: () => void;
+  /** Whether this image's field holds the selection (side by side, only one pane does): a picked outline is marked only there. */
+  active?: boolean;
   /** The enclosing structure a per-structure value belongs to (a nucleus whose nucleoli were measured), outlined apart. */
   contextSelected?: number;
   /** Initial magnification relative to the whole-image fit (display only). */
@@ -127,7 +129,7 @@ function Icon({kind}: {kind: keyof typeof iconPaths}) {
   return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={iconPaths[kind]}/></svg>;
 }
 
-export function ReviewImageCanvas({src, width, height, contours, selected, classification, colorBy, fills, legend, onSelect, label, showMasks = true, onOpen, className, style, editingKey, loading = false, outlineTone, editDisabled = false, onEdit, onDelete, onUndo, onRedo, canUndo = false, canRedo = false, onEditingChange, viewport: sharedViewport, onViewportChange, backgroundPolygon, backgroundEdit, layers, context, contextSelected, contextNames, onDeselect, initialZoom, initialFocus}: ReviewImageCanvasProps) {
+export function ReviewImageCanvas({src, width, height, contours, selected, classification, colorBy, fills, legend, onSelect, label, showMasks = true, onOpen, className, style, editingKey, loading = false, outlineTone, editDisabled = false, onEdit, onDelete, onUndo, onRedo, canUndo = false, canRedo = false, onEditingChange, viewport: sharedViewport, onViewportChange, backgroundPolygon, backgroundEdit, layers, context, contextSelected, contextNames, onDeselect, active = true, initialZoom, initialFocus}: ReviewImageCanvasProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [available, setAvailable] = useState<Size>({width: 0, height: 0});
   const [manual, setManual] = useState<{source: string; camera: Camera} | null>(null);
@@ -141,8 +143,8 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
   const [draft, setDraft] = useState<EditDraft | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  // The enclosing outline the visitor clicked, and the region it selected then (none when it encloses none).
-  const [picked, setPicked] = useState<{identity: string; id: number; selection: number | undefined} | null>(null);
+  // The enclosing outline the visitor clicked that encloses no region; it stays marked while nothing is selected.
+  const [picked, setPicked] = useState<{identity: string; id: number} | null>(null);
   const pending = useRef(false);
   const focusedSelection = useRef("");
   const drawingPointer = useRef<number | null>(null);
@@ -171,16 +173,16 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
   const outlines = useMemo(() => contours.map(contour => ({outline: {id: String(contour.id), points: contour.points}, state: "included" as const})), [contours]);
   const regions = useMemo(() => compoundOutlines(outlines), [outlines]);
   const selectedAnchor = useMemo(() => selected === undefined ? undefined : regionAnnotations(outlines.filter(value => Number(value.outline.id) === selected))[0], [outlines, selected]);
-  // The cell the view states: the clicked enclosing outline while the selection is the one it made or a region it
-  // encloses, else the enclosing outline of the selected region (a nucleolus chosen directly or from the table).
+  // The cell the view states: the enclosing outline of the selected region (however it was chosen: a click on its
+  // nucleus, on itself or in the table), or, with nothing selected, the clicked outline that encloses none. Only in
+  // the pane that holds the selection, and not over a saved view's own enclosing outline (contextSelected).
   const cell = useMemo(() => {
-    if (!contextNames || !context || !visible || draft) return undefined;
-    const region = selected === undefined ? undefined : contours.find(contour => contour.id === selected);
-    const clicked = picked?.identity === identity ? context.find(outline => outline.id === picked.id) : undefined;
-    const id = clicked && (selected === picked!.selection || (region && encloses(clicked, region))) ? clicked.id : region ? enclosingOutline(region, context) : undefined;
+    if (!contextNames || !context || !visible || draft || !active || contextSelected !== undefined) return undefined;
+    const region = selected === undefined ? undefined : outerRings(contours).find(ring => ring.id === selected);
+    const id = region ? enclosingOutline(region, context) : selected === undefined && picked?.identity === identity ? picked.id : undefined;
     const outline = id === undefined ? undefined : context.find(value => value.id === id);
     return outline ? {id: outline.id, regions: enclosedRegions(outline, contours).length} : undefined;
-  }, [contextNames, context, visible, draft, selected, contours, picked, identity]);
+  }, [contextNames, context, visible, draft, active, contextSelected, selected, contours, picked, identity]);
   const syncBackground = useEffectEvent(()=>{
     if(backgroundEdit){setDraft({identity,operation:"background",polygon:[],merged:[]});setError("");onEditingChange?.(true);}
     else if(draft?.operation==="background"){setDraft(null);onEditingChange?.(false);}
@@ -269,10 +271,10 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
     event.stopPropagation();
     if (suppressClick.current || interactionBlocked || draft || !context) return;
     const bounds = viewportRef.current!.getBoundingClientRect();
-    const picked = pickEnclosedRegion(reviewImagePoint(camera, {x: event.clientX - bounds.left, y: event.clientY - bounds.top}), context, contours, outline);
-    if (!picked) return;
-    setPicked({identity, id: picked.context, selection: picked.region});
-    if (picked.region !== undefined) onSelect(picked.region);
+    const choice = pickEnclosedRegion(reviewImagePoint(camera, {x: event.clientX - bounds.left, y: event.clientY - bounds.top}), context, contours, outline);
+    if (!choice) return;
+    setPicked({identity, id: choice.context});
+    if (choice.region !== undefined) onSelect(choice.region);
     else onDeselect?.();
   };
   const sourcePoint = (event: PointerEvent<HTMLDivElement>) => {

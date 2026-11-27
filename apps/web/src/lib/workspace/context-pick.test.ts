@@ -72,6 +72,14 @@ describe("picking a nucleolus from a click on its nucleus", () => {
     expect(enclosingOutline({id: 5, points: square(30, 30, 4)}, [nuclei[0], {id: 7, points: square(20, 20, 30)}])).toBe(7);
     expect(enclosingOutline({id: 6, points: square(150, 50, 4)}, nuclei)).toBeUndefined();
     expect(contextLabel(NUCLEOLUS_CONTEXT, 12, 3)).toBe("核 12：核小体 3");
+    // A nucleolus with a hole (two rings under one id) counts once, by its outer ring, and is picked by either ring.
+    const holed = [...nucleoli, {id: 13, points: square(40, 40, 20)}, {id: 13, points: square(45, 45, 5)}];
+    expect(enclosedRegions(nuclei[0], holed)).toEqual([11, 12, 13]);
+    expect(pickEnclosedRegion([48, 48], nuclei, holed)).toEqual({context: 1, region: 13});
+    // A detached piece outside the nucleus does not make its region another nucleus's: the outer (larger) ring decides.
+    const split = [{id: 31, points: square(20, 20, 30)}, {id: 31, points: square(210, 10, 4)}];
+    expect(enclosedRegions(nuclei[0], split)).toEqual([31]);
+    expect(enclosedRegions(nuclei[1], split)).toEqual([]);
     expect(contextLabel(NUCLEOLUS_CONTEXT, 4, 0)).toBe("核 4：核小体 0");
   });
 });
