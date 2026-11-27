@@ -128,6 +128,10 @@ def test_the_store_route_submits_only_the_selected_verified_commit_without_a_rev
     chunks = re.split(r"(?m)^  ([\w-]+):\s*$", body)
     store = dict(zip(chunks[1::2], chunks[2::2], strict=True))
     source = store["source"]
+    # The code that reads main's history sees main as it is now, not the commit this run started from.
+    assert "ref: main\n          fetch-depth: 0" in source
+    for job in ("package", "submit"):
+        assert "path: automation\n          ref: main\n          fetch-depth: 0" in store[job]
     for condition in ("github.ref == 'refs/heads/main'", "github.repository == 'genellect/cytellect'",
                       "github.event.workflow_run.conclusion == 'success'",
                       "github.event.workflow_run.event == 'push'",
@@ -147,7 +151,7 @@ def test_the_store_route_submits_only_the_selected_verified_commit_without_a_rev
     # A run that waited for a build of the same commit reuses its package: the check runs first, from
     # main, and every later step runs only when nothing was built meanwhile.
     steps = re.split(r"(?m)^      - ", package.split("    steps:\n", 1)[1])[1:]
-    assert "path: automation" in steps[0] and "ref:" not in steps[0]
+    assert "path: automation" in steps[0] and "ref: main" in steps[0]
     assert "builtStore(github, context, core, release.mainHistory('automation'))" in steps[1]
     assert "id: built" in steps[1] and "if:" not in steps[1]
     assert all("if: steps.built.outputs.artifact-run == ''" in step for step in steps[2:]), steps[2:]
@@ -174,7 +178,7 @@ def test_the_store_route_submits_only_the_selected_verified_commit_without_a_rev
     helper = next(step for step in submit.split("      - ") if "path: automation" in step)
     assert ("sparse-checkout: |\n            scripts/windows_exe_release.cjs\n"
             "            scripts/submit_windows_msix.py\n") in helper and "persist-credentials: false" in helper
-    assert "ref:" not in helper
+    assert "ref: main" in helper
     assert "confirmStore(github, context, core, release.mainHistory('automation'))" in submit
     assert submit.index("confirmStore") < submit.index("download-artifact") < submit.index("STORE_CLIENT_SECRET")
     assert submit.count("if: steps.newest.outputs.current == 'true'") == 3

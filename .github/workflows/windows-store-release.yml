@@ -35,7 +35,10 @@ jobs:
       artifact-run: ${{ steps.select.outputs.artifact-run }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        # main as it is now, not this run's commit: a run (or a re-run) that started before a newer merge
+        # must see that commit (without a ref, actions/checkout resets origin/main to the commit of the run).
         with:
+          ref: main
           fetch-depth: 0
           sparse-checkout: scripts/windows_exe_release.cjs
           sparse-checkout-cone-mode: false
@@ -99,6 +102,7 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           path: automation
+          ref: main
           fetch-depth: 0
           sparse-checkout: scripts/windows_exe_release.cjs
           sparse-checkout-cone-mode: false
@@ -220,6 +224,7 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           path: automation
+          ref: main
           fetch-depth: 0
           sparse-checkout: |
             scripts/windows_exe_release.cjs
