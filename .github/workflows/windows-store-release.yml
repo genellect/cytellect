@@ -73,12 +73,13 @@ jobs:
     if: needs.source.outputs.artifact-run == ''
     runs-on: windows-latest
     timeout-minutes: 120
-    # A run that builds nothing stays out of the build group of a commit, so it cannot cancel a build.
+    # A newer build cancels an older one (the older commit would not be submitted); a run that builds
+    # nothing stays out of the build group, so it cannot cancel a build.
     concurrency:
       group: >-
         ${{ needs.source.outputs.commit != '' && needs.source.outputs.artifact-run == '' &&
         needs.proposal-compatibility.result == 'success' &&
-        format('store-msix-build-{0}', needs.source.outputs.commit) ||
+        'store-msix-build' ||
         format('store-msix-build-idle-{0}', github.run_id) }}
       cancel-in-progress: true
     env:

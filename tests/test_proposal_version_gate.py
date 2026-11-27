@@ -150,7 +150,7 @@ def test_the_store_route_submits_only_the_selected_verified_commit_without_a_rev
             "        'windows-store-submission' || format('windows-store-submission-idle-{0}', github.run_id) }}\n"
             "      cancel-in-progress: false") in submit
     assert submit.count("windows-store-submission'") == 1 and "github.ref" not in package + submit
-    assert ("format('store-msix-build-{0}', needs.source.outputs.commit) ||\n"
+    assert ("'store-msix-build' ||\n"
             "        format('store-msix-build-idle-{0}', github.run_id) }}\n      cancel-in-progress: true") in package
     for job in (package, submit):
         group = job.split("concurrency:\n", 1)[1].split("cancel-in-progress", 1)[0]
