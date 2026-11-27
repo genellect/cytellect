@@ -5,7 +5,7 @@ const { tmpdir } = require('node:os');
 const { join } = require('node:path');
 const { test } = require('node:test');
 const {
-  chooseCandidate, mayAttempt, reserve, publish, syncChannel, selectStore, confirmStore, trustedArtifactRun,
+  chooseCandidate, mayAttempt, reserve, publish, syncChannel, selectStore, builtStore, confirmStore, trustedArtifactRun,
 } = require('./windows_exe_release.cjs');
 
 test('selects by main history and never regresses to a release that completed late', () => {
@@ -315,26 +315,91 @@ test('a scheduled Store run resumes a built package and does not build one', asy
   assert.deepEqual(api.outputs, { commit: selected, 'artifact-run': '100' });
 });
 
-test('an older Store package is not submitted once a newer commit has passed Verify', async t => {
+function withStoreCommit(t, commit) {
   const previous = process.env.STORE_COMMIT;
   t.after(() => {
     if (previous === undefined) delete process.env.STORE_COMMIT;
     else process.env.STORE_COMMIT = previous;
   });
-  process.env.STORE_COMMIT = selected;
+  process.env.STORE_COMMIT = commit;
+}
+
+test('an older Store package is held back only by a newer commit that is built or submitted', async t => {
+  withStoreCommit(t, selected);
   // A newer commit that failed, or has not finished, Verify does not displace the selected one.
   let api = storeApi({ verified: [oldest, selected] });
   await confirmStore(api.github, api.context, api.core, storeHistory);
   assert.deepEqual(api.outputs, { current: 'true' });
-  api = storeApi({ verified: [oldest, selected, newer] });
+  // Nor does a newer verified commit whose build failed, was cancelled or stopped at the
+  // compatibility check: the Store moves forward with the package at hand.
+  for (const artifacts of [[], [{ name: `store-msix-${newer}`, job: 'package', conclusion: 'failure' }]]) {
+    api = storeApi({ verified: [oldest, selected, newer], artifacts });
+    await confirmStore(api.github, api.context, api.core, storeHistory);
+    assert.deepEqual(api.outputs, { current: 'true' });
+  }
+  // A newer verified commit with a trusted built package is submitted by its own run instead.
+  const newerPackage = { name: `store-msix-${newer}`, job: 'package' };
+  api = storeApi({ verified: [oldest, selected, newer], artifacts: [newerPackage] });
   await confirmStore(api.github, api.context, api.core, storeHistory);
   assert.deepEqual(api.outputs, { current: 'false' });
-  // The source must itself be a verified commit of main.
+  // A package of a newer commit that no longer passes Verify, or of an untrusted run, holds nothing back.
+  for (const [verified, artifacts] of [
+    [[oldest, selected], [newerPackage]],
+    [[oldest, selected, newer], [{ ...newerPackage, event: 'workflow_dispatch', head: offMain }]],
+    [[oldest, selected, newer], [{ ...newerPackage, event: 'push' }]],
+  ]) {
+    api = storeApi({ verified, artifacts });
+    await confirmStore(api.github, api.context, api.core, storeHistory);
+    assert.deepEqual(api.outputs, { current: 'true' });
+  }
+  // A source whose Verify run is not successful now (a rerun in progress) is quietly not submitted.
   api = storeApi({ verified: [oldest] });
-  await assert.rejects(confirmStore(api.github, api.context, api.core, storeHistory), /not a verified commit of main/);
+  await confirmStore(api.github, api.context, api.core, storeHistory);
+  assert.deepEqual(api.outputs, { current: 'false' });
+  // The source must be a commit of main.
   process.env.STORE_COMMIT = 'e'.repeat(40);
   api = storeApi({ verified: ['e'.repeat(40)] });
-  await assert.rejects(confirmStore(api.github, api.context, api.core, storeHistory), /not a verified commit of main/);
+  await assert.rejects(confirmStore(api.github, api.context, api.core, storeHistory), /not a commit of main/);
+  assert.deepEqual(api.outputs, {});
   process.env.STORE_COMMIT = 'main';
   await assert.rejects(confirmStore(api.github, api.context, api.core, storeHistory), /Invalid Store source commit/);
+});
+
+test('a receipt of the earlier push-started Store route counts; its package is not reused', async t => {
+  withStoreCommit(t, selected);
+  const pushed = { name: `store-submitted-${newer}`, job: 'submit', event: 'push', head: newer };
+  let api = storeApi({ verified: [oldest, selected], artifacts: [pushed] });
+  await selectStore(api.github, api.context, api.core, storeHistory);
+  assert.deepEqual(api.outputs, {});
+  api = storeApi({ verified: [oldest, selected], artifacts: [pushed] });
+  await confirmStore(api.github, api.context, api.core, storeHistory);
+  assert.deepEqual(api.outputs, { current: 'false' });
+  // A push run still needs a commit in main history.
+  api = storeApi({ verified: [oldest, selected], artifacts: [{ ...pushed, head: offMain }] });
+  await confirmStore(api.github, api.context, api.core, storeHistory);
+  assert.deepEqual(api.outputs, { current: 'true' });
+  // A package built by a push run is not reused, and the EXE route does not accept push runs.
+  api = storeApi({ verified: [selected], artifacts: [{ name: `store-msix-${selected}`, job: 'package', event: 'push' }] });
+  await selectStore(api.github, api.context, api.core, storeHistory);
+  assert.deepEqual(api.outputs, { commit: selected, 'artifact-run': '' });
+  const exe = `auto-exe-0.1.0-local.25-${selected}`;
+  api = storeApi({ verified: [], artifacts: [{ name: exe, path: '.github/workflows/local-release.yml', job: 'package', event: 'push' }] });
+  assert.equal(await trustedArtifactRun(api.github, api.context, storeHistory, exe,
+    '.github/workflows/local-release.yml', 'package'), '');
+});
+
+test('a build that waited for another run of its commit reuses that package', async t => {
+  withStoreCommit(t, selected);
+  let api = storeApi({ verified: [selected] });
+  await builtStore(api.github, api.context, api.core, storeHistory);
+  assert.deepEqual(api.outputs, { 'artifact-run': '' });
+  api = storeApi({ verified: [selected], artifacts: [
+    { name: `store-msix-${selected}`, job: 'package', conclusion: 'failure' },
+    { name: `store-msix-${selected}`, job: 'package', event: 'workflow_dispatch', head: offMain },
+    { name: `store-msix-${selected}`, job: 'package' },
+  ] });
+  await builtStore(api.github, api.context, api.core, storeHistory);
+  assert.deepEqual(api.outputs, { 'artifact-run': '102' });
+  process.env.STORE_COMMIT = offMain;
+  await assert.rejects(builtStore(api.github, api.context, api.core, storeHistory), /not a commit of main/);
 });

@@ -238,6 +238,38 @@ class StoreSubmissionTests(TestCase):
                                       {"status": "CommitStarted"}]
             self.assertTrue(release.submit(store, PACKAGE, VERSION, COMMIT, is_ancestor=lambda sha, answer=answer: answer))
 
+    @patch.object(release, "upload_package")
+    def test_does_not_go_back_to_a_commit_older_than_a_submission_in_review_or_a_draft(self, upload):
+        newer, older = "c" * 40, "a" * 40
+        pending = {**APP, "pendingApplicationSubmission": {"id": "101"}}
+        in_review = {**DRAFT, "status": "Certification",
+                     "applicationPackages": [{**EXISTING, "fileName": f"Cytellect-Store-1.0.5.0-{newer}.msix"}]}
+        draft = {**DRAFT, "applicationPackages": [
+            REPLACEMENTS[0], {**REPLACEMENTS[1], "fileName": f"Cytellect-Store-1.0.5.0-{newer}.msix"}]}
+        # A submission in review, or a draft, that names a commit the candidate does not descend from stops it.
+        for submission in (in_review, draft):
+            store = Mock()
+            store.call.side_effect = [pending, PUBLISHED, submission]
+            asked = []
+            with self.assertRaisesRegex(release.StoreError, "does not descend from the commit of the pending package"):
+                release.submit(store, PACKAGE, VERSION, COMMIT, is_ancestor=lambda sha: asked.append(sha) or False)
+            self.assertEqual(asked, [newer])
+            self.assertEqual([call.args[0] for call in store.call.call_args_list], ["GET", "GET", "GET"])
+        # A submission in review of an older commit is waited for; one of the candidate itself is accepted.
+        store = Mock()
+        older_review = {**in_review, "applicationPackages": [{**EXISTING, "fileName": f"Cytellect-Store-1.0.4.0-{older}.msix"}]}
+        store.call.side_effect = [pending, PUBLISHED, older_review]
+        self.assertFalse(release.submit(store, PACKAGE, VERSION, COMMIT, is_ancestor=lambda sha: sha == older))
+        store = Mock()
+        own_review = {**in_review, "applicationPackages": [{**EXISTING, "fileName": NAME}]}
+        store.call.side_effect = [pending, PUBLISHED, own_review]
+        self.assertTrue(release.submit(store, PACKAGE, VERSION, COMMIT, is_ancestor=lambda sha: False))
+        # Resuming the candidate's own draft compares only the other packages' commits.
+        store = Mock()
+        store.call.side_effect = [pending, PUBLISHED, PREPARED, PREPARED, {"status": "CommitStarted"}]
+        self.assertTrue(release.submit(store, PACKAGE, VERSION, COMMIT, is_ancestor=lambda sha: False))
+        upload.assert_called_once_with("example", PACKAGE, NAME)
+
     def test_ancestry_is_read_from_the_checkout_that_holds_main_history(self):
         with patch.object(release.subprocess, "run") as run:
             run.return_value.returncode = 0

@@ -135,14 +135,27 @@ def test_the_store_route_submits_only_the_selected_verified_commit_without_a_rev
                       "github.event.workflow_run.head_repository.id == github.event.repository.id"):
         assert condition in source
     assert "selectStore(github, context, core)" in source and "environment:" not in source
-    for name in ("proposal-compatibility", "package", "submit"):
+    # The check and the build check out the selected commit; the submission checks out only main
+    # (its script runs from main, the package is the one built from the selected commit).
+    for name, expected in (("proposal-compatibility", 1), ("package", 1), ("submit", 0)):
         checkouts = re.findall(r"- uses: actions/checkout@[0-9a-f]{40} # v\d+(?:\.\d+)*\n\s+with: \{(.*)\}", store[name])
-        assert checkouts == ['ref: "${{ needs.source.outputs.commit }}", persist-credentials: false'], name
+        assert checkouts == ['ref: "${{ needs.source.outputs.commit }}", persist-credentials: false'] * expected, name
     package = store["package"]
     assert "(git rev-parse HEAD).Trim() -cne $env:STORE_COMMIT" in package
     assert "--commit $env:STORE_COMMIT" in package
     assert "name: store-msix-${{ needs.source.outputs.commit }}" in package
+    # A run that waited for a build of the same commit reuses its package: the check runs first, from
+    # main, and every later step runs only when nothing was built meanwhile.
+    steps = re.split(r"(?m)^      - ", package.split("    steps:\n", 1)[1])[1:]
+    assert "path: automation" in steps[0] and "ref:" not in steps[0]
+    assert "builtStore(github, context, core, release.mainHistory('automation'))" in steps[1]
+    assert "id: built" in steps[1] and "if:" not in steps[1]
+    assert all("if: steps.built.outputs.artifact-run == ''" in step for step in steps[2:]), steps[2:]
+    assert "Remove-Item -LiteralPath automation" in steps[2]
+    assert "actions: read" in package and "artifact-run: ${{ steps.built.outputs.artifact-run }}" in package
     submit = store["submit"]
+    assert ("run-id: ${{ needs.source.outputs.artifact-run || needs.package.outputs.artifact-run || "
+            "github.run_id }}") in submit
     assert "vars.STORE_SUBMISSIONS_ENABLED == 'true'" in submit
     assert "environment: store-release" in submit
     # Submissions stay serial; a run that builds or submits nothing joins neither shared group.
@@ -150,20 +163,28 @@ def test_the_store_route_submits_only_the_selected_verified_commit_without_a_rev
             "        'windows-store-submission' || format('windows-store-submission-idle-{0}', github.run_id) }}\n"
             "      cancel-in-progress: false") in submit
     assert submit.count("windows-store-submission'") == 1 and "github.ref" not in package + submit
-    assert ("'store-msix-build' ||\n"
-            "        format('store-msix-build-idle-{0}', github.run_id) }}\n      cancel-in-progress: true") in package
+    # One build per commit; a later run of the same commit waits instead of cancelling it.
+    assert ("format('store-msix-build-{0}', needs.source.outputs.commit) ||\n"
+            "        format('store-msix-build-idle-{0}', github.run_id) }}\n      cancel-in-progress: false") in package
+    assert "cancel-in-progress: true" not in text
     for job in (package, submit):
         group = job.split("concurrency:\n", 1)[1].split("cancel-in-progress", 1)[0]
         assert "needs.source.outputs.commit != ''" in group
     # The freshness check runs from main and precedes every step that touches the package or a secret.
     helper = next(step for step in submit.split("      - ") if "path: automation" in step)
-    assert "sparse-checkout: scripts/windows_exe_release.cjs" in helper and "persist-credentials: false" in helper
+    assert ("sparse-checkout: |\n            scripts/windows_exe_release.cjs\n"
+            "            scripts/submit_windows_msix.py\n") in helper and "persist-credentials: false" in helper
     assert "ref:" not in helper
     assert "confirmStore(github, context, core, release.mainHistory('automation'))" in submit
     assert submit.index("confirmStore") < submit.index("download-artifact") < submit.index("STORE_CLIENT_SECRET")
     assert submit.count("if: steps.newest.outputs.current == 'true'") == 3
-    assert '--commit "$STORE_COMMIT" --history automation' in submit
-    assert "name: store-submitted-${{ needs.source.outputs.commit }}" in submit
+    # The script runs from main, so an older selected commit's copy (without `--history`) is never used.
+    assert ('python -B automation/scripts/submit_windows_msix.py --commit "$STORE_COMMIT" --history automation'
+            in submit)
+    assert "python -B scripts/" not in submit
+    receipt = submit.split("name: store-submitted-${{ needs.source.outputs.commit }}", 1)[1]
+    # The receipt keeps the Store from going back; it outlives a package (14 days).
+    assert "retention-days: 90" in receipt
     # Store credentials reach the submission only; every third-party action is pinned to a commit.
     assert [name for name, job in store.items() if "STORE_CLIENT_SECRET" in job] == ["submit"]
     assert all(re.fullmatch(r"[\w-]+/[\w-]+@[0-9a-f]{40}", use) for use in re.findall(r"uses: (\S+)", body))

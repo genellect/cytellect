@@ -275,6 +275,22 @@ def main_ancestry(history: Path, commit: str):
     return is_ancestor
 
 
+def require_descendant(packages: list, commit: str, is_ancestor, where: str) -> None:
+    """The Store never goes back to an older commit under a newer version number.
+
+    A package submitted by this script names its source commit; the candidate must descend from
+    every commit so named, whether the package is published, in review or in a draft. A manually
+    numbered package names no commit and is not compared. A name that cannot be read stops the
+    submission (the caller reports an incomplete response).
+    """
+    if is_ancestor is None:
+        return
+    for item in packages:
+        source = re.search(r"-([0-9a-f]{40})\.msix$", item["fileName"])
+        if source and source[1] != commit and not is_ancestor(source[1]):
+            raise StoreError(f"The candidate does not descend from the commit of the {where} package.")
+
+
 def submit(store: Store, package: Path, version: str, commit: str, recover_id: str = "",
            *, confirmed_free_id: str = "", is_ancestor=None) -> bool:
     app = store.call("GET")
@@ -298,11 +314,7 @@ def submit(store: Store, package: Path, version: str, commit: str, recover_id: s
         raise StoreError("The published package layout no longer matches the single x64 MSIX release.")
     if version_parts(published_packages[0]["version"]) >= version_parts(version):
         raise StoreError("The candidate version must be newer than every published package.")
-    # A package submitted by this script names its source commit. The Store never goes back to an
-    # older commit under a newer version number; a manually numbered package names no commit.
-    source = re.search(r"-([0-9a-f]{40})\.msix$", published_packages[0]["fileName"])
-    if source and is_ancestor is not None and not is_ancestor(source[1]):
-        raise StoreError("The candidate does not descend from the commit of the published package.")
+    require_descendant(published_packages, commit, is_ancestor, "published")
     pending_ref = app.get("pendingApplicationSubmission")
     replacement = {
         "fileName": name, "fileStatus": "PendingUpload",
@@ -313,6 +325,8 @@ def submit(store: Store, package: Path, version: str, commit: str, recover_id: s
         path = submission_path(pending_ref)
         draft = store.call("GET", path)
         packages = draft.get("applicationPackages", [])
+        # A submission in review, or a draft, may hold a newer commit than the published one.
+        require_descendant(packages, commit, is_ancestor, "pending")
         if draft.get("status") in IN_REVIEW:
             print(f"Waiting for Store submission {pending_ref['id']} to finish.")
             return any(item["fileName"].endswith(suffix) for item in packages)
