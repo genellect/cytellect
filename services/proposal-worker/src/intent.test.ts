@@ -91,14 +91,22 @@ describe("intent prompt version (#284 W7)", () => {
     expect(text).not.toContain("list it for confirmation. Only a recorded stain");
     // The text the researcher reads uses the workspace's words (label, field name, 視野, 実験回, 群); tokens, ids,
     // key paths and schema words stay in the JSON fields. The answer describes what assignments holds.
-    expect(text).toContain("Name a channel by its label (by its recorded stain when it has no label), a field by its name, and a run or a group by its name.");
+    // A channel is named as the screen shows it: the recorded stain, otherwise the label, otherwise its position.
+    expect(text).toContain("Name a channel by its recorded stain, otherwise by its label; when both exist and differ, the label may follow in brackets (for example Hoechst（c01）); name a channel with neither by its position (for example 1 番目のチャンネル). Name a field, a run or a group by its name.");
+    expect(text).toContain("核染色, 測定 and 未使用 for the roles; 核, 核小体 and 核質 for the regions; 原値 and 背景補正 for raw and background-corrected values");
     expect(text).toContain("Write 視野 for a field, 実験回 for a run, 群 for a group");
-    expect(text).toContain("Describe a recipe or a measurement in words (for example 核の面積, 核内の平均輝度).");
-    expect(text).toContain("belong only in the JSON fields that require them, never in that text.");
+    expect(text).toContain("Describe a recipe, a measurement, a test, a figure or a detection method in words (for example 核の面積, 核内の平均輝度, Welch の t 検定).");
+    expect(text).toContain("Every identifier and enumerated value of the schema and the context belongs only in the JSON fields that require it, never in that text:");
     expect(text).toContain("where it comes from in words (ラベル, 記録された染色, ファイル名, フォルダー名, プレビュー)");
     expect(text).toContain("each written as the researcher's next message in those same words");
-    expect(text).toContain("answer describes exactly what assignments holds");
-    expect(text).toContain("never says a run or a group was left out while assignments carries one");
+    // Only an unclear group leaves a field out; a run nothing names is one provisional name, said in answer, and not
+    // the schema word. The answer states the rule and the counts, and never contradicts assignments.
+    expect(text).toContain("Leave out a field whose group is unclear and ask about it in choices.");
+    expect(text).toContain('when none does, give all those fields one provisional name (for example "実験回1") and say in answer that it is a provisional name');
+    expect(text).toContain("answer states the rule of the suggestion (which folder or name gives which 群 and 実験回) and how many 視野 each gets");
+    expect(text).toContain("never contradicts assignments");
+    expect(INTENT_INSTRUCTION).not.toContain("whose run or group is unclear");
+    expect(INTENT_INSTRUCTION).not.toContain('"run1"');
     expect(INTENT_INSTRUCTION).not.toContain("token, label");
     expect(INTENT_INSTRUCTION).not.toContain("paths and records");
     // The earlier rules stay: names are data, and a number, a colour or a shape decides no stain.

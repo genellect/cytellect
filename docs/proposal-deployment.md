@@ -321,7 +321,15 @@ admission), and routes `2026-11-26.1` to Claude when it is configured. Until the
 an updated client working by setting `CYTELLECT_PROPOSAL_PROMPT_VERSION=2026-11-19.1`: the local API then sends
 context 1.2.0 without the additions, and answers have no kind of request (the earlier 「設定を適用」 and 「適用して試行」).
 The Worker with this prompt was deployed on 2026-11-26 from the PR's head (record below), and its answers were checked
-the same day on public cases with the owner's permission (the evaluation below the record).
+the same day on public cases with the owner's permission (the evaluation below the record). After that evaluation the
+text of `2026-11-26.1` was changed in place, in `359d4ef7` and later commits of PR #303: no distributed client uses
+this version, and #237 changed an undistributed prompt's text the same way. Production answers with the earlier text
+(deployed from 518074a6) until the Worker is redeployed, and the new text has not been evaluated yet.
+`doctor --proposal-version` checks only that a version is accepted, not which text of it is deployed, so the Worker
+must be redeployed before distribution for the corrected wording to reach researchers. The local API reuses a saved
+proposal keyed by the prompt version, the context and the workspace's state (`proposals.py`), so a workspace that
+already asked the same request in the same state returns the earlier answer without a model call: evaluate the new
+text on a new workspace.
 
 ### Required prompt-version check before distribution
 
@@ -393,8 +401,10 @@ What the evaluation shows and does not show:
 - Answers still carry the service's own identifiers where a researcher expects the workspace's words: `ch1`/`ch2`,
   `f1`/`f2`, `fields[].paths`, `run`, `nuclear-intensity`, `raw`, 「フィールド」 for 視野, and the folder names
   `control`/`treated` as group names where the request said 対照 and 処理. With recipe `none` the screen shows the
-  seventh answer with nothing to apply. Correcting the wording and that kind is a prompt change, which needs a new
-  prompt version and another deployment with the owner's permission.
+  seventh answer with nothing to apply. The wording was corrected by a rule added in place to the text of
+  `2026-11-26.1` (see above): it needs another deployment with the owner's permission and a new evaluation, and neither
+  has been done. Two findings are not addressed: the folder names `control`/`treated` used as group names where the
+  researcher said 対照 and 処理, and the request outside the recipes returned as `settings`.
 - Seven requests on two public datasets are a check that the route works end to end and of the answers' character, not
   a measure of accuracy. The evaluation with a registered case set (`eval:public`) and researchers' own questions
   remains open ([roadmap](roadmap.md)).
