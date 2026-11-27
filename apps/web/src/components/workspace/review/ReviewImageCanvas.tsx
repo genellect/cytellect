@@ -280,7 +280,7 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
     drag.current = null; setDragging(false);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   };
-  return <div className={[styles.frame, className].filter(Boolean).join(" ")} style={{aspectRatio: `${width} / ${height}`, ...style}} data-composite={layers?.length ? outlineTone ?? "marker" : undefined} data-color-by={colorBy && colorBy !== "outline" ? colorBy : undefined} aria-busy={loading || saving} onKeyDown={event => {
+  return <div className={[styles.frame, className].filter(Boolean).join(" ")} style={{aspectRatio: `${width} / ${height}`, ...style}} data-composite={layers?.length ? outlineTone ?? "marker" : undefined} data-color-by={colorBy && colorBy !== "outline" ? colorBy : undefined} aria-busy={loading || saving || (!ready && failedSource !== src)} onKeyDown={event => {
     if (event.key === "Escape" && draft) {event.preventDefault(); cancelEdit(); return;}
     if (interactionBlocked || stale) return;
     if (draft) {

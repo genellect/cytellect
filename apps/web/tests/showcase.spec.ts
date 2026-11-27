@@ -748,6 +748,8 @@ async function nucleusClickPoints(image: Locator) {
     return {nuclei, background};
   });
 }
+/** Waits until the pane's image takes clicks: until its picture has loaded the frame is busy and ignores them. */
+const ready = (image: Locator) => expect(image.locator("xpath=ancestor::div[@aria-busy][1]")).toHaveAttribute("aria-busy", "false", {timeout: live});
 /** Whether the pane's selected nucleolus lies inside its outlined nucleus `index` (by the centre of its outline). */
 const selectedWithin = (image: Locator, index: number) => image.evaluate((element, nucleus) => {
   const svg = element as SVGSVGElement, path = svg.querySelector<SVGPathElement>("path[data-region][aria-pressed=true]")!;
@@ -776,6 +778,7 @@ test("in the nucleolus view a click on a nucleus selects its nearest nucleolus, 
       const image = images.nth(pane), pressed = image.locator("path[data-region][aria-pressed=true]");
       await expect(image.locator("polygon[class*=context]").first()).toBeAttached({timeout: live});
       await expect(image.locator("path[data-region]").first()).toBeAttached({timeout: live});
+      await ready(image);
       // Two nuclei in turn: each click, inside the nucleus and outside its nucleoli, selects one nucleolus of that nucleus.
       const chosen: string[] = [];
       for (const nth of [0, 1]) {
@@ -806,6 +809,7 @@ test("in the nucleolus view a click on a nucleus selects its nearest nucleolus, 
     await expect(cards.nth(card)).toHaveAttribute("aria-pressed", "true");
     await expect(image.locator("polygon[class*=context]").first()).toBeAttached({timeout: live});
     await expect(image.locator("path[data-region][aria-pressed=true]")).toHaveCount(0);
+    await ready(image);
     empty = (await nucleusClickPoints(image)).nuclei.find(nucleus => nucleus.free && nucleus.nucleoli === 0);
   }
   expect(empty, "a field with a nucleus that encloses no nucleolus").toBeDefined();
