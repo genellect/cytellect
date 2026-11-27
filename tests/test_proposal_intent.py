@@ -155,9 +155,20 @@ def test_choices_are_short_distinct_options(choices):
 
 
 def test_the_text_check_covers_the_answer_and_its_choices():
-    for change in ({"answer": "https://example.org を参照"}, {"choices": [{"question": "q", "options": ["a", "run(\"x\")"]}]}):
+    for change in ({"answer": "https://example.org を参照"}, {"choices": [{"question": "run(\"x\")", "options": ["a", "b"]}]},
+                   {"choices": [{"question": "q", "options": ["a", "https://example.org"]}]},
+                   {"assignments": [{"field": "f1", "run": "Rep1", "group": "www.example.org"}]}):
         error = refused(answer(**change))
         assert error.codes == ["proposal_text_not_allowed"] and error.answer is None and error.rationale is None
+
+
+def test_options_and_suggested_names_may_use_ordinary_words():
+    # A folder named Macro, or an option that quotes it, is a name the researcher gave: no link, no markup, accepted.
+    result = validate_draft(CONTEXT, answer(choices=[{"question": "群の確認", "options": ["群は Macro", "群は Micro"]}],
+                                            assignments=[{"field": "f1", "run": "import 1", "group": "Macro"}]),
+                            model="m", prompt_version="p")
+    assert [(item.run, item.group) for item in result.draft.assignments] == [("import 1", "Macro")]
+    assert result.draft.choices[0].options == ["群は Macro", "群は Micro"]
 
 
 def test_assignments_name_registered_fields_and_the_designs_groups():

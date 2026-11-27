@@ -54,7 +54,7 @@ export interface IntakeDependencies {
   diagnose?: (counts: Record<string, number>) => void;
 }
 
-// One judgement at a time: judging and registering share the upload guard's two concurrent slots.
+// One judgement at a time: the upload guard gives judgements two slots of their own (apart from registration), per API process.
 const LIMIT = 256 * 1024 * 1024, CONCURRENT = 1;
 const storageKey = (workspace: string | null) => `cytellect.intake.v1.${workspace ?? "new"}`;
 const hex = (digest: ArrayBuffer) => Array.from(new Uint8Array(digest), value => value.toString(16).padStart(2, "0")).join("");

@@ -172,6 +172,37 @@ def test_concurrency_cap_rejects_third_request_without_consuming_it():
     asyncio.run(scenario())
 
 
+def test_inspections_and_registrations_do_not_take_each_others_slots():
+    async def scenario():
+        started, release = asyncio.Event(), asyncio.Event()
+        count = 0
+
+        async def held(scope, receive, send):
+            nonlocal count
+            count += 1
+            if count == 2:
+                started.set()
+            await release.wait()
+            await JSONResponse({"ok": True})(scope, receive, send)
+
+        guard = UploadGuardMiddleware(held, AuthStore(), settings())
+        inspection = context() | {"path": "/v1/intake/inspect"}
+        waiting = [asyncio.create_task(invoke(guard, inspection)) for _ in range(2)]
+        await started.wait()
+        # Two files being judged: a third judgement waits its turn, a registration is still received.
+        messages, reads = await invoke(guard, inspection)
+        assert status(messages) == 429 and reads == 0 and (guard.inspecting, guard.active) == (2, 0)
+        upload = asyncio.create_task(invoke(guard, context()))
+        release.set()
+        messages, _ = await upload
+        assert status(messages) == 200
+        for task in waiting:
+            await task
+        assert (guard.inspecting, guard.active) == (0, 0)
+
+    asyncio.run(scenario())
+
+
 def test_valid_multipart_reaches_parser_and_frees_slot():
     async def parse(scope, receive, send):
         async with Request(scope, receive).form() as form:

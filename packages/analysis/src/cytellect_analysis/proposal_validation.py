@@ -206,8 +206,13 @@ def context_sha256(context: ProposalContext) -> str:
 
 def _texts(draft: ProposalDraft) -> list[str]:
     return [draft.rationale, *draft.missing_information, *(channel.reason for channel in draft.channels),
-            draft.answer or "", *(choice.question for choice in draft.choices),
-            *(option for choice in draft.choices for option in choice.options),
+            draft.answer or "", *(choice.question for choice in draft.choices)]
+
+
+def _names(draft: ProposalDraft) -> list[str]:
+    """Options (written as the researcher's next message) and run and group names quote names the researcher gave
+    (a folder, a stain), so like every other name they may use ordinary words and may carry no link or markup."""
+    return [*(option for choice in draft.choices for option in choice.options),
             *(label for assignment in draft.assignments for label in (assignment.run, assignment.group))]
 
 
@@ -227,7 +232,8 @@ def _validate_answer(context: ProposalContext, draft: ProposalDraft, *, model: s
         codes.append("proposal_answer_missing")
     if len(set(draft.reference_ids)) != len(draft.reference_ids):
         codes.append("proposal_reference_duplicate")
-    if any(FORBIDDEN_TEXT.search(text) for text in _texts(draft)):
+    if (any(FORBIDDEN_TEXT.search(text) for text in _texts(draft))
+            or any(FORBIDDEN_REFERENCE.search(text) for text in _names(draft))):
         codes.append("proposal_text_not_allowed")
     if codes:
         _refuse(draft, codes)

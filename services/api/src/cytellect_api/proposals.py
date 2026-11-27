@@ -884,7 +884,17 @@ def register_proposal_routes(api, store, settings, owner, workspace, credentials
                                     reply=answer_text(refused.rationale or "", refused.missing_information, refused.answer))
             return ProposalDraftResponse(proposal=None, channels=links, message=message, fields=field_links)
         assert proposal is not None  # Every other path above returned or raised.
-        workspace(wid, who)  # Revocation/expiry during the external call blocks publication.
+        try:
+            workspace(wid, who)  # Revocation/expiry during the external call blocks publication.
+        except HTTPException as error:
+            # The message says why it has no answer instead of staying pending; the request is released as failed.
+            with store.transaction() as conn:
+                conn.execute(update(proposal_drafts).where(proposal_drafts.c.workspace_id == wid,
+                    proposal_drafts.c.cache_key == key, proposal_drafts.c.request_id == request_id,
+                    proposal_drafts.c.state == "pending").values(state="failed"))
+            close_message(mid, state="failed", stage="context",
+                          reasons=[error.detail if isinstance(error.detail, str) else "proposal_context_changed"])
+            raise
         try:
             refreshed, refreshed_links = build_context(store, wid, body.goal, body.field_id, protocol=protocol)
             refreshed = _continuation_context(refreshed, refreshed_links, body)

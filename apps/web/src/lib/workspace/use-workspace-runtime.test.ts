@@ -434,6 +434,24 @@ describe("functional workspace runtime",()=>{
     expect(outcome.registered.map(item=>item.names)).toEqual([["small_c1.tif"]]);
     expect(adapter.upload).toHaveBeenCalledTimes(1);
   });
+  it("names a file that can no longer be read and registers the others (code review of #303)",async()=>{
+    const {runtime,adapter}=fixture();await runtime.load("w");const ledger=withLedger(adapter);
+    adapter.upload.mockImplementation(async(_workspace,field,_channels,_files,entry)=>ledger.accept(entry!,`f-${field.key.split("/").at(-1)}`));
+    const gone=new File([new Uint8Array([60])],"gone_c1.tif");Object.defineProperty(gone,"arrayBuffer",{value:async()=>{throw new DOMException("gone","NotReadableError");}});
+    const outcome=await runtime.importFiles([gone,new File([new Uint8Array([61])],"kept_c1.tif")]);
+    expect(outcome.registered.map(item=>item.names)).toEqual([["kept_c1.tif"]]);
+    expect(outcome.rejected).toEqual([{entry:null,names:["gone_c1.tif"],code:"file_unreadable"}]);
+  });
+  it("continues and applies no answer of the workspace that was open before (code review of #303)",async()=>{
+    const {runtime,adapter}=fixture();await runtime.load("w");
+    const first=await runtime.requestProposal("DRAQ を核染色にする","f1");
+    expect(runtime.canApply(first.message.id)).toBe(true);
+    await runtime.load("w2");
+    expect(runtime.canApply(first.message.id)).toBe(false);
+    adapter.draft.mockImplementationOnce(async()=>({proposal:null,message:{...message("next"),applicable:false}}) as never);
+    await runtime.requestProposal("正常な全視野の核を数えて","f1");
+    expect((adapter.draft.mock.calls.at(-1) as unknown[]|undefined)?.[3]).toMatchObject({previous_goal:"",previous_proposal:null});
+  });
   it("keeps the conversation per workspace, applies only on request, never applies a refused answer, and continues from the last applicable one (#284 W2)",async()=>{
     const {runtime,adapter,writeSpecification}=fixture();
     const saved=[{...message("old"),text:"前の質問",reply:"前の回答"}];
@@ -634,6 +652,11 @@ describe("connection loss and reconnection (#284 W9)",()=>{
     expect(runtime.getSnapshot().data?.workspaceId).toBe("");
     expect(adapter.restore).toHaveBeenCalledTimes(reads);
     expect(runtime.getSnapshot().error).toBe("");
+  });
+  it("recordRefused records a name too long for a row by its file name (code review of #303)",async()=>{
+    const {runtime,adapter}=withDesign();await runtime.load("w");const ledger=withLedger(adapter);
+    expect(await runtime.recordRefused([{names:[`${"階層/".repeat(90)}deep_c1.tif`],code:"unsupported_or_invalid_region_image",target:null}])).toBe(1);
+    expect(ledger.entries().filter(entry=>entry.intake).map(entry=>entry.intake!.names)).toEqual([["deep_c1.tif"]]);
   });
   it("recordRefused says how many rows it saved, and stops at the record's limit (automated review)",async()=>{
     const {runtime,adapter}=withDesign();await runtime.load("w");const ledger=withLedger(adapter);

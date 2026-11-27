@@ -34,6 +34,8 @@ class UploadGuardMiddleware:
         self.table_limit = table_body_limit
         self.idle_timeout = idle_timeout_seconds
         self.active = 0
+        # Inspections (INTAKE_ROUTE) have their own slots: judging chosen files never refuses a registration.
+        self.inspecting = 0
 
     async def __call__(self, scope, receive, send):
         path = scope.get("path", "")
@@ -98,10 +100,11 @@ class UploadGuardMiddleware:
                 await reject(413, "upload_body_limit")
                 return
         # There is no await between reading and changing this per-process counter.
-        if self.active >= self.concurrency:
+        slots = "inspecting" if route is None else "active"
+        if getattr(self, slots) >= self.concurrency:
             await reject(429, "upload_concurrency_limit")
             return
-        self.active += 1
+        setattr(self, slots, getattr(self, slots) + 1)
         received = 0
         failure = None
         replacement_sent = False
@@ -137,6 +140,6 @@ class UploadGuardMiddleware:
             if failure is None:
                 raise
         finally:
-            self.active -= 1
+            setattr(self, slots, getattr(self, slots) - 1)
         if failure and not replacement_sent:
             await reject(*failure)

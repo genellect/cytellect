@@ -47,6 +47,9 @@ export function ConnectionNotice({onReconnected}: {onReconnected: () => void}) {
     if (!LOCAL_MODE) return;
     let current = true;
     void request<PreviousStop>("/v1/local/previous-stop").then(value => {
+      // A start after a normal stop forgets the closed notice: an unrecorded stop has no time, so the next one
+      // would otherwise read as the stop already closed and never be shown.
+      if (!value?.abnormal) {try {localStorage.removeItem(STOP_SEEN);} catch {/* storage is a convenience only */}return;}
       // Shown until it is closed, then not again for the same stop (a reload is not another stop).
       const key = `${value?.reason ?? ""}:${value?.time ?? ""}`;
       let seen = false;

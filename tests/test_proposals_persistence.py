@@ -11,7 +11,7 @@ from cytellect_analysis.proposal_contracts import PROPOSAL_PROMPT_VERSION, Propo
 from cytellect_analysis.proposal_validation import validate_draft
 from cytellect_api import proposals
 from cytellect_api.app import create_app
-from cytellect_api.db import fields, proposal_drafts, revisions, workspaces
+from cytellect_api.db import assistant_messages, fields, proposal_drafts, revisions, workspaces
 from fastapi.testclient import TestClient
 from sqlalchemy import update
 from test_api_worker import HEADERS
@@ -152,6 +152,10 @@ def test_expiry_during_provider_call_never_publishes_result(tmp_path, monkeypatc
     monkeypatch.setattr(proposals._OPENER, "open", expire)
     assert client.post(f"/v1/workspaces/{wid}/proposal-drafts", json=BODY, headers=HEADERS).status_code == 404
     assert all(row["proposal"] is None for row in store.rows(proposal_drafts, workspace_id=wid))
+    # The message is closed with the reason, and the request released: neither stays pending.
+    assert [(row["state"], row["reasons"], row["stage"]) for row in store.rows(assistant_messages, workspace_id=wid)] == [
+        ("failed", ["workspace_not_found"], "context")]
+    assert [row["state"] for row in store.rows(proposal_drafts, workspace_id=wid)] == ["failed"]
 
 
 def test_channel_tokens_are_opaque_and_cannot_collide(tmp_path, monkeypatch):

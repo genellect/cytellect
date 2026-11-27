@@ -143,8 +143,12 @@ function Workspace({runtime:r,initialMode}:{runtime:Runtime;initialMode?:DemoSte
   // While a saved workspace is still loading there is no ID yet: the list waits, so the names kept for that workspace
   // are read (not overwritten by an empty list) and come back as 「再選択」 rows, shown at once (#284 priority 7).
   // Before the first load ends there is no data at all (not even an empty workspace): nothing is opened or renamed.
-  useEffect(()=>{if(r.loading||!data)return;const id=data.workspaceId||null;if(listWorkspace.current===id)return;
-    if(listWorkspace.current===null&&id)intakeList.rename(id);else{intakeList.open(id,listWorkspace.current===undefined);if(intakeList.getSnapshot().items.length)setIntakeShown(true);}
+  // A new workspace receives its ID without a load (its first addition creates it). An ID that follows a load is
+  // another saved workspace: its own list is opened, and the new workspace's chosen files never move into it.
+  const listLoaded=useRef(false);
+  useEffect(()=>{if(r.loading){listLoaded.current=true;return;}if(!data)return;const loaded=listLoaded.current;listLoaded.current=false;
+    const id=data.workspaceId||null;if(listWorkspace.current===id)return;
+    if(listWorkspace.current===null&&id&&!loaded)intakeList.rename(id);else{intakeList.open(id,listWorkspace.current===undefined);if(intakeList.getSnapshot().items.length)setIntakeShown(true);}
     listWorkspace.current=id;},[data?.workspaceId,intakeList,r.loading]);
   // A closed file dialog changes nothing (the earlier choice stays); it is said so, not left silent (#284 input 6).
   const [cancelled,setCancelled]=useState(false);

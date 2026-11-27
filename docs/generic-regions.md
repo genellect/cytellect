@@ -287,7 +287,8 @@ code for the same bytes; a test sends each sample to both. The answer gives:
 It judges only what one file shows: readability, type and shape. Channel shape
 agreement within a field, the four-channel limit and the workspace's field and
 byte limits stay with registration. The route has the field upload's
-authentication, Origin/CSRF, body, time and concurrency limits before parsing and
+authentication, Origin/CSRF, body and time limits before parsing, a concurrency limit
+of its own (two inspections per API process, counted apart from registrations) and
 its 256 MiB file limit, refuses demo installations and applies
 `CYTELLECT_UPLOAD_ALLOWLIST`. It saves no database row and no file: the bytes go
 to a fresh folder under the private `tmp` directory under a fixed name, which is

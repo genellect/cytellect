@@ -88,6 +88,8 @@ export const NUCLEAR_STAIN_MISSING="核染色の指定なし";
 export class IntakeInterrupted extends Error {constructor(public outcome:IntakeOutcome, public cause:unknown){super(message(cause));}}
 /** The bit depth the API refuses as an image: a 32-bit integer label image (a mask), not missing data (#284 input 5). */
 export const MASK_CANDIDATE_CODE="region_image_bit_depth_unsupported";
+/** The browser could not read a chosen file when it was added (it was moved or deleted after it was chosen). */
+export const FILE_UNREADABLE_CODE="file_unreadable";
 const FIELD_FILE_LIMIT=256*1024*1024,LEDGER_LIMIT=100;
 const emptyOutcome=():IntakeOutcome=>({registered:[],rejected:[],held:[],duplicates:[],skipped:[]});
 const hex=(digest:ArrayBuffer)=>Array.from(new Uint8Array(digest),value=>value.toString(16).padStart(2,"0")).join("");
@@ -557,7 +559,10 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       if(files.has(path))path=`${batch}/image-${crypto.randomUUID()}/${originalPath}`;
       let sha256:string|undefined;
       if(file.size>FIELD_FILE_LIMIT)oversized.add(path);
-      else{sha256=hex(await crypto.subtle.digest("SHA-256",await file.arrayBuffer()));
+      else{let bytes:ArrayBuffer;
+        // A file that can no longer be read (moved, deleted, its drive removed) is this item's failure, not the addition's.
+        try{bytes=await file.arrayBuffer();}catch{outcome.rejected.push({entry:null,names:[recordedName(originalPath)],code:FILE_UNREADABLE_CODE});continue;}
+        sha256=hex(await crypto.subtle.digest("SHA-256",bytes));
         const same=known.get(sha256);
         if(same!==undefined&&!options.separate){const id=crypto.randomUUID();copies.set(id,{file,name:originalPath});outcome.duplicates.push({id,name:originalPath,sameAs:same});continue;}
         known.set(sha256,originalPath);hashes.set(path,sha256);}
@@ -639,7 +644,10 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
   async function travel(field:string,target:ReviewTarget,direction:"undo"|"redo"){return exclusive(direction==="undo"?"前の版に戻しています":"次の版を採用しています",async()=>{await checkCurrent();const stack=history(field,target),destination=stack[direction].at(-1);if(!destination)return;const previous=bound(field,target),result=await adapter.selectRevision(workspace(),destination.result.revision,field);stack[direction].pop();stack[direction==="undo"?"redo":"undo"].push(previous);adopted(field,target,result,destination.recipe);await refresh(workspace());});}
   const runtime={
     adapter,subscribe(listener:()=>void){listeners.add(listener);return()=>{listeners.delete(listener);};},getSnapshot:()=>state,
-    async load(id?:string){closed=false;opened=id;publish({busy:true,loading:true,error:"",operation:"画像と保存結果を読み込み中",...(id!==state.data?.workspaceId?{assignmentSuggestions:[]}:{})});
+    async load(id?:string){closed=false;opened=id;
+      // Another workspace: the answers held for the previous one are neither applied nor continued here.
+      if(id!==state.data?.workspaceId){answers.clear();lastApplicable=null;}
+      publish({busy:true,loading:true,error:"",operation:"画像と保存結果を読み込み中",...(id!==state.data?.workspaceId?{assignmentSuggestions:[]}:{})});
       // What is shown first loads first: a two-group design opens side by side on the first run's field
       // of each group (V-01), both together; any other design on its first field. The others follow.
       try{const opening=await openingFields(id);await refresh(id,true,opening?undefined:1,opening);if(state.data?.workspaceId)publish({messages:await readMessages(state.data.workspaceId)});}catch(error){publish({busy:false,loading:false,operation:"",error:message(error)});throw error;}
@@ -759,7 +767,7 @@ export function createWorkspaceRuntime(dependencies:Dependencies={}) {
       if(!state.data?.workspaceId){const created=await adapter.create();replaceData({...emptyData(),workspaceId:created.id,title:created.title});}else await checkCurrent();
       let saved=0;
       for(const item of refused){if((adapter.selection()?.entries.length??0)>=LEDGER_LIMIT)break;
-        await adapter.registerImport(workspace(),crypto.randomUUID(),{names:item.names,state:"rejected",stage:"inspect",code:item.code,...(item.target?{target:item.target}:{})});saved++;}
+        await adapter.registerImport(workspace(),crypto.randomUUID(),{names:item.names.map(recordedName),state:"rejected",stage:"inspect",code:item.code,...(item.target?{target:item.target}:{})});saved++;}
       await refresh(workspace());
       return saved;
     });},

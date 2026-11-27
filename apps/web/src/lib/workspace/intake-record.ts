@@ -25,6 +25,7 @@ const REASONS:Record<string,string> = {
   field_channel_limit: "チャンネル数の上限 4 を超過",
   field_input_modes_mixed: "グレースケールと RGB 表示画像の混在",
   ledger_full: "取り込みの記録が上限 100 件",
+  file_unreadable: "ファイルの読み取り不可 · 選択後の移動または削除",
   region_upload_id_conflict: "登録済みの内容と不一致",
   unregistered_upload: "未登録の画像 · この環境は登録済みの公開画像のみ",
 };
