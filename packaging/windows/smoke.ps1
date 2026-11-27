@@ -312,6 +312,68 @@ if ($UpdateInstaller) {
         # The refused update stays visible as failed; the signed update below starts from idle.
         if ($BuiltInKey) { Remove-Item -LiteralPath (Join-Path $root 'updates\state.json') -Force -ErrorAction SilentlyContinue }
 
+        Step 'in-app update whose installer Windows cannot start records the launch stage'
+        # A signed release whose "installer" is a generated file that is not a runnable program: it
+        # passes every check before it runs, then Windows refuses to start it (#284). Timeouts
+        # and non-zero exits are covered by tests/test_app_update.py.
+        # The file carries the MZ and PE signatures with an optional header that is neither PE32
+        # nor PE32+; Windows refuses to start it and this step passes (Verify run 45802931045).
+        # Observed with a text file instead: the state stayed "installing" for 300 s on an
+        # unattended runner (Verify run 45797533432). Whether the start call or the wait after it
+        # did not return was not determined; a file without the MZ signature being taken for a
+        # 16-bit program is the likely reason, not a verified one.
+        $brokenDirectory = Join-Path $feedDirectory 'broken'
+        New-Item -ItemType Directory -Path $brokenDirectory | Out-Null
+        $brokenInstaller = Join-Path $brokenDirectory $name
+        $image = [byte[]]::new(1024)
+        $image[0] = 0x4D; $image[1] = 0x5A; $image[0x3C] = 0x40          # "MZ", e_lfanew = 0x40
+        $image[0x40] = 0x50; $image[0x41] = 0x45                          # "PE\0\0"
+        $image[0x44] = 0x64; $image[0x45] = 0x86; $image[0x46] = 1        # x64, one section
+        $image[0x54] = 0xF0; $image[0x56] = 0x22                          # optional header size, executable
+        [IO.File]::WriteAllBytes($brokenInstaller, $image)
+        & $python -B (Join-Path $Checkout 'packaging\windows\update-test\sshsig_test_signer.py') --installer $brokenInstaller --version $UpdateVersion --commit $commit --output-dir $brokenDirectory
+        if ($LASTEXITCODE -ne 0) { throw 'signing the generated broken release failed' }
+        $brokenFeed = @(@{ tag_name = "v$UpdateVersion"; draft = $false
+            html_url = "https://github.com/genellect/cytellect/releases/tag/v$UpdateVersion"
+            assets = @(@{ name = $name; size = (Get-Item -LiteralPath $brokenInstaller).Length; browser_download_url = "$base/broken/$name" },
+                       @{ name = $manifest; browser_download_url = "$base/broken/$manifest" },
+                       @{ name = "$manifest.sig"; browser_download_url = "$base/broken/$manifest.sig" }) })
+        [IO.File]::WriteAllText((Join-Path $brokenDirectory 'releases.json'), (ConvertTo-Json -InputObject $brokenFeed -Depth 6))
+        $savedReleases = $env:CYTELLECT_TEST_RELEASES
+        $savedKey = $env:CYTELLECT_TEST_UPDATE_KEY
+        $env:CYTELLECT_TEST_RELEASES = "$base/broken/releases.json"
+        $env:CYTELLECT_TEST_UPDATE_KEY = [IO.File]::ReadAllText((Join-Path $brokenDirectory 'update-test-key.pub')).Trim()
+        # The release check is cached for hours; read the broken feed now, and the real one afterwards.
+        Remove-Item -LiteralPath (Join-Path $root 'updates\latest.json') -Force -ErrorAction SilentlyContinue
+        $process = Start-Cytellect $root
+        try {
+            $session = New-Session
+            Assert-TestKey (Invoke-RestMethod -NoProxy -Uri "$Origin/v1/app/update" -WebSession $session) 'installer launch failure'
+            $null = Invoke-RestMethod -NoProxy -Method Post -Uri "$Origin/v1/app/update" -Headers $Headers -WebSession $session
+            $watch = [Diagnostics.Stopwatch]::StartNew()
+            do {
+                Start-Sleep -Seconds 2
+                $failed = Invoke-RestMethod -NoProxy -Uri "$Origin/v1/app/update" -WebSession $session
+            } while ($failed.state -cne 'failed' -and $watch.Elapsed.TotalSeconds -lt 300)
+            if ($failed.state -cne 'failed' -or $failed.error -cne 'update_installer_launch_failed' -or $failed.stage -cne 'launch' -or
+                $null -ne $failed.exit_code -or $failed.current -cne $Version -or -not $failed.launch) {
+                throw ('an installer that cannot start was recorded as ' + $failed.state + ' ' + $failed.error + ' ' + $failed.stage + ' ' + $failed.exit_code)
+            }
+            $record = Get-Content -LiteralPath (Join-Path $root 'updates\state.json') -Raw | ConvertFrom-Json
+            if ($record.error -cne 'update_installer_launch_failed' -or $record.stage -cne 'launch') { throw 'the state record lacks the launch stage' }
+            if (@(Get-ChildItem -LiteralPath (Join-Path $root 'updates') -Recurse -Filter '*.exe' -ErrorAction SilentlyContinue).Count) {
+                throw 'the installer that could not start remained'
+            }
+            Assert-ShortcutVersion $root $Version
+            Write-Host 'an installer that Windows cannot start: update_installer_launch_failed at the launch stage; the current version keeps running'
+        } finally {
+            Stop-Cytellect $process
+            $env:CYTELLECT_TEST_RELEASES = $savedReleases
+            $env:CYTELLECT_TEST_UPDATE_KEY = $savedKey
+        }
+        Remove-Item -LiteralPath (Join-Path $root 'updates\state.json') -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath (Join-Path $root 'updates\latest.json') -Force -ErrorAction SilentlyContinue
+
         Step 'in-app update: verify the signed manifest, download, install beside, switch to the new version'
         $process = Start-Cytellect $root
         $session = New-Session

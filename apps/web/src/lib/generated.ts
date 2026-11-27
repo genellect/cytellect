@@ -995,6 +995,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/workspaces/{wid}/assistant-messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Messages */
+        get: operations["list_messages_v1_workspaces__wid__assistant_messages_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/workspaces/{wid}/assistant-messages/{mid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Record Effect
+         * @description What the researcher did with an answer (applied its settings, ran it). The answer never does it.
+         */
+        patch: operations["record_effect_v1_workspaces__wid__assistant_messages__mid__patch"];
+        trace?: never;
+    };
     "/v1/workspaces/{wid}/proposal-drafts": {
         parameters: {
             query?: never;
@@ -1277,6 +1314,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/intake/inspect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Inspect Intake */
+        post: operations["inspect_intake_v1_intake_inspect_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1478,6 +1532,66 @@ export interface components {
              * @constant
              */
             reason: "not_required_for_area";
+        };
+        /** AssistantEffect */
+        AssistantEffect: {
+            /**
+             * Effect
+             * @enum {string}
+             */
+            effect: "none" | "settings" | "run";
+        };
+        /**
+         * AssistantMessage
+         * @description One message of the researcher to the AI and what came back (#284 W2). `applicable` is true when the
+         *     answer carries settings the researcher may apply, false when its settings were refused (`reasons` and `stage`
+         *     say why), and null when there is nothing to apply: a question's answer (#284 W7), an answer without an analysis
+         *     (it only names a stain or a role), or a message still pending or failed. `restorable` is true when the answer recorded for the message holds items to confirm (`choices`) or
+         *     run and group suggestions (`assignments`): the listing carries the text only, so after a reload the workspace
+         *     offers the message's 「再送」 to read them again, which the record answers without a model call while the context
+         *     is unchanged. `suggests_assignments` names the second kind apart: the experiment table shows the suggestions
+         *     whichever message is the latest, while items to confirm are offered under the latest message only. Nothing here
+         *     changes settings.
+         */
+        AssistantMessage: {
+            /** Id */
+            id: string;
+            /** Field Id */
+            field_id: string | null;
+            /** Created */
+            created: number;
+            /** Text */
+            text: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "pending" | "answered" | "failed";
+            /** Reply */
+            reply: string | null;
+            /** Applicable */
+            applicable: boolean | null;
+            /** Reasons */
+            reasons: string[];
+            /** Stage */
+            stage: ("context" | "service" | "validation") | null;
+            /**
+             * Effect
+             * @enum {string}
+             */
+            effect: "none" | "settings" | "run";
+            /** Restorable */
+            restorable: boolean;
+            /**
+             * Suggests Assignments
+             * @default false
+             */
+            suggests_assignments: boolean;
+        };
+        /** AssistantMessages */
+        AssistantMessages: {
+            /** Messages */
+            messages: components["schemas"]["AssistantMessage"][];
         };
         /** AssociationPlot */
         AssociationPlot: {
@@ -1772,6 +1886,16 @@ export interface components {
              * @enum {string}
              */
             mode: "experimental-unit" | "descriptive";
+        };
+        /** Body_inspect_intake_v1_intake_inspect_post */
+        Body_inspect_intake_v1_intake_inspect_post: {
+            /** File */
+            file: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "native" | "display-rgb" | "ome";
         };
         /** Body_upload_field_v1_workspaces__wid__fields_post */
         Body_upload_field_v1_workspaces__wid__fields_post: {
@@ -2805,6 +2929,19 @@ export interface components {
             created: number;
             discussion: components["schemas"]["ValidatedDiscussion"];
         };
+        /**
+         * DraftAssignment
+         * @description A run and group suggestion for one field (`field` is a context field identifier). Shown in the experiment
+         *     table and saved only by the researcher's 「案を適用」; checked against the fields and the design by validation.
+         */
+        DraftAssignment: {
+            /** Field */
+            field: string;
+            /** Run */
+            run: string;
+            /** Group */
+            group: string;
+        };
         /** DraftBackground */
         DraftBackground: {
             /**
@@ -2832,6 +2969,18 @@ export interface components {
             role: "nuclear" | "measure" | "unused";
             /** Reason */
             reason: string;
+        };
+        /**
+         * DraftChoice
+         * @description An item the researcher decides and the images and records do not (which channel is the nuclear stain, which
+         *     group a field belongs to): a short question and options, each written as the researcher's next message. Lengths
+         *     and counts are checked by validation, so a long option refuses the settings but keeps the answer's text.
+         */
+        DraftChoice: {
+            /** Question */
+            question: string;
+            /** Options */
+            options: string[];
         };
         /** DraftFigure */
         DraftFigure: {
@@ -3456,6 +3605,60 @@ export interface components {
             channel_dtypes?: {
                 [key: string]: string;
             };
+        };
+        /**
+         * IntakeInspection
+         * @description What registration would make of one file. Nothing is stored; the file name is neither read nor returned.
+         */
+        IntakeInspection: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "native" | "display-rgb" | "ome";
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "image" | "label" | "unreadable";
+            /**
+             * Code
+             * @description Registration's reason code for a label or unreadable file; null for an image
+             */
+            code: string | null;
+            /** Sha256 */
+            sha256: string;
+            /** Bytes */
+            bytes: number;
+            /**
+             * Shape
+             * @description [Y, X] of a decoded image, or a label image's shape as stored in the file
+             */
+            shape: number[] | null;
+            /** Dtype */
+            dtype: string | null;
+            /**
+             * Channel Names
+             * @description OME channel names in order (null if unnamed); OME only
+             */
+            channel_names: (string | null)[] | null;
+            /**
+             * Thumbnail Png
+             * @description Base64 PNG of at most 256 px per side, for display only (first channel of an OME file)
+             */
+            thumbnail_png: string | null;
+        };
+        /**
+         * IntakeTarget
+         * @description Where the researcher asked the images to go; applied once the field exists (#284 control C).
+         */
+        IntakeTarget: {
+            /** Run Id */
+            run_id: string;
+            /** Group Id */
+            group_id: string;
+            /** Sample */
+            sample?: string | null;
         };
         /** InviteInput */
         InviteInput: {
@@ -4866,6 +5069,16 @@ export interface components {
             background?: components["schemas"]["DraftBackground"] | null;
             gfp_selection?: components["schemas"]["DraftGfpSelection"] | null;
             figure_presentation?: components["schemas"]["DraftFigurePresentation"] | null;
+            /** Intent */
+            intent?: ("answer" | "settings" | "run") | null;
+            /** Answer */
+            answer?: string | null;
+            /** Scope */
+            scope?: ("selected" | "all") | null;
+            /** Choices */
+            choices?: components["schemas"]["DraftChoice"][];
+            /** Assignments */
+            assignments?: components["schemas"]["DraftAssignment"][];
         };
         /**
          * ProposalDraftRequest
@@ -4911,12 +5124,27 @@ export interface components {
             previous_proposal?: {
                 [key: string]: unknown;
             } | null;
+            /** Message Id */
+            message_id?: string | null;
         };
         /** ProposalDraftResponse */
         ProposalDraftResponse: {
-            proposal: components["schemas"]["ValidatedProposal"];
+            proposal: components["schemas"]["ValidatedProposal"] | null;
             /** Channels */
             channels: components["schemas"]["ProposalChannelLink"][];
+            message?: components["schemas"]["AssistantMessage"] | null;
+            /** Fields */
+            fields?: components["schemas"]["ProposalFieldLink"][];
+        };
+        /**
+         * ProposalFieldLink
+         * @description The context's opaque field identifier (`f1`…) and the workspace field it names (context 1.3.0, #284 W7).
+         */
+        ProposalFieldLink: {
+            /** Token */
+            token: string;
+            /** Field Id */
+            field_id: string;
         };
         /** PublicationPackageRequest */
         PublicationPackageRequest: {
@@ -6949,6 +7177,29 @@ export interface components {
             /** Plan Candidate Id */
             plan_candidate_id?: ("regions-manual" | "regions-imported" | "regions-nuclei" | "legacy-gfp-nuclear" | "legacy-ncl") | null;
         };
+        /**
+         * WorkspaceIntake
+         * @description What the app knows about one attempted field: its files, how far it got and why it stopped.
+         *
+         *     Rows without a field (pending, rejected) are technical missing data: they are counted in the
+         *     comparison's n breakdown, never asked for a reason, and never block a comparison (#284 decision 2).
+         */
+        WorkspaceIntake: {
+            /** Names */
+            names: string[];
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "pending" | "rejected" | "registered";
+            /** Stage */
+            stage?: ("inspect" | "register") | null;
+            /** Code */
+            code?: string | null;
+            target?: components["schemas"]["IntakeTarget"] | null;
+            /** Separate */
+            separate?: true | null;
+        };
         /** WorkspaceRunRequest */
         WorkspaceRunRequest: {
             /** Request Id */
@@ -6990,6 +7241,7 @@ export interface components {
             target_revisions?: {
                 [key: string]: string;
             } | null;
+            intake?: components["schemas"]["WorkspaceIntake"] | null;
         };
         /** WorkspaceView */
         WorkspaceView: {
@@ -9431,6 +9683,73 @@ export interface operations {
             };
         };
     };
+    list_messages_v1_workspaces__wid__assistant_messages_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantMessages"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_effect_v1_workspaces__wid__assistant_messages__mid__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+                mid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssistantEffect"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantMessage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     draft_proposal_v1_workspaces__wid__proposal_drafts_post: {
         parameters: {
             query?: never;
@@ -10144,6 +10463,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    inspect_intake_v1_intake_inspect_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_inspect_intake_v1_intake_inspect_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntakeInspection"];
                 };
             };
             /** @description Validation Error */

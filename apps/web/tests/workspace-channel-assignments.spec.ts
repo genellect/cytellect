@@ -35,6 +35,8 @@ test("stain assignments persist, name thumbnails and determine the actual nuclea
     if(path.endsWith("/region-measurements"))return json({revision_id:"nuclei",field_failures:[],exclusions:[],field_tables:{field:{rows:channels.map(channel=>({region_id:7,channel_id:channel.channel_id,area_px:64,mean:20,median:20,integrated:1280}))}}});
     if(path.endsWith("/region-masks"))return json({regions:[{id:7,points:[[4,4],[12,4],[12,12],[4,12]]}],metadata:{mask_revision_id:"mask-nuclei"}});
     if(path.endsWith("/preview"))return route.fulfill({headers,contentType:"image/png",body:Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aU1sAAAAASUVORK5CYII=","base64")});
+    // The conversation of the workspace (#284 W2), read when it opens.
+    if(path.endsWith("/assistant-messages"))return json({messages:[]});
     unexpected.push(`${method} ${path}`);
     return json({detail:"unused_fixture_route"},404);
   });

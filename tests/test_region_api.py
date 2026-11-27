@@ -19,9 +19,11 @@ def tiff_bytes(array):
     return out.getvalue()
 
 
-def make_field(client, wid, *, labels=True):
+def make_field(client, wid, *, labels=True, client_upload_id=None):
     spec = {"channels": [{"channel_id": "actin", "label": "Actin", "identity_confirmed": True}],
             "metadata": {"condition": "control"}}
+    if client_upload_id:
+        spec |= {"version": "1.1.0", "client_upload_id": client_upload_id}
     pixels = np.full((12, 12), 10, np.uint16)
     pixels[4:6, 4:6] = np.array([[20, 30], [40, 50]], dtype=np.uint16)
     files = {"ch0": ("untrusted-original-name.tif", tiff_bytes(pixels), "image/tiff")}

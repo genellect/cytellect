@@ -88,6 +88,34 @@ def test_rejects_before_first_body_read(case, expected, route):
     assert status(messages) == expected and reads == 0 and guard.active == 0
 
 
+@pytest.mark.parametrize("case,expected", [("no-session", 401), ("oversized-header", 413), ("demo", 403)])
+def test_intake_inspection_is_guarded_like_a_field_upload_without_a_workspace(case, expected):
+    store = AuthStore()
+    # The inspection names no workspace, so a missing one is no reason to refuse it.
+    store.workspace = None
+    scope = context(auth=case != "no-session") | {"path": "/v1/intake/inspect"}
+    if case == "oversized-header":
+        scope["headers"].append((b"content-length", str(257 * 1024**2 + 1).encode()))
+    configured = settings()
+    configured.demo = case == "demo"
+    guard = UploadGuardMiddleware(never_called, store, configured)
+    messages, reads = asyncio.run(invoke(guard, scope))
+    assert status(messages) == expected and reads == 0 and guard.active == 0
+
+
+def test_intake_inspection_has_no_workspace_quota():
+    async def accept(scope, receive, send):
+        await JSONResponse({"ok": True})(scope, receive, send)
+
+    store = AuthStore()
+    store.workspace = None
+    configured = settings()
+    configured.max_upload_bytes = 0
+    scope = context(extra=[(b"content-length", b"4")]) | {"path": "/v1/intake/inspect"}
+    messages, _ = asyncio.run(invoke(UploadGuardMiddleware(accept, store, configured), scope, [(b"body", False)]))
+    assert status(messages) == 200
+
+
 @pytest.mark.parametrize("false_small_length", [False, True])
 def test_stream_limit_closes_actual_spooled_files(monkeypatch, false_small_length):
     import starlette.formparsers as parsers
@@ -144,6 +172,37 @@ def test_concurrency_cap_rejects_third_request_without_consuming_it():
     asyncio.run(scenario())
 
 
+def test_inspections_and_registrations_do_not_take_each_others_slots():
+    async def scenario():
+        started, release = asyncio.Event(), asyncio.Event()
+        count = 0
+
+        async def held(scope, receive, send):
+            nonlocal count
+            count += 1
+            if count == 2:
+                started.set()
+            await release.wait()
+            await JSONResponse({"ok": True})(scope, receive, send)
+
+        guard = UploadGuardMiddleware(held, AuthStore(), settings())
+        inspection = context() | {"path": "/v1/intake/inspect"}
+        waiting = [asyncio.create_task(invoke(guard, inspection)) for _ in range(2)]
+        await started.wait()
+        # Two files being judged: a third judgement waits its turn, a registration is still received.
+        messages, reads = await invoke(guard, inspection)
+        assert status(messages) == 429 and reads == 0 and (guard.inspecting, guard.active) == (2, 0)
+        upload = asyncio.create_task(invoke(guard, context()))
+        release.set()
+        messages, _ = await upload
+        assert status(messages) == 200
+        for task in waiting:
+            await task
+        assert (guard.inspecting, guard.active) == (0, 0)
+
+    asyncio.run(scenario())
+
+
 def test_valid_multipart_reaches_parser_and_frees_slot():
     async def parse(scope, receive, send):
         async with Request(scope, receive).form() as form:
@@ -187,7 +246,7 @@ def test_every_route_that_accepts_a_file_is_guarded(tmp_path):
     """A new upload route cannot be added without the guard: the guard's pattern is checked against the app."""
     from cytellect_api.app import create_app
     from cytellect_api.config import Settings
-    from cytellect_api.upload_guard import UPLOAD_ROUTE
+    from cytellect_api.upload_guard import INTAKE_ROUTE, UPLOAD_ROUTE
     from fastapi.routing import APIRoute
 
     app = create_app(Settings(tmp_path / "private", app_origin="http://localhost:3000", secure_cookies=False))
@@ -195,6 +254,8 @@ def test_every_route_that_accepts_a_file_is_guarded(tmp_path):
                if isinstance(route, APIRoute) and route.body_field is not None
                and any(getattr(param.field_info, "media_type", "") == "multipart/form-data"
                        for param in route.dependant.body_params)]
-    assert len(uploads) >= 4
+    assert len(uploads) >= 5
+    # The inspection before registration (#284 W4) names no workspace: the guard matches it by its own path.
+    assert INTAKE_ROUTE in uploads
     for path in uploads:
-        assert UPLOAD_ROUTE.fullmatch(path.replace("{wid}", "workspace")), path
+        assert path == INTAKE_ROUTE or UPLOAD_ROUTE.fullmatch(path.replace("{wid}", "workspace")), path

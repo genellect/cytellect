@@ -51,7 +51,12 @@ test("registered BBBC007 bytes pass real Fiji, raw measurement, correction and v
   await expect(page.getByTestId("file-input")).toBeEnabled();
   const uploaded = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/region-fields") && response.request().method() === "POST");
   await page.getByTestId("file-input").setInputFiles(bytes.map((buffer, index) => ({name: `a9_c${index + 1}.tif`, mimeType: "image/tiff", buffer})));
-  await page.getByRole("button", {name: /^1 画面/}).click();
+  await page.getByRole("region",{name:"取り込みの一覧"}).getByRole("button",{name:"追加",exact:true}).click();
+  // One screen: the experiment view suggests its only run and group, applied by the researcher (#284 W5, W6).
+  await page.getByRole("navigation",{name:"作業の切替"}).getByRole("button",{name:"実験",exact:true}).click();
+  await page.getByRole("button",{name:/^1 画面/}).click();
+  await page.getByRole("region",{name:"群・実験回が未割り当ての視野"}).getByRole("button",{name:"案を適用",exact:true}).click();
+  await page.getByRole("navigation",{name:"作業の切替"}).getByRole("button",{name:"画像",exact:true}).click();
   const upload = await uploaded; expect(upload.status()).toBe(201); const field = await upload.json();
   expect(field.image_info.channels.map((value: {stain: string | null}) => value.stain)).toEqual([null, null]);
   await page.getByRole("button", {name: "設定パネル", exact: true}).click();

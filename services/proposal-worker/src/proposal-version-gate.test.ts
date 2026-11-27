@@ -3,7 +3,7 @@ import probes from "../../../fixtures/proposal-version-probes.json";
 import {handle,type Env} from "./index";
 import {MemoryStore} from "./store";
 import {redeemSupport} from "./test-support";
-import {FIGURE_PROMPT_VERSION} from "./openai";
+import {INTENT_PROMPT_VERSION} from "./openai";
 import {DISCUSSION_PROMPT_VERSION} from "./discussion";
 
 const env:Env={DB:undefined as never,OPENAI_API_KEY:"sk-test",OPENAI_MODEL:"gpt-6.1-sol",ADMIN_TOKEN:"admin-token-0123456789abcdef",
@@ -12,7 +12,7 @@ const env:Env={DB:undefined as never,OPENAI_API_KEY:"sk-test",OPENAI_MODEL:"gpt-
 
 describe("release prompt probes stop before admission",()=>{
   it("uses the actual current client versions for both routes",()=>{
-    expect(probes.map(item=>item.prompt_version)).toEqual([FIGURE_PROMPT_VERSION,DISCUSSION_PROMPT_VERSION]);
+    expect(probes.map(item=>item.prompt_version)).toEqual([INTENT_PROMPT_VERSION,DISCUSSION_PROMPT_VERSION]);
   });
   for(const item of probes)for(const supported of [true,false])it(`${item.route}: ${supported?"accepted":"unsupported"} version never incurs use`,async()=>{
     const store=new MemoryStore(),fetcher=vi.fn();

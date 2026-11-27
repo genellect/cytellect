@@ -87,10 +87,8 @@ def register_region_cohort_routes(api, store, owner, workspace, revision, result
         ids = {source.field_id for source in body.sources}
         adoption = body.workspace_selection.model_dump(mode="json") if body.workspace_selection else None
         excluded_ids = {entry["field_id"] for entry in adoption["entries"] if entry["exclusion_reason"] and entry["field_id"]} if adoption else set()
-        # An image that never became a field (failed upload) must carry a reason, whichever fields the
-        # cohort holds: it is checked before the entries are narrowed to a stratum.
-        if adoption and any(entry["field_id"] is None and not entry["exclusion_reason"] for entry in adoption["entries"]):
-            raise HTTPException(409, "workspace_selection_incomplete")
+        # An image that never became a field (rejected or interrupted upload) is technical missing data: the saved
+        # selection keeps its row and the n breakdown counts it, and it never blocks a comparison (#284 decision 2).
         with store.engine.connect() as conn:
             design = saved_experiment(conn, wid)
         try:

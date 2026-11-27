@@ -1,5 +1,5 @@
 /**
- * Files dropped on the workspace, for the same intake as the 画像 and フォルダ buttons. A dropped folder
+ * Files dropped on the workspace, for the same intake as the 画像 and フォルダー buttons. A dropped folder
  * is read recursively, and each of its files keeps its path inside the dropped folder, as the folder
  * button's `webkitRelativePath` does, so grouping reads the same folder names (grouping.ts).
  */
@@ -13,6 +13,8 @@ export interface DropSource {
 const relativePaths = new WeakMap<File, string>();
 /** The path of a file to add: inside a dropped or chosen folder, else its name. */
 export const intakePath = (file: File) => relativePaths.get(file) ?? (file.webkitRelativePath || file.name);
+/** Gives a file chosen again the path it was first chosen with (a name kept over a reload), so it is added under it. */
+export const keepIntakePath = (file: File, path: string) => {relativePaths.set(file, path);};
 
 /** The dropped files; the items are taken at once, because a drop's items are readable only while its event runs. */
 export function droppedFiles(transfer: DropSource): Promise<File[]> {

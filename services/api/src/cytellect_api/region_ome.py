@@ -15,6 +15,7 @@ from sqlalchemy import func, select, update
 
 from .db import fields, uid, workspaces
 from .public_uploads import require_registered
+from .region_inputs import GENERIC_OME_CODE, RegionReadError
 
 
 def read_region_ome(path):
@@ -39,6 +40,25 @@ def read_region_ome(path):
     stack = read_tiff(path, channel_indices=list(range(count)) if count > 1 else None, max_channels=4)
     if count == 1:
         stack = stack[None, ...]
+    return stack, names
+
+
+def ome_channels(names):
+    """The channel specifications registration derives from OME names; no stain or role is invented."""
+    return [{"channel_id": f"c{i + 1}", "label": name or f"c{i + 1}", "stain": name,
+             "identity_source": "ome_metadata" if name else "unresolved"} for i, name in enumerate(names)]
+
+
+def read_region_ome_channels(path):
+    """Decode an OME file as registration does, or raise its reason code; shared with the intake inspection.
+
+    The channel names are checked here too, so a name registration cannot store is refused by both.
+    """
+    try:
+        stack, names = read_region_ome(path)
+        RegionFieldInput.model_validate({"version": "1.1.0", "channels": ome_channels(names)})
+    except Exception:
+        raise RegionReadError(GENERIC_OME_CODE) from None
     return stack, names
 
 
@@ -91,12 +111,9 @@ def register_region_ome_routes(api, store, settings, owner, workspace, touch, vi
                 prior = existing(conn)
                 if prior is not None:
                     return prior
-            stack, names = read_region_ome(path)
+            stack, names = read_region_ome_channels(path)
             spec = RegionFieldInput.model_validate({"version": "1.1.0", "client_upload_id": client_upload_id,
-                "display_name": display_name,
-                "channels": [{"channel_id": f"c{i + 1}", "label": name or f"c{i + 1}", "stain": name,
-                              "identity_source": "ome_metadata" if name else "unresolved"}
-                             for i, name in enumerate(names)]})
+                "display_name": display_name, "channels": ome_channels(names)})
             arrays = {}
             for index, channel in enumerate(spec.channels):
                 output = folder / f"channel-{channel.channel_id}.npy"
@@ -124,8 +141,10 @@ def register_region_ome_routes(api, store, settings, owner, workspace, touch, vi
             return result
         except HTTPException:
             raise
+        except RegionReadError as exc:
+            raise HTTPException(422, exc.code) from None
         except Exception:
-            raise HTTPException(422, "unsupported_or_invalid_region_ome") from None
+            raise HTTPException(422, GENERIC_OME_CODE) from None
         finally:
             if not keep:
                 shutil.rmtree(folder)

@@ -192,7 +192,7 @@ test("demo: image, outline, measurement, statistics and figure features run with
 
   // Image intake is explained, never attempted.
   const fieldList = page.getByRole("complementary", {name: "視野一覧"});
-  for (const name of ["画像", "フォルダ"]) {
+  for (const name of ["画像", "フォルダー"]) {
     await fieldList.getByRole("button", {name, exact: true}).click();
     const dialog = page.getByRole("dialog", {name: "画像の追加"});
     await expect(dialog.getByRole("link", {name: "ダウンロードの案内"})).toHaveAttribute("href", "/#download");

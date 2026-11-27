@@ -23,18 +23,23 @@ function contractRuntime(detector:NonNullable<ProposalProcessing["nucleoli"]>["d
   const data:ReviewData={workspaceId:"w",title:"contract",channels,fields:[{id:"f",label:"field",width:1,height:1,channels,previews:{},results:{nuclei:record("n"),nucleoli:record("u")},nuclearChannelId:"dna"}]};
   const assignments={version:1,assignments:channels.map(value=>({channel_id:value.id,stain:value.stain,role:value.role}))};
   const proposal={draft:{recipe:"nuclear-ncl",channels:[],metrics:[],statistics:{kind:"descriptive",test:null,omnibus:null,association:null},figures:[],missing_information:[],reference_ids:[],rationale:"",processing:configuredProcessing},needs_confirmation:[]} as unknown as ValidatedProposal;
-  const adapter={run:vi.fn(),restore:vi.fn(async()=>({record:{id:"w"},fields:[{id:"f",workspace_id:"w",metadata:{},image_info:{shape:[1,1],channels:channels.map(value=>({channel_id:value.id,label:value.label,stain:value.stain}))}}],revisions:[{id:"n",config:{recipe:base}},{id:"u",config:{recipe:configuredChild}}],jobs:[]})),getChannelAssignments:vi.fn(async()=>assignments),isSelectionCurrent:vi.fn(async()=>true),draft:vi.fn(async()=>({proposal}))};
+  const adapter={run:vi.fn(),selection:()=>null,restore:vi.fn(async()=>({record:{id:"w"},fields:[{id:"f",workspace_id:"w",metadata:{},image_info:{shape:[1,1],channels:channels.map(value=>({channel_id:value.id,label:value.label,stain:value.stain}))}}],revisions:[{id:"n",config:{recipe:base}},{id:"u",config:{recipe:configuredChild}}],jobs:[]})),getChannelAssignments:vi.fn(async()=>assignments),isSelectionCurrent:vi.fn(async()=>true),draft:vi.fn(async()=>({proposal,message:message()})),recordEffect:vi.fn(async()=>null),listMessages:vi.fn(async()=>[])};
   const writeSpecification=vi.fn(async(_id:string,value:import("./use-workspace-runtime").RuntimeSpecification)=>({...value,version:value.version+1}));
   const runtime=createWorkspaceRuntime({adapter:adapter as unknown as ReturnType<typeof createApiAdapter>,loadPreview:async()=>structuredClone(data),releasePreview:vi.fn(),readSpecification:async()=>({version:0,spec:null}),writeSpecification});
   return {runtime,adapter,writeSpecification};
 }
+/** Sends a message and applies its answer as the researcher's 「適用して試行」 (#284 W2: an answer alone changes nothing). */
+const message=(id="m1")=>({id,field_id:null,created:1,text:"",state:"answered" as const,reply:null,applicable:true,reasons:[],stage:null,effect:"none" as const});
+async function ask(runtime:ReturnType<typeof createWorkspaceRuntime>,goal:string,field?:string,trial=true){const response=await runtime.requestProposal(goal,field);await runtime.applyAnswer(response.message.id,trial,field);return response;}
 describe("NCL settings contracts without images",()=>{
   it.each(["ncl-r1-step0375","ncl-r1-step0750"] as const)("rejects an AI-only candidate selection %s before applying settings or running preview",async model=>{
     const {runtime,adapter}=contractRuntime(nclCellposeDetector());await runtime.load("w");
     const response=await adapter.draft();
     response.proposal.draft.processing!.nucleoli!.detector=selectNclModel(nclCellposeDetector(),model);
     adapter.draft.mockResolvedValueOnce(response);
-    await expect(runtime.requestProposal("adjust detection settings","f")).rejects.toThrow("proposal_model_not_selected");
+    const answered=await runtime.requestProposal("adjust detection settings","f");
+    // The answer alone applies nothing; applying it is refused before any setting changes or preview runs.
+    await expect(runtime.applyAnswer(answered.message.id,true,"f")).rejects.toThrow("proposal_model_not_selected");
     expect(adapter.run).not.toHaveBeenCalled();
     expect(runtime.cellposeSettings("f","nucleoli").model).toBe("cpsam_v2");
     runtime.dispose();
@@ -56,7 +61,7 @@ describe("NCL settings contracts without images",()=>{
   });
   it("applies AI settings into the same visible controls",async()=>{
     const {runtime,adapter,writeSpecification}=contractRuntime();await runtime.load("w");runtime.setSettings(value=>({...value,nucleolarSigma:1,nucleolarMinimumArea:2,nucleolarMaximumArea:9}));
-    await runtime.requestProposal("set NCL settings","f");
+    await ask(runtime,"set NCL settings","f");
     expect(writeSpecification.mock.calls[0][1].spec?.settings).toMatchObject({nucleolarSigma:1,nucleolarMinimumArea:2,nucleolarMaximumArea:9});
     expect(writeSpecification.mock.invocationCallOrder[0]).toBeLessThan(adapter.draft.mock.invocationCallOrder[0]);
     expect(runtime.specification()?.spec?.settings).toMatchObject({nucleolarSigma:3,nucleolarMinimumArea:12,nucleolarMaximumArea:140});
@@ -233,7 +238,7 @@ describe("Cellpose runtime contracts without images",()=>{
     const detector={...legacyNclCellposeDetector(),background_radius_px:14};
     const {runtime}=contractRuntime(detector);await runtime.load("w");
     expect(runtime.cellposeSettings("f","nucleoli")).toEqual(detector);
-    await runtime.requestProposal("NCLを検出","f");
+    await ask(runtime,"NCLを検出","f");
     expect(runtime.getSnapshot().processing?.nucleoli?.detector).toEqual(detector);
     expect(runtime.specification().spec?.processing?.nucleoli?.detector).toEqual(detector);
     runtime.dispose();
@@ -241,10 +246,10 @@ describe("Cellpose runtime contracts without images",()=>{
   it("starts only a selected preview for an explicit AI cell request",async()=>{
     const {runtime,adapter}=contractRuntime();await runtime.load("w");
     const proposal:ValidatedProposal={draft:{recipe:"supplied-regions",channels:[],metrics:[{metric:"area",channel:null,region:"cell"}],statistics:{kind:"descriptive",test:null,omnibus:null,association:null},figures:[],missing_information:[],reference_ids:[],rationale:"",processing:{version:"1.0.0",nuclei:null,nucleoli:null,signal:null,cells:{channel:"marker",detector:cellposeDetector()}}},needs_confirmation:[]};
-    adapter.draft.mockResolvedValue({proposal});adapter.run.mockResolvedValue({...record("cell-candidate"),regionSet:"cell"});
+    adapter.draft.mockResolvedValue({proposal,message:message()});adapter.run.mockResolvedValue({...record("cell-candidate"),regionSet:"cell"});
     runtime.setSettings(settings=>({...settings,cellDefinition:{source:"cellpose",channel:"marker"}}));
     expect(adapter.draft).not.toHaveBeenCalled();expect(adapter.run).not.toHaveBeenCalled();
-    await runtime.requestProposal("detect cells","f");
+    await ask(runtime,"detect cells","f");
     expect(runtime.getSnapshot().activeTarget).toBe("cell");
     expect(adapter.run).toHaveBeenCalledTimes(1);
     expect(adapter.run.mock.calls[0].slice(0,2)).toEqual(["w","f"]);

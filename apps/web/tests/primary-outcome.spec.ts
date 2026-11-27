@@ -63,6 +63,10 @@ async function workspace(context:BrowserContext,page:Page,{declaredAt,calculated
     if(path.endsWith("/region-masks"))return json({regions:[1,2].map(id=>({id,points:id===1?[[3,3],[14,3],[14,14],[3,14]]:[[18,18],[24,18],[24,24],[18,24]]})),metadata:{mask_revision_id:"mask-r1"}});
     if(path.endsWith("/preview"))return route.fulfill({headers,contentType:"image/svg+xml",body:'<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="#869fff"/></svg>'});
     if(path.endsWith("/revisions/r1"))return json(revision);
+    // A comparison saved without a workspace selection (#284 W1: the n breakdown reads it when present).
+    if(path.endsWith("/workspace-selection"))return json({detail:"workspace_selection_not_found"},404);
+    // The conversation of the workspace (#284 W2), read when it opens.
+    if(path.endsWith("/assistant-messages"))return json({messages:[]});
     unexpected.push(`${method} ${path}`);return json({detail:"unexpected_transport_route"},404);
   });
   return {unexpected,spec:()=>spec};

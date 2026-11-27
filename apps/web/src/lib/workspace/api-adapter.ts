@@ -1,5 +1,6 @@
 /** Real workspace transport. Pixels, masks, summaries and figures remain server-owned. */
-import { API, ApiError, errorCodeMessage, fetchBlob, post, request } from "../api";
+import { API, API_CONFIGURED, ApiError, errorCodeMessage, fetchBlob, post, request } from "../api";
+import { showcaseActive } from "../showcase";
 import { descriptiveFigureView, type DescriptiveResult } from "../descriptive-view";
 import type { components } from "../generated";
 import type { Job, Point, Workspace } from "../types";
@@ -10,7 +11,17 @@ import type {AnyCellposeProcessingDetector} from "./cellpose-settings";
 import type { ProposalProcessing, NuclearProcessingDetector, SignalProcessingDetector } from "./proposal-processing";
 import {localProposal, type ProposalChannelLink} from "./proposal-mapping";
 
-export interface SelectionEntry {id: string; field_id: string | null; revision_id: string | null; exclusion_reason: string | null; target_revisions?: Partial<Record<"nuclei" | "gfp" | "ncl" | "nucleoli" | "nucleoplasm" | "cell", string>>}
+/** Where the researcher asked an image to go (a run and group of the experiment design). */
+export interface IntakeTarget {run_id: string; group_id: string; sample: string | null}
+/** What the app recorded about one attempted field (#284): its files, how far it got and why it stopped. Values
+ * that do not apply are omitted, as the API stores them. File names are research data and stay on this PC. */
+export interface IntakeRecord {names: string[]; state: "pending" | "rejected" | "registered"; stage?: "inspect" | "register"; code?: string; target?: IntakeTarget; separate?: true}
+/** What registration would make of one selected file (#284 W4): image, 32-bit integer label image or unreadable, with
+ * registration's reason code, the shape, type, OME channel names, SHA-256 and a small display PNG. The API stores nothing. */
+export type IntakeInspection = components["schemas"]["IntakeInspection"];
+/** The registration route a file would take: grayscale, RGB display image or OME (`tiffInputMode`, `tiffHasOmeMetadata`). */
+export type IntakeKind = IntakeInspection["kind"];
+export interface SelectionEntry {id: string; field_id: string | null; revision_id: string | null; exclusion_reason: string | null; target_revisions?: Partial<Record<"nuclei" | "gfp" | "ncl" | "nucleoli" | "nucleoplasm" | "cell", string>>; intake?: IntakeRecord}
 export interface WorkspaceSelection {version: number; entries: SelectionEntry[]}
 export interface ChannelAssignment {channel_id: string; stain: string | null; role: "nuclear" | "measure" | "unused"}
 export interface ChannelAssignmentGroup {id:string;field_ids:string[];channel_ids:string[];assignments:ChannelAssignment[]}
@@ -23,7 +34,9 @@ export interface ImportedField {
   /** The researcher-visible name saved at registration (figure labels use it); null for older fields. */
   display_name?: string | null;
   metadata: Record<string, string | number | null>;
-  image_info: {input_mode?: "native" | "display-rgb"; shape: [number, number]; channels: Array<{channel_id: string; label: string; stain: string | null; identity_source?: StainSource}>; calibration?: {pixel_size_x_um: number; pixel_size_y_um: number; confirmed: boolean} | null};
+  image_info: {input_mode?: "native" | "display-rgb"; shape: [number, number];
+    /** The stored input files (hashes of the bytes sent), compared with new files to find copies (#284 control A). */
+    inputs?: Record<string, {sha256: string; bytes: number}>; channels: Array<{channel_id: string; label: string; stain: string | null; identity_source?: StainSource}>; calibration?: {pixel_size_x_um: number; pixel_size_y_um: number; confirmed: boolean} | null};
 }
 export interface MeasurementRow {
   region_id: number; channel_id: string; area_px: number; area_um2: number | null;
@@ -95,8 +108,17 @@ export interface ProposalDraft {
   processing?: ProposalProcessing | null;
   background?:{mode:"raw"|"automatic"|"confirmed_roi"}|null;
   gfp_selection?:{channel:string;unit:"nucleus"|"cell_roi";method:"manual"|"batch_otsu"|"negative_control";threshold:number|null;values:"raw"|"corrected";keep:"positive"|"negative";percentile:number}|null;
+  /** Prompt 2026-11-26.1 (#284 W7): the kind of request chooses the actions shown; absent in earlier drafts. */
+  intent?: "answer" | "settings" | "run" | null;
+  answer?: string | null;
+  scope?: "selected" | "all" | null;
+  choices?: Array<{question: string; options: string[]}>;
+  /** Run and group suggestions; `field` is the context's identifier (`f1`…), resolved through the response's `fields`. */
+  assignments?: Array<{field: string; run: string; group: string}>;
 }
 export interface ValidatedProposal {draft: ProposalDraft; needs_confirmation: string[]}
+/** The context's field identifier and the workspace field it names (context 1.3.0). */
+export interface ProposalFieldLink {token: string; field_id: string}
 export interface GfpGateResult {unit?: "nucleus" | "cell_roi"; objects?: Array<{field_id:string;region_id:number;gfp_mean:number|null;gfp_positive:boolean|null;gfp_gate_reason:string}>; protocol?: string; method?: "negative_control" | "manual" | "batch_otsu"; nuclei?: Array<{field_id:string;region_id:number;gfp_mean:number|null;gfp_positive:boolean|null;gfp_gate_reason:string}>; percentile: number; dates: Record<string, {threshold: number | null; control_nuclei: number; missing_reason: string | null}>; field_counts: Record<string, {positive: number; negative: number; control: number; unselected: number}>}
 export type NucleusTableData = components["schemas"]["NucleusTable"];
 export type RegionPartitionData = components["schemas"]["RegionPartitionTable"];
@@ -161,6 +183,9 @@ export function savedDistribution(figure: SavedFigure): {points: DistributionPoi
     excluded: figure.result.selection.excluded, median: row.median, q1: row.q1, q3: row.q3}))};
 }
 
+/** No answer reached the browser (the service stopped or the network failed), as opposed to a refusal. */
+export const connectionLost = (error: unknown) => error instanceof TypeError || (error instanceof ApiError && (error.status === 0 || error.code === "network_unavailable"));
+
 export function createApiAdapter(overrides: Partial<Transport> = {}) {
   const transport = {...defaults, ...overrides};
   const check = () => {if (typeof window !== "undefined") assertWorkspaceConnection(window.location.hostname, API);};
@@ -176,6 +201,20 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
     if (!selection) throw new Error("保存状態を再読み込みしてください。");
     selection = await client.post<WorkspaceSelection>(`/v1/workspaces/${workspace}/selection`, {version: selection.version, entries});
     return selection;
+  }
+  /** Joins an accepted upload to its row. A resend of an already registered field keeps that field's row only. */
+  async function settleImport(workspace: string, entryId: string, field: string) {
+    if (!selection) await loadSelection(workspace);
+    const existing = selection!.entries.find(entry => entry.field_id === field && entry.id !== entryId);
+    if (existing) {if (selection!.entries.some(entry => entry.id === entryId)) await saveSelection(workspace, selection!.entries.filter(entry => entry.id !== entryId)); return;}
+    const row = selection!.entries.find(entry => entry.id === entryId);
+    if (row?.field_id === field && (!row.intake || row.intake.state === "registered")) return;
+    await saveSelection(workspace, selection!.entries.map(entry => {
+      if (entry.id !== entryId) return entry;
+      if (!entry.intake) return {...entry, field_id: field};
+      const intake: IntakeRecord = {...entry.intake, state: "registered"};delete intake.stage;delete intake.code;
+      return {...entry, field_id: field, intake};
+    }));
   }
   async function assertSelection(workspace: string) {
     if (!selection) await loadSelection(workspace);
@@ -220,6 +259,11 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
   return {
     async create() {const record = await client.post<Workspace>("/v1/workspaces", {title: "画像解析"}); await loadSelection(record.id); return record;},
     selection: () => selection,
+    /** The selection saved with a comparison (null for a comparison made without one). */
+    async comparisonSelection(revision: string) {
+      try {return await client.request<WorkspaceSelection>(`/v1/revisions/${revision}/workspace-selection`);}
+      catch (error) {if (error instanceof ApiError && error.status === 404) return null; throw error;}
+    },
     getFieldLinks(workspace:string){return client.request<FieldLinks>(`/v1/workspaces/${workspace}/field-links`);},
     async saveFieldLink(workspace:string,field:string,value:{version:number;selection_version:number;kind:"analysis"|"reference";reference_for_field_id:string|null}){const result=await client.request<FieldLinks>(`/v1/workspaces/${workspace}/field-links/${field}`,{method:"PUT",body:JSON.stringify(value)});await loadSelection(workspace);return result;},
     getChannelAssignments(workspace: string) {
@@ -233,9 +277,38 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
       const current = await client.request<WorkspaceSelection>(`/v1/workspaces/${workspace}/selection`);
       return JSON.stringify(current) === expected;
     },
-    async registerImport(workspace: string, id: string) {
+    /** Writes the row of an attempted field before its images are sent, so an interruption keeps its names. */
+    async registerImport(workspace: string, id: string, intake?: IntakeRecord) {
       if (!selection) await loadSelection(workspace);
-      if (!selection!.entries.some(entry => entry.id === id)) await saveSelection(workspace, [...selection!.entries, {id, field_id: null, revision_id: null, exclusion_reason: null}]);
+      const existing = selection!.entries.find(entry => entry.id === id);
+      if (!existing) await saveSelection(workspace, [...selection!.entries, {id, field_id: null, revision_id: null, exclusion_reason: null, ...(intake ? {intake} : {})}]);
+      else if (intake && !existing.field_id && JSON.stringify(existing.intake) !== JSON.stringify(intake)) await saveSelection(workspace, selection!.entries.map(entry => entry.id === id ? {...entry, intake} : entry));
+    },
+    /** Records why an attempted field was not registered; the row keeps its names and target. */
+    async recordImport(workspace: string, id: string, change: Pick<IntakeRecord, "state"> & Partial<IntakeRecord>) {
+      if (!selection) await loadSelection(workspace);
+      const existing = selection!.entries.find(entry => entry.id === id);
+      // A registered row only forgets its target once the field is placed; its state never goes back.
+      if (!existing?.intake || (existing.field_id ? change.state !== "registered" : change.state === "registered")) return;
+      const intake: IntakeRecord = {...existing.intake, ...change};
+      for (const key of ["stage", "code", "target"] as const) if (intake[key] === undefined) delete intake[key];
+      await saveSelection(workspace, selection!.entries.map(entry => entry.id === id ? {...entry, intake} : entry));
+    },
+    /** Forgets the run and group of rows whose fields are placed, in one save. */
+    async clearTargets(workspace: string, ids: string[]) {
+      if (!selection) await loadSelection(workspace);
+      const chosen = new Set(ids);
+      if (!selection!.entries.some(entry => chosen.has(entry.id) && entry.intake?.target)) return;
+      await saveSelection(workspace, selection!.entries.map(entry => {
+        if (!chosen.has(entry.id) || !entry.intake?.target) return entry;
+        const intake: IntakeRecord = {...entry.intake};delete intake.target;return {...entry, intake};
+      }));
+    },
+    /** Removes the row of an image that never became a field ("記録から削除"); a field's row is never removed. */
+    async removeImport(workspace: string, id: string) {
+      if (!selection) await loadSelection(workspace);
+      if (!selection!.entries.some(entry => entry.id === id && !entry.field_id)) return;
+      await saveSelection(workspace, selection!.entries.filter(entry => entry.id !== id));
     },
     async excludeField(workspace: string, id: string, reason: string | null) {
       return saveSelection(workspace, selection!.entries.map(entry => entry.id === id ? {...entry, exclusion_reason: reason} : entry));
@@ -266,21 +339,20 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
         channels: presentChannels.map(channelSpecification), input_mode: modes.has("display-rgb") ? "display-rgb" : "native", metadata: {}, calibration: null,
         ...displayNameOf(field.key)}));
       const uploaded = await client.request<ImportedField>(`/v1/workspaces/${workspace}/region-fields`, {method: "POST", body: data});
-      if (entryId) {
-        const existing = selection!.entries.find(entry => entry.field_id === uploaded.id && entry.id !== entryId);
-        await saveSelection(workspace, existing
-          ? selection!.entries.filter(entry => entry.id !== entryId)
-          : selection!.entries.map(entry => entry.id === entryId ? {...entry, field_id: uploaded.id} : entry));
-      }
+      if (entryId) await settleImport(workspace, entryId, uploaded.id);
       return uploaded;
     },
     async uploadOme(workspace:string,file:File,entryId:string){
       const data=new FormData();data.set("ome",file);data.set("client_upload_id",entryId);
       const name=displayNameOf(file.name).display_name;if(name)data.set("display_name",name);
       const uploaded=await client.request<ImportedField>(`/v1/workspaces/${workspace}/region-fields/ome`,{method:"POST",body:data});
-      const existing=selection!.entries.find(entry=>entry.field_id===uploaded.id&&entry.id!==entryId);
-      await saveSelection(workspace,existing?selection!.entries.filter(entry=>entry.id!==entryId):selection!.entries.map(entry=>entry.id===entryId?{...entry,field_id:uploaded.id}:entry));
+      await settleImport(workspace,entryId,uploaded.id);
       return uploaded;
+    },
+    /** Judges one file before registration with registration's own readers; nothing is saved and no workspace is needed. */
+    async inspect(file: File, kind: IntakeKind, signal?: AbortSignal) {
+      const data = new FormData(); data.set("kind", kind); data.set("file", file);
+      return client.request<IntakeInspection>("/v1/intake/inspect", {method: "POST", body: data, signal});
     },
     async preview(field: string, channel: string) { return client.blob(`/v1/region-fields/${field}/preview?channel_id=${encodeURIComponent(channel)}&gain=1`); },
     async run(workspace: string, field: string, recipe: Recipe, onState?: (state: string) => void, measurement: MeasurementPolicy = rawMeasurement, options: {adopt?: boolean} = {}) {
@@ -301,7 +373,17 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
     },
     startWorkspaceRun(workspace:string,body:{request_id:string;spec_version:number;target:RunTarget;field_ids:string[];purpose?:"preview"|"measurement"}){return client.post<WorkspaceRun>(`/v1/workspaces/${workspace}/runs`,body);},
     listWorkspaceRuns(workspace:string){return client.request<WorkspaceRun[]>(`/v1/workspaces/${workspace}/runs`);},
-    async waitWorkspaceRun(workspace:string,id:string,onState?:(run:WorkspaceRun)=>void){for(;;){const run=await client.request<WorkspaceRun>(`/v1/workspaces/${workspace}/runs/${id}`);onState?.(run);if(run.state!=="queued"&&run.state!=="running")return run;await client.wait();}},
+    /** Follows a run. The run continues in the API, so a lost connection while reading it is retried with a growing
+     * wait (up to about two minutes) before it is reported; the same run is never started again (#284 W8). */
+    async waitWorkspaceRun(workspace:string,id:string,onState?:(run:WorkspaceRun)=>void,onRetry?:(attempt:number)=>void){
+      let failures=0;
+      for(;;){
+        let run:WorkspaceRun;
+        try{run=await client.request<WorkspaceRun>(`/v1/workspaces/${workspace}/runs/${id}`);failures=0;}
+        catch(error){if(!connectionLost(error)||++failures>8)throw error;onRetry?.(failures);for(let wait=0;wait<Math.min(failures,4);wait++)await client.wait();continue;}
+        onState?.(run);if(run.state!=="queued"&&run.state!=="running")return run;await client.wait();
+      }
+    },
     async acceptWorkspaceRun(workspace:string,id:string){const run=await client.post<WorkspaceRun>(`/v1/workspaces/${workspace}/runs/${id}/accept`,{});await loadSelection(workspace);return run;},
     cancelWorkspaceRun(workspace:string,id:string){return client.post<WorkspaceRun>(`/v1/workspaces/${workspace}/runs/${id}/cancel`,{});},
     readResult,
@@ -406,15 +488,31 @@ export function createApiAdapter(overrides: Partial<Transport> = {}) {
     async draftDiscussion(job: string, experiment: ExperimentNote, retryFailed = false, summary?: ShownSummary): Promise<DiscussionView> {
       return client.post<DiscussionView>(`/v1/jobs/${job}/discussion`, {transmission_confirmed: true, experiment, ...(summary ? {summary} : {}), ...(retryFailed ? {retry_failed: true} : {})});
     },
-    async draft(workspace: string, goal: string, retryFailed = false, continuation?: {current_processing: ProposalProcessing | null; previous_goal: string; previous_proposal: ProposalDraft | null;field_id?:string}) {
+    async draft(workspace: string, goal: string, retryFailed = false, continuation?: {current_processing: ProposalProcessing | null; previous_goal: string; previous_proposal: ProposalDraft | null;field_id?:string}, messageId?: string): Promise<{proposal: ValidatedProposal | null; message: AssistantMessage; fields: ProposalFieldLink[]}> {
       // Called only after the one-time scope notice has been accepted in this workspace. Previews are on by
       // default in the API; only turning them off is sent, so the default request body is unchanged.
-      const response = await client.post<{proposal: ValidatedProposal; channels: ProposalChannelLink[]}>(`/v1/workspaces/${workspace}/proposal-drafts`, {goal, transmission_confirmed: true, ...(includePreviews() ? {} : {include_previews: false}), ...(retryFailed ? {retry_failed: true} : {}), ...continuation});
-      return {proposal: localProposal(response.proposal,response.channels)};
+      const response = await client.post<{proposal: ValidatedProposal | null; channels: ProposalChannelLink[]; message?: AssistantMessage | null; fields?: ProposalFieldLink[]}>(`/v1/workspaces/${workspace}/proposal-drafts`, {goal, transmission_confirmed: true, ...(includePreviews() ? {} : {include_previews: false}), ...(retryFailed ? {retry_failed: true} : {}), ...continuation, ...(messageId ? {message_id: messageId} : {})});
+      const proposal = response.proposal ? localProposal(response.proposal,response.channels) : null;
+      // A recorded demo answer (the earlier response shape) carries no message: it is shown as answered and applicable.
+      const message: AssistantMessage = response.message ?? {id: `local-${crypto.randomUUID()}`, field_id: continuation?.field_id ?? null, created: Date.now() / 1000, text: goal,
+        state: "answered", reply: proposal ? [proposal.draft.rationale, ...(proposal.draft.missing_information ?? [])].join("\n") : null, applicable: !!proposal, reasons: [], stage: null, effect: "none"};
+      return {proposal, message, fields: response.fields ?? []};
+    },
+    /** The researcher's messages to the AI in this workspace, oldest first. The public demo records none. */
+    async listMessages(workspace: string): Promise<AssistantMessage[]> {
+      if (!API_CONFIGURED && showcaseActive()) return [];
+      return (await client.request<{messages: AssistantMessage[]}>(`/v1/workspaces/${workspace}/assistant-messages`)).messages;
+    },
+    /** Records what the researcher did with an answer (applied its settings, or applied and ran them). */
+    async recordEffect(workspace: string, id: string, effect: "none" | "settings" | "run") {
+      if (id.startsWith("local-") || (!API_CONFIGURED && showcaseActive())) return null;
+      return client.request<AssistantMessage>(`/v1/workspaces/${workspace}/assistant-messages/${id}`, {method: "PATCH", body: JSON.stringify({effect})});
     },
   };
 }
 export type ApiAdapter = ReturnType<typeof createApiAdapter>;
+/** One message to the AI and what came back (#284 W2); see the API's AssistantMessage. */
+export type AssistantMessage = Omit<components["schemas"]["AssistantMessage"], "restorable" | "suggests_assignments"> & {restorable?: boolean; suggests_assignments?: boolean};
 export type DiscussionView = components["schemas"]["DiscussionView"];
 export type ExperimentNote = components["schemas"]["ExperimentNote"];
 export type ShownSummary = components["schemas"]["ShownSummary"];

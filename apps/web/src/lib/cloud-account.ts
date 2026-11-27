@@ -19,8 +19,15 @@ export type GpuState = {
   resets_at?: string; scope?: "user" | "global"; busy?: boolean;
 };
 export type UpdateState = "idle" | "downloading" | "installing" | "restarting" | "installed" | "updated" | "failed" | "rolled_back" | "unsupported";
-/** The installer's `/v1/app/update` (GET and the POST that starts it). */
-export type UpdateInfo = {available: boolean; current?: string | null; latest?: string | null; notes_url?: string | null; state?: UpdateState; error?: string | null};
+/**
+ * The installer's `/v1/app/update` (GET and the POST that starts it). `launch` changes with every
+ * start of the launcher; `stage` and `exit_code` say where the installer stopped; `store` marks the
+ * Microsoft Store package, which the Store updates.
+ */
+export type UpdateInfo = {
+  available: boolean; current?: string | null; latest?: string | null; notes_url?: string | null; state?: UpdateState; error?: string | null;
+  stage?: "launch" | "timeout" | "exit" | null; exit_code?: number | null; store?: boolean; launch?: string | null;
+};
 
 export class AccountRequestError extends Error {
   constructor(public code: string, public status: number, public retryAfterSeconds?: number, public attemptsLeft?: number | null) {super(code);}
@@ -228,7 +235,15 @@ export const UPDATE_REMEMBERED: ReadonlySet<string> = new Set(["updated", "insta
 export function updateSignature(info: UpdateInfo): string {
   return [info.state ?? "", info.current ?? "", info.latest ?? "", info.error ?? ""].join(":");
 }
-export const UPDATE_JOBS_RUNNING_TEXT = "解析が終わってから更新してください。";
+/** The update did not start, and the analysis goes on; the offer and its button stay. */
+export const UPDATE_JOBS_RUNNING_TEXT = "解析の実行中のため、更新は開始していません。";
+/** 「更新」 found nothing newer (409 update_not_available). */
+export const UPDATE_NONE_TEXT = "新しい版：なし";
+/** 409 update_unsupported: the way that does update this copy (docs/install-windows.ja.md, 7). */
+export const UPDATE_UNSUPPORTED_TEXT = "この版の更新には、cytellect.app の新しい版のインストーラーが必要です。";
+export const UPDATE_STORE_TEXT = "Microsoft Store 版の更新には、Microsoft Store が必要です。";
+/** Where work goes on after the restart: the banner reconnects this tab. */
+export const UPDATE_RESUME_TEXT = "更新後の再開先：この画面";
 export const UPDATE_POLL_MS = 3_000;
 /** Downloading and installing a release can take a while; stop following after this and say so. */
 export const UPDATE_FOLLOW_MS = 20 * 60_000;
@@ -262,7 +277,7 @@ export const UPDATE_SESSION_LOST_TEXT = "更新の状態を確認できません
  * session is opened again with `reconnect` (as the workspace opens it) and following goes on.
  * A 401 that a new session does not resolve, or a refused reconnect, is "session_lost".
  */
-export async function followUpdate(get: () => Promise<UpdateInfo | null>, options: {sleep?: (ms: number) => Promise<void>; now?: () => number; pollMs?: number; limitMs?: number; signal?: AbortSignal; reconnect?: () => Promise<unknown>} = {}): Promise<UpdateInfo | "timeout" | "cancelled" | "session_lost"> {
+export async function followUpdate(get: () => Promise<UpdateInfo | null>, options: {sleep?: (ms: number) => Promise<void>; now?: () => number; pollMs?: number; limitMs?: number; signal?: AbortSignal; reconnect?: () => Promise<unknown>; progress?: (info: UpdateInfo) => void} = {}): Promise<UpdateInfo | "timeout" | "cancelled" | "session_lost"> {
   const sleep = options.sleep ?? ((ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms)));
   const now = options.now ?? Date.now;
   const deadline = now() + (options.limitMs ?? UPDATE_FOLLOW_MS);
@@ -287,32 +302,86 @@ export async function followUpdate(get: () => Promise<UpdateInfo | null>, option
     }
     if (options.signal?.aborted) return "cancelled";
     if (info && UPDATE_SETTLED.has(info.state ?? "idle")) return info;
+    // Still running: the banner shows the stage it has reached.
+    if (info) options.progress?.(info);
   }
   return "timeout";
 }
 
+/** The stage of a running update, from the click (受付) to the restart. */
+const UPDATE_STAGES: Record<string, string> = {accepted: "受付", downloading: "ダウンロード中", installing: "インストール中", restarting: "再起動中"};
+const stageNotice = (stage: string): Notice => ({text: `更新：${UPDATE_STAGES[stage]}。${UPDATE_RESUME_TEXT}`, tone: "progress"});
+
+/** The code under 詳細, with where the installer stopped, e.g. "update_install_failed stage=exit exit_code=1". */
+export function updateErrorDetail(info: UpdateInfo): string | undefined {
+  if (typeof info.error !== "string" || !info.error) return undefined;
+  const stage = typeof info.stage === "string" && info.stage ? ` stage=${info.stage}` : "";
+  const code = typeof info.exit_code === "number" ? ` exit_code=${info.exit_code}` : "";
+  return `${info.error}${stage}${code}`;
+}
+
+/** A line of the update banner. `later` marks an offer that 「後で」 hides for this launch; `closable`, a result line. */
+export type UpdateLine = Notice & {error?: string; later?: boolean; closable?: boolean};
+
 /** The update banner: what is happening and what to press. Null when there is nothing to show. */
-export function updateNotice(info: UpdateInfo | null | undefined, following = false): (Notice & {error?: string}) | null {
+export function updateNotice(info: UpdateInfo | null | undefined, following = false): UpdateLine | null {
   if (!info) return null;
-  const error = typeof info.error === "string" && info.error ? info.error : undefined;
+  // The Microsoft Store updates its package: no in-app offer.
+  if (info.store) return null;
+  const error = updateErrorDetail(info);
   const version = info.latest ? `（${info.latest}）` : "";
   switch (info.state) {
-    case "downloading": case "installing": return {text: "更新中… 完了までこの画面を閉じないでください。", tone: "progress"};
-    case "restarting": return {text: "Cytellect を再起動中…", tone: "progress"};
-    case "updated": return {text: `更新が完了しました${version}。`, tone: "ready"};
+    case "downloading": case "installing": case "restarting": return stageNotice(info.state);
+    case "updated": return {text: `更新：完了${version}`, tone: "ready"};
     // Installed, but an analysis that started meanwhile kept the current version running.
     case "installed": if (info.current && info.current === info.latest) return null; return {text: `更新の準備ができました${version}。次に Cytellect を起動したときに新しい版になります。`, tone: "ready"};
-    case "failed": return {text: isUpdateVerificationError(error) ? UPDATE_VERIFICATION_TEXT : "更新できませんでした。今の版のまま使えます。あとでもう一度お試しください。", tone: "problem", error,
+    case "failed": return {text: isUpdateVerificationError(info.error ?? undefined) ? UPDATE_VERIFICATION_TEXT : "更新できませんでした。今の版のまま使えます。あとでもう一度お試しください。", tone: "problem", error,
       ...(info.available ? {action: {kind: "retry" as const, label: "再試行"}} : {})};
     case "rolled_back": return {text: "元の版で起動しました。あとでもう一度更新してください。", tone: "problem", error,
       ...(info.available ? {action: {kind: "retry" as const, label: "再試行"}} : {})};
     // This version has no key to verify a release with: the newer one is installed with its installer.
     case "unsupported": return info.error === UPDATE_SIGNING_KEY_MISSING
-      ? {text: `新しい版${version}があります。cytellect.app から新しい版のインストーラーをダウンロードして開いてください。研究データと設定は引き継がれます。`, tone: "info"} : null;
+      ? {text: `新しい版${version}があります。cytellect.app から新しい版のインストーラーをダウンロードして開いてください。研究データと設定は引き継がれます。`, tone: "info", later: true} : null;
     default:
-      if (following) return {text: "更新中… 完了までこの画面を閉じないでください。", tone: "progress"};
-      return info.available ? {text: `更新があります${version}。研究データと設定は引き継がれます。`, tone: "info", action: {kind: "retry", label: "更新"}} : null;
+      if (following) return stageNotice("accepted");
+      return info.available ? {text: `更新があります${version}。研究データと設定は引き継がれます。`, tone: "info", action: {kind: "retry", label: "更新"}, later: true} : null;
   }
+}
+
+/** What the banner does with a refusal of 「更新」 (POST /v1/app/update). */
+export type UpdateRefusal = "follow" | "jobs_running" | "not_available" | "unsupported" | "failed";
+export function updateRefusal(code: string): UpdateRefusal {
+  switch (code) {
+    case UPDATE_IN_PROGRESS: return "follow"; // Started from another tab or a double click: show that update's stage.
+    case UPDATE_JOBS_RUNNING: return "jobs_running"; // Not a failure; the analysis goes on and the button stays.
+    case UPDATE_NOT_AVAILABLE: return "not_available";
+    case UPDATE_UNSUPPORTED: return "unsupported";
+    default: return "failed";
+  }
+}
+
+/** The result of 「更新」 that the update status itself does not carry. */
+export type UpdateOutcome = "jobs_running" | "not_available" | "unsupported" | "timeout" | "session_lost" | null;
+
+/** 「後で」 hides the offer until the launcher starts again (its `launch` identifier changes). */
+export const UPDATE_LATER_KEY = "cytellect.update.later";
+export function updateLaterHides(info: UpdateInfo | null | undefined, later: string | null): boolean {
+  return later !== null && later === (info?.launch ?? "");
+}
+
+/** The one line the update banner shows, or null. */
+export function updateBannerLine(info: UpdateInfo | null | undefined, options: {following?: boolean; outcome?: UpdateOutcome; later?: string | null} = {}): UpdateLine | null {
+  switch (options.outcome) {
+    case "timeout": return {text: UPDATE_TIMEOUT_TEXT, tone: "problem"};
+    case "session_lost": return {text: UPDATE_SESSION_LOST_TEXT, tone: "problem"};
+    case "not_available": return {text: UPDATE_NONE_TEXT, tone: "info", closable: true};
+    case "unsupported": return {text: info?.store ? UPDATE_STORE_TEXT : UPDATE_UNSUPPORTED_TEXT, tone: "info", closable: true};
+  }
+  const offered = updateNotice(info, options.following);
+  if (!offered) return null;
+  if (offered.later && updateLaterHides(info, options.later ?? null)) return null;
+  if (options.outcome === "jobs_running" && offered.action) return {...offered, text: `${UPDATE_JOBS_RUNNING_TEXT}${offered.text}`};
+  return offered;
 }
 export const UPDATE_TIMEOUT_TEXT = "更新の完了を確認できませんでした。ページを再読み込みして、更新の状態を確認してください。";
 export const UPDATE_SEEN_KEY = "cytellect.update.seen";

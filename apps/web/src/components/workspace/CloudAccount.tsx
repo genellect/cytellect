@@ -7,10 +7,9 @@
 import {createContext, useCallback, useContext, useEffect, useId, useRef, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode} from "react";
 import {
   AccountRequestError, accountApi, accountErrorText, accountLabel, restartGpuAfterSignIn, gpuQuotaReached, gpuQuotaText, accountNotice, errorDetail, formatDate, gpuNotice, inferencePhase,
-  followUpdate, normalizeEmail, pendingNotice, plausibleCode, plausibleEmail, resendWait, safeNotesUrl, updateNotice, usageText,
-  UPDATE_IN_PROGRESS, UPDATE_JOBS_RUNNING, UPDATE_JOBS_RUNNING_TEXT, UPDATE_NOT_AVAILABLE, UPDATE_REMEMBERED, UPDATE_SEEN_KEY, UPDATE_SETTLED,
-  UPDATE_SESSION_LOST_TEXT, UPDATE_TIMEOUT_TEXT, UPDATE_UNSUPPORTED, updateSignature,
-  GPU_POLL_MS, GPU_TIME_NOTE, PENDING_POLL_MS, type Account, type GpuState, type Notice, type UpdateInfo,
+  followUpdate, normalizeEmail, pendingNotice, plausibleCode, plausibleEmail, resendWait, safeNotesUrl, updateBannerLine, updateRefusal, usageText,
+  UPDATE_LATER_KEY, UPDATE_REMEMBERED, UPDATE_SEEN_KEY, UPDATE_SETTLED, updateSignature,
+  GPU_POLL_MS, GPU_TIME_NOTE, PENDING_POLL_MS, type Account, type GpuState, type Notice, type UpdateInfo, type UpdateOutcome,
 } from "@/lib/cloud-account";
 import {CLOUD_NETWORK_HINT} from "@/lib/api";
 import {AI_SCOPE, DISCUSSION_SCOPE, includePreviews, setIncludePreviews, subscribeAiSettings} from "@/lib/workspace/ai-settings";
@@ -173,18 +172,24 @@ export function CloudNotices() {
 }
 
 /**
- * 「更新があります」 and the state of an update (#155's /v1/app/update). After 「更新する」 the
- * banner re-reads the state every 3 s until it settles (at most 20 min); a settled state that
- * the installer keeps (updated, installed, failed, rolled_back) is shown once.
+ * 「更新があります」 and the state of an update (#155's /v1/app/update). From the click on, the
+ * same line shows the stage (受付, ダウンロード中, インストール中, 再起動中, 完了): the banner
+ * re-reads the state every 3 s until it settles (at most 20 min); a settled state that the
+ * installer keeps (updated, installed, failed, rolled_back) is shown once. 「後で」 hides the
+ * offer until the launcher starts again (#284).
  */
 function UpdateBanner() {
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [following, setFollowing] = useState(false);
-  // Following ended without a settled state: it ran out of time, or the session could not be opened again.
-  const [ended, setEnded] = useState<"timeout" | "session_lost" | null>(null);
+  // A result that the status does not carry: refused (analysis running, nothing newer, unsupported),
+  // or following ended without a settled state (out of time, or the session could not be opened again).
+  const [outcome, setOutcome] = useState<UpdateOutcome>(null);
   const [error, setError] = useState<unknown>(null);
   const [hidden, setHidden] = useState(false);
-  const [waitsForJobs, setWaitsForJobs] = useState(false);
+  // The launch that 「後で」 was pressed in; read once from this browser's storage.
+  const [later, setLater] = useState<string | null>(() => {
+    try {return window.localStorage.getItem(UPDATE_LATER_KEY);} catch {return null;}
+  });
   const run = useRef<AbortController | null>(null);
   const busy = useRef(false);
   // A settled state the installer keeps is remembered once it has been shown, wherever it came from.
@@ -199,11 +204,12 @@ function UpdateBanner() {
     run.current?.abort();
     const controller = new AbortController();
     run.current = controller;
-    setFollowing(true); setEnded(null);
-    const result = await followUpdate(accountApi.update, {signal: controller.signal, reconnect: accountApi.reconnect});
+    setFollowing(true); setOutcome(null);
+    const result = await followUpdate(accountApi.update, {signal: controller.signal, reconnect: accountApi.reconnect,
+      progress: value => {if (run.current === controller && live.current) setUpdate(value);}});
     if (result === "cancelled" || run.current !== controller || !live.current) return;
     setFollowing(false);
-    if (result === "timeout" || result === "session_lost") setEnded(result); else show(result);
+    if (result === "timeout" || result === "session_lost") setOutcome(result); else show(result);
   }, [show]);
   useEffect(() => {
     live.current = true;
@@ -221,10 +227,13 @@ function UpdateBanner() {
     }).catch(() => {});
     return () => {live.current = false; run.current?.abort();};
   }, [follow, show]);
+  async function reread() {
+    try {const current = await accountApi.update(); if (live.current && current) show(current);} catch {}
+  }
   async function applyUpdate() {
-    if (busy.current) return; // A second press while one is being sent does nothing.
+    if (busy.current) return; // A second press while one is being sent does nothing; the line shows 受付.
     busy.current = true;
-    setFollowing(true); setEnded(null); setError(null); setHidden(false); setWaitsForJobs(false);
+    setFollowing(true); setOutcome(null); setError(null); setHidden(false);
     try {
       const started = await accountApi.applyUpdate();
       if (!live.current) return;
@@ -233,27 +242,33 @@ function UpdateBanner() {
       else await follow();
     } catch (failure) {
       if (!live.current) return;
-      const code = failure instanceof AccountRequestError ? failure.code : "";
-      if (code === UPDATE_IN_PROGRESS) {await follow(); return;} // Started from another tab: follow that one.
+      const refusal = updateRefusal(failure instanceof AccountRequestError ? failure.code : "");
+      // Started from another tab: show that update's stage at once, then follow it.
+      if (refusal === "follow") {await reread(); if (live.current) await follow(); return;}
       setFollowing(false);
-      if (code === UPDATE_JOBS_RUNNING) setWaitsForJobs(true); // Not a failure; the button stays available.
-      else if (code === UPDATE_NOT_AVAILABLE) {try {const current = await accountApi.update(); if (live.current) show(current);} catch {}}
-      else if (code === UPDATE_UNSUPPORTED) setHidden(true);
-      else {setError(failure); setUpdate(current => current ? {...current, state: "failed"} : current);}
+      if (refusal === "failed") {setError(failure); setUpdate(current => current ? {...current, state: "failed"} : current); return;}
+      // The state may have changed meanwhile (a release withdrawn, nothing newer any more).
+      if (refusal === "not_available") await reread();
+      if (live.current) setOutcome(refusal);
     } finally {busy.current = false;}
   }
-  const offered = updateNotice(update, following);
-  const line = ended ? {text: ended === "timeout" ? UPDATE_TIMEOUT_TEXT : UPDATE_SESSION_LOST_TEXT, tone: "problem" as const}
-    : waitsForJobs && offered ? {...offered, text: `${UPDATE_JOBS_RUNNING_TEXT}${offered.text}`} : offered;
+  function postpone() {
+    const launch = update?.launch ?? "";
+    setLater(launch);
+    // Without a launch identifier (an older API) it lasts only for this page.
+    if (launch) {try {window.localStorage.setItem(UPDATE_LATER_KEY, launch);} catch {}}
+  }
+  const line = updateBannerLine(update, {following, outcome, later});
   if (!line || hidden) return null;
-  const notesUrl = safeNotesUrl(update?.notes_url);
-  const detail = "error" in line && line.error ? line.error : errorDetail(error);
+  const notesUrl = line.later ? safeNotesUrl(update?.notes_url) : null;
+  const detail = line.error || errorDetail(error);
   return <div className={styles.notice} data-tone={line.tone} role={line.tone === "problem" ? "alert" : "status"}>
     <p>{line.text}</p>
-    {notesUrl && line.tone === "info" && <a className={styles.quiet} href={notesUrl} target="_blank" rel="noreferrer">変更内容</a>}
-    {"action" in line && line.action && !following && <button className={styles.primary} onClick={() => void applyUpdate()}>{line.action.label}</button>}
+    {notesUrl && <a className={styles.quiet} href={notesUrl} target="_blank" rel="noreferrer">変更内容</a>}
+    {line.action && !following && <button className={styles.primary} onClick={() => void applyUpdate()}>{line.action.label}</button>}
+    {line.later && !following && <button className={styles.quiet} onClick={postpone}>後で</button>}
     {detail && <details className={styles.details}><summary>詳細</summary><code>{detail}</code></details>}
-    {(line.tone === "problem" || line.tone === "ready") && <button className={styles.quiet} onClick={() => setHidden(true)}>閉じる</button>}
+    {(line.tone === "problem" || line.tone === "ready" || line.closable) && <button className={styles.quiet} onClick={() => setHidden(true)}>閉じる</button>}
   </div>;
 }
 

@@ -308,7 +308,7 @@ def region_methods(config, report, provenance):
                   f"Scientific source identity: {provenance.get('software', {}).get('source_sha256', 'unavailable')}.",
                   "Original images are excluded unless explicitly requested. This bundle contains research information; keep it private.", ""])
     if config.get("workspace_selection"):
-        lines.extend(["Workspace adoption ledger (including failed uploads/analyses excluded by the user):",
+        lines.extend(["Workspace adoption ledger (fields excluded by the user with their reasons, and images that were not registered with their file names and reason codes; the latter are technical missing data, not exclusions):",
                       json.dumps(config["workspace_selection"], ensure_ascii=False, sort_keys=True), ""])
     return "\n".join(lines + planning_methods(config))
 

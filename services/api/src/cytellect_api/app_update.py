@@ -1,7 +1,9 @@
 """In-app update of the Windows installation (requirement I7).
 
 ``GET /v1/app/update`` reports ``current``, ``latest``, ``available`` and ``notes_url``,
-plus the update ``state`` and a fixed ``error`` code. ``POST /v1/app/update`` starts an
+plus the update ``state``, a fixed ``error`` code, the installer's failure ``stage`` and
+``exit_code``, ``store`` (the Microsoft Store updates this copy) and ``launch``, an identifier
+that changes with every start of the launcher (the workspace's 「後で」 lasts one launch). ``POST /v1/app/update`` starts an
 update: it first downloads the release's signed manifest and checks its signature against
 the public key built into this version (update_signature.py), then downloads
 ``Cytellect-Setup-<version>.exe``, requires the SHA-256 and size that the signed manifest
@@ -25,6 +27,7 @@ import hashlib
 import json
 import os
 import re
+import secrets
 import shutil
 import sqlite3
 import subprocess
@@ -63,14 +66,42 @@ SHORTCUT_DESCRIPTION = "Cytellect local analysis and control window"
 ROOT_MARKER = {"product": "cytellect-local", "schema": 1}
 # States written while this launcher works on an update; "installed" and the results are final.
 ACTIVE = frozenset({"downloading", "installing", "restarting"})
+# Inno Setup's log of the last in-app installation: kept on this PC only, never sent.
+INSTALLER_LOG = "installer.log"
 # Files in updates/ that are not downloads.
-UPDATE_RECORDS = frozenset({"state.json", "latest.json", "switch.json", "rollback"})
+UPDATE_RECORDS = frozenset({"state.json", "latest.json", "switch.json", "rollback", INSTALLER_LOG})
 # Mutating requests refused while the launcher is about to stop for the switch.
 SWITCH_ALLOWED = frozenset({"/v1/app/update", "/v1/local/session"})
 
 
 class UpdateRefused(Exception):
     """A fixed reason code for a refused POST."""
+
+
+class InstallerFailed(UpdateRefused):
+    """The installer did not finish: the stage it stopped at and, after it exited, its exit code."""
+
+    def __init__(self, code: str, stage: str, exit_code: int | None = None):
+        super().__init__(code)
+        self.stage, self.exit_code = stage, exit_code
+
+
+@dataclass(frozen=True)
+class InstallerResult:
+    """How the installer ended: it could not be started (``launch``), was stopped after
+    ``INSTALLER_TIMEOUT_SECONDS`` (``timeout``), or exited by itself with ``exit_code`` (``exit``)."""
+
+    stage: str
+    exit_code: int | None = None
+
+    def failure(self) -> InstallerFailed | None:
+        if self.stage == "launch":
+            return InstallerFailed("update_installer_launch_failed", "launch")
+        if self.stage == "timeout":
+            return InstallerFailed("update_installer_timeout", "timeout")
+        if self.stage != "exit" or self.exit_code != 0:
+            return InstallerFailed("update_install_failed", "exit", self.exit_code)
+        return None
 
 
 def version_key(version: str | None) -> tuple[int, ...] | None:
@@ -266,21 +297,29 @@ def stop_tree(process: Any) -> None:
                 item.kill()
 
 
-def run_installer(installer: Path, root: Path) -> int:
-    """Inno Setup silent mode: no window, no restart, into this installation folder."""
+def run_installer(installer: Path, root: Path) -> InstallerResult:
+    """Inno Setup silent mode: no window, no restart, into this installation folder.
+
+    Setup writes its log to ``updates/installer.log`` of this installation, replacing the
+    previous one. The log stays on this PC; nothing reads or sends it.
+    """
+    log = root / "updates" / INSTALLER_LOG
+    with contextlib.suppress(OSError):
+        log.unlink(missing_ok=True)
     try:
-        process = subprocess.Popen([str(installer), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", f"/DIR={root}"],
+        process = subprocess.Popen([str(installer), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", f"/DIR={root}",
+                                    f"/LOG={log}"],
                                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except OSError:
-        return -1
+        return InstallerResult("launch")
     try:
-        return process.wait(timeout=INSTALLER_TIMEOUT_SECONDS)
+        return InstallerResult("exit", process.wait(timeout=INSTALLER_TIMEOUT_SECONDS))
     except subprocess.TimeoutExpired:
         # A hung setup must not keep running behind the workspace.
         stop_tree(process)
         with contextlib.suppress(subprocess.TimeoutExpired):
             process.wait(timeout=30)
-        return -1
+        return InstallerResult("timeout")
 
 
 def detach(command: list[str], cwd: Path) -> subprocess.Popen:
@@ -311,13 +350,17 @@ def remove_downloads(updates: Path) -> None:
 class UpdateService:
     def __init__(self, installation: Installation | None, *, port: int = 8765,
                  fetch: Callable[[str], Any] = fetch_json, opener: Callable[[str, float], Any] = open_url,
-                 installer: Callable[[Path, Path], int] = run_installer,
+                 installer: Callable[[Path, Path], InstallerResult] = run_installer,
                  spawn: Callable[[list[str], Path], Any] = detach,
                  shutdown: Callable[[], Callable[[], None] | None] = lambda: None,
                  busy: Callable[[], bool] = lambda: False,
                  clock: Callable[[], float] = time.time, sleep: Callable[[float], None] = time.sleep,
-                 background: bool = True):
+                 background: bool = True, store_version: str | None = None):
         self.installation = installation
+        # The Microsoft Store package: the Store updates it, so this service never does.
+        self.store_version = store_version
+        # Changes with every start of the launcher (one service per launcher process).
+        self.launch = secrets.token_hex(8)
         self.port = port
         self.fetch, self.opener, self.installer, self.spawn = fetch, opener, installer, spawn
         self.shutdown, self.busy, self.clock, self.sleep = shutdown, busy, clock, sleep
@@ -375,10 +418,17 @@ class UpdateService:
             write_json(cache_path, cached)
         return cached.get("release")
 
+    def _view(self, current: str | None, latest: str | None, available: bool, notes: str | None,
+              state: str, error: str | None, record: dict[str, Any] | None = None) -> dict[str, Any]:
+        record = record or {}
+        return {"current": current, "latest": latest, "available": available, "notes_url": notes,
+                "state": state, "error": error, "stage": record.get("stage"), "exit_code": record.get("exit_code"),
+                "store": self.store_version is not None, "launch": self.launch}
+
     def status(self) -> dict[str, Any]:
-        if self.installation is None:
-            return {"current": None, "latest": None, "available": False, "notes_url": None,
-                    "state": "unsupported", "error": None}
+        if self.installation is None or self.store_version is not None:
+            # A checkout, or the Store package (the Store updates it): nothing to offer, no check.
+            return self._view(self.store_version, None, False, None, "unsupported", None)
         release = self.check()
         current = self.installation.version
         latest = release["version"] if release else None
@@ -389,15 +439,13 @@ class UpdateService:
             # No key to check a release with: never update in the app. The result of an earlier
             # update stays visible; otherwise a newer release asks for its installer instead.
             if state.get("state") in {"updated", "installed", "failed", "rolled_back"}:
-                return {"current": current, "latest": latest, "available": False, "notes_url": notes,
-                        "state": state["state"], "error": state.get("error")}
-            return {"current": current, "latest": latest, "available": False, "notes_url": notes,
-                    "state": "unsupported", "error": "update_signing_key_missing" if available else None}
-        return {"current": current, "latest": latest, "available": available, "notes_url": notes,
-                "state": state.get("state", "idle"), "error": state.get("error")}
+                return self._view(current, latest, False, notes, state["state"], state.get("error"), state)
+            return self._view(current, latest, False, notes, "unsupported",
+                              "update_signing_key_missing" if available else None)
+        return self._view(current, latest, available, notes, state.get("state", "idle"), state.get("error"), state)
 
     def start(self) -> dict[str, Any]:
-        if self.installation is None or not signing_key_configured():
+        if self.installation is None or self.store_version is not None or not signing_key_configured():
             raise UpdateRefused("update_unsupported")
         with self.lock:
             if self.worker is not None and self.worker.is_alive():
@@ -469,10 +517,10 @@ class UpdateService:
             # Verify again immediately before execution; the file is in the user's own folder.
             if file_sha256(installer) != expected["sha256"]:
                 raise UpdateRefused("update_installer_hash_mismatch")
-            code = self.installer(installer, self.installation.root)
-            if code != 0:
+            failure = self.installer(installer, self.installation.root).failure()
+            if failure is not None:
                 # Setup failed before switching: the current version stays as it is.
-                raise UpdateRefused("update_install_failed")
+                raise failure
             target = installed_version(self.installation.root, version)
             if target is None:
                 raise UpdateRefused("update_install_incomplete")
@@ -487,6 +535,10 @@ class UpdateService:
                 self._set_state("installed", version=version, error="update_jobs_running")
                 return
             self._switch(target)
+        except InstallerFailed as failed:
+            self.switching = False
+            self._set_state("failed", version=version, error=str(failed), stage=failed.stage,
+                            exit_code=failed.exit_code)
         except (UpdateRefused, SignatureInvalid) as refused:
             self.switching = False
             self._set_state("failed", version=version, error=str(refused))
@@ -795,7 +847,10 @@ def register_app_update_routes(api, settings, owner) -> None:
 
     def service() -> UpdateService:
         if "service" not in holder:
-            holder["service"] = UpdateService(current_installation(), port=port, busy=busy,
+            # Read at the first request: the local launcher sets it after creating the API.
+            store_version = getattr(api.state, "store_version", None)
+            holder["service"] = UpdateService(None if store_version else current_installation(), port=port,
+                                              busy=busy, store_version=store_version,
                                               shutdown=lambda: getattr(api.state, "request_shutdown", None))
         return holder["service"]
 

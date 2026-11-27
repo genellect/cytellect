@@ -20,6 +20,7 @@ from cytellect_analysis.statistics import analyze_sensitivity
 from cytellect_api.config import Settings
 from cytellect_api.db import (
     Store,
+    assistant_messages,
     attempts,
     fields,
     jobs,
@@ -416,6 +417,9 @@ def cleanup(store):
             reap_owned_temporaries(store.safe_path("runs"), recursive=True)
         except (OSError, ValueError):
             pass
+        # Inspection copies of a process that stopped mid-inspection belong to no workspace (#284 W4).
+        from cytellect_api.intake import remove_stale_intake
+        remove_stale_intake(store, now)
     removed = 0
     with store.transaction() as conn:
         expired = (
@@ -457,7 +461,7 @@ def cleanup(store):
                 run = store.safe_path("runs", record["id"])
                 if run.exists():
                     shutil.rmtree(run)
-            for table in (attempts, tables, fields, revisions, jobs, proposal_drafts, result_discussions, workspace_selections, workspace_channel_assignments, workspace_analysis_specs, workspace_analysis_runs, workspace_field_links):
+            for table in (attempts, tables, fields, revisions, jobs, proposal_drafts, assistant_messages, result_discussions, workspace_selections, workspace_channel_assignments, workspace_analysis_specs, workspace_analysis_runs, workspace_field_links):
                 conn.execute(delete(table).where(table.c.workspace_id == wid))
             conn.execute(
                 update(workspaces)

@@ -26,12 +26,118 @@ without relying on canvas interaction. Nucleus/nucleolus/manual ROI edits create
 immutable revisions. Undo/Redo selects earlier/later revisions through the API.
 Nucleus edits require nucleolar resegmentation/review. Exclusions and background/gating
 updates are remeasured on current masks. Old statistics remain visibly labelled old.
-An image the API rejects is named with its reason (for example, an integer label mask sent as an
-image to measure) and is not sent again. Its entry stays in the workspace record, because a field
-that failed to import is never dropped silently: the comparison waits until the researcher excludes
-it with a reason from the import list (取込). Rejections with the same reason are stated once, several
-entries can be excluded together with one reason, and the statistics view says how many are waiting.
-The API does not store file names, so after a reload the entry is listed without one.
+Images are added item by item ([#284](https://github.com/genellect/cytellect/issues/284) W1):
+one image's failure never stops the others, their placement in a group, their measurement or the
+comparison. The order is fixed: files that are not TIFF are 対象外; a file with the same bytes as
+another image of the addition or as a registered field's input is a copy (同一内容) and becomes a
+field only through 「別の撮影として追加」; the rest are grouped into fields; and only a field in which two
+different images name the same channel waits (要確認), unsent, while the other fields are registered.
+Before its images are sent, each field gets a row in the workspace record with its file names and,
+when it was added from a group's cell, that run and group. A refused image keeps its row with the
+API's reason code (a 32-bit integer label image is shown as a mask candidate, not as missing data); an
+image whose answer never arrived stays 「登録未完了」. Rows keep their names after a reload.
+A row is resolved by 「差し替え」 (choosing all of its files again, sent under the same row key, so no
+second row or field is made) or removed with 「記録から削除」. A row whose upload was interrupted (登録未完了) is also
+resolved by adding images of the same names again to where it was going (the same run and group, or none for
+both); a refused row, or a row going elsewhere, is another image's record and stays. An addition that ends early
+(no answer before or while sending, a changed workspace, 実行を中止) keeps nothing unsent: a later addition never
+sends its images on its own, and they stay in the list of chosen files. 実行を中止 is reported in the status line
+(「登録：1 視野 · 追加：中止」), not as an error, and also ends a 追加 that covers several cells. Registered fields are placed in the run
+and group of their row when the addition ends and when the workspace opens again, never from the
+caller's returned IDs. The researcher is never asked for a reason: the comparison counts rows without
+a field in its n breakdown, by group and reason, from the selection saved with it. Every choice shows
+its result in one line beside 取込, including an empty folder, a choice without TIFF and a closed dialog
+(the earlier choice stays). Only an addition that cannot go on (no answer, ended session, changed
+workspace) is shown as an error; what it registered stays. Images chosen before the experiment form
+is chosen accumulate until they are registered. In the local build, a lost connection is shown by the
+connection notice instead of that error and its 「再読み込み」, and the rows are read again once the
+service answers ([Packaged local browser workspace](#packaged-local-browser-workspace)).
+
+The AI panel ([#284](https://github.com/genellect/cytellect/issues/284) W2) first shows the selected field as the
+workspace records it, without a model call and also while the AI is not enabled: its name and size, each channel with
+the origin of its name and its role, and the nuclear channel. Below are the workspace's messages, each with its state
+(送信中, 回答, 失敗, 設定を適用済み, 実行済み), its answer and, when its settings cannot be used, the reasons: a place the
+researcher changes (画像, 染色対応, 実験デザイン, 解析設定) or a service-side failure with its code and 「再送」. The
+panel shows the newest message from its first line (the request, its state and the start of the answer) when the panel
+opens and when a new answer arrives, also while an earlier answer is being read: an answer of several paragraphs does
+not leave the next request below the visible part. A message sent again is shown the same way when its state changes
+(its answer or its failure arrives), the last message or an earlier one, though its confirmation had moved the panel
+to its top; fetching a recorded answer again changes no state and does not move the panel. A confirmation above the
+conversation comes into view and takes the focus when it opens; cancelling it gives the focus back to what opened it. Sending
+changes nothing, and the text leaves the input once the conversation holds the message (a request that never reached
+the API keeps what was typed). 「設定を適用」 and 「適用して試行」 under an answer are the only ways an answer changes
+settings or runs a preview, followed by 「解析設定を表示」 and 「AIによる設定変更を戻す」; when some fields fail, the
+message still records what was applied and run, and the failed fields are reported. An answer that proposes a nuclear
+stain the workspace has not recorded shows 「設定の適用には、核染色の指定が必要です。」 with 「核染色に … を指定」
+instead: that records that channel's role as 染色対応 does (the other channels keep theirs; what the answer
+proposed for them is not recorded), applies nothing, and then offers the actions. An answer is judged against the
+field its message was sent for, also while a field with other channels is selected. 「再送」 is
+offered for a failed message, for one left 送信中 by a session that ended, for a refusal on the service's side and,
+after a reload, for an answer this session no longer holds: one with settings or with run and group suggestions
+from any message, one with items to confirm as the latest message (where they are offered). It asks first, since it
+may call the model, and shows what is sent when this browser has not confirmed the scope. An answer without an
+analysis (only a stain's role, say) has nothing to apply and is recorded so (`applicable: null`): 「核染色に … を指定」
+records what it settles, and it offers no resend after a reload. From prompt
+`2026-11-26.1` (W7) the answer declares the kind of request, which only chooses these actions: a question shows its
+answer and the items to confirm as buttons (a choice is sent as the next message), a settings request 「設定を適用」, and a
+run request its target fields (「対象：選択した視野 · …」 or 「対象：全視野 · n 視野」, excluded fields left out) and
+「適用して実行」, which applies the settings and makes detection candidates on those fields; adopting them stays with
+「測定」. An answer with run and group suggestions says 「割付の案：n 視野」 with 「実験」; the suggestions appear, marked
+「AI」, in the table of unassigned fields and are saved only by 「案を適用」. Applying never renames a group that has
+fields or decides the control: when both groups would take a suggested name, or the only group left to name is the
+control group, 「案の対照の群」 is chosen first, and what changes besides the fields is stated above the table
+(「群の名前の変更：対照 → 未処理、処理 → ActD · 実験回の名前の変更：2026-11-26 → Rep1」). An empty instruction is
+not sent; 「解析案を作る」 asks for a proposal from the images alone. A new workspace starts with an empty conversation and
+input, and reopening a workspace shows its messages again.
+
+An empty workspace opens on adding images ([#284](https://github.com/genellect/cytellect/issues/284) W5): a panel on
+the workspace's own light surface (never an empty dark image stage, which reads as an image that failed to load)
+offers 画像を選択, フォルダーを選択 and a drop, the accepted formats in one line, and three pictures of one registered
+public field (BBBC007v1 A9, CC0 1.0; `apps/web/public/samples/NOTICE.json`): its DNA image as the measured
+fluorescence image, its actin image as another stain of the same field, and its hand-drawn nuclear outlines, filled,
+as a mask with the list's own words for one (マスクの候補 · 32-bit 整数ラベル). A window under 720 px high crops
+the pictures to a band (from 841 px wide) and a width up to 840 px sets them one a row, so the two links stay in view
+in a short window of a laptop's width. Chosen files go to
+the list first.
+Each file is judged by `POST /v1/intake/inspect` (one at a time; nothing is stored) and listed with its thumbnail
+and role: images grouped into the fields they will make with their channels (追加待ち, 読み込み中 while judged), a mask
+candidate with the fields of its size (寸法の一致), a copy with what it copies (同一内容, 別の撮影として追加), an
+unreadable file with its reason (差し替え), and a file that is not a TIFF (対象外). One line adds up the parts
+(「受け取り：8 · 画像：4（2 視野） · マスクの候補：1 · …」). Choices accumulate across selections, so another stain chosen
+later joins its field; 直前の選択を取り消し takes back the last choice only, and × removes one row. The list groups
+the images as registration will: file names chosen again in a later selection with other content (the same names in
+another condition's folder) are their own field with their stains together (「同じ名前 · 別の視野として追加」), and two
+files of different content for one channel of a field are shown in that field's row (要確認, both names) with
+「… を使用」 to keep one; that field waits in the list while the others are added. A field goes to one run and
+group: a stain chosen without a cell joins the cell its field was chosen in, and stains of one field chosen in two
+cells are two fields. An OME-TIFF with its own metadata is a field of its own, and the stains of a copy kept as a
+separate acquisition stay one field. A 32-bit float or signed 16-bit
+image is 読み取れない (「8/16-bit 以外の画像」), not a mask candidate, and counts as a missing image. 追加 registers
+the fields (W1) and records the unreadable files as rows with stage `inspect` (at the record's limit of 100 rows the
+rest gets no row and is listed with that reason, 「取り込みの記録が上限 100 件」, as an image is); with a field registered the image
+shows next and what was not added waits behind 取込 n件 (the chosen files and the saved rows), so nothing that was
+read stands behind a clean-up. The line beside 取込 counts the whole 追加 (「登録：3 視野 · 読み取れない：2 件」),
+however many fields and cells it covered. 閉じる hides the list and keeps the chosen files. 追加して AI に質問 then opens the AI
+input. The names of files not yet added are kept for this tab, with the cell each was chosen in and the file's size
+and last-modified time, and come back after a reload as 「再選択」 rows (each with its cell), on which the list opens
+by itself (the browser cannot keep the files). A file chosen again, by the row's 選択, by 画像を追加 or in the same
+cell, takes its row's place, cell and path, so it goes where it was going and resolves the row its interrupted upload
+left. With 画像を追加 or a cell the row is recognised by the file's size and time as well as its name (condition
+folders hold the same file names), and rows the file cannot tell apart, going to different cells, are left to their
+own 選択: a cell is never guessed from a name. Images added from a group's cell are listed with
+that run and group, also in 実験. Notes on registered fields (a stain one field has and another lacks) are listed
+apart (チャンネルの構成の違い) and not counted. Choosing and judging go on while images register or an analysis runs;
+追加 waits for them. Development builds log the counts a choice delivered (no names or paths).
+
+Analysis progress is counted in fields ([#284](https://github.com/genellect/cytellect/issues/284) W8). Each field in the
+run has one state, shown the same way in the field list and beside the image: 準備中 (from a settings change or 測定 until
+the run is accepted), 待機, 検出中, 検出候補 (candidates to review), 採用中 and 失敗; once adopted the field shows its saved count. The header reads
+「視野 1/2 · BBBC007-a9：核小体を検出中」. The run continues in the API, so a lost connection while following it is retried
+(「接続：確認中」) and never starts the same run again. When one field fails, the same run without it is requested
+again (its finished steps are reused, not recomputed) and the fields that succeeded are adopted; the failed field keeps
+「失敗」, its reason and 「再試行」. A nuclear detection asked for while no chosen field has a nuclear
+stain does not start and says so (「核の検出には、核染色の指定が必要です。」, with 設定); in a run of several
+fields, a field without one fails as 「核染色の指定なし」.
 
 Statistics display cells/fields/independent units separately. The paired option is
 initially selected because synthetic controls and treatments share pair IDs. Confirm
@@ -101,9 +207,8 @@ review route `/workspace-review` (the workspace without its session gate) redire
   (owner decisions 15 and 19, 2026-11-21); a measure is named the same way on the side panel, the saved
   comparisons and the result (「核小体の平均輝度（NPM1）」, by the recorded stain); the settings panel starts
   closed and opens with 設定. In production a drop of files or folders adds images as the 画像 and
-  フォルダ buttons do; the first images of a workspace without a form wait for the choice of the form
-  (1 画面 takes them, 2 画面 asks which run and group, 実験デザインなしで登録 keeps typing groups per field
-  in statistics, 取り消す drops them), so they never open in a view the researcher did not choose.
+  フォルダー buttons do: the files go to the list of chosen files, and nothing is registered or placed in a
+  group before the researcher adds them there (the list of chosen files, above).
 - Production only, 統計 has no confirmations (owner decision 11, 2026-11-21, genellect/cytellect#257): the
   regions and fields are those adopted in 画像, the acquisition and pixel settings (群の間で撮影・画素条件を比べられる)
   and the runs' independence are declared in 実験 beside each other and shown there as status marks (撮影条件、
@@ -264,6 +369,34 @@ after a relaunch revokes the cookie, instead of a 401 that the browser logs as a
 error; a GET never issues a session. The cloud sign-in routes (`/v1/account*`)
 accept only this PC's own session, not an invitation's, so local browser tests
 open the workspace with `POST /v1/local/session`, as `解析を開始` does.
+
+Connection failures (genellect/cytellect#284) are told apart in the API client
+(`apps/web/src/lib/api.ts`, state in `lib/local-connection.ts`) and shown by
+`ConnectionNotice` above the workspace, which then hides the general error line
+and its 「再読み込み」:
+
+| Failure | Detected as | Workspace |
+|---|---|---|
+| No answer (not sent, or the answer lost) | `fetch` throws; the client raises `api_unreachable` with status 0 instead of the browser's `Failed to fetch` | 「ローカルのサービス：接続なし」, 「再接続」, 「再開には、デスクトップの「Cytellect」の起動が必要です。」; `/v1/local/setup` is checked every 5 seconds |
+| Ended session | 401 `session_required` on a page that has used a session | `POST /v1/local/session`, then the same request once more (one shared renewal for concurrent requests). A second 401 shows 「作業画面のセッション：終了」 and 「再接続」 |
+| Wrong origin | 403 `local_origin_required`, or a non-loopback page | 「ローカルのサービス：接続の拒否」 and 「作業画面には、デスクトップの「Cytellect」から開いた画面が必要です。」 |
+
+A request without an answer is never repeated, because the API may have
+accepted it; a 401 is answered before the route runs, so its single repeat
+writes nothing twice. Session routes, an explicit `DELETE /v1/session` and a
+page that has not used a session yet (it starts from 「解析を開始」) are never
+renewed. When the service answers again, the runtime's `reconnected` reads the
+rows and fields again: a row whose upload reached the API shows as registered,
+a `pending` row keeps its names for 「差し替え」 under the same row ID, and
+recorded targets are placed. A new workspace with nothing saved yet has nothing
+to re-read and is never replaced by the workspace that was open before it. The notice also shows the previous launcher run's
+abnormal stop from `GET /v1/local/previous-stop`
+(「前回の停止：計算処理の停止 · 11月23日 18:28」; codes in
+[local delivery](local.md#stop-and-restart-停止と再開)) until the researcher closes it; the browser
+remembers the closed stop's reason and time, so a reload does not show it again. The hosted build keeps
+its session rules (no renewal, no notice); its no-answer error reads
+「APIに接続できません。…」. `tests/local-connection.spec.ts` checks the notice
+against the local static build with mocked routes (`CYTELLECT_LOCAL_UI_URL`).
 
 Onboarding and the upload form state that images are saved locally. The retention
 period is 24 hours after explicit activity. Data that expires while the application

@@ -1,0 +1,35 @@
+{
+  "dataset": "BBBC007v1",
+  "source": "https://bbbc.broadinstitute.org/BBBC007",
+  "license": "CC0-1.0",
+  "license_basis": "Official dataset copyright waiver by Anne Carpenter",
+  "attribution": "David Sabatini laboratory images; Chris Gang manual nuclear/cell outlines; Jones, Carpenter and Golland, CVBIA 2005; Ljosa et al., Nature Methods 2012",
+  "scope": "Pictures for the empty workspace's start screen only (what to choose before the file picker opens). Display-scaled and resized; never an analysis input, a ground truth or an accuracy claim.",
+  "processing": "The same region of the 450 x 450 px field in all three (x 60-360, y 60-360). Images: linear display scaling between the 1st and 99.9th percentile of the whole field, 8-bit grey. Mask: the published boolean outline image with its closed outlines filled (scipy.ndimage.binary_fill_holes on the whole field), drawn light on dark as the intake list draws a mask candidate. Resized to 264 x 264 px (Lanczos) and saved as WebP (quality 84).",
+  "files": [
+    {
+      "file": "bbbc007-a9-dna.webp",
+      "shows": "DNA image",
+      "sha256": "b2cb8d05973a7947161b0b5d7400ef47345c7bea91548a427f669c0edcb29691",
+      "source_archive": "BBBC007_v1_images.zip",
+      "source_member": "BBBC007_v1_images/A9/A9 p10d.tif",
+      "source_sha256": "1abc5c6e7c53bdb7e97fd9409ee963e9cb903496e1776f585fa338cd9f5563e2"
+    },
+    {
+      "file": "bbbc007-a9-actin.webp",
+      "shows": "actin image",
+      "sha256": "6f7acbcaed618b7de10edcd2a652645ff1b04b79a5e512130f7a46cd55460ca5",
+      "source_archive": "BBBC007_v1_images.zip",
+      "source_member": "BBBC007_v1_images/A9/A9 p10f.tif",
+      "source_sha256": "fabeb893e3060813d650cf4c233c06732fd2f0cdbf468da55381bbf334bc2313"
+    },
+    {
+      "file": "bbbc007-a9-mask.webp",
+      "shows": "nuclei as a mask: the hand-drawn nuclear outlines, filled",
+      "sha256": "4698297c1735c96cfa339286730a9a06bb90b61f2909cf0806455a7fa95691ed",
+      "source_archive": "BBBC007_v1_outlines.zip",
+      "source_member": "BBBC007_v1_outlines/A9/A9 p10d.tif",
+      "source_sha256": "c96f5f2e01746d4ce4fe6abff50d370c70abc65e94a5dbf3605c72774945d0d1"
+    }
+  ]
+}

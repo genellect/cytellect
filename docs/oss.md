@@ -171,6 +171,8 @@ CI でインストーラーを試すだけのビルド（`ci.yml` の `windows-i
 | `OpticalHero.tsx`、`optical-scene-engine.ts` | `founder/ProductSculpture.tsx`、`founder/product-sculpture-engine.ts` | 表示時の WebGL の初期化、世代の確認、照明の環境、描画資源の明示的な解放。Cytellect の Blender の光学背景 |
 | `product.module.css` | `founder/founder.module.css` | ヘッダー、ナビゲーション、本文の組版を Cytellect の構成に合わせた |
 
+ワークスペースの開始画面は、BBBC007v1 A9 の 1 つの領域を 264 px の絵 3 点で示す（DNA、アクチン、手描きの核の輪郭を塗ったマスク。CC0 1.0。画像は David Sabatini 研究室、輪郭は Chris Gang）。元のファイル、ハッシュ、加工、出典の表示は `apps/web/public/samples/NOTICE.json` にあり、Web のビルド成果物（Windows 版を含む）に同梱する。解析の入力や正解としては使わない。
+
 ## English
 
 Cytellect's own code is licensed under Apache-2.0. That license does not replace the licenses of Fiji, Java, plugins, model weights, dependencies or datasets; each component keeps its own license.
@@ -341,3 +343,5 @@ The following COMPASS components were adapted for Cytellect with the copyright o
 | `ProductMenu.tsx` | `founder/MobileExternalMenu.tsx` | Outside-click, Escape and focus restoration; product navigation |
 | `OpticalHero.tsx`, `optical-scene-engine.ts` | `founder/ProductSculpture.tsx`, `founder/product-sculpture-engine.ts` | Visibility-triggered WebGL setup, generation guards, lighting environment and explicit resource disposal; Cytellect Blender optical background |
 | `product.module.css` | `founder/founder.module.css` | Header, navigation and editorial typography adapted to Cytellect |
+
+The workspace's start screen shows three 264 px pictures of one region of BBBC007v1 A9 (DNA, actin and the hand-drawn nuclear outlines filled as a mask; CC0 1.0, David Sabatini laboratory images and Chris Gang outlines). Their source members, hashes, processing and attribution are in `apps/web/public/samples/NOTICE.json`, shipped with the built Web assets (the Windows version included). They are not analysis inputs or ground truth.

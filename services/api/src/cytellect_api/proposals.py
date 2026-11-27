@@ -12,7 +12,9 @@ import functools
 import hashlib
 import io
 import json
+import re
 import time
+import unicodedata
 import urllib.error
 import urllib.request
 import uuid
@@ -21,13 +23,21 @@ from typing import Annotated, Literal
 import numpy as np
 from cytellect_analysis.images import render_preview_with_display
 from cytellect_analysis.proposal_contracts import (
+    INTENT_FIELDS,
+    PROPOSAL_CONTEXT_PROTOCOL,
     PROPOSAL_PROTOCOL,
     DraftProcessing,
     ProposalContext,
     ProposalDraft,
     ValidatedProposal,
+    context_protocol,
 )
-from cytellect_analysis.proposal_validation import ProposalRejected, context_sha256, validate_draft
+from cytellect_analysis.proposal_validation import (
+    ProposalRejected,
+    context_sha256,
+    reply_text,
+    validate_draft,
+)
 from cytellect_analysis.region_contracts import (
     AdoptedNuclearRecipe,
     AutoScaledNuclearRecipe,
@@ -38,10 +48,10 @@ from cytellect_analysis.region_contracts import (
 from fastapi import Depends, HTTPException
 from PIL import Image
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
-from sqlalchemy import select, update
+from sqlalchemy import and_, select, update
 
 from .channel_assignments import apply_channel_assignments
-from .db import fields, proposal_drafts, revisions, workspaces
+from .db import assistant_messages, fields, proposal_drafts, revisions, workspaces
 from .regions import is_region
 
 MAX_RESPONSE_BYTES = 64 * 1024
@@ -218,7 +228,55 @@ class ProposalDraftRequest(BaseModel):
     field_id: Annotated[str, Field(min_length=1, max_length=128)] | None = None
     current_processing: Annotated[dict, Field(max_length=4)] | None = None
     previous_goal: Annotated[str, Field(max_length=2000)] = ""
-    previous_proposal: Annotated[dict, Field(max_length=13)] | None = None
+    previous_proposal: Annotated[dict, Field(max_length=18)] | None = None
+    # The message this request sends again (its 「再送」); a new message otherwise (#284 W2).
+    message_id: Annotated[str, Field(min_length=1, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")] | None = None
+
+
+MessageEffect = Literal["none", "settings", "run"]
+
+
+class AssistantMessage(BaseModel):
+    """One message of the researcher to the AI and what came back (#284 W2). `applicable` is true when the
+    answer carries settings the researcher may apply, false when its settings were refused (`reasons` and `stage`
+    say why), and null when there is nothing to apply: a question's answer (#284 W7), an answer without an analysis
+    (it only names a stain or a role), or a message still pending or failed. `restorable` is true when the answer recorded for the message holds items to confirm (`choices`) or
+    run and group suggestions (`assignments`): the listing carries the text only, so after a reload the workspace
+    offers the message's 「再送」 to read them again, which the record answers without a model call while the context
+    is unchanged. `suggests_assignments` names the second kind apart: the experiment table shows the suggestions
+    whichever message is the latest, while items to confirm are offered under the latest message only. Nothing here
+    changes settings."""
+    id: str
+    field_id: str | None
+    created: float
+    text: str
+    state: Literal["pending", "answered", "failed"]
+    reply: str | None
+    applicable: bool | None
+    reasons: list[str]
+    stage: Literal["context", "service", "validation"] | None
+    effect: MessageEffect
+    restorable: bool
+    # The recorded answer holds run and group suggestions (shown in the experiment table, whichever message is latest).
+    suggests_assignments: bool = False
+
+
+def _applicable(draft) -> bool | None:
+    """Whether the answer carries settings the researcher may apply. A question's answer (`intent: answer`) has none,
+    and neither has an answer without an analysis (recipe `none`, no processing: it only names a stain or a role,
+    which the researcher records in the workspace). Such an answer is neither applicable nor refused."""
+    if getattr(draft, "intent", None) == "answer":
+        return None
+    return None if getattr(draft, "recipe", None) == "none" and getattr(draft, "processing", None) is None else True
+
+
+class AssistantMessages(BaseModel):
+    messages: list[AssistantMessage]
+
+
+class AssistantEffect(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    effect: MessageEffect
 
 
 class ProposalChannelLink(BaseModel):
@@ -227,9 +285,53 @@ class ProposalChannelLink(BaseModel):
     stain: str | None
 
 
+class ProposalFieldLink(BaseModel):
+    """The context's opaque field identifier (`f1`…) and the workspace field it names (context 1.3.0, #284 W7)."""
+    token: str
+    field_id: str
+
+
 class ProposalDraftResponse(BaseModel):
-    proposal: ValidatedProposal
+    # None when the model answered but its settings cannot be applied: the answer is in `message.reply`.
+    proposal: ValidatedProposal | None
     channels: list[ProposalChannelLink]
+    message: AssistantMessage | None = None
+    # The fields an answer's assignment suggestions name; empty for a context before 1.3.0.
+    fields: list[ProposalFieldLink] = Field(default_factory=list)
+
+
+# A message with the proposal recorded for it (`draft_id`), read in one statement; `message_view` reads its rows.
+MESSAGE_ROWS = select(assistant_messages, proposal_drafts.c.proposal.label("recorded_proposal")).select_from(
+    assistant_messages.outerjoin(proposal_drafts, and_(
+        proposal_drafts.c.id == assistant_messages.c.draft_id,
+        proposal_drafts.c.workspace_id == assistant_messages.c.workspace_id)))
+
+
+def _restorable(recorded) -> bool:
+    """Whether a recorded proposal holds choices or assignment suggestions. No record, or one that cannot be read
+    as a proposal, has none."""
+    draft = recorded.get("draft") if isinstance(recorded, dict) else None
+    return isinstance(draft, dict) and bool(draft.get("choices") or draft.get("assignments"))
+
+
+def _suggests_assignments(recorded) -> bool:
+    """Whether a recorded proposal holds run and group suggestions."""
+    draft = recorded.get("draft") if isinstance(recorded, dict) else None
+    return isinstance(draft, dict) and bool(draft.get("assignments"))
+
+
+def message_view(row) -> AssistantMessage:
+    """One row of `MESSAGE_ROWS` as the workspace reads it."""
+    return AssistantMessage(id=row["id"], field_id=row["field_id"], created=row["created"], text=row["text"],
+                            state=row["state"], reply=row["reply"], applicable=row["applicable"],
+                            reasons=list(row["reasons"] or []), stage=row["stage"], effect=row["effect"],
+                            restorable=_restorable(row["recorded_proposal"]),
+                            suggests_assignments=_suggests_assignments(row["recorded_proposal"]))
+
+
+def answer_text(rationale: str, missing: tuple[str, ...] | list[str], answer: str | None = None) -> str:
+    """The answer as the researcher reads it: the direct answer, the rationale, then each item to confirm."""
+    return "\n".join(text.strip() for text in [answer or "", rationale, *missing] if text and text.strip())
 
 
 class AiStatus(BaseModel):
@@ -257,12 +359,15 @@ def _adopted_selection(store, wid: str) -> tuple[dict, set[str]]:
     return selection, {entry["field_id"] for entry in selection["entries"] if entry.get("exclusion_reason")}
 
 
-def build_context(store, wid: str, goal: str, field_id: str | None = None) -> tuple[ProposalContext, list[ProposalChannelLink]]:
+def build_context(store, wid: str, goal: str, field_id: str | None = None, *, protocol: str = PROPOSAL_CONTEXT_PROTOCOL,
+                  field_links: list | None = None) -> tuple[ProposalContext, list[ProposalChannelLink]]:
     """Derive every proposal input from the workspace; nothing else is asked of the researcher.
 
     The model reads the workspace as the researcher recorded it (docs/drafts/llm-assistant/plan.md): channel
     tokens with their labels and recorded stains, every field's name and metadata, counts and current settings.
-    Paths and measured values stay local; downscaled previews are built separately (`representative_previews`).
+    Context 1.3.0 (#284 W7) adds an opaque identifier per field, the folder-relative names its files were added with
+    and its run and group, and the design's run and group names; `field_links` then receives identifier → field.
+    Absolute paths and measured values stay local; downscaled previews are built separately (`representative_previews`).
     """
     rows = store.rows(fields, workspace_id=wid)
     adopted_selection, excluded = _adopted_selection(store, wid)
@@ -388,6 +493,29 @@ def build_context(store, wid: str, goal: str, field_id: str | None = None) -> tu
             cell_recipe = cell_record["config"].get("recipe", {}) if cell_record else {}
             if cell_record and cell_record["state"] == "succeeded" and cell_recipe.get("source") == "manual" and cell_recipe.get("region_set_id") == "cell":
                 adopted_cells.add(entry["field_id"])
+    sent = rows[:200]
+    extended = protocol == "1.3.0"
+    stored_experiment = specification.get("experiment") if extended else None
+    experiment: dict = stored_experiment if isinstance(stored_experiment, dict) else {}
+    added = {entry["field_id"]: entry["intake"].get("names") or [] for entry in adopted_selection["entries"]
+             if entry.get("field_id") and isinstance(entry.get("intake"), dict)}
+    field_records = [_field_record(row, display_names.get(row["id"])) for row in sent]
+    if extended:
+        stored_fields = experiment.get("fields")
+        assigned: dict = stored_fields if isinstance(stored_fields, dict) else {}
+        run_names = {run.get("id"): _label(run.get("label")) for run in experiment.get("runs") or [] if isinstance(run, dict)}
+        group_names = {group.get("id"): _label(group.get("label")) for group in experiment.get("groups") or [] if isinstance(group, dict)}
+        for index, (row, record) in enumerate(zip(sent, field_records)):
+            stored_place = assigned.get(row["id"])
+            placed: dict = stored_place if isinstance(stored_place, dict) else {}
+            names = [name for name in (_added_name(value) for value in added.get(row["id"], [])[:4]) if name]
+            record.update({"id": f"f{index + 1}", "paths": names, "run": run_names.get(placed.get("run_id")),
+                           "group": group_names.get(placed.get("group_id"))})
+            if field_links is not None:
+                field_links.append(ProposalFieldLink(token=f"f{index + 1}", field_id=row["id"]))
+    groups = [label for label in group_names.values() if label] if extended else []
+    design = ({"layout": experiment.get("layout"), "runs": [label for label in run_names.values() if label][:50],
+               "groups": groups} if extended and experiment.get("layout") in ("single", "pair") and 1 <= len(groups) <= 2 else None)
     image_metadata: list[dict] = []
     for row in region:
         info = row["image_info"]
@@ -399,7 +527,7 @@ def build_context(store, wid: str, goal: str, field_id: str | None = None) -> tu
         if image not in image_metadata and len(image_metadata) < 8:
             image_metadata.append(image)
     context = ProposalContext.model_validate(dict(
-        goal=goal, channels=channels, field_count=len(rows), condition_count=len(conditions),
+        protocol=protocol, design=design, goal=goal, channels=channels, field_count=len(rows), condition_count=len(conditions),
         units_known=_complete(rows, "experimental_unit") and _complete(rows, "condition"), pairing_known=pairing_known,
         units_per_condition=unit_counts, complete_pair_count=len(pair_groups) if pairing_known else 0,
         supplied_regions=bool(region) and all(row["image_info"].get("labels_array") or row["id"] in adopted_cells for row in region),
@@ -409,13 +537,41 @@ def build_context(store, wid: str, goal: str, field_id: str | None = None) -> tu
         current_gfp=current_gfp, negative_control_fields_known=registered_controls,
         acquired_dates_known=_complete(rows, "acquisition_date"),
         image_metadata=image_metadata,
-        fields=[_field_record(row, display_names.get(row["id"])) for row in rows[:200]],
+        fields=field_records,
     ))
     return context, links
 
 
 def _text(value) -> str | None:
     return value.strip()[:120] if isinstance(value, str) and value.strip() else None
+
+
+def _label(value) -> str | None:
+    """A run or group name of the design (at most 24 characters, as the design stores it)."""
+    return value if isinstance(value, str) and value.strip() and len(value) <= 24 else None
+
+
+# A root, a home, a drive letter, a URL scheme, or a path that starts at the users' folder (`Users/…`, `home/…`).
+# A folder of that name further down a relative path is a folder like any other and keeps its name.
+_ABSOLUTE = re.compile(r"^(?:/|~|[A-Za-z]:|[A-Za-z][A-Za-z0-9+.-]*:/|(?:Users|home)/)", re.IGNORECASE)
+
+
+def _added_name(value) -> str | None:
+    """A name a file was added with, relative to the folder the researcher chose. An absolute path is never sent:
+    only its file name is. Empty, `.` and `..` segments are dropped, and so are control and format characters
+    (line and paragraph separators, direction marks): a name is data for the model, one line of it."""
+    if not isinstance(value, str):
+        return None
+    path = "".join(char for char in value if unicodedata.category(char) not in ("Cc", "Cf", "Zl", "Zp"))
+    path = path.replace("\\", "/").strip()
+    # Judged on the path as it will be sent: `./Users/…` and `../home/…` are the users' folder too.
+    parts = [part for part in path.split("/") if part.strip() and part not in (".", "..")]
+    if _ABSOLUTE.match(path) or _ABSOLUTE.match("/".join(parts)):
+        path = path.rsplit("/", 1)[-1]
+    text = "/".join(part for part in path.split("/") if part.strip() and part not in (".", ".."))
+    if len(text) > 255:
+        text = text.rsplit("/", 1)[-1]
+    return text[:255] or None
 
 
 def _field_record(row, display_name: str | None) -> dict:
@@ -494,6 +650,12 @@ def _source_stamp(store, wid: str) -> str:
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
 
 
+# What a follow-up continues from is the previous proposal's settings. Its items to confirm and its run and group
+# suggestions were for the researcher at that turn and are not sent again; a proposal with one suggestion per field
+# must not stop the messages after it.
+CONTINUATION_OMITTED = frozenset({"choices", "assignments"})
+
+
 def _continuation_context(context: ProposalContext, links: list[ProposalChannelLink], body: ProposalDraftRequest) -> ProposalContext:
     """Normalize only closed settings; never send private channel IDs or arbitrary JSON."""
     channel_tokens = {link.channel_id: link.token for link in links}
@@ -518,7 +680,12 @@ def _continuation_context(context: ProposalContext, links: list[ProposalChannelL
         return value
 
     current = DraftProcessing.model_validate(normalized(body.current_processing)) if body.current_processing else None
-    previous = ProposalDraft.model_validate(normalized(body.previous_proposal)) if body.previous_proposal else None
+    prior = (normalized({key: value for key, value in body.previous_proposal.items() if key not in CONTINUATION_OMITTED})
+             if body.previous_proposal else None)
+    if isinstance(prior, dict) and context.protocol != "1.3.0":
+        # A prompt before 2026-11-26.1 reads the previous proposal without the kind of request.
+        prior = {key: value for key, value in prior.items() if key not in INTENT_FIELDS}
+    previous = ProposalDraft.model_validate(prior) if prior else None
     if not context.field_count and current is not None:
         raise ValueError("proposal_continuation_requires_images")
     return ProposalContext.model_validate({**context.model_dump(), "current_processing":current,
@@ -571,16 +738,67 @@ def register_proposal_routes(api, store, settings, owner, workspace, credentials
             return AiCompatibility(state="incompatible")
         return AiCompatibility(state="unavailable")
 
+    def open_message(conn, wid: str, body: ProposalDraftRequest, now: float) -> str:
+        """Writes the message as sent (or reopens it for its 「再送」) before the model is called (#284 W2)."""
+        values: dict = {"state": "pending", "reply": None, "applicable": None, "reasons": [], "stage": None,
+                  "request_id": None, "draft_id": None}
+        if body.message_id:
+            found = conn.execute(select(assistant_messages.c.id).where(assistant_messages.c.id == body.message_id,
+                assistant_messages.c.workspace_id == wid)).first()
+            if found is None:
+                raise HTTPException(404, "assistant_message_not_found")
+            conn.execute(update(assistant_messages).where(assistant_messages.c.id == body.message_id).values(**values))
+            return body.message_id
+        mid = str(uuid.uuid4())
+        conn.execute(assistant_messages.insert().values(id=mid, workspace_id=wid, field_id=body.field_id, created=now,
+            text=body.goal, effect="none", **values))
+        return mid
+
+    def close_message(mid: str, **values):
+        with store.transaction() as conn:
+            conn.execute(update(assistant_messages).where(assistant_messages.c.id == mid).values(**values))
+            return message_view(conn.execute(MESSAGE_ROWS.where(assistant_messages.c.id == mid)).mappings().one())
+
+    @api.get("/v1/workspaces/{wid}/assistant-messages", response_model=AssistantMessages)
+    def list_messages(wid: str, who: Owner):
+        workspace(wid, who)
+        with store.engine.connect() as conn:
+            rows = conn.execute(MESSAGE_ROWS.where(assistant_messages.c.workspace_id == wid)
+                                .order_by(assistant_messages.c.created, assistant_messages.c.id)).mappings().all()
+        return AssistantMessages(messages=[message_view(row) for row in rows])
+
+    @api.patch("/v1/workspaces/{wid}/assistant-messages/{mid}", response_model=AssistantMessage)
+    def record_effect(wid: str, mid: str, body: AssistantEffect, who: Owner):
+        """What the researcher did with an answer (applied its settings, ran it). The answer never does it."""
+        workspace(wid, who)
+        with store.transaction() as conn:
+            row = conn.execute(select(assistant_messages).where(assistant_messages.c.id == mid,
+                assistant_messages.c.workspace_id == wid)).mappings().first()
+            if row is None:
+                raise HTTPException(404, "assistant_message_not_found")
+            if body.effect != "none" and not (row["state"] == "answered" and row["applicable"]):
+                raise HTTPException(409, "assistant_message_not_applicable")
+            conn.execute(update(assistant_messages).where(assistant_messages.c.id == mid).values(effect=body.effect))
+            return message_view(conn.execute(MESSAGE_ROWS.where(assistant_messages.c.id == mid)).mappings().one())
+
     @api.post("/v1/workspaces/{wid}/proposal-drafts", response_model=ProposalDraftResponse)
     def draft_proposal(wid: str, body: ProposalDraftRequest, who: Owner):
         workspace(wid, who)
         if body.transmission_confirmed is not True:
             raise HTTPException(428, "proposal_transmission_not_confirmed")
+        protocol = context_protocol(settings.proposal_prompt_version)
+        field_links: list[ProposalFieldLink] = []
         try:
-            context, links = build_context(store, wid, body.goal, body.field_id)
+            context, links = build_context(store, wid, body.goal, body.field_id, protocol=protocol, field_links=field_links)
             context = _continuation_context(context, links, body)
-        except ValueError:
-            raise HTTPException(409, "proposal_context_unsupported") from None
+        except (ValueError, HTTPException) as error:
+            # The message is kept with why it could not be sent, under the message itself.
+            code = error.detail if isinstance(error, HTTPException) and isinstance(error.detail, str) else "proposal_context_unsupported"
+            status = error.status_code if isinstance(error, HTTPException) else 409
+            with store.transaction() as conn:
+                mid = open_message(conn, wid, body, time.time())
+            close_message(mid, state="failed", reasons=[code], stage="context")
+            raise HTTPException(status, code) from None
         source_stamp = _source_stamp(store, wid)
         service = effective_settings(settings, credentials)
         identity = {"context": context_sha256(context), "protocol": PROPOSAL_PROTOCOL,
@@ -597,21 +815,33 @@ def register_proposal_routes(api, store, settings, owner, workspace, credentials
             cached = conn.execute(select(proposal_drafts).where(
                 proposal_drafts.c.workspace_id == wid, proposal_drafts.c.cache_key == key)).mappings().first()
             if cached and cached["state"] == "complete":
-                return ProposalDraftResponse(proposal=ValidatedProposal.model_validate(cached["proposal"]), channels=links)
+                # The same question in the same context: answered from the record, the model is not called.
+                mid = open_message(conn, wid, body, now)
+                cached_proposal = ValidatedProposal.model_validate(cached["proposal"])
+                conn.execute(update(assistant_messages).where(assistant_messages.c.id == mid).values(
+                    state="answered", applicable=_applicable(cached_proposal.draft), draft_id=cached["id"], request_id=cached["request_id"],
+                    reply=reply_text(cached_proposal.draft)))
+                row = conn.execute(MESSAGE_ROWS.where(assistant_messages.c.id == mid)).mappings().one()
+                return ProposalDraftResponse(proposal=cached_proposal, channels=links, message=message_view(row), fields=field_links)
             if cached:
                 if cached["state"] == "pending" and cached["lease_until"] > now:
                     raise HTTPException(409, "proposal_request_in_progress")
                 if not body.retry_failed and cached["state"] != "unbilled":
                     # A timeout may already have incurred cost; never silently pay again.
                     raise HTTPException(409, "proposal_explicit_retry_required")
+                draft_id = cached["id"]
                 conn.execute(update(proposal_drafts).where(proposal_drafts.c.id == cached["id"]).values(
                     request_id=request_id, state="pending", lease_until=now + settings.proposal_timeout_seconds + 30))
             else:
-                conn.execute(proposal_drafts.insert().values(id=str(uuid.uuid4()), workspace_id=wid, cache_key=key,
+                draft_id = str(uuid.uuid4())
+                conn.execute(proposal_drafts.insert().values(id=draft_id, workspace_id=wid, cache_key=key,
                     request_id=request_id, state="pending", created=now,
                     lease_until=now + settings.proposal_timeout_seconds + 30))
+            mid = open_message(conn, wid, body, now)
+            conn.execute(update(assistant_messages).where(assistant_messages.c.id == mid).values(request_id=request_id))
         proposal = None
         unbilled = False
+        refused: ProposalRejected | None = None
         try:
             try:
                 previews = representative_previews(store, wid, links, body.field_id) if body.include_previews else []
@@ -625,27 +855,52 @@ def register_proposal_routes(api, store, settings, owner, workspace, credentials
                                       prompt_version=payload["prompt_version"])
         except ProposalServiceError as error:
             unbilled = not error.may_have_charged
+            close_message(mid, state="failed", reasons=[error.code], stage="service")
             raise HTTPException(error.status, error.code) from None
         except ProposalRejected as error:
             # Codes only: the draft text itself is never echoed into logs.
-            if "proposal_association_same_region_required" in error.codes:
-                raise HTTPException(502, "proposal_association_same_region_required") from None
-            raise HTTPException(502, {"code": "proposal_rejected", "reasons": error.codes}) from None
+            if error.rationale is None:
+                close_message(mid, state="failed", reasons=error.codes, stage="validation")
+                if "proposal_association_same_region_required" in error.codes:
+                    raise HTTPException(502, "proposal_association_same_region_required") from None
+                raise HTTPException(502, {"code": "proposal_rejected", "reasons": error.codes}) from None
+            refused = error
         except ValueError:
+            close_message(mid, state="failed", reasons=["proposal_service_misconfigured"], stage="service")
             raise HTTPException(503, "proposal_service_misconfigured") from None
+        except Exception:
+            close_message(mid, state="failed", reasons=["proposal_internal_error"], stage="service")
+            raise
         finally:
             if proposal is None:
                 with store.transaction() as conn:
                     conn.execute(update(proposal_drafts).where(proposal_drafts.c.workspace_id == wid,
                         proposal_drafts.c.cache_key == key, proposal_drafts.c.request_id == request_id,
                         proposal_drafts.c.state == "pending").values(state="unbilled" if unbilled else "failed"))
-        workspace(wid, who)  # Revocation/expiry during the external call blocks publication.
+        if refused is not None:
+            # The answer is shown; its settings are not applicable. The cached request stays failed, so the same
+            # question needs an explicit resend as before (the answer is already in the message).
+            message = close_message(mid, state="answered", applicable=False, reasons=refused.codes, stage="validation",
+                                    reply=answer_text(refused.rationale or "", refused.missing_information, refused.answer))
+            return ProposalDraftResponse(proposal=None, channels=links, message=message, fields=field_links)
+        assert proposal is not None  # Every other path above returned or raised.
         try:
-            refreshed, refreshed_links = build_context(store, wid, body.goal, body.field_id)
+            workspace(wid, who)  # Revocation/expiry during the external call blocks publication.
+        except HTTPException as error:
+            # The message says why it has no answer instead of staying pending; the request is released as failed.
+            with store.transaction() as conn:
+                conn.execute(update(proposal_drafts).where(proposal_drafts.c.workspace_id == wid,
+                    proposal_drafts.c.cache_key == key, proposal_drafts.c.request_id == request_id,
+                    proposal_drafts.c.state == "pending").values(state="failed"))
+            close_message(mid, state="failed", stage="context",
+                          reasons=[error.detail if isinstance(error.detail, str) else "proposal_context_changed"])
+            raise
+        try:
+            refreshed, refreshed_links = build_context(store, wid, body.goal, body.field_id, protocol=protocol)
             refreshed = _continuation_context(refreshed, refreshed_links, body)
             changed = (context_sha256(refreshed) != context_sha256(context) or refreshed_links != links
                        or _source_stamp(store, wid) != source_stamp)
-        except ValueError:
+        except (ValueError, HTTPException):
             changed = True
         if changed:
             # Release the request instead of leaving it pending until the lease ends.
@@ -653,11 +908,15 @@ def register_proposal_routes(api, store, settings, owner, workspace, credentials
                 conn.execute(update(proposal_drafts).where(proposal_drafts.c.workspace_id == wid,
                     proposal_drafts.c.cache_key == key, proposal_drafts.c.request_id == request_id,
                     proposal_drafts.c.state == "pending").values(state="failed"))
+            close_message(mid, state="failed", reasons=["proposal_context_changed"], stage="context")
             raise HTTPException(409, "proposal_context_changed")
         with store.transaction() as conn:
             result = conn.execute(update(proposal_drafts).where(proposal_drafts.c.workspace_id == wid,
                 proposal_drafts.c.cache_key == key, proposal_drafts.c.request_id == request_id).values(
                     state="complete", proposal=proposal.model_dump(mode="json")))
-            if result.rowcount != 1:
-                raise HTTPException(409, "proposal_request_superseded")
-        return ProposalDraftResponse(proposal=proposal, channels=links)
+            superseded = result.rowcount != 1
+        if superseded:
+            close_message(mid, state="failed", reasons=["proposal_request_superseded"], stage="service")
+            raise HTTPException(409, "proposal_request_superseded")
+        message = close_message(mid, state="answered", applicable=_applicable(proposal.draft), draft_id=draft_id, reply=reply_text(proposal.draft))
+        return ProposalDraftResponse(proposal=proposal, channels=links, message=message, fields=field_links)

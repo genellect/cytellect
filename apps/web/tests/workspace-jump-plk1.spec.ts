@@ -76,8 +76,10 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
   // Product alerts are inside the workspace; the empty Next.js route announcer outside it is not one.
   const noAlerts = async () => expect(await page.getByRole("main").getByRole("alert").allTextContents()).toEqual([]);
 
-  // E-01: the first screen offers one or two screens, each with a short description.
+  // The first screen adds images (#284 W5, decision 1); the experiment view offers one or two screens (E-01).
   await page.goto(entry);
+  await expect(page.getByRole("heading", {name: "画像を追加", level: 1})).toBeVisible();
+  await page.getByRole("navigation", {name: "作業の切替"}).getByRole("button", {name: "実験", exact: true}).click();
   const choice = page.getByRole("region", {name: "実験デザイン"});
   await expect(choice.getByRole("heading", {name: "実験デザイン", level: 1})).toBeVisible();
   await expect(choice.getByRole("button", {name: /^1 画面/})).toBeEnabled();
@@ -147,6 +149,8 @@ test("C1: two groups × three runs of public JUMP images reach a paired comparis
     const chooser = page.waitForEvent("filechooser");
     await target.getByRole("button", {name: "画像を追加", exact: true}).click();
     await (await chooser).setFiles(imagesOf(inputs!, run, GROUPS[groupIndex].well));
+    // The cell's files are listed with their run and group; 追加 registers them (#284 W5).
+    await page.getByRole("region",{name:"取り込みの一覧"}).getByRole("button",{name:"追加",exact:true}).click();
     await expect(target).toContainText(`${GROUPS[groupIndex].label} · ${SITES.length} 視野`, {timeout: 300_000});
     await expect(page.getByRole("status").filter({hasText: "画像を登録中"})).toHaveCount(0, {timeout: 120_000});
   };

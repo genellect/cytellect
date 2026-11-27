@@ -10,9 +10,12 @@ import re
 
 from pydantic import ValidationError
 
+from .experiment_design import _clean as _clean_label
 from .proposal_contracts import (
     INTENSITY_METRICS,
     NCL_METRICS,
+    DraftChannel,
+    DraftStatistics,
     ProposalContext,
     ProposalDraft,
     ValidatedProposal,
@@ -25,15 +28,175 @@ FORBIDDEN_TEXT = re.compile(
     r"\bmacro\b|\bsubprocess\b|\bos\.system\b|javascript:)", re.IGNORECASE)
 
 
+# Every reason a draft can be refused for (#284 W2): the workspace maps each to a place the researcher can
+# change or to a service-side failure, and a test keeps this list and the checks below in step.
+REJECTION_CODES: frozenset[str] = frozenset({
+    "proposal_acquisition_dates_required",
+    "proposal_answer_missing",
+    "proposal_assignment_duplicate",
+    "proposal_assignment_field_unknown",
+    "proposal_assignment_group_invalid",
+    "proposal_assignment_label_invalid",
+    "proposal_association_axes_identical",
+    "proposal_association_axes_required",
+    "proposal_association_axes_unexpected",
+    "proposal_association_invalid",
+    "proposal_association_same_region_required",
+    "proposal_background_not_available",
+    "proposal_channels_mismatch",
+    "proposal_choice_invalid",
+    "proposal_comparison_invalid",
+    "proposal_descriptive_has_test",
+    "proposal_design_requires_paired",
+    "proposal_figure_analysis_invalid",
+    "proposal_figure_association_axis_mismatch",
+    "proposal_figure_design_mismatch",
+    "proposal_figure_metric_not_proposed",
+    "proposal_gfp_channel_not_established",
+    "proposal_gfp_controls_not_registered",
+    "proposal_images_not_registered",
+    "proposal_independent_units_insufficient",
+    "proposal_measured_table_absent",
+    "proposal_measurements_required",
+    "proposal_metric_channel_invalid",
+    "proposal_metric_duplicate",
+    "proposal_metric_region_invalid",
+    "proposal_metric_region_required",
+    "proposal_model_not_selected",
+    "proposal_model_selection_changed",
+    "proposal_ncl_channel_not_acquired",
+    "proposal_ncl_metric_invalid",
+    "proposal_none_has_analysis",
+    "proposal_omnibus_design_mismatch",
+    "proposal_omnibus_required",
+    "proposal_one_nuclear_channel_required",
+    "proposal_paired_condition_count_unsupported",
+    "proposal_pairing_required",
+    "proposal_processing_cell_channel_invalid",
+    "proposal_processing_marker_not_established",
+    "proposal_processing_ncl_channel_invalid",
+    "proposal_processing_nuclear_channel_invalid",
+    "proposal_processing_nucleoli_channel_invalid",
+    "proposal_processing_nucleoli_recipe_invalid",
+    "proposal_processing_recipe_invalid",
+    "proposal_processing_signal_channel_invalid",
+    "proposal_reference_duplicate",
+    "proposal_role_conflicts_with_user",
+    "proposal_run_requires_analysis",
+    "proposal_scope_required",
+    "proposal_shape_invalid",
+    "proposal_stain_changed",
+    "proposal_stain_not_established",
+    "proposal_supplied_regions_absent",
+    "proposal_text_not_allowed",
+    "proposal_units_required",
+})
+
+
 # Every other string of a draft (stain names, legend terms as the researcher stated them) may
 # use ordinary words such as "macro" or "import"; none may carry a link or markup.
 FORBIDDEN_REFERENCE = re.compile(r"(https?://|www\.|<\s*script|javascript:)", re.IGNORECASE)
 
 
 class ProposalRejected(ValueError):
-    def __init__(self, codes: list[str]):
+    """A refused draft. When the draft was well formed and its text passed the text check, the answer it wrote
+    (`answer`, `rationale`, `missing_information`) travels with the codes so the researcher still reads it (#284 W2,
+    W7); the settings it proposed are never applied."""
+
+    def __init__(self, codes: list[str], rationale: str | None = None, missing_information: tuple[str, ...] = (),
+                 answer: str | None = None):
         super().__init__(",".join(codes))
         self.codes = codes
+        self.rationale = rationale
+        self.missing_information = missing_information
+        self.answer = answer
+
+
+# What a question's answer holds (#284 W7, finding 14): its text, the items to confirm and assignment suggestions.
+# Everything else is a setting, and an answer has no way to apply one (decision 4), so validation leaves it out.
+CHOICE_LIMIT, OPTION_LIMIT = 4, 6
+QUESTION_CHARS, OPTION_CHARS, LABEL_CHARS = 200, 80, 24
+
+
+def reply_text(draft: ProposalDraft) -> str:
+    """The answer as the researcher reads it: the direct answer, the reasoning, then each item still to provide."""
+    return "\n".join(text.strip() for text in [draft.answer or "", draft.rationale, *draft.missing_information]
+                     if text and text.strip())
+
+
+def carries_settings(context: ProposalContext, draft: ProposalDraft) -> bool:
+    """Whether a draft holds anything the workspace could apply: an analysis, a measurement, a statistic, a figure,
+    processing, or a channel whose stain or role differs from what the workspace records."""
+    known = {channel.token: channel for channel in context.channels}
+    statistics = draft.statistics
+    changed_channel = any(
+        channel.token not in known
+        or (channel.stain is not None and channel.stain.casefold() != (known[channel.token].stain or "").casefold())
+        or (channel.role != "unused" and channel.role != known[channel.token].role)
+        for channel in draft.channels)
+    return bool(draft.recipe != "none" or draft.metrics or draft.figures or draft.additional_analyses
+                or statistics.kind != "descriptive" or statistics.test or statistics.omnibus or statistics.association
+                or statistics.x is not None or statistics.y is not None or draft.processing is not None
+                or draft.background is not None or draft.gfp_selection is not None
+                or draft.figure_presentation is not None or changed_channel)
+
+
+def _without_settings(context: ProposalContext, draft: ProposalDraft) -> ProposalDraft:
+    """A question's answer as it is kept: its text, choices and assignment suggestions, and no setting. Each channel
+    the answer lists stays with the stain and role the workspace records (`unused` without a recorded role); a stain
+    or a role the answer added, and a channel the workspace does not have, are left out. What the model would
+    propose reaches the researcher as text and as choices, never as a setting that nothing could apply."""
+    known = {channel.token: channel for channel in context.channels}
+    channels: dict[str, DraftChannel] = {}
+    for channel in draft.channels:
+        recorded = known.get(channel.token)
+        if recorded is not None and channel.token not in channels:
+            channels[channel.token] = DraftChannel(token=channel.token, stain=recorded.stain,
+                                                   role=recorded.role or "unused", reason=channel.reason)
+    return draft.model_copy(update={
+        "recipe": "none", "channels": list(channels.values()), "metrics": [], "figures": [], "additional_analyses": [],
+        "statistics": DraftStatistics(kind="descriptive", test=None, omnibus=None, association=None),
+        "processing": None, "background": None, "gfp_selection": None, "figure_presentation": None})
+
+
+def _label_valid(value: str) -> bool:
+    try:
+        _clean_label(value)
+    except ValueError:
+        return False
+    return len(value) <= LABEL_CHARS
+
+
+def _request_codes(context: ProposalContext, draft: ProposalDraft) -> list[str]:
+    """Checks of the kind of request, its choices and its assignment suggestions (#284 W7)."""
+    codes: list[str] = []
+    if draft.intent == "run":
+        if draft.scope is None:
+            codes.append("proposal_scope_required")
+        if draft.recipe == "none":
+            codes.append("proposal_run_requires_analysis")
+    if len(draft.choices) > CHOICE_LIMIT or any(
+            not choice.question.strip() or len(choice.question) > QUESTION_CHARS
+            or not 2 <= len(choice.options) <= OPTION_LIMIT
+            or any(not option.strip() or len(option) > OPTION_CHARS or "\n" in option for option in choice.options)
+            or len({option.strip().casefold() for option in choice.options}) != len(choice.options)
+            for choice in draft.choices):
+        codes.append("proposal_choice_invalid")
+    if draft.assignments:
+        fields = {field.id for field in context.fields if field.id}
+        named = [assignment.field for assignment in draft.assignments]
+        if any(field not in fields for field in named):
+            codes.append("proposal_assignment_field_unknown")
+        if len(set(named)) != len(named):
+            codes.append("proposal_assignment_duplicate")
+        if not all(_label_valid(assignment.run) and _label_valid(assignment.group) for assignment in draft.assignments):
+            codes.append("proposal_assignment_label_invalid")
+        # As many groups as the design holds (two without one): the workspace places them by name, or names the
+        # design's groups after them when none matches (W6's 「案を適用」).
+        groups = {assignment.group.casefold() for assignment in draft.assignments}
+        if len(groups) > (len(context.design.groups) if context.design else 2):
+            codes.append("proposal_assignment_group_invalid")
+    return codes
 
 
 def context_sha256(context: ProposalContext) -> str:
@@ -42,7 +205,40 @@ def context_sha256(context: ProposalContext) -> str:
 
 
 def _texts(draft: ProposalDraft) -> list[str]:
-    return [draft.rationale, *draft.missing_information, *(channel.reason for channel in draft.channels)]
+    return [draft.rationale, *draft.missing_information, *(channel.reason for channel in draft.channels),
+            draft.answer or "", *(choice.question for choice in draft.choices)]
+
+
+def _names(draft: ProposalDraft) -> list[str]:
+    """Options (written as the researcher's next message) and run and group names quote names the researcher gave
+    (a folder, a stain), so like every other name they may use ordinary words and may carry no link or markup."""
+    return [*(option for choice in draft.choices for option in choice.options),
+            *(label for assignment in draft.assignments for label in (assignment.run, assignment.group))]
+
+
+def _refuse(draft: ProposalDraft, codes: list[str]):
+    """Raises the refusal, with the draft's text when that text passed the text check."""
+    if "proposal_text_not_allowed" in codes:
+        raise ProposalRejected(sorted(set(codes)))
+    raise ProposalRejected(sorted(set(codes)), draft.rationale, tuple(draft.missing_information), draft.answer)
+
+
+def _validate_answer(context: ProposalContext, draft: ProposalDraft, *, model: str, prompt_version: str) -> ValidatedProposal:
+    """A question's answer (#284 W7): valid whatever the workspace holds. Settings it carries are left out rather than
+    refused, so its text, choices and assignment suggestions reach the researcher. The text check reads the draft as
+    the model wrote it, the parts left out included."""
+    codes = _request_codes(context, draft)
+    if not reply_text(draft):
+        codes.append("proposal_answer_missing")
+    if len(set(draft.reference_ids)) != len(draft.reference_ids):
+        codes.append("proposal_reference_duplicate")
+    if (any(FORBIDDEN_TEXT.search(text) for text in _texts(draft))
+            or any(FORBIDDEN_REFERENCE.search(text) for text in _names(draft))):
+        codes.append("proposal_text_not_allowed")
+    if codes:
+        _refuse(draft, codes)
+    return ValidatedProposal(draft=_without_settings(context, draft), needs_confirmation=[], model=model,
+                             prompt_version=prompt_version, context_sha256=context_sha256(context))
 
 
 def _strings(draft: ProposalDraft) -> list[str]:
@@ -68,7 +264,9 @@ def validate_draft(context: ProposalContext, raw: object, *, model: str, prompt_
         draft = ProposalDraft.model_validate(raw)
     except ValidationError:
         raise ProposalRejected(["proposal_shape_invalid"]) from None
-    codes: list[str] = []
+    if draft.intent == "answer":
+        return _validate_answer(context, draft, model=model, prompt_version=prompt_version)
+    codes: list[str] = _request_codes(context, draft)
     if context.field_count == 0 and (
         draft.recipe != "none" or draft.channels or draft.metrics or draft.figures
         or draft.additional_analyses or draft.statistics.kind != "descriptive"
@@ -273,6 +471,6 @@ def validate_draft(context: ProposalContext, raw: object, *, model: str, prompt_
             or any(FORBIDDEN_REFERENCE.search(text) for text in _strings(draft))):
         codes.append("proposal_text_not_allowed")
     if codes:
-        raise ProposalRejected(sorted(set(codes)))
+        _refuse(draft, codes)
     return ValidatedProposal(draft=draft, needs_confirmation=needs_confirmation, model=model,
                              prompt_version=prompt_version, context_sha256=context_sha256(context))

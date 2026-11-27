@@ -33,6 +33,29 @@ test("the configured analysis screen requires a session and enters the workspace
   await expect(page.getByTestId("file-input")).toHaveCount(0);
   await page.getByLabel("招待コード",{exact:true}).fill(token);
   await page.getByRole("button",{name:"ワークスペースに接続",exact:true}).click();
-  await expect(page.getByRole("button",{name:/^2 画面/})).toBeEnabled();
+  await expect(page.getByRole("button",{name:"画像を選択",exact:true})).toBeEnabled();
   await expect(page.getByLabel("招待コード",{exact:true})).toHaveCount(0);
+});
+
+test("the start waits for the first reading of the workspace: 読み込み中, then 画像を追加 (#284 W5)", async ({page}) => {
+  test.skip(process.env.CYTELLECT_EXPECT_UNCONFIGURED === "1", "Configured build only");
+  let release = () => {};
+  const held = new Promise<void>(resolve => {release = resolve;});
+  await page.route("**/v1/**", async route => {
+    const headers = {"Access-Control-Allow-Origin": new URL(page.url()).origin, "Access-Control-Allow-Credentials":"true", "Access-Control-Allow-Headers":"content-type,x-cytellect-request"};
+    const method = route.request().method(), path = new URL(route.request().url()).pathname;
+    if (method === "OPTIONS") return route.fulfill({status:204, headers});
+    if (path === "/v1/session") return route.fulfill({headers, contentType:"application/json", body:JSON.stringify({authenticated:true,retention_hours:24,demo:false})});
+    // The list of workspaces is the first reading: held until the screen has been looked at.
+    if (path === "/v1/workspaces" && method === "GET") {await held;return route.fulfill({headers,contentType:"application/json",body:"[]"});}
+    return route.fulfill({status:404, headers,contentType:"application/json",body:'{"detail":"not_found"}'});
+  });
+  await page.goto("/workspace");
+  // Until the answer, the stage says it is reading; the start (and its pictures) is not drawn for a workspace
+  // that may turn out to hold fields.
+  await expect(page.getByRole("main").getByText("読み込み中…", {exact:true})).toBeVisible();
+  await expect(page.getByRole("heading", {name:"画像を追加", exact:true, level:1})).toHaveCount(0);
+  release();
+  await expect(page.getByRole("heading", {name:"画像を追加", exact:true, level:1})).toBeVisible();
+  await expect(page.getByRole("button",{name:"画像を選択",exact:true})).toBeEnabled();
 });

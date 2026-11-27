@@ -91,6 +91,7 @@ def test_upgrade_from_previous_schema(tmp_path):
     with store.transaction() as conn:
         conn.exec_driver_sql("ALTER TABLE fields DROP COLUMN display_name")
         conn.exec_driver_sql("DROP TABLE result_discussions")
+        conn.exec_driver_sql("DROP TABLE assistant_messages")
         conn.exec_driver_sql("DROP TABLE retention_policy")
         conn.exec_driver_sql("DROP TABLE workspace_field_links")
         conn.exec_driver_sql("DROP TABLE workspace_analysis_runs")
@@ -100,7 +101,7 @@ def test_upgrade_from_previous_schema(tmp_path):
     store.engine.dispose()
     upgraded = Store(tmp_path)
     with upgraded.engine.connect() as conn:
-        assert conn.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one() == "0012"
+        assert conn.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one() == "0013"
         assert conn.exec_driver_sql("SELECT count(*) FROM workspace_channel_assignments").scalar_one() == 0
 
 

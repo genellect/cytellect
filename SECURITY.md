@@ -89,7 +89,7 @@ Cytellect は、未発表の顕微鏡画像を研究者の PC 上で解析する
 |---|---|---|
 | SQL インジェクション | PC 上のサーバーは、SQLAlchemy の式で問い合わせを組み立て、値をすべてバインドする。中継サービスは、すべての文をプリペアドステートメントで実行し、値をバインドする。要求の値を SQL の文字列に連結する箇所はない。 | [`db.py`](services/api/src/cytellect_api/db.py) [`app.py`](services/api/src/cytellect_api/app.py) [`store.ts`](services/proposal-worker/src/store.ts) [`auth-store.ts`](services/proposal-worker/src/auth-store.ts) |
 | コマンドインジェクション | 外部のプロセスは、引数の配列で起動し、シェルを経由しない。Fiji には型の決まったパラメーターだけを渡し、マクロの文字列を実行しない。検出モデルの名前は固定で、要求から指定できない。 | [`supervision.py`](services/worker/src/cytellect_worker/supervision.py) [`engine.py`](packages/analysis/src/cytellect_analysis/engine.py) [`CytellectEngine.java`](engines/fiji/CytellectEngine.java) [`region_contracts.py`](packages/analysis/src/cytellect_analysis/region_contracts.py) |
-| プロンプトインジェクション | AI には、ツールの呼び出しを与えない。AI の出力は JSON スキーマに限定し、コードとして実行しない。解析の提案は、PC 上でスキーマに照らして検証し、未定義の項目を含むものを拒否する。スキーマには、ファイルのパス、URL、コマンドを表す項目がない。提案は、研究者が採用するまで解析に使用しない。測定と統計は、提案の内容にかかわらず共通の実装が計算する。考察の下書きは、文字列として表示し、解析の設定と数値を変更しない。 | [`proposal_validation.py`](packages/analysis/src/cytellect_analysis/proposal_validation.py) [`proposal_contracts.py`](packages/analysis/src/cytellect_analysis/proposal_contracts.py) [`proposals.py`](services/api/src/cytellect_api/proposals.py) [`openai.ts`](services/proposal-worker/src/openai.ts) [`anthropic.ts`](services/proposal-worker/src/anthropic.ts) [`test_proposals.py`](tests/test_proposals.py) [`test_proposals_persistence.py`](tests/test_proposals_persistence.py) |
+| プロンプトインジェクション | AI には、ツールの呼び出しを与えない。AI の出力は JSON スキーマに限定し、コードとして実行しない。解析の提案は、PC 上でスキーマに照らして検証し、未定義の項目を含むものを拒否する。スキーマには、ファイルのパス、URL、コマンドを表す項目がない。提案は、研究者が採用するまで解析に使用しない。回答が宣言する依頼の種類（質問、設定の変更、実行）は、画面に表示する操作の選択にだけ使用し、設定の適用、解析の実行、割付の案の保存は、研究者の操作でだけ行う。測定と統計は、提案の内容にかかわらず共通の実装が計算する。考察の下書きは、文字列として表示し、解析の設定と数値を変更しない。 | [`proposal_validation.py`](packages/analysis/src/cytellect_analysis/proposal_validation.py) [`proposal_contracts.py`](packages/analysis/src/cytellect_analysis/proposal_contracts.py) [`proposals.py`](services/api/src/cytellect_api/proposals.py) [`openai.ts`](services/proposal-worker/src/openai.ts) [`anthropic.ts`](services/proposal-worker/src/anthropic.ts) [`test_proposals.py`](tests/test_proposals.py) [`test_proposals_persistence.py`](tests/test_proposals_persistence.py) |
 | クロスサイトスクリプティング（XSS） | 画面は、React のエスケープを通して描画する。研究者の入力と AI の出力は文字列として表示し、HTML として解釈しない。HTML として挿入するのは、解析が生成した SVG の図だけであり、要素と属性の許可リストで無害化してから挿入する。管理画面は、値を文字列として設定し、nonce を指定した Content Security Policy を適用する。 | [`EditableFigure.tsx`](apps/web/src/components/workspace/review/EditableFigure.tsx) [`DiscussionPanel.tsx`](apps/web/src/components/workspace/review/DiscussionPanel.tsx) [`admin-page.ts`](services/proposal-worker/src/admin-page.ts) [`http.ts`](services/proposal-worker/src/http.ts) |
 | パストラバーサル | 保存には、サーバーが生成する UUID と固定の名前を使用し、アップロードされたファイル名をパスに使用しない。パスは、保存領域の内側にあることを検証する。設定ファイルと作業領域は、シンボリックリンクを拒否する。アーカイブは、ディスクに展開しない。 | [`db.py`](services/api/src/cytellect_api/db.py) [`config.py`](services/api/src/cytellect_api/config.py) [`local.py`](services/api/src/cytellect_api/local.py) [`app.py`](services/api/src/cytellect_api/app.py) |
 | 安全でないデシリアライズ | pickle を使用しない。配列は、すべて pickle を無効にして読み込む。モデルの重みは、SHA-256 を照合したうえで、重みだけを読み込む方式で読み込む。外部から届く JSON は、未定義の項目を拒否するスキーマで検証する。 | [`server.py`](engines/cellpose/server.py) [`runner.py`](engines/cellpose/runner.py) [`cellpose_engine.py`](packages/analysis/src/cytellect_analysis/cellpose_engine.py) [`contracts.py`](packages/analysis/src/cytellect_analysis/contracts.py) [`proposal_contracts.py`](packages/analysis/src/cytellect_analysis/proposal_contracts.py) [`schema.ts`](services/proposal-worker/src/schema.ts) |
@@ -201,7 +201,7 @@ Cytellect は、未発表の顕微鏡画像を研究者の PC 上で解析する
 | 操作 | 送信する情報 | 送信先 | 送信先での取り扱い |
 |---|---|---|---|
 | クラウド GPU による細胞の検出 | 検出対象の 1 プレーン（1 視野・1 チャンネルの原寸の画像 1 枚）と検出条件。核小体の検出では、採用済みの核のラベル（核の領域を示す画像）を加える。 | 中継サービスを経由して推論サーバー | 中継サービスは、本文を解釈も保持もせずに、ストリームのまま転送する。推論サーバーは、メモリ上でのみ処理し、ファイルに書き込まない。いずれも保存せず、ログに記録しない。 |
-| AI への相談 | 研究の目的、チャンネルと視野の記録、画像の寸法、現在の解析設定、代表的な 1 視野の縮小画像（内訳は下記） | 中継サービスを経由して Anthropic または OpenAI | 中継サービスは保存せず、ログに記録しない。AI の提供元は、モデルの学習に使用しない。 |
+| AI への相談 | 研究の目的、チャンネルと視野の記録、視野を追加したときのファイルの名前、実験回と群の名前、画像の寸法、現在の解析設定、代表的な 1 視野の縮小画像（内訳は下記） | 中継サービスを経由して Anthropic または OpenAI | 中継サービスは保存せず、ログに記録しない。AI の提供元は、モデルの学習に使用しない。 |
 | AI による考察の生成 | 保存した比較結果と実験の目的（内訳は下記） | 同上 | 同上 |
 
 AI への相談で送信する情報は、次のとおりである。
@@ -209,6 +209,8 @@ AI への相談で送信する情報は、次のとおりである。
 - 研究の目的
 - チャンネル名と、記録した染色
 - 視野の名前（既定ではファイル名）と記録（条件、実験回、組、取得日）
+- 視野を追加したときのファイルの名前（選択したフォルダーの名前と、その中のフォルダー名・ファイル名）
+- 実験デザインの実験回と群の名前
 - 画像の寸法と画素サイズ、視野と群の数
 - 現在の解析設定と、前回の提案
 - 代表的な 1 視野の、チャンネルごとの縮小画像（一辺 512 px 以下。設定で無効にできる）
@@ -221,7 +223,7 @@ AI への相談で送信する情報は、次のとおりである。
 - 群ごとの値、差と信頼区間、実験回ごとの値、n とその内訳
 - 集計と検定の方法、研究者が記述した実験単位の定義と対応の根拠、検定と p 値
 
-核ごとの測定値とファイルのパスは、どの操作でも送信しない。研究者が除外した視野は、提案にも縮小画像にも使用しない。OpenAI には、応答を保存しない設定（`store: false`）で送信する。AI の提供元は、不正利用の監視のために、各社の API の規約が定める期間、データを保持する。
+核ごとの測定値と、PC 内の保存場所（選択したフォルダーより上のパス）は、どの操作でも送信しない。AI への相談で送信するファイルの名前は、選択したフォルダーの名前から始まる相対パスである（フォルダーを選択せずに追加した場合は、ファイル名だけ）。絶対パスとして記録された名前は、ファイル名だけにして送信する。研究者が除外した視野は、提案にも縮小画像にも使用しない。OpenAI には、応答を保存しない設定（`store: false`）で送信する。AI の提供元は、不正利用の監視のために、各社の API の規約が定める期間、データを保持する。
 
 研究データを含まない通信は、クラウドへのログイン（メールアドレスとログインコード）、クラウドの機能の利用（端末トークン）、EXE 版の更新の確認（GitHub の公開リリース一覧の取得）の 3 つである。導入したアプリと作業画面は、利用状況の計測情報を送信しない。
 
@@ -231,14 +233,14 @@ AI への相談で送信する情報は、次のとおりである。
 
 | 対策 | 仕組み | 実装と試験 |
 |---|---|---|
-| 同意 | AI への送信範囲は、クラウドへのログイン時と最初の考察の生成時に画面に表示し、同意を得たうえで送信する。送信範囲は、AI の設定画面にも常に表示する。 | [`CloudAccount.tsx`](apps/web/src/components/workspace/CloudAccount.tsx) [`ConnectedWorkspace.tsx`](apps/web/src/components/workspace/review/ConnectedWorkspace.tsx) [`AiSettings.tsx`](apps/web/src/components/workspace/AiSettings.tsx) |
+| 同意 | AI への送信範囲は、クラウドへのログイン時と最初の考察の生成時に画面に表示し、同意を得たうえで送信する。送信範囲を広げた後は、次の AI への相談または考察の生成の前に、その送信範囲をもう一度表示する。送信範囲は、AI の設定画面にも常に表示する。 | [`CloudAccount.tsx`](apps/web/src/components/workspace/CloudAccount.tsx) [`ConnectedWorkspace.tsx`](apps/web/src/components/workspace/review/ConnectedWorkspace.tsx) [`AiSettings.tsx`](apps/web/src/components/workspace/AiSettings.tsx) |
 | 送信の確認 | PC 上のサーバーは、研究者が画面で送信を確認した要求だけを AI へ送信し、確認のない要求を拒否する。 | [`proposals.py`](services/api/src/cytellect_api/proposals.py) [`discussions.py`](services/api/src/cytellect_api/discussions.py) [`test_proposals.py`](tests/test_proposals.py) [`test_result_discussion_api.py`](tests/test_result_discussion_api.py) |
 
 ### 5.3 保存と削除
 
 | 対策 | 仕組み | 実装と試験 |
 |---|---|---|
-| 保存場所 | PC 上のデータと認証情報は、OS の利用者のプロファイルの中の、その利用者だけが読み取れる領域に保存する（Windows 版は `%LOCALAPPDATA%\Cytellect`）。 | [`local.py`](services/api/src/cytellect_api/local.py) [`cloud_account.py`](services/api/src/cytellect_api/cloud_account.py) [`local_setup.ps1`](scripts/local_setup.ps1) |
+| 保存場所 | PC 上のデータ（画像、マスク、測定表、図、取り込みの記録、AI への指示と回答の記録）と認証情報は、OS の利用者のプロファイルの中の、その利用者だけが読み取れる領域に保存する（Windows 版は `%LOCALAPPDATA%\Cytellect`）。取り込みの記録は、追加した画像のファイル名と、登録できなかった理由からなる。 | [`local.py`](services/api/src/cytellect_api/local.py) [`cloud_account.py`](services/api/src/cytellect_api/cloud_account.py) [`local_setup.ps1`](scripts/local_setup.ps1) |
 | 原画像の完全性 | 原画像の画素値は変更しない。取り込んだ画像は、SHA-256 を照合してから解析に使用し、結果は別の領域に書き出す。 | [`worker/regions.py`](services/worker/src/cytellect_worker/regions.py) |
 | 保持期間 | Windows 版は、研究者が削除するまで作業データを保持する（EXE 版は、導入時に 24 時間での自動削除を選択できる）。Docker 版は、最後の操作から 24 時間で失効させ、削除する。`127.0.0.1` でのみ待ち受ける構成では、削除するまでの保持を選択できる。 | [`config.py`](services/api/src/cytellect_api/config.py) [`test_workspace_retention.py`](tests/test_workspace_retention.py) |
 | 削除 | 失効または削除の時点で、読み出しをただちに遮断する。続いて、入力、配列、輪郭、図、書き出したファイルを削除する。 | [`app.py`](services/api/src/cytellect_api/app.py) [`worker/main.py`](services/worker/src/cytellect_worker/main.py) [`test_workspace_retention.py`](tests/test_workspace_retention.py) |

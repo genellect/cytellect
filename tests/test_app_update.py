@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 from cytellect_api import app_update, update_signature
 from cytellect_api.app import create_app
-from cytellect_api.app_update import Installation, Relaunch, UpdateRefused, UpdateService
+from cytellect_api.app_update import Installation, InstallerResult, Relaunch, UpdateRefused, UpdateService
 from cytellect_api.config import Settings
 from fastapi.testclient import TestClient
 
@@ -47,6 +47,20 @@ def manifest_for(version="0.1.0-local.22", body=INSTALLER):
 def signing_key(monkeypatch):
     """The built-in public key is the test run's key, as the owner's would be in a release."""
     monkeypatch.setattr(update_signature, "UPDATE_PUBLIC_KEY", PUBLIC)
+
+
+def exited(code: int) -> InstallerResult:
+    """The installer ran and exited by itself with this code."""
+    return InstallerResult("exit", code)
+
+
+def without_launch(status: dict) -> dict:
+    """The status without the per-launch identifier, which is random."""
+    assert isinstance(status.pop("launch"), str)
+    return status
+
+
+QUIET = {"stage": None, "exit_code": None, "store": False}
 
 
 def make_app(root: Path, version: str) -> Path:
@@ -96,7 +110,7 @@ class Opener:
         return io.BytesIO(self.manifest if url.endswith(".json") else self.body)
 
 
-def service(tmp_path, releases, *, opener=None, installer=lambda path, root: 0, spawned=None, stops=None,
+def service(tmp_path, releases, *, opener=None, installer=lambda path, root: exited(0), spawned=None, stops=None,
             clock=lambda: 1000.0, fetch=None, busy=lambda: False):
     current = installation(tmp_path)
     stops = stops if stops is not None else []
@@ -124,10 +138,10 @@ def test_status_reports_the_contract_fields_and_caches_the_check(tmp_path):
     now = [1000.0]
     updater = service(tmp_path, [], fetch=lambda url: calls.append(url) or [release("0.1.0-local.22")],
                       clock=lambda: now[0])
-    status = updater.status()
+    status = without_launch(updater.status())
     assert status == {"current": "0.1.0-local.21", "latest": "0.1.0-local.22", "available": True,
                       "notes_url": "https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.22",
-                      "state": "idle", "error": None}
+                      "state": "idle", "error": None, **QUIET}
     assert calls == [app_update.RELEASES_URL]
     now[0] += 60
     updater.status()
@@ -153,8 +167,8 @@ def test_offline_check_never_raises_and_keeps_the_last_known_release(tmp_path):
     assert status["latest"] == "0.1.0-local.22" and status["available"] is True
     # A fresh installation without any successful check stays quiet when offline.
     fresh = UpdateService(installation(tmp_path / "fresh"), fetch=fetch, clock=lambda: now[0])
-    assert fresh.status() == {"current": "0.1.0-local.21", "latest": None, "available": False,
-                              "notes_url": None, "state": "idle", "error": None}
+    assert without_launch(fresh.status()) == {"current": "0.1.0-local.21", "latest": None, "available": False,
+                                              "notes_url": None, "state": "idle", "error": None, **QUIET}
 
 
 def test_development_and_hosted_copies_report_unsupported(tmp_path):
@@ -185,7 +199,7 @@ SIGNED = manifest_for()
 def test_unverified_download_never_runs_the_installer(tmp_path, opener, code, downloaded):
     ran = []
     updater = service(tmp_path, [release("0.1.0-local.22")], opener=opener,
-                      installer=lambda path, root: ran.append(path) or 0)
+                      installer=lambda path, root: ran.append(path) or exited(0))
     updater.start()
     assert ran == []
     assert updater.status()["state"] == "failed" and updater.status()["error"] == code
@@ -196,7 +210,7 @@ def test_unverified_download_never_runs_the_installer(tmp_path, opener, code, do
 def test_a_release_without_a_signed_manifest_is_not_installed(tmp_path):
     opener, ran = Opener(), []
     updater = service(tmp_path, [release("0.1.0-local.22", signed=False)], opener=opener,
-                      installer=lambda path, root: ran.append(path) or 0)
+                      installer=lambda path, root: ran.append(path) or exited(0))
     assert updater.status()["available"] is True
     updater.start()
     assert ran == [] and opener.urls == [] and updater.status()["error"] == "update_signature_missing"
@@ -206,7 +220,7 @@ def test_github_listing_that_disagrees_with_the_signed_manifest_stops_the_update
     for listed in ({"digest": "sha256:" + "0" * 64}, {"size": len(INSTALLER) + 1}):
         ran = []
         updater = service(tmp_path / str(len(listed)) / next(iter(listed)), [release("0.1.0-local.22", **listed)],
-                          installer=lambda path, root: ran.append(path) or 0)
+                          installer=lambda path, root: ran.append(path) or exited(0))
         updater.start()
         assert ran == [] and updater.status()["error"] == "update_installer_hash_mismatch"
 
@@ -214,9 +228,10 @@ def test_github_listing_that_disagrees_with_the_signed_manifest_stops_the_update
 def test_without_a_built_in_key_the_update_asks_for_the_new_installer(tmp_path, monkeypatch):
     monkeypatch.setattr(update_signature, "UPDATE_PUBLIC_KEY", "")
     updater = service(tmp_path, [release("0.1.0-local.22")])
-    assert updater.status() == {"current": "0.1.0-local.21", "latest": "0.1.0-local.22", "available": False,
-                                "notes_url": "https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.22",
-                                "state": "unsupported", "error": "update_signing_key_missing"}
+    assert without_launch(updater.status()) == {
+        "current": "0.1.0-local.21", "latest": "0.1.0-local.22", "available": False,
+        "notes_url": "https://github.com/genellect/cytellect/releases/tag/v0.1.0-local.22",
+        "state": "unsupported", "error": "update_signing_key_missing", **QUIET}
     with pytest.raises(UpdateRefused, match="update_unsupported"):
         updater.start()
     # Nothing newer: nothing to say.
@@ -227,15 +242,57 @@ def test_without_a_built_in_key_the_update_asks_for_the_new_installer(tmp_path, 
     assert updater.status()["state"] == "rolled_back"
 
 
-def test_failed_installer_keeps_the_current_version_running(tmp_path):
+@pytest.mark.parametrize("result,code,stage,exit_code", [
+    (InstallerResult("launch"), "update_installer_launch_failed", "launch", None),
+    (InstallerResult("timeout"), "update_installer_timeout", "timeout", None),
+    (exited(20), "update_install_failed", "exit", 20),
+    (exited(-1), "update_install_failed", "exit", -1),
+])
+def test_failed_installer_keeps_the_current_version_running(tmp_path, result, code, stage, exit_code):
     spawned, stops = [], []
-    updater = service(tmp_path, [release("0.1.0-local.22")], installer=lambda path, root: 20,
+    updater = service(tmp_path, [release("0.1.0-local.22")], installer=lambda path, root: result,
                       spawned=spawned, stops=stops)
     updater.start()
     status = updater.status()
-    assert status["state"] == "failed" and status["error"] == "update_install_failed"
+    # Each way the installer can end is its own code, with the stage and the exit code.
+    assert (status["state"], status["error"], status["stage"], status["exit_code"]) == ("failed", code, stage, exit_code)
+    record = json.loads((tmp_path / "updates/state.json").read_text())
+    assert (record["error"], record["stage"], record["exit_code"]) == (code, stage, exit_code)
+    assert set(record) == {"state", "time", "version", "error", "stage", "exit_code"}  # no paths or file names
+    assert status["available"] is True  # 「再試行」 stays offered
     assert spawned == [] and stops == []  # no switch, no shutdown
     assert not list((tmp_path / "updates").rglob("*.exe"))
+
+
+def test_a_later_state_does_not_keep_an_earlier_failure_stage(tmp_path):
+    updater = service(tmp_path, [release("0.1.0-local.22")], installer=lambda path, root: exited(3))
+    updater.start()
+    assert updater.status()["stage"] == "exit"
+    # A failure before the installer ran (here the signature) records no installer stage.
+    updater.opener = Opener(signature=b"not a signature")
+    updater.start()
+    status = updater.status()
+    assert status["error"] == "update_signature_invalid" and status["stage"] is None and status["exit_code"] is None
+
+
+def test_the_launch_identifier_changes_with_each_start_of_the_launcher(tmp_path):
+    first = service(tmp_path, [release("0.1.0-local.22")])
+    assert first.status()["launch"] == first.status()["launch"]
+    # A new launcher process creates a new service.
+    assert service(tmp_path / "next", [release("0.1.0-local.22")]).status()["launch"] != first.status()["launch"]
+    assert UpdateService(None).status()["launch"] != UpdateService(None).status()["launch"]
+
+
+def test_the_store_package_never_offers_or_runs_an_in_app_update(tmp_path):
+    calls = []
+    store = UpdateService(installation(tmp_path), store_version="1.2.3.0", fetch=lambda url: calls.append(url) or [],
+                          background=False)
+    status = without_launch(store.status())
+    assert status == {"current": "1.2.3.0", "latest": None, "available": False, "notes_url": None,
+                      "state": "unsupported", "error": None, "stage": None, "exit_code": None, "store": True}
+    with pytest.raises(UpdateRefused, match="update_unsupported"):
+        store.start()
+    assert calls == []  # the Store updates this copy: GitHub is not asked
 
 
 def test_verified_installation_switches_through_the_relauncher(tmp_path):
@@ -245,7 +302,7 @@ def test_verified_installation_switches_through_the_relauncher(tmp_path):
         assert hashlib.sha256(path.read_bytes()).hexdigest() == DIGEST
         ran.append(root)
         make_app(root, "0.1.0-local.22")
-        return 0
+        return exited(0)
 
     updater = service(tmp_path, [release("0.1.0-local.22", size=len(INSTALLER))], installer=install,
                       spawned=spawned, stops=stops)
@@ -582,7 +639,7 @@ def test_running_analyses_block_the_update_and_a_late_one_defers_the_switch(tmp_
 
     def install(path, root):
         make_app(root, "0.1.0-local.22")
-        return 0
+        return exited(0)
 
     updater = UpdateService(installation(tmp_path / "late"), fetch=lambda url: [release("0.1.0-local.22")],
                             opener=Opener(), installer=install, spawn=lambda c, d: spawned.append(c),
@@ -596,7 +653,7 @@ def test_running_analyses_block_the_update_and_a_late_one_defers_the_switch(tmp_
 def test_downloads_are_removed_after_installation_and_before_a_new_attempt(tmp_path):
     seen = []
     updater = service(tmp_path, [release("0.1.0-local.22")],
-                      installer=lambda path, root: seen.append(path.is_file()) or 20)
+                      installer=lambda path, root: seen.append(path.is_file()) or exited(20))
     current = updater.installation
     stale = current.updates / "0.1.0-local.20"
     stale.mkdir(parents=True)
@@ -617,8 +674,49 @@ def test_a_hung_installer_is_stopped_with_its_children(tmp_path, monkeypatch):
 
     monkeypatch.setattr(app_update.subprocess, "Popen", lambda *args, **kwargs: Hung())
     monkeypatch.setattr(app_update, "stop_tree", stopped.append)
-    assert app_update.run_installer(tmp_path / "setup.exe", tmp_path) == -1
+    assert app_update.run_installer(tmp_path / "setup.exe", tmp_path) == InstallerResult("timeout")
     assert len(stopped) == 1
+
+
+def test_the_installer_writes_its_log_to_the_update_folder_and_reports_how_it_ended(tmp_path, monkeypatch):
+    commands = []
+    (tmp_path / "updates").mkdir()
+    (tmp_path / "updates" / app_update.INSTALLER_LOG).write_text("previous run", encoding="utf-8")
+
+    class Exits:
+        pid = 1234
+
+        def __init__(self, code):
+            self.code = code
+
+        def wait(self, timeout):
+            return self.code
+
+    def popen(command, **kwargs):
+        commands.append(command)
+        # The previous log is removed before setup writes its own.
+        assert not (tmp_path / "updates" / app_update.INSTALLER_LOG).exists()
+        assert kwargs["stdout"] is app_update.subprocess.DEVNULL and kwargs["stderr"] is app_update.subprocess.DEVNULL
+        return Exits(5)
+
+    monkeypatch.setattr(app_update.subprocess, "Popen", popen)
+    assert app_update.run_installer(tmp_path / "setup.exe", tmp_path) == InstallerResult("exit", 5)
+    assert commands[0][-1] == f"/LOG={tmp_path / 'updates' / app_update.INSTALLER_LOG}"
+    assert f"/DIR={tmp_path}" in commands[0]
+
+    def refuse(command, **kwargs):
+        raise OSError("not a Windows program")
+
+    monkeypatch.setattr(app_update.subprocess, "Popen", refuse)
+    assert app_update.run_installer(tmp_path / "setup.exe", tmp_path) == InstallerResult("launch")
+
+
+def test_the_installer_log_is_kept_when_downloads_are_removed(tmp_path):
+    updates = tmp_path / "updates"
+    (updates / "0.1.0-local.22").mkdir(parents=True)
+    (updates / app_update.INSTALLER_LOG).write_text("setup log", encoding="utf-8")
+    app_update.remove_downloads(updates)
+    assert sorted(path.name for path in updates.iterdir()) == [app_update.INSTALLER_LOG]
 
 
 def test_release_notes_link_only_to_this_repository():
@@ -635,6 +733,24 @@ def local_client(tmp_path, origin="http://127.0.0.1:8765", secure=False):
     headers = {"origin": origin, "x-cytellect-request": "1"}
     assert client.post("/v1/invitations/redeem", json={"token": token}, headers=headers).status_code == 200
     return client, headers
+
+
+def test_the_store_package_answers_store_through_the_local_routes(tmp_path):
+    from cytellect_api.local import create_local_app
+
+    web = tmp_path / "web"
+    web.mkdir()
+    (web / "index.html").write_text("<h1>public static shell</h1>", encoding="utf-8")
+    origin = "http://127.0.0.1:8765"
+    settings = Settings(tmp_path / "data", app_origin=origin, secure_cookies=False)
+    client = TestClient(create_local_app(settings, web, 8765, store_version="1.2.3.0"), base_url=origin,
+                        client=("127.0.0.1", 45000))
+    headers = {"Origin": origin, "X-Cytellect-Request": "1", "Sec-Fetch-Site": "same-origin"}
+    assert client.post("/v1/local/session", headers=headers).status_code == 200
+    status = client.get("/v1/app/update").json()
+    assert status["store"] is True and status["state"] == "unsupported" and status["available"] is False
+    assert status["current"] == "1.2.3.0"
+    assert client.post("/v1/app/update", headers=headers).json() == {"detail": "update_unsupported"}
 
 
 def test_routes_exist_only_in_the_loopback_application_and_require_a_session(tmp_path):

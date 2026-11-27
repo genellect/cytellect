@@ -23,13 +23,9 @@ describe("AI and analysis panel navigation", () => {
 });
 
 describe("experiment form placement", () => {
-  it("stays in one place from a new workspace's first choice to the experiment view", () => {
-    // The first save moves a new workspace from the image view to the experiment view.
-    expect(experimentSetupShown("image", false, false)).toBe(true);
-    expect(experimentSetupShown("experiment", false, false)).toBe(true);
-    expect(experimentSetupShown("experiment", true, true)).toBe(true);
-    expect(experimentSetupShown("image", true, false)).toBe(false);
-    expect(experimentSetupShown("image", false, true)).toBe(false);
-    expect(experimentSetupShown("statistics", false, false)).toBe(false);
+  it("shows the experiment view only when chosen: an empty workspace opens on adding images (#284 W5)", () => {
+    expect(experimentSetupShown("image")).toBe(false);
+    expect(experimentSetupShown("experiment")).toBe(true);
+    expect(experimentSetupShown("statistics")).toBe(false);
   });
 });

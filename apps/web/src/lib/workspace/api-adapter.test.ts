@@ -13,6 +13,22 @@ function fake(handler: (path: string, options?: RequestInit) => Promise<unknown>
   return {adapter: createApiAdapter({request, post, wait: async () => {}}), request, post};
 }
 describe("real workspace transport boundaries", () => {
+  it("sends one file and its registration route to the inspection without a workspace or a selection write",async()=>{
+    const file=new File([new Uint8Array([1,2,3])],"synthetic-bytes.tif");
+    const answer={kind:"ome",role:"image",code:null,sha256:"a".repeat(64),bytes:3,shape:[2,2],dtype:"uint16",channel_names:["DAPI",null],thumbnail_png:null};
+    const controller=new AbortController();
+    const {adapter,request,post}=fake(async(path,options)=>{
+      expect(path).toBe("/v1/intake/inspect");
+      expect(options?.method).toBe("POST");expect(options?.signal).toBe(controller.signal);
+      const form=options?.body as FormData;
+      expect([...form.keys()].sort()).toEqual(["file","kind"]);
+      expect(form.get("kind")).toBe("ome");
+      expect(await (form.get("file") as File).arrayBuffer()).toEqual(await file.arrayBuffer());
+      return answer;
+    });
+    await expect(adapter.inspect(file,"ome",controller.signal)).resolves.toEqual(answer);
+    expect(request).toHaveBeenCalledTimes(1);expect(post).not.toHaveBeenCalled();
+  });
   it("uploads OME bytes once with an import identity and keeps existing adoption on deduplication",async()=>{
     const file=new File([new Uint8Array([1,2,3])],"fixture.ome.tif");
     const {adapter}=fake(async(path,options)=>{

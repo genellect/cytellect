@@ -310,6 +310,27 @@ every proposal and discussion from the updated client would fail. Deploy the Wor
 distribute the client. The newer Worker keeps answering installed clients (up to 0.1.0-local.23) with their own prompt
 versions and OpenAI model.
 
+[#284](https://github.com/genellect/cytellect/issues/284) W7 adds prompt `2026-11-26.1` (the kind of request, the
+answer, the fields a run covers, the items to confirm and assignment suggestions) with proposal context 1.3.0 (field
+identifiers, the names fields were added with relative to the chosen folder, the design's run and group names). A
+Worker without it answers the client with HTTP 400 `request_invalid` (the context) or `prompt_version_unsupported`, so
+**the Worker must be deployed and checked before the W7 change reaches `main`**: a push to `main` can start the
+automatic Windows release and the Store submission. The new Worker keeps answering `2026-11-19.1` with context 1.2.0
+for clients already distributed, refuses context 1.3.0 with any other prompt version (400 `request_invalid`, before
+admission), and routes `2026-11-26.1` to Claude when it is configured. Until the Worker is deployed, an operator can keep
+an updated client working by setting `CYTELLECT_PROPOSAL_PROMPT_VERSION=2026-11-19.1`: the local API then sends
+context 1.2.0 without the additions, and answers have no kind of request (the earlier 「設定を適用」 and 「適用して試行」).
+The Worker with this prompt was deployed on 2026-11-26 from the PR's head (record below), and its answers were checked
+the same day on public cases with the owner's permission (the evaluation below the record). After that evaluation the
+text of `2026-11-26.1` was changed in place, in `359d4ef7` and later commits of PR #303: no distributed client uses
+this version, and #237 changed an undistributed prompt's text the same way. The Worker with the new text was deployed
+on 2026-11-27 with the owner's permission and evaluated again on the same public cases (record and second evaluation
+below). `doctor --proposal-version` checks only that a version is accepted, not which text of it is deployed, so a
+later change of the text must again be deployed before distribution to reach researchers. The local API reuses a saved
+proposal keyed by the prompt version, the context and the workspace's state (`proposals.py`), so a workspace that
+already asked the same request in the same state returns the earlier answer without a model call: evaluate the new
+text on a new workspace.
+
 ### Required prompt-version check before distribution
 
 Run `uv run python scripts/dev.py doctor --proposal-version` from the exact client commit to distribute, with `CYTELLECT_PROPOSAL_URL` and an operator-issued device token (`CYTELLECT_PROPOSAL_TOKEN` or `CYTELLECT_PROPOSAL_TOKEN_FILE`) configured privately. The proposal/discussion prompt overrides in that environment are checked too. Compose inherits the installed package's prompt defaults instead of pinning another version in YAML. For Windows distribution add `--packaged-client`: it checks the compiled prompt defaults and refuses a preflight URL different from `cloud_account.DEFAULT_CLOUD_URL`, the connection bundled in the client. This mode checks only the AI service; it does not run normal doctor checks or contact/start the GPU. It sends validated public protocol sentinels **without Idempotency-Key**. Only HTTP 400 `request_id_required` passes: version and provider selection happened, but request admission, usage count, reservation and model calls did not. Unsupported versions, invalid context, unavailable service, authentication failures and unexpected successes fail closed. There is no retry or fallback.
@@ -344,3 +365,75 @@ in the first seconds after a deploy can still reach the previous version.
 | 2026-11-17 | `main` 2e38c68b (#231) | `39be89ea-5291-4623-b8d5-2067d96d3722`; then `47f1eb8f` when the owner added the `ANTHROPIC_API_KEY` secret in the dashboard; previous `45412097-7078-4dfc-a4bc-4fe3b8a12036` | Claude route, proposal context 1.2.0, discussions shown as written (#231), with the owner's permission. Variables added: `ANTHROPIC_MODEL=claude-sonnet-5-5`, tariffs 2 / 10 / 0.1 / 2.5; `MONTHLY_BUDGET_USD` 5 → 50; `USER_PROPOSAL_USD_MONTH` 5. Live variables equal the operator file before and after the secret was added. No new migration. Before: `pnpm check`, `pnpm test` (155 passed, 1 skipped), `test:deployment` (4). After, on `api.cytellect.app` and workers.dev: unauthenticated POST 401 and authenticated `{}` 400 `request_invalid` on both routes. Paid checks on public/synthetic inputs: discussion `2026-11-16.1` → 200 from `claude-sonnet-5-5` (2,011 input / 1,861 output tokens, USD 0.0236 in the ledger); discussion `2026-11-12.2` → 200 from `gpt-6.1-sol` (861 / 652, USD 0.0087); proposal `2026-11-16.1` → 503 `model_unavailable` twice, Anthropic HTTP 400 `invalid_request_error`: the proposal schema's 47 union-typed fields exceed Claude's structured-output limit (16). The two failures stay in the ledger at their reserved USD 0.35167 each, as designed; no reservation or budget incident remained. The fix (format described in the prompt, not forced) follows in the next deployment. |
 | 2026-11-17 | `main` 1a775ab2 (#236) | `177d9093-24c7-4c83-a8ea-e326e0225453`; previous `47f1eb8f` | Claude answers with the format described in the prompt, not forced (#236), with the owner's permission. Variables and secrets unchanged (live variables equal the operator file). Before: `pnpm check`, `pnpm test` (156 passed, 1 skipped), `test:deployment` (4). After: unauthenticated 401 and authenticated `{}` 400 on both hosts and routes. Paid checks with the owner's permission (public method scenarios and synthetic numbers only, no images): discussion `2026-11-16.1` → `claude-sonnet-5-5`; proposal `2026-11-16.1` → `claude-sonnet-5-5`; discussion `2026-11-12.2` → `gpt-6.1-sol`. Public-case evaluation of the 12 proposal scenarios: 12/12 answered by `claude-sonnet-5-5` in 6–9 s, 12/12 schema-valid with no repair call, 12/12 expected behaviour (`expectedBehavior`), 11/12 accepted by the local validation; `unsupported-frap` (recipe `none`, correctly declined) left `channels` empty and was rejected as `proposal_channels_mismatch`, so the prompt now asks for every channel also when the recipe is none (next deployment). Claude requests: 14 settlements, 14 calls, USD 0.5525 in the ledger (mean 12,641 input / 786 output tokens). No reservation or budget incident remained; 2026-11 ledger total USD 1.3072. |
 | 2026-11-17 | `main` 1932f7af (#237) | `c7236078-3fa6-4238-bfca-7acc4cb9adfa`; previous `177d9093-24c7-4c83-a8ea-e326e0225453` | The proposal prompt asks for every channel also when the recipe is `none` (#237), with the owner's permission. Variables and secrets unchanged. Before: `main` tree equal to the PR head, `pnpm test` (156 passed, 1 skipped). After, on `api.cytellect.app`: unauthenticated POST 401 and authenticated `{}` 400 `request_invalid` on both routes. One paid re-run of the public `unsupported-frap` scenario: HTTP 200 from `claude-sonnet-5-5` in 7.8 s, recipe `none` with `ch1` as `unused`, accepted by the local validation, so all 12 public scenarios now pass it. Windows 0.1.0-local.24 (source 1a775ab2, published by the owner on 2026-11-17) is the first client on the Claude prompt versions. |
+| 2026-11-26 | PR [#303](https://github.com/genellect/cytellect/pull/303) head 518074a6 (before the merge, as the order above requires) | `801eb4b6-1ceb-48e0-9cc9-98b2786859b1`; previous `4fd496b6-6c7a-4d6f-adef-93551593a0b9` (2026-11-20, `main` 95471999, #245, by Cloudflare's deployment list; it has no row here) | Accepts prompt `2026-11-26.1` with proposal context 1.3.0 (#284 W7), with the owner's permission. The Worker's runtime sources on `main` equalled the previous deployment, so the change is `contract.json`, `index.ts` and `openai.ts` of this PR. No new migration (`0001`–`0004` applied; `migrations list --remote` reported none to apply). The operator file was generated from the live settings; live variables equal it before and after, and the secret names, the D1 binding, the compatibility date and flag are unchanged. Before: `pnpm check`, `pnpm test` (168 passed, 1 skipped), `test:deployment` (4), a dry run; `doctor --proposal-version` from the PR head was refused for `/v1/proposals` (`request_invalid`), as expected of the previous Worker. After, on `api.cytellect.app` and workers.dev: unauthenticated POST 401 with `no-store` and authenticated `{}` 400 `request_invalid` on both routes; `doctor --proposal-version` (no Idempotency-Key, so no admission, usage count or model call) accepted `2026-11-26.1` with context 1.3.0 from the PR head, `2026-11-19.1` with context 1.2.0 from `main` 401cb2f4 (the clients already distributed), and discussions `2026-11-16.1`. No paid request was made at the deployment (the evaluation followed, below). The check also showed that the client's probe sent context 1.3.0 for a pinned earlier prompt and reported that working pair as incompatible; the probe now sends the context the checked prompt reads (fixed in the same PR). |
+| 2026-11-27 | PR [#303](https://github.com/genellect/cytellect/pull/303) head e8b91219 (before the merge; its Worker source equals 43a6649e) | `7fec9a42-6f20-47de-8727-87ed2fa6d587`; previous `801eb4b6-1ceb-48e0-9cc9-98b2786859b1` | The text of prompt `2026-11-26.1` asks for the workspace's words in what the researcher reads (`359d4ef7`, `6d97c148`), with the owner's permission. The source also carries `main`'s #302 Worker changes (legacy invitation redemption limited per client address, login attempts claimed before comparison); their secrets (`ADMIN_TOKEN`, `ADMIN_SIGNING_KEY`) and the D1 binding were already live. No new migration (`migrations list --remote`: none to apply). Live variables, secret names, the D1 binding, the compatibility date and flag equal the operator file and the 2026-11-26 deployment. Before: `pnpm check`, `pnpm test` (171 passed, 1 skipped), `test:deployment` (4), a dry run whose bundle holds the new text. After, on `api.cytellect.app` and workers.dev: unauthenticated POST 401 with `no-store` and authenticated `{}` 400 `request_invalid` on both routes; `doctor --proposal-version` accepted `2026-11-26.1` and discussions `2026-11-16.1` (no model call or usage count). The paid evaluation follows below. |
+
+#### Evaluation of prompt `2026-11-26.1` on public cases (2026-11-26)
+
+Seven paid requests, with the owner's permission, sent through the workspace's own screen of PR
+[#303](https://github.com/genellect/cytellect/pull/303) to the deployed Worker (`claude-sonnet-5-5`). Inputs are
+registered public images only: BBBC013 A01 (two channels, stains recorded) and BBBC007 A9 and f9620 added as the
+folders `control` and `treated` (two fields, stains not recorded). Every request answered HTTP 200 with no format
+error. The ledger moved from USD 1.4848 to 1.8231 for the month (USD 0.3383, about 0.048 a request) and from 41 to 48
+settlements; no reservation or budget incident remained. The answers were long enough to leave the second request of a
+conversation below the visible part of the panel, which the same PR corrects (the panel shows the newest message from
+its first line); the two requests on the folders were sent once more to see that on the real answers (the ledger then
+read USD 1.9193 and 50 settlements, again with no reservation or incident; both came back as `answer` with the same
+kind of choices, and this time the assignment answer put the common parent folder `exp` as the run of both fields,
+saying it was provisional, where the first answer had left the run out).
+
+| Request | Kind returned | Recipe | What the screen showed |
+|---|---|---|---|
+| 「この画像で何が測れる？」 (A01) | answer | none | An answer and four items to confirm as buttons; nothing to apply |
+| 「まだ測定しない。チャンネルは何？」 (A01) | answer | none | The two channels and their recorded stains; four items to confirm; nothing to apply |
+| 「核の面積を測りたい」 (A01) | settings | nuclear-intensity | Settings with 「設定の適用には、核染色の指定が必要です。」 and 「核染色に DRAQ を指定」 |
+| 「核を検出して測定して」 (A01) | run | nuclear-intensity | 「対象：全視野 · 1 視野」 and the same item to confirm before the run |
+| 「フォルダーの名前から群と実験回を割り当てたい」 (folders) | answer | none | Groups for the two fields from the folder names as a suggestion (「割付の案：2 視野」); no run invented, three choices for it; nothing saved |
+| 「対照と処理で核の面積を比べたい」 (folders) | answer | none | No stain assumed from the channel numbers; choices for the nuclear stain and the groups; descriptive output stated for one field a group |
+| 「FRAP の回復曲線を解析して」 (folders) | settings | none | No measurement proposed; the missing time series and bleach region listed |
+
+What the evaluation shows and does not show:
+
+- In all seven nothing was applied or run by the answer: a question changed nothing, 「まだ測定しない」 was kept, a
+  request outside the registered recipes proposed no measurement, and the assignment suggestion took its groups from
+  the folder names and no run from anywhere else (left out once, the parent folder as a provisional run once). The
+  kind returned matched the request in six; the request outside the recipes (「解析して」) came back as `settings`, not
+  `run` or `answer`.
+- Answers still carry the service's own identifiers where a researcher expects the workspace's words: `ch1`/`ch2`,
+  `f1`/`f2`, `fields[].paths`, `run`, `nuclear-intensity`, `raw`, 「フィールド」 for 視野, and the folder names
+  `control`/`treated` as group names where the request said 対照 and 処理. With recipe `none` the screen shows the
+  seventh answer with nothing to apply. The wording was corrected by a rule added in place to the text of
+  `2026-11-26.1` (see above), deployed and evaluated again on 2026-11-27 (below). Two findings were not addressed by
+  it: the folder names `control`/`treated` used as group names where the researcher said 対照 and 処理, and the
+  request outside the recipes returned as `settings`.
+- Seven requests on two public datasets are a check that the route works end to end and of the answers' character, not
+  a measure of accuracy. The evaluation with a registered case set (`eval:public`) and researchers' own questions
+  remains open ([roadmap](roadmap.md)).
+
+#### Second evaluation, with the corrected text (2026-11-27)
+
+The same seven requests, with the owner's permission, through the workspace's screen of PR #303 to the Worker deployed
+on 2026-11-27 (`claude-sonnet-5-5`), each set on a new workspace so no saved proposal was reused. Every request
+answered HTTP 200 with no format error; the ledger moved from USD 1.9193 to 2.2685 for the month (USD 0.3492, about
+0.050 a request) and from 50 to 57 settlements; no reservation or budget incident remained.
+
+The text the researcher reads (`answer`, `rationale`, missing items, the questions and options of `choices`) was
+checked for the service's identifiers: channel tokens, field ids, context key names, recipe and metric ids, schema
+words and enumerated values (`raw`, `run`, `nuclear` and the like) and 「フィールド」. The nine answers of the first
+evaluation held 63 such words, every answer at least one; the seven answers of this one held none.
+
+| Request | Kind returned | Recipe | What the screen showed |
+|---|---|---|---|
+| 「この画像で何が測れる？」 (A01) | answer | none | DRAQ and GFP by their recorded stains, what could be measured in words (核の面積, 核内の平均輝度), four options such as 「核染色は DRAQ」 |
+| 「まだ測定しない。チャンネルは何？」 (A01) | answer | none | No measurement; each channel as 1 番目 / 2 番目 with its recorded stain, label and file name; three options |
+| 「核の面積を測りたい」 (A01) | settings | nuclear-intensity | Settings in words, 「設定の適用には、核染色の指定が必要です。」 and 「核染色に DRAQ を指定」 |
+| 「核を検出して測定して」 (A01) | run | nuclear-intensity | 「対象：全視野 · 1 視野」 and the same item to confirm |
+| 「フォルダーの名前から群と実験回を割り当てたい」 (folders) | answer | none | The rule (folder `control` → 群 control, `treated` → 群 treated, one 視野 each), the provisional 実験回1 named as provisional and matching the suggestions; options include 「群名は 未処理 と 処理 にする」 |
+| 「対照と処理で核の面積を比べたい」 (folders) | answer | none | No stain assumed; 「核染色は c01」「核染色は c02」 and grouping options |
+| 「FRAP の回復曲線を解析して」 (folders) | answer | none | No measurement; the time series and bleach region it needs |
+
+What changed and what did not: the identifiers are gone from what the researcher reads; the assignment answer now
+matches its suggestions; the request outside the recipes came back as `answer` this time (a single sample, not a
+fix: the prompt's rule for it did not change); group names still follow the folder names `control`/`treated` when the
+request asks for folder names, with an option to rename them. Seven requests are a check of the answers' character, not
+of accuracy.

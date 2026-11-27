@@ -79,40 +79,59 @@ async function imageWorkspace(context:BrowserContext,page:Page,options:{pair?:bo
     if(path.endsWith("/region-masks")){const rid=path.split("/")[3];return json({regions:outlines[rid.startsWith("n")?"nucleoli":"nuclei"].map((points,index)=>({id:index+1,points})),metadata:{mask_revision_id:`mask-${rid}`}});}
     if(path.endsWith("/preview"))return route.fulfill({headers,contentType:"image/svg+xml",body:`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="${url.searchParams.get("channel_id")==="c1"?"#555":"#999"}"/></svg>`});
     const record=revisions.find(value=>path.endsWith(`/revisions/${value.id}`));if(record)return json(record);
+    // A comparison saved without a workspace selection (#284 W1: the n breakdown reads it when present).
+    if(path.endsWith("/workspace-selection"))return json({detail:"workspace_selection_not_found"},404);
+    if(path==="/v1/intake/inspect")return json({kind:"native",role:"image",code:null,sha256:"0".repeat(64),bytes:3,shape:[32,32],dtype:"uint16",channel_names:null,thumbnail_png:null});
+    // The conversation of the workspace (#284 W2), read when it opens.
+    if(path.endsWith("/assistant-messages"))return json({messages:[]});
     unexpected.push(`${method} ${path}${url.search}`);return json({detail:"unexpected_transport_route"},404);
   });
   return {unexpected,uploads,discussions,checks};
 }
 
 test("a failed AI instruction can be resent explicitly, with one confirmation and no automatic retry",async({context,page})=>{
-  await context.addInitScript(()=>localStorage.setItem("cytellect.ai.proposal-scope-seen.v2","1"));
-  const requests:Array<{goal:string;retry_failed?:boolean}>=[];
+  await context.addInitScript(()=>localStorage.setItem("cytellect.ai.proposal-scope-seen.v3","1"));
+  const requests:Array<{goal:string;retry_failed?:boolean;message_id?:string}>=[];
+  const headers=()=>({"Access-Control-Allow-Origin":new URL(page.url()).origin,"Access-Control-Allow-Credentials":"true",
+    "Access-Control-Allow-Headers":"content-type,x-cytellect-request","Access-Control-Allow-Methods":"GET,POST,PATCH,OPTIONS"});
+  // The API records each message; a failed one keeps its reason (#284 W2).
+  const failed={id:"m1",field_id:null,created:1,text:"same instruction",state:"failed",reply:null,applicable:null,reasons:["proposal_service_unavailable"],stage:"service",effect:"none"};
+  await page.route("**/v1/workspaces/w/assistant-messages",async route=>{
+    if(route.request().method()==="OPTIONS")return route.fulfill({status:204,headers:headers()});
+    await route.fulfill({headers:headers(),contentType:"application/json",body:JSON.stringify({messages:requests.length?[failed]:[]})});
+  });
   await page.route("**/v1/workspaces/w/proposal-drafts",async route=>{
-    const headers={"Access-Control-Allow-Origin":new URL(page.url()).origin,"Access-Control-Allow-Credentials":"true",
-      "Access-Control-Allow-Headers":"content-type,x-cytellect-request","Access-Control-Allow-Methods":"POST,OPTIONS"};
-    if(route.request().method()==="OPTIONS")return route.fulfill({status:204,headers});
+    if(route.request().method()==="OPTIONS")return route.fulfill({status:204,headers:headers()});
     const body=route.request().postDataJSON();requests.push(body);
-    const code=requests.length===1||body.retry_failed?"proposal_service_unavailable":"proposal_explicit_retry_required";
-    await route.fulfill({status:code==="proposal_explicit_retry_required"?409:503,headers,contentType:"application/json",body:JSON.stringify({detail:code})});
+    await route.fulfill({status:503,headers:headers(),contentType:"application/json",body:JSON.stringify({detail:"proposal_service_unavailable"})});
   });
   await imageWorkspace(context,page);
   await page.goto("/workspace?id=w");
-  await page.getByRole("textbox",{name:"AIへの指示"}).fill("same instruction");
+  const input=page.getByRole("textbox",{name:"AIへの指示"});
+  await input.fill("same instruction");
   const send=page.getByRole("button",{name:"AIへ送信",exact:true});
-  await send.click();await expect(appAlerts(page)).toContainText("AI のサービスに接続できません。接続状態を確認してください。");
-  expect(requests).toHaveLength(1);
   await send.click();
+  await expect.poll(()=>requests.length).toBe(1);
+  // The sent text leaves the input; the message keeps it with its state and reason.
+  await expect(input).toHaveValue("");await expect(send).toBeDisabled();
+  const conversation=page.getByRole("list",{name:"AI との会話"});
+  await expect(conversation.getByText("状態：失敗",{exact:true})).toBeVisible();
+  await expect(conversation.getByText("AI のサービスへの接続なし",{exact:false})).toBeVisible();
+  // The reason is under the message itself; no banner repeats it above the workspace.
+  await expect(appAlerts(page)).toHaveCount(0);
+  const resend=conversation.getByRole("button",{name:"再送",exact:true});
+  await resend.click();
   const confirm=page.getByRole("group",{name:"AIへの再送の確認"});
   await expect(confirm).toBeVisible();
-  await expect(page.getByText("前回の依頼が未完了です。再送には課金される場合があります。",{exact:true})).toHaveCount(1);
+  await expect(page.getByText("前回の依頼：未完了。再送は課金の対象になり得ます。",{exact:true})).toHaveCount(1);
   await confirm.getByRole("button",{name:"キャンセル"}).click();
-  expect(requests).toHaveLength(2);
-  await send.click();await expect(confirm).toBeVisible();
+  expect(requests).toHaveLength(1);
+  await resend.click();await expect(confirm).toBeVisible();
   await confirm.getByRole("button",{name:"再送",exact:true}).click();
-  await expect(confirm).toHaveCount(0);await expect(send).toBeEnabled();
-  expect(requests).toHaveLength(4);
-  expect(requests.map(value=>value.goal)).toEqual(Array(4).fill("same instruction"));
-  expect(requests.map(value=>value.retry_failed)).toEqual([undefined,undefined,undefined,true]);
+  await expect(confirm).toHaveCount(0);
+  await expect.poll(()=>requests.length).toBe(2);
+  expect(requests.map(value=>value.goal)).toEqual(["same instruction","same instruction"]);
+  expect(requests.map(value=>[value.retry_failed,value.message_id])).toEqual([[undefined,undefined],[true,"m1"]]);
 });
 
 test("the table beside one image names what it lists, its stain and the field of its rows, also when a comparison shows another plane",async({page,context})=>{
@@ -209,10 +228,13 @@ test("a drop of image files adds them as the 画像 button does",async({page,con
   await page.goto("/workspace?id=w");
   const cards=page.locator("[class*=fieldCard]");
   await expect(cards).toHaveCount(2);
-  const transfer=await page.evaluateHandle(()=>{const value=new DataTransfer();for(const name of ["A03_c1.tif","A03_c2.tif"])value.items.add(new File([new Uint8Array([1,2,3])],name,{type:"image/tiff"}));return value;});
+  const transfer=await page.evaluateHandle(()=>{const value=new DataTransfer();// Two channels have different bytes: a file with the same bytes as another is a copy, not a field (#284 control A).
+    ["A03_c1.tif","A03_c2.tif"].forEach((name,index)=>value.items.add(new File([new Uint8Array([1,2,3+index])],name,{type:"image/tiff"})));return value;});
   const main=page.locator("main");
   await main.dispatchEvent("dragover",{dataTransfer:transfer});
   await main.dispatchEvent("drop",{dataTransfer:transfer});
+  // A drop is listed like a choice; 追加 registers it (#284 W5).
+  await page.getByRole("region",{name:"取り込みの一覧"}).getByRole("button",{name:"追加",exact:true}).click();
   await expect.poll(()=>fixture.uploads).toEqual([["A03_c1.tif","A03_c2.tif"]]);
   await expect(cards).toHaveCount(3);
   await expect(page.getByRole("dialog",{name:"画像の追加"})).toHaveCount(0);
@@ -242,13 +264,14 @@ test("before the first proposal after the scope widened, the AI panel asks once 
   await page.getByRole("button",{name:"AIへ送信"}).click();
   const scope=page.getByRole("group",{name:"AIに送る内容の確認"});
   await expect(scope).toContainText("代表的な視野の縮小画像");
+  await expect(scope).toContainText("選んだフォルダーの名前と、その中のフォルダー名・ファイル名、実験回と群の名前");
   await scope.getByRole("button",{name:"キャンセル"}).click();
   await expect(scope).toHaveCount(0);
   expect(proposals).toEqual([]);
   // Sending without previews turns the setting off and records the confirmation, so the next request asks no more.
   await page.getByRole("button",{name:"AIへ送信"}).click();
   await page.getByRole("group",{name:"AIに送る内容の確認"}).getByRole("button",{name:"縮小画像なしで送信"}).click();
-  expect(await page.evaluate(()=>[localStorage.getItem("cytellect.ai.include-previews"),localStorage.getItem("cytellect.ai.proposal-scope-seen.v2")])).toEqual(["0","1"]);
+  expect(await page.evaluate(()=>[localStorage.getItem("cytellect.ai.include-previews"),localStorage.getItem("cytellect.ai.proposal-scope-seen.v3")])).toEqual(["0","1"]);
   expect(fixture.unexpected.filter(route=>!route.includes("proposal")&&!route.includes("analysis-spec"))).toEqual([]);
 });
 
@@ -343,4 +366,170 @@ test("service compatibility is checked only on request and an incompatible servi
   expect(fixture.checks).toEqual([{}]);
   expect(fixture.discussions).toEqual([]);
   expect(fixture.unexpected).toEqual([]);
+});
+
+test("an answer's kind of request only chooses the actions: a question shows choices, a run request its targets, and neither changes or runs anything (#284 W7)",async({context,page})=>{
+  await context.addInitScript(()=>localStorage.setItem("cytellect.ai.proposal-scope-seen.v3","1"));
+  const requests:Array<{goal:string}>=[],changes:string[]=[];
+  const headers=()=>({"Access-Control-Allow-Origin":new URL(page.url()).origin,"Access-Control-Allow-Credentials":"true",
+    "Access-Control-Allow-Headers":"content-type,x-cytellect-request","Access-Control-Allow-Methods":"GET,POST,PATCH,OPTIONS"});
+  const base={channels:[],metrics:[],statistics:{kind:"descriptive",test:null,omnibus:null,association:null},figures:[],missing_information:[],reference_ids:[]};
+  const answers=[
+    {draft:{...base,recipe:"none",rationale:"チャンネルは DAPI と NPM1 の 2 つである。",intent:"answer",answer:"チャンネルは DAPI と NPM1 の 2 つである。",
+      choices:[{question:"核染色のチャンネル",options:["核染色は DAPI","核染色は NPM1"]}]},reply:"チャンネルは DAPI と NPM1 の 2 つである。",applicable:null},
+    {draft:{...base,recipe:"nuclear-intensity",rationale:"DAPI で核を検出し、全視野の核を数える。",intent:"run",scope:"all",answer:"DAPI で核を検出し、全視野の核を数える。",
+      processing:{version:"1.0.0",nuclei:{channel:"ch1",detection_max_side_px:null,detector:{engine:"fiji-stardist-2d",model:"Versatile (fluorescent nuclei)",probability:.5,nms:.3,percentile_low:1,percentile_high:99.8}},nucleoli:null,signal:null}},
+      reply:"DAPI で核を検出し、全視野の核を数える。",applicable:true}];
+  const messages:Array<Record<string,unknown>>=[];
+  await page.route("**/v1/workspaces/w/assistant-messages",async route=>{
+    if(route.request().method()==="OPTIONS")return route.fulfill({status:204,headers:headers()});
+    await route.fulfill({headers:headers(),contentType:"application/json",body:JSON.stringify({messages})});
+  });
+  await page.route("**/v1/workspaces/w/proposal-drafts",async route=>{
+    if(route.request().method()==="OPTIONS")return route.fulfill({status:204,headers:headers()});
+    const body=route.request().postDataJSON();requests.push(body);
+    const answer=answers[Math.min(requests.length-1,answers.length-1)];
+    const message={id:`m${requests.length}`,field_id:"f1",created:requests.length,text:body.goal,state:"answered",reply:answer.reply,applicable:answer.applicable,reasons:[],stage:null,effect:"none"};
+    messages.push(message);
+    await route.fulfill({headers:headers(),contentType:"application/json",body:JSON.stringify({
+      proposal:{draft:answer.draft,needs_confirmation:[]},channels:[{token:"ch1",channel_id:"c1",label:"DAPI"},{token:"ch2",channel_id:"c2",label:"NPM1"}],message,
+      fields:[{token:"f1",field_id:"f1"},{token:"f2",field_id:"f2"}]})});
+  });
+  const fixture=await imageWorkspace(context,page);
+  // Anything that would change the workspace or start an analysis is counted.
+  page.on("request",request=>{const path=new URL(request.url()).pathname;
+    if(["POST","PUT","PATCH","DELETE"].includes(request.method())&&/\/(runs|jobs|selection|channel-assignments|assistant-messages\/[^/]+)$/.test(path))changes.push(`${request.method()} ${path}`);});
+  await page.goto("/workspace?id=w");
+  const input=page.getByRole("textbox",{name:"AIへの指示"}),send=page.getByRole("button",{name:"AIへ送信",exact:true});
+  await input.fill("この画像のチャンネルは？ まだ測らないで");await send.click();
+  const conversation=page.getByRole("list",{name:"AI との会話"});
+  const first=conversation.getByRole("listitem").filter({hasText:"この画像のチャンネルは？"});
+  await expect(first.getByText("チャンネルは DAPI と NPM1 の 2 つである。",{exact:true})).toBeVisible();
+  // A question: its answer and the item to confirm; nothing to apply, run or send again.
+  const choices=first.getByRole("group",{name:"核染色のチャンネル"});
+  await expect(choices.getByRole("button")).toHaveText(["核染色は DAPI","核染色は NPM1"]);
+  for(const name of ["設定を適用","適用して試行","適用して実行","再送"])await expect(first.getByRole("button",{name,exact:true})).toHaveCount(0);
+  // Choosing an option sends it as the next message (Issue priority 8).
+  await choices.getByRole("button",{name:"核染色は DAPI",exact:true}).click();
+  await expect.poll(()=>requests.map(value=>value.goal)).toEqual(["この画像のチャンネルは？ まだ測らないで","核染色は DAPI"]);
+  // A run request: its target fields and 「適用して実行」; the answer alone starts nothing.
+  const second=conversation.getByRole("listitem").filter({hasText:"DAPI で核を検出し"});
+  await expect(second.getByText("対象：全視野 · 2 視野",{exact:true})).toBeVisible();
+  await expect(second.getByRole("button",{name:"適用して実行",exact:true})).toBeEnabled();
+  await expect(second.getByRole("button",{name:"設定を適用",exact:true})).toHaveCount(0);
+  expect(changes).toEqual([]);
+  expect(fixture.unexpected).toEqual([]);
+});
+
+test("a resend from a browser that has not confirmed the scope asks what is sent before it sends (requirement L03)",async({context,page})=>{
+  const requests:Array<{goal:string;message_id?:string}>=[];
+  const headers=()=>({"Access-Control-Allow-Origin":new URL(page.url()).origin,"Access-Control-Allow-Credentials":"true",
+    "Access-Control-Allow-Headers":"content-type,x-cytellect-request","Access-Control-Allow-Methods":"GET,POST,PATCH,OPTIONS"});
+  // The conversation is kept by the API; the confirmation is kept by this browser. Another browser opens the
+  // conversation without having confirmed.
+  const restored={id:"m1",field_id:"f1",created:1,text:"核を数えて",state:"answered",reply:"DAPI で核を検出する。",applicable:true,reasons:[],stage:null,effect:"none"};
+  await page.route("**/v1/workspaces/w/assistant-messages",async route=>{
+    if(route.request().method()==="OPTIONS")return route.fulfill({status:204,headers:headers()});
+    await route.fulfill({headers:headers(),contentType:"application/json",body:JSON.stringify({messages:[restored]})});
+  });
+  await page.route("**/v1/workspaces/w/proposal-drafts",async route=>{
+    if(route.request().method()==="OPTIONS")return route.fulfill({status:204,headers:headers()});
+    requests.push(route.request().postDataJSON());
+    await route.fulfill({status:503,headers:headers(),contentType:"application/json",body:JSON.stringify({detail:"proposal_service_unavailable"})});
+  });
+  await imageWorkspace(context,page);
+  await page.goto("/workspace?id=w");
+  await page.getByRole("textbox",{name:"AIへの指示"}).click();
+  const conversation=page.getByRole("list",{name:"AI との会話"});
+  await conversation.getByRole("button",{name:"再送",exact:true}).click();
+  // Fetching a recorded answer again may call the model: confirmed first, like an unfinished request.
+  const again=page.getByRole("group",{name:"AIへの再送の確認"});
+  await expect(again).toContainText("記録済みの回答の取り直し。再送は課金の対象になり得ます。");
+  await again.getByRole("button",{name:"再送",exact:true}).click();
+  const scope=page.getByRole("group",{name:"AIに送る内容の確認"});
+  await expect(scope).toContainText("選んだフォルダーの名前と、その中のフォルダー名・ファイル名");
+  expect(requests).toEqual([]);
+  await scope.getByRole("button",{name:"確認して送信",exact:true}).click();
+  await expect.poll(()=>requests.length).toBe(1);
+  // The same message is sent again, not a new one.
+  expect(requests[0]).toMatchObject({goal:"核を数えて",message_id:"m1"});
+});
+
+test("the newest message of a long conversation and a confirmation are in view without scrolling (#284 W2)",async({context,page})=>{
+  const headers=()=>({"Access-Control-Allow-Origin":new URL(page.url()).origin,"Access-Control-Allow-Credentials":"true",
+    "Access-Control-Allow-Headers":"content-type,x-cytellect-request","Access-Control-Allow-Methods":"GET,POST,PATCH,OPTIONS"});
+  // An answer of many paragraphs, as the model writes them, then a later request whose answer was never received.
+  const long=Array.from({length:40},(_,index)=>`段落 ${index+1}：記録されたチャンネルと染色の説明。`).join("\n");
+  const restored=[{id:"m1",field_id:"f1",created:1,text:"この画像で何が測れる？",state:"answered",reply:long,applicable:null,reasons:[],stage:null,effect:"none"},
+    {id:"m2",field_id:"f1",created:2,text:"核の面積を測りたい",state:"failed",reply:null,applicable:null,reasons:["proposal_service_unavailable"],stage:null,effect:"none"}];
+  await page.route("**/v1/workspaces/w/assistant-messages",async route=>{
+    if(route.request().method()==="OPTIONS")return route.fulfill({status:204,headers:headers()});
+    await route.fulfill({headers:headers(),contentType:"application/json",body:JSON.stringify({messages:restored})});
+  });
+  await imageWorkspace(context,page);
+  await page.goto("/workspace?id=w");
+  await page.getByRole("textbox",{name:"AIへの指示"}).click();
+  const conversation=page.getByRole("list",{name:"AI との会話"});
+  const newest=conversation.getByRole("listitem").filter({hasText:"核の面積を測りたい"});
+  // The panel opens on the newest message: its request, state and action, not the top of the earlier answer.
+  await expect(newest.getByText("核の面積を測りたい",{exact:true})).toBeInViewport();
+  await expect(newest.getByText("状態：失敗",{exact:true})).toBeInViewport();
+  await expect(conversation.getByText("段落 1：記録されたチャンネルと染色の説明。",{exact:true})).not.toBeInViewport();
+  // The confirmation sits above the conversation and comes into view when it opens.
+  await newest.getByRole("button",{name:"再送",exact:true}).click();
+  await expect(page.getByRole("group",{name:/^AI(への再送|に送る内容)の確認$/})).toBeInViewport();
+});
+
+test("a resend confirmed above the conversation is answered in view; cancelling returns the focus (#284 W2)",async({context,page})=>{
+  await context.addInitScript(()=>localStorage.setItem("cytellect.ai.proposal-scope-seen.v3","1"));
+  const headers=()=>({"Access-Control-Allow-Origin":new URL(page.url()).origin,"Access-Control-Allow-Credentials":"true",
+    "Access-Control-Allow-Headers":"content-type,x-cytellect-request","Access-Control-Allow-Methods":"GET,POST,PATCH,OPTIONS"});
+  const long=(word:string)=>Array.from({length:40},(_,index)=>`${word} ${index+1}：記録されたチャンネルと染色の説明。`).join("\n");
+  // A long answer, a request that failed, another long answer and a last request that failed: the last and the
+  // earlier failed message (in the middle of the conversation, out of view from its top) are both sent again.
+  const messages:Array<Record<string,unknown>>=[
+    {id:"m0",field_id:"f1",created:1,text:"チャンネルは何？",state:"answered",reply:long("段落"),applicable:null,reasons:[],stage:null,effect:"none"},
+    {id:"m1",field_id:"f1",created:2,text:"この画像で何が測れる？",state:"failed",reply:null,applicable:null,reasons:["proposal_service_unavailable"],stage:null,effect:"none"},
+    {id:"m2",field_id:"f1",created:3,text:"染色は何？",state:"answered",reply:long("記述"),applicable:null,reasons:[],stage:null,effect:"none"},
+    {id:"m3",field_id:"f1",created:4,text:"核の面積を測りたい",state:"failed",reply:null,applicable:null,reasons:["proposal_service_unavailable"],stage:null,effect:"none"}];
+  const draft={channels:[],metrics:[],statistics:{kind:"descriptive",test:null,omnibus:null,association:null},figures:[],missing_information:[],reference_ids:[],
+    recipe:"none",rationale:"回答。",intent:"answer",answer:"回答。",choices:[]};
+  const sent:string[]=[];
+  await page.route("**/v1/workspaces/w/assistant-messages",async route=>{
+    if(route.request().method()==="OPTIONS")return route.fulfill({status:204,headers:headers()});
+    await route.fulfill({headers:headers(),contentType:"application/json",body:JSON.stringify({messages})});
+  });
+  await page.route("**/v1/workspaces/w/proposal-drafts",async route=>{
+    if(route.request().method()==="OPTIONS")return route.fulfill({status:204,headers:headers()});
+    const id=route.request().postDataJSON().message_id as string,index=messages.findIndex(item=>item.id===id);sent.push(id);
+    const message={...messages[index],state:"answered",reply:long(`回答 ${id}`),reasons:[]};messages[index]=message;
+    await route.fulfill({headers:headers(),contentType:"application/json",body:JSON.stringify({proposal:{draft,needs_confirmation:[]},
+      channels:[{token:"ch1",channel_id:"c1",label:"DAPI"},{token:"ch2",channel_id:"c2",label:"NPM1"}],message,fields:[{token:"f1",field_id:"f1"},{token:"f2",field_id:"f2"}]})});
+  });
+  await imageWorkspace(context,page);
+  await page.goto("/workspace?id=w");
+  await page.getByRole("textbox",{name:"AIへの指示"}).click();
+  const conversation=page.getByRole("list",{name:"AI との会話"}),items=conversation.getByRole("listitem");
+  const again=page.getByRole("group",{name:"AIへの再送の確認"});
+  const last=items.filter({hasText:"核の面積を測りたい"}),resend=last.getByRole("button",{name:"再送",exact:true});
+  // Cancelling the confirmation gives the focus back to the 「再送」 that opened it.
+  await expect(resend).toBeEnabled();
+  await resend.focus();await page.keyboard.press("Enter");
+  await expect(again).toBeFocused();
+  await again.getByRole("button",{name:"キャンセル",exact:true}).click();
+  await expect(resend).toBeFocused();
+  // The last message, sent again: its answer arrives where it can be read, though the confirmation had moved the panel up.
+  await resend.click();
+  await expect(again).toBeInViewport();
+  await again.getByRole("button",{name:"再送",exact:true}).click();
+  await expect(last).toHaveAttribute("data-state","answered");
+  await expect(last.getByText("核の面積を測りたい",{exact:true})).toBeInViewport();
+  await expect(last.getByText("回答 m3 1：記録されたチャンネルと染色の説明。",{exact:true})).toBeInViewport();
+  // An earlier message, sent again: the panel shows that message, not the newest one.
+  const first=items.filter({hasText:"この画像で何が測れる？"});
+  await first.getByRole("button",{name:"再送",exact:true}).click();
+  await again.getByRole("button",{name:"再送",exact:true}).click();
+  await expect(first).toHaveAttribute("data-state","answered");
+  await expect(first.getByText("回答 m1 1：記録されたチャンネルと染色の説明。",{exact:true})).toBeInViewport();
+  expect(sent).toEqual(["m3","m1"]);
 });

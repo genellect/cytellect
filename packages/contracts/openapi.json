@@ -2886,6 +2886,104 @@
         }
       }
     },
+    "/v1/workspaces/{wid}/assistant-messages": {
+      "get": {
+        "summary": "List Messages",
+        "operationId": "list_messages_v1_workspaces__wid__assistant_messages_get",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantMessages"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{wid}/assistant-messages/{mid}": {
+      "patch": {
+        "summary": "Record Effect",
+        "description": "What the researcher did with an answer (applied its settings, ran it). The answer never does it.",
+        "operationId": "record_effect_v1_workspaces__wid__assistant_messages__mid__patch",
+        "parameters": [
+          {
+            "name": "wid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wid"
+            }
+          },
+          {
+            "name": "mid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Mid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistantEffect"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantMessage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/workspaces/{wid}/proposal-drafts": {
       "post": {
         "summary": "Draft Proposal",
@@ -3854,6 +3952,44 @@
           }
         }
       }
+    },
+    "/v1/intake/inspect": {
+      "post": {
+        "summary": "Inspect Intake",
+        "operationId": "inspect_intake_v1_intake_inspect_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_inspect_intake_v1_intake_inspect_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntakeInspection"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4425,6 +4561,156 @@
         "additionalProperties": false,
         "type": "object",
         "title": "AreaBackgroundProvenance"
+      },
+      "AssistantEffect": {
+        "properties": {
+          "effect": {
+            "type": "string",
+            "enum": [
+              "none",
+              "settings",
+              "run"
+            ],
+            "title": "Effect"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "effect"
+        ],
+        "title": "AssistantEffect"
+      },
+      "AssistantMessage": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "field_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field Id"
+          },
+          "created": {
+            "type": "number",
+            "title": "Created"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "answered",
+              "failed"
+            ],
+            "title": "State"
+          },
+          "reply": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reply"
+          },
+          "applicable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applicable"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "context",
+                  "service",
+                  "validation"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage"
+          },
+          "effect": {
+            "type": "string",
+            "enum": [
+              "none",
+              "settings",
+              "run"
+            ],
+            "title": "Effect"
+          },
+          "restorable": {
+            "type": "boolean",
+            "title": "Restorable"
+          },
+          "suggests_assignments": {
+            "type": "boolean",
+            "title": "Suggests Assignments",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "field_id",
+          "created",
+          "text",
+          "state",
+          "reply",
+          "applicable",
+          "reasons",
+          "stage",
+          "effect",
+          "restorable"
+        ],
+        "title": "AssistantMessage",
+        "description": "One message of the researcher to the AI and what came back (#284 W2). `applicable` is true when the\nanswer carries settings the researcher may apply, false when its settings were refused (`reasons` and `stage`\nsay why), and null when there is nothing to apply: a question's answer (#284 W7), an answer without an analysis\n(it only names a stain or a role), or a message still pending or failed. `restorable` is true when the answer recorded for the message holds items to confirm (`choices`) or\nrun and group suggestions (`assignments`): the listing carries the text only, so after a reload the workspace\noffers the message's \u300c\u518d\u9001\u300d to read them again, which the record answers without a model call while the context\nis unchanged. `suggests_assignments` names the second kind apart: the experiment table shows the suggestions\nwhichever message is the latest, while items to confirm are offered under the latest message only. Nothing here\nchanges settings."
+      },
+      "AssistantMessages": {
+        "properties": {
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantMessage"
+            },
+            "type": "array",
+            "title": "Messages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "messages"
+        ],
+        "title": "AssistantMessages"
       },
       "AssociationPlot": {
         "properties": {
@@ -5129,6 +5415,30 @@
           "file"
         ],
         "title": "Body_import_table_v1_workspaces__wid__tables_post"
+      },
+      "Body_inspect_intake_v1_intake_inspect_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "native",
+              "display-rgb",
+              "ome"
+            ],
+            "title": "Kind"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file",
+          "kind"
+        ],
+        "title": "Body_inspect_intake_v1_intake_inspect_post"
       },
       "Body_upload_field_v1_workspaces__wid__fields_post": {
         "properties": {
@@ -7780,6 +8090,31 @@
         ],
         "title": "DiscussionView"
       },
+      "DraftAssignment": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "run": {
+            "type": "string",
+            "title": "Run"
+          },
+          "group": {
+            "type": "string",
+            "title": "Group"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "field",
+          "run",
+          "group"
+        ],
+        "title": "DraftAssignment",
+        "description": "A run and group suggestion for one field (`field` is a context field identifier). Shown in the experiment\ntable and saved only by the researcher's \u300c\u6848\u3092\u9069\u7528\u300d; checked against the fields and the design by validation."
+      },
       "DraftBackground": {
         "properties": {
           "mode": {
@@ -7861,6 +8196,29 @@
           "reason"
         ],
         "title": "DraftChannel"
+      },
+      "DraftChoice": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "options": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Options"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "question",
+          "options"
+        ],
+        "title": "DraftChoice",
+        "description": "An item the researcher decides and the images and records do not (which channel is the nuclear stain, which\ngroup a field belongs to): a short question and options, each written as the researcher's next message. Lengths\nand counts are checked by validation, so a long option refuses the settings but keeps the answer's text."
       },
       "DraftFigure": {
         "properties": {
@@ -9712,6 +10070,161 @@
           "channel_mapping"
         ],
         "title": "ImageInfo"
+      },
+      "IntakeInspection": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "native",
+              "display-rgb",
+              "ome"
+            ],
+            "title": "Kind"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "image",
+              "label",
+              "unreadable"
+            ],
+            "title": "Role"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code",
+            "description": "Registration's reason code for a label or unreadable file; null for an image"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "bytes": {
+            "type": "integer",
+            "title": "Bytes"
+          },
+          "shape": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shape",
+            "description": "[Y, X] of a decoded image, or a label image's shape as stored in the file"
+          },
+          "dtype": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dtype"
+          },
+          "channel_names": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel Names",
+            "description": "OME channel names in order (null if unnamed); OME only"
+          },
+          "thumbnail_png": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thumbnail Png",
+            "description": "Base64 PNG of at most 256 px per side, for display only (first channel of an OME file)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "role",
+          "code",
+          "sha256",
+          "bytes",
+          "shape",
+          "dtype",
+          "channel_names",
+          "thumbnail_png"
+        ],
+        "title": "IntakeInspection",
+        "description": "What registration would make of one file. Nothing is stored; the file name is neither read nor returned."
+      },
+      "IntakeTarget": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Run Id"
+          },
+          "group_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "title": "Group Id"
+          },
+          "sample": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 24,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run_id",
+          "group_id"
+        ],
+        "title": "IntakeTarget",
+        "description": "Where the researcher asked the images to go; applied once the field exists (#284 control C)."
       },
       "InviteInput": {
         "properties": {
@@ -13281,6 +13794,62 @@
                 "type": "null"
               }
             ]
+          },
+          "intent": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "answer",
+                  "settings",
+                  "run"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intent"
+          },
+          "answer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "selected",
+                  "all"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope"
+          },
+          "choices": {
+            "items": {
+              "$ref": "#/components/schemas/DraftChoice"
+            },
+            "type": "array",
+            "title": "Choices"
+          },
+          "assignments": {
+            "items": {
+              "$ref": "#/components/schemas/DraftAssignment"
+            },
+            "type": "array",
+            "title": "Assignments"
           }
         },
         "additionalProperties": false,
@@ -13357,13 +13926,27 @@
               {
                 "additionalProperties": true,
                 "type": "object",
-                "maxProperties": 13
+                "maxProperties": 18
               },
               {
                 "type": "null"
               }
             ],
             "title": "Previous Proposal"
+          },
+          "message_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message Id"
           }
         },
         "additionalProperties": false,
@@ -13374,7 +13957,14 @@
       "ProposalDraftResponse": {
         "properties": {
           "proposal": {
-            "$ref": "#/components/schemas/ValidatedProposal"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ValidatedProposal"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "channels": {
             "items": {
@@ -13382,6 +13972,23 @@
             },
             "type": "array",
             "title": "Channels"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantMessage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/ProposalFieldLink"
+            },
+            "type": "array",
+            "title": "Fields"
           }
         },
         "type": "object",
@@ -13390,6 +13997,25 @@
           "channels"
         ],
         "title": "ProposalDraftResponse"
+      },
+      "ProposalFieldLink": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          },
+          "field_id": {
+            "type": "string",
+            "title": "Field Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token",
+          "field_id"
+        ],
+        "title": "ProposalFieldLink",
+        "description": "The context's opaque field identifier (`f1`\u2026) and the workspace field it names (context 1.3.0, #284 W7)."
       },
       "PublicationPackageRequest": {
         "properties": {
@@ -19458,6 +20084,90 @@
         "type": "object",
         "title": "WorkspaceInput"
       },
+      "WorkspaceIntake": {
+        "properties": {
+          "names": {
+            "items": {
+              "type": "string",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "^[^\\x00-\\x1f\\x7f]+$"
+            },
+            "type": "array",
+            "maxItems": 16,
+            "minItems": 1,
+            "title": "Names"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "rejected",
+              "registered"
+            ],
+            "title": "State"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "inspect",
+                  "register"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[a-z0-9_]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IntakeTarget"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "separate": {
+            "anyOf": [
+              {
+                "type": "boolean",
+                "const": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Separate"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "names",
+          "state"
+        ],
+        "title": "WorkspaceIntake",
+        "description": "What the app knows about one attempted field: its files, how far it got and why it stopped.\n\nRows without a field (pending, rejected) are technical missing data: they are counted in the\ncomparison's n breakdown, never asked for a reason, and never block a comparison (#284 decision 2)."
+      },
       "WorkspaceRunRequest": {
         "properties": {
           "request_id": {
@@ -19615,6 +20325,16 @@
               }
             ],
             "title": "Target Revisions"
+          },
+          "intake": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkspaceIntake"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,

@@ -11,7 +11,7 @@ from cytellect_analysis.proposal_contracts import PROPOSAL_PROMPT_VERSION, Propo
 from cytellect_analysis.proposal_validation import validate_draft
 from cytellect_api import proposals
 from cytellect_api.app import create_app
-from cytellect_api.db import fields, proposal_drafts, revisions, workspaces
+from cytellect_api.db import assistant_messages, fields, proposal_drafts, revisions, workspaces
 from fastapi.testclient import TestClient
 from sqlalchemy import update
 from test_api_worker import HEADERS
@@ -74,7 +74,8 @@ def test_cached_proposal_survives_restart_and_checks_ownership(tmp_path, monkeyp
     app = create_app(client.app.state.settings)
     restarted = TestClient(app)
     restarted.cookies.update(client.cookies)
-    assert restarted.post(path, json=BODY, headers=HEADERS).json() == first.json()
+    resent = restarted.post(path, json=BODY, headers=HEADERS).json()
+    assert resent["proposal"] == first.json()["proposal"] and resent["message"]["state"] == "answered"  # from the record, after a restart
     assert len(calls) == 1
     stranger = TestClient(app)
     stranger.post("/v1/invitations/redeem", json={"token": app.state.store.invite()}, headers=HEADERS)
@@ -151,6 +152,10 @@ def test_expiry_during_provider_call_never_publishes_result(tmp_path, monkeypatc
     monkeypatch.setattr(proposals._OPENER, "open", expire)
     assert client.post(f"/v1/workspaces/{wid}/proposal-drafts", json=BODY, headers=HEADERS).status_code == 404
     assert all(row["proposal"] is None for row in store.rows(proposal_drafts, workspace_id=wid))
+    # The message is closed with the reason, and the request released: neither stays pending.
+    assert [(row["state"], row["reasons"], row["stage"]) for row in store.rows(assistant_messages, workspace_id=wid)] == [
+        ("failed", ["workspace_not_found"], "context")]
+    assert [row["state"] for row in store.rows(proposal_drafts, workspace_id=wid)] == ["failed"]
 
 
 def test_channel_tokens_are_opaque_and_cannot_collide(tmp_path, monkeypatch):
@@ -224,3 +229,19 @@ def test_saved_proposal_axes_cannot_change_region(additional):
     assert AnalysisSpecView.model_validate({"version": 1, "spec": body}).spec is not None
     with pytest.raises(ValueError, match="proposal_association_same_region_required"):
         AnalysisSpecWrite.model_validate({"version": 1, "spec": body})
+
+
+def test_an_older_app_does_not_open_a_database_of_a_newer_schema(tmp_path):
+    """#284 W2 adds migration 0013; a version that does not know a revision refuses to start and changes nothing."""
+    import sqlite3
+
+    import pytest
+    from alembic.util import CommandError
+    from cytellect_api.db import Store
+    Store(tmp_path).engine.dispose()
+    with sqlite3.connect(tmp_path / "cytellect.sqlite") as conn:
+        conn.execute("UPDATE alembic_version SET version_num = '9999'")
+    before = (tmp_path / "cytellect.sqlite").read_bytes()
+    with pytest.raises(CommandError):
+        Store(tmp_path)
+    assert (tmp_path / "cytellect.sqlite").read_bytes() == before

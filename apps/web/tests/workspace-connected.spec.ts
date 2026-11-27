@@ -90,21 +90,30 @@ for (const viewport of [{width:1920,height:1080},{width:1440,height:900},{width:
     if (path.endsWith("/region-masks")) return json({regions: [{id: path.includes("historical-revision")?7:1, points: [[40, 25], [80, 25], [80, 55], [40, 55]]}], metadata: {mask_revision_id: "synthetic-mask"}});
     if(path.endsWith("/revisions/historical-revision"))return json({...revision(),id:"historical-revision"});
     if (path.endsWith("/revisions/synthetic-revision")) return json(revision());
+    // A comparison saved without a workspace selection (#284 W1: the n breakdown reads it when present).
+    if(path.endsWith("/workspace-selection"))return json({detail:"workspace_selection_not_found"},404);
+    if(path==="/v1/intake/inspect")return json({kind:"native",role:"image",code:null,sha256:"0".repeat(64),bytes:3,shape:[32,32],dtype:"uint16",channel_names:null,thumbnail_png:null});
+    // The conversation of the workspace (#284 W2), read when it opens.
+    if(path.endsWith("/assistant-messages"))return json({messages:[]});
     unexpected.push(`${method} ${path}`);
     return json({detail: "unexpected_synthetic_route"}, 404);
   });
   const loaded = page.waitForResponse(response => new URL(response.url()).pathname === "/v1/workspaces" && response.request().method() === "GET");
   await page.goto("/workspace");
   await loaded;
-  // A new workspace starts by choosing the form of the experiment (requirements E-01).
-  await expect(page.getByRole("heading", {name: "実験デザイン", exact: true, level: 1})).toBeVisible();
-  await expect(page.getByRole("button", {name: /^1 画面/})).toBeEnabled();
-  await expect(page.getByRole("button", {name: /^2 画面/})).toBeEnabled();
+  // A new workspace opens on adding images (#284 W5, decision 1).
+  await expect(page.getByRole("heading", {name: "画像を追加", exact: true, level: 1})).toBeVisible();
+  await expect(page.getByRole("button", {name: "画像を選択", exact: true})).toBeEnabled();
+  // What to choose, shown before the picker opens: three pictures of one public field, each named, with their source.
+  const samples = page.getByRole("list", {name: "選ぶ画像の見本"});
+  await expect(samples.getByRole("listitem")).toHaveText(["測る蛍光画像例：a9-C01.tif · DNA", "同じ視野の別の染色例：a9-C02.tif · アクチン", "核のマスクマスクの候補 · 32-bit 整数ラベル"]);
+  await expect.poll(() => samples.locator("img").evaluateAll(images => images.map(image => (image as HTMLImageElement).complete && (image as HTMLImageElement).naturalWidth))).toEqual([264, 264, 264]);
+  await expect(page.getByText("見本：BBBC007v1 A9 · CC0 1.0", {exact: true})).toBeVisible();
   await page.getByTestId("file-input").setInputFiles([{name: "A01_c1.tif", mimeType: "image/tiff", buffer: Buffer.from([1, 2, 3])}, {name: "A01_c2.tif", mimeType: "image/tiff", buffer: Buffer.from([4, 5, 6])}]);
-  // Images added before the form is chosen wait for it; one screen takes them and opens on them.
-  await expect(page.getByRole("status").filter({hasText: "受け取った画像：2 件。"})).toBeVisible();
+  // Chosen files are listed and judged; nothing registers before 追加.
+  await expect(page.getByRole("status").filter({hasText: "受け取り：2 · 画像：2（1 視野）"})).toBeVisible();
   expect(writes.some(value => /region-fields/.test(value))).toBe(false);
-  await page.getByRole("button", {name: /^1 画面/}).click();
+  await page.getByRole("region", {name: "取り込みの一覧"}).getByRole("button", {name: "追加", exact: true}).click();
   await expect(page.getByRole("toolbar",{name:"画像の表示"}).getByRole("combobox",{name:"領域",exact:true})).toBeEnabled();
   await expect(page).toHaveURL(/[?&]id=synthetic-workspace(?:&|$)/);
   expect(runCount).toBe(0);
@@ -190,7 +199,7 @@ for (const viewport of [{width:1920,height:1080},{width:1440,height:900},{width:
   const beforeNew=workspaceReads;
   await page.getByRole("button",{name:"新しいワークスペース",exact:true}).click();
   await expect(page).not.toHaveURL(/[?&]id=/);
-  await expect(page.getByRole("button",{name:/^2 画面/})).toBeVisible();
+  await expect(page.getByRole("button",{name:"画像を選択",exact:true})).toBeVisible();
   await expect(page.getByRole("button",{name:"DAPI · c1",exact:true})).toHaveCount(0);
   expect(workspaceReads).toBe(beforeNew);
   expect(writes).toHaveLength(savedWrites);

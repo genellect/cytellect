@@ -118,10 +118,13 @@ def test_shape_errors_and_unregistered_values_are_rejected():
 
 
 def test_strict_schema_matches_the_pydantic_draft():
-    # Prompt 2026-11-19.1 adds the figure presentation; the earlier schema keeps the other fields.
-    schema = draft_json_schema(figure=True)
+    # Prompt 2026-11-26.1 adds the kind of request (#284 W7) and 2026-11-19.1 the figure presentation; the earlier
+    # schemas keep the other fields.
+    schema = draft_json_schema(intent=True)
+    intent = {"intent", "answer", "scope", "choices", "assignments"}
     assert set(schema["required"]) == set(ProposalDraft.model_fields) == set(schema["properties"])
-    assert set(draft_json_schema()["properties"]) == set(ProposalDraft.model_fields) - {"figure_presentation"}
+    assert set(draft_json_schema(figure=True)["properties"]) == set(ProposalDraft.model_fields) - intent
+    assert set(draft_json_schema()["properties"]) == set(ProposalDraft.model_fields) - {"figure_presentation"} - intent
     assert schema["additionalProperties"] is False
     stats = schema["properties"]["statistics"]
     assert "regression" not in json.dumps(stats)
@@ -170,14 +173,19 @@ def test_only_a_goal_is_asked_and_the_context_is_derived_from_the_workspace(tmp_
     first = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": "細胞ごとのアクチン輝度", "transmission_confirmed": True}, headers=HEADERS)
     second = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": "細胞ごとのアクチン輝度", "transmission_confirmed": True}, headers=HEADERS)
     assert first.status_code == 200, first.text
-    assert first.json() == second.json() and len(calls) == 1
+    # The same question in the same context is answered from the record: the model is called once, and each
+    # sending is its own message (#284 W2).
+    without = lambda value: {key: item for key, item in value.items() if key != "message"}  # noqa: E731
+    assert without(first.json()) == without(second.json()) and len(calls) == 1
+    assert first.json()["message"]["id"] != second.json()["message"]["id"]
+    assert second.json()["message"] | {"id": None, "created": None} == first.json()["message"] | {"id": None, "created": None}
     assert first.json()["channels"] == [{"token": "ch1", "channel_id": "actin", "stain": None}]
     assert first.json()["proposal"]["needs_confirmation"] == []
     sent = calls[0]["context"]
     # Derived, not entered (docs/drafts/llm-assistant/plan.md): the model reads the researcher's channel label and
     # field records, the counts and flags, and a downscaled preview of a representative field. No paths.
     fields_sent = sent.pop("fields")
-    assert sent == {"protocol": "1.2.0", "goal": "細胞ごとのアクチン輝度",
+    assert sent == {"protocol": "1.3.0", "goal": "細胞ごとのアクチン輝度",
                     "channels": [{"token": "ch1", "stain": None, "role": None, "label": "Actin"}],
                     "field_count": 1, "condition_count": 1, "units_known": False, "pairing_known": False,
                     "supplied_regions": True, "measured_table": False, "background_available": False,
@@ -187,7 +195,9 @@ def test_only_a_goal_is_asked_and_the_context_is_derived_from_the_workspace(tmp_
                     "negative_control_fields_known": False, "acquired_dates_known": False,
                     "image_metadata": [{"width": 12, "height": 12, "axes": "YX", "input_mode": "native",
                                         "pixel_size_x_um": None, "pixel_size_y_um": None}]}
-    assert len(fields_sent) == 1 and set(fields_sent[0]) == {"name", "condition", "experimental_unit", "pair", "acquisition_date"}
+    # Context 1.3.0 (#284 W7): an opaque identifier, and no names the field was added with (this upload has none).
+    assert len(fields_sent) == 1 and set(fields_sent[0]) == {"id", "name", "condition", "experimental_unit", "pair", "acquisition_date"}
+    assert fields_sent[0]["id"] == "f1" and [link["token"] for link in first.json()["fields"]] == ["f1"]
     assert all("/" not in (value or "") and "\\" not in (value or "") for value in fields_sent[0].values())
     [preview] = calls[0]["previews"]
     assert preview["channel"] == "ch1" and preview["png_base64"].startswith("iVBORw0KGgo")
@@ -210,6 +220,59 @@ def test_route_rejects_invalid_drafts_and_maps_service_failures(tmp_path, monkey
     client, wid, _ = configured(tmp_path / "q", monkeypatch, quota)
     response = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"transmission_confirmed": True}, headers=HEADERS)
     assert (response.status_code, response.json()["detail"]) == (429, "proposal_quota_exhausted")
+
+
+def test_a_refused_draft_still_answers_and_every_message_is_recorded_without_its_text_in_logs(tmp_path, monkeypatch, caplog):
+    """#284 W2 (judgement 1 and 3, synthetic provider): a well-formed draft refused for its settings returns its
+    answer with the reasons; a malformed one or a refused text keeps only the reasons. Nothing is applied."""
+    refused_draft = {**ACTIN_DRAFT, "channels": [], "rationale": "ch1 は Actin と記録されています。核染色のチャンネルはありません。",
+                     "missing_information": ["核染色のチャンネル"]}
+    replies = iter([refused_draft, {"recipe": "nonsense"}, {**ACTIN_DRAFT, "rationale": "see https://x"}])
+    client, wid, calls = configured(tmp_path, monkeypatch, lambda request: FakeResponse(json.dumps(
+        {"draft": next(replies), "model": "gpt-6.1-sol", "prompt_version": PROPOSAL_PROMPT_VERSION}).encode()))
+    question = "この画像のチャンネル名を教えてください。まだ測定を実行しないでください。"
+    answered = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": question, "transmission_confirmed": True}, headers=HEADERS)
+    assert answered.status_code == 200, answered.text
+    body = answered.json()
+    assert body["proposal"] is None
+    assert body["message"] | {"id": None, "created": None} == {
+        "id": None, "created": None, "field_id": None, "text": question, "state": "answered",
+        "reply": "ch1 は Actin と記録されています。核染色のチャンネルはありません。\n核染色のチャンネル",
+        "applicable": False, "reasons": ["proposal_channels_mismatch", "proposal_metric_channel_invalid"], "stage": "validation", "effect": "none",
+        # A refused answer records no proposal, so a reload has nothing more to read for it.
+        "restorable": False, "suggests_assignments": False}
+    # Applying a refused answer is refused.
+    effect = client.patch(f"/v1/workspaces/{wid}/assistant-messages/{body['message']['id']}", json={"effect": "settings"}, headers=HEADERS)
+    assert effect.status_code == 409 and effect.json()["detail"] == "assistant_message_not_applicable"
+    # A malformed draft and a refused text keep no text, only the reasons; each is resent under its own message.
+    malformed = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": question, "transmission_confirmed": True, "retry_failed": True}, headers=HEADERS)
+    assert malformed.status_code == 502 and malformed.json()["detail"] == {"code": "proposal_rejected", "reasons": ["proposal_shape_invalid"]}
+    listed = client.get(f"/v1/workspaces/{wid}/assistant-messages", headers=HEADERS).json()["messages"]
+    failed = listed[-1]
+    assert (failed["state"], failed["reply"], failed["reasons"], failed["stage"]) == ("failed", None, ["proposal_shape_invalid"], "validation")
+    again = client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": question, "transmission_confirmed": True,
+                                                                         "retry_failed": True, "message_id": failed["id"]}, headers=HEADERS)
+    assert again.status_code == 502 and again.json()["detail"]["reasons"] == ["proposal_text_not_allowed"]
+    listed = client.get(f"/v1/workspaces/{wid}/assistant-messages", headers=HEADERS).json()["messages"]
+    assert [(item["state"], item["reasons"]) for item in listed] == [("answered", ["proposal_channels_mismatch", "proposal_metric_channel_invalid"]), ("failed", ["proposal_text_not_allowed"])]
+    assert len(calls) == 3
+    # The researcher's text and the model's text never reach the logs.
+    assert question not in caplog.text and "Actin と記録" not in caplog.text
+    # Without the confirmation nothing is sent and no message is made; another workspace's message cannot be resent.
+    assert client.post(f"/v1/workspaces/{wid}/proposal-drafts", json={"goal": "x"}, headers=HEADERS).status_code == 428
+    other = client.post("/v1/workspaces", json={"title": "o"}, headers=HEADERS).json()["id"]
+    assert client.post(f"/v1/workspaces/{other}/proposal-drafts", json={"goal": "x", "transmission_confirmed": True,
+                                                                         "message_id": failed["id"]}, headers=HEADERS).status_code in (404, 409)
+    assert len(client.get(f"/v1/workspaces/{wid}/assistant-messages", headers=HEADERS).json()["messages"]) == 2
+
+
+def test_every_rejection_code_is_listed():
+    import re
+    from pathlib import Path
+
+    from cytellect_analysis import proposal_validation
+    source = Path(proposal_validation.__file__).read_text(encoding="utf-8")
+    assert set(re.findall(r'"(proposal_[a-z_]+)"', source)) == set(proposal_validation.REJECTION_CODES)
 
 
 def test_route_needs_images_is_disabled_without_configuration_and_checks_ownership(tmp_path, monkeypatch):
@@ -377,3 +440,15 @@ def test_previews_average_blocks_so_small_structures_stay_visible():
     assert reduced.shape == (512, 512) and reduced[25, 25] == 250
     assert _block_mean(np.ones((300, 700), dtype=np.uint16), 512).shape == (150, 350)
     assert _block_mean(np.ones((400, 500), dtype=np.uint16), 512).shape == (400, 500)
+
+
+def test_the_browser_may_record_an_effect_from_the_app_origin(tmp_path):
+    """The effect of a message is recorded with PATCH; a hosted or development screen on another origin sends a
+    preflight first, so the method has to be allowed for the app's own origin (and only for it)."""
+    client, _, _ = authenticated(tmp_path)
+    preflight = {"origin": "http://test", "access-control-request-method": "PATCH", "access-control-request-headers": "content-type,x-cytellect-request"}
+    allowed = client.options("/v1/workspaces/w/assistant-messages/m", headers=preflight)
+    assert allowed.status_code == 200 and "PATCH" in allowed.headers["access-control-allow-methods"]
+    assert allowed.headers["access-control-allow-origin"] == "http://test"
+    other = client.options("/v1/workspaces/w/assistant-messages/m", headers={**preflight, "origin": "http://other.example"})
+    assert "access-control-allow-origin" not in other.headers

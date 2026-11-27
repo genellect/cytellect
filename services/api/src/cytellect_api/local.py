@@ -17,7 +17,7 @@ import webbrowser
 from pathlib import Path
 
 import psutil
-from fastapi import HTTPException, Request, Response
+from fastapi import Depends, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import update
 from starlette.staticfiles import StaticFiles
@@ -26,7 +26,7 @@ from .config import Settings, configure_private_tmp
 from .db import digest, recorded_retention_mode, sessions, workspaces
 from .local_release import installed_source_revision as verify_source_revision
 from .process_owner import Identity, process_alive, redirector_owner
-from .views import LocalSetupView, SessionView
+from .views import LocalSetupView, PreviousStopView, SessionView
 
 
 def installed_source_revision(root: Path | None = None) -> str | None:
@@ -48,7 +48,100 @@ def _local_owner(root: Path) -> str:
     return str(uuid.UUID(path.read_text(encoding="ascii").strip()))
 
 
-def create_local_app(settings: Settings, web_dir: Path, port: int, *, store_version: str | None = None):
+STOP_RECORD = "local-stop.json"
+STOP_SCHEMA = "cytellect-local-stop/1"
+# Why the launcher stopped (#284). The record holds only one of these codes and times: no research data.
+NORMAL_STOPS = frozenset({"launcher_closed", "update_switch"})
+ABNORMAL_STOPS = frozenset({"local_worker_stopped", "local_worker_start_failed", "parent_process_gone",
+                            "server_stopped", "unhandled_exception"})
+# A run that left no stop record: a forced kill, a power loss or an OS shutdown that ended the process.
+UNRECORDED_STOP = "unrecorded"
+# The workspace shows the same labels (STOP_LABELS in apps/web/src/lib/local-connection.ts; a test keeps them equal).
+STOP_LABELS = {"local_worker_stopped": "計算処理の停止", "local_worker_start_failed": "計算処理の起動失敗",
+               "parent_process_gone": "起動元のプロセスの終了", "server_stopped": "サービスの停止",
+               "unhandled_exception": "予期しないエラー", "unrecorded": "理由の記録なし"}
+
+
+def _write_stop_record(root: Path, value: dict) -> None:
+    """Atomic replace; a failed write must never block a start or a stop."""
+    path = root / STOP_RECORD
+    temporary = root / f".{STOP_RECORD}.{uuid.uuid4().hex}"
+    try:
+        with temporary.open("x", encoding="ascii") as stream:
+            if os.name != "nt":
+                temporary.chmod(0o600)
+            json.dump(value, stream)
+        # Replacing the name never writes through a symbolic link planted there.
+        os.replace(temporary, path)
+    except OSError:
+        with contextlib.suppress(OSError):
+            temporary.unlink()
+
+
+def read_previous_stop(root: Path) -> dict | None:
+    """The last run's end: None when there is no record (first start) or it ended normally."""
+    path = root / STOP_RECORD
+    if not path.exists() and not path.is_symlink():
+        return None
+    try:
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > 4096:
+            raise ValueError("local_stop_record_invalid")
+        value = json.loads(path.read_text(encoding="ascii"))
+        if not isinstance(value, dict) or value.get("schema") != STOP_SCHEMA:
+            raise ValueError("local_stop_record_invalid")
+        if value.get("state") == "stopped" and value.get("reason") in NORMAL_STOPS:
+            return None
+        if value.get("state") == "stopped" and value.get("reason") in ABNORMAL_STOPS:
+            stopped = value.get("time")
+            return {"reason": value["reason"],
+                    "time": float(stopped) if isinstance(stopped, (int, float)) and stopped > 0 else None}
+    except (OSError, ValueError):
+        pass
+    # "running" without a stop (the process was killed) or a damaged record.
+    return {"reason": UNRECORDED_STOP, "time": None}
+
+
+def begin_stop_record(root: Path) -> dict | None:
+    """Read the previous run's end, then mark this run as running until its stop is recorded."""
+    previous = read_previous_stop(root)
+    _write_stop_record(root, {"schema": STOP_SCHEMA, "state": "running", "started": int(time.time())})
+    return previous
+
+
+def record_stop(root: Path, reason: str) -> None:
+    if reason not in NORMAL_STOPS | ABNORMAL_STOPS:
+        reason = "unhandled_exception"
+    _write_stop_record(root, {"schema": STOP_SCHEMA, "state": "stopped", "reason": reason, "time": int(time.time())})
+
+
+def previous_stop_line(previous: dict | None) -> str | None:
+    """One launcher line about an abnormal previous stop, in the PC's local time."""
+    if not previous:
+        return None
+    line = "前回の停止：" + STOP_LABELS.get(previous["reason"], STOP_LABELS[UNRECORDED_STOP])
+    if previous.get("time"):
+        moment = time.localtime(previous["time"])
+        line += f" · {moment.tm_mon}月{moment.tm_mday}日 {moment.tm_hour:02d}:{moment.tm_min:02d}"
+    return line
+
+
+class StopReason:
+    """The first reason this launcher was asked to stop; later requests keep it."""
+
+    def __init__(self):
+        self.code: str | None = None
+        self._lock = threading.Lock()
+
+    def request(self, server, code: str) -> None:
+        with self._lock:
+            if self.code is None:
+                self.code = code
+        if server is not None:
+            server.should_exit = True
+
+
+def create_local_app(settings: Settings, web_dir: Path, port: int, *, store_version: str | None = None,
+                     previous_stop: dict | None = None):
     origin = f"http://127.0.0.1:{port}"
     if settings.app_origin != origin or settings.secure_cookies or not 1 <= port <= 65535:
         raise ValueError("local_settings_invalid")
@@ -68,6 +161,8 @@ def create_local_app(settings: Settings, web_dir: Path, port: int, *, store_vers
                            remote_settings=lambda: local_cellpose_remote_environment(settings.data_dir))
     app = create_app(settings, proposal_credentials=account.credentials)
     app.state.cloud_account = account
+    # The Microsoft Store updates its package; the in-app update reads this (app_update.py).
+    app.state.store_version = store_version
     store = app.state.store
 
     def local_session(request: Request):
@@ -152,6 +247,13 @@ def create_local_app(settings: Settings, web_dir: Path, port: int, *, store_vers
         return {"authenticated": True, "mode": "local", **settings.retention_policy, "demo": settings.demo}
 
     register_account_routes(app, account, local_session)
+
+    @app.get("/v1/local/previous-stop", dependencies=[Depends(local_session)], response_model=PreviousStopView)
+    def previous_stop_view():
+        # The PC owner's session only: the workspace shows one line after an abnormal stop (#284).
+        if not previous_stop:
+            return {"abnormal": False, "reason": None, "time": None}
+        return {"abnormal": True, **previous_stop}
 
     @app.get("/v1/local/first-run")
     def first_run():
@@ -415,13 +517,14 @@ def launcher_mutex():
             kernel32.CloseHandle(handle)
 
 
-def _gui(server, url: str, run_server, open_browser: bool):
+def _gui(server, url: str, run_server, open_browser: bool, *, request_stop=None, notice: str | None = None):
+    """``request_stop`` records why the launcher stops; ``notice`` is one line about the previous stop."""
     import tkinter as tk
     from tkinter import ttk
 
     window = tk.Tk()
     window.title("Cytellect")
-    window.geometry("460x205")
+    window.geometry("460x230" if notice else "460x205")
     window.resizable(False, False)
     window.option_add("*Font", "{Segoe UI} 10")
     body = ttk.Frame(window, padding=(24, 16))
@@ -429,10 +532,14 @@ def _gui(server, url: str, run_server, open_browser: bool):
     status = tk.StringVar(value="起動の準備中…")
     ttk.Label(body, text="Cytellect", font=("Segoe UI", 18)).pack(anchor="w", pady=(0, 8))
     ttk.Label(body, textvariable=status, wraplength=410).pack(anchor="w")
+    if notice:
+        ttk.Label(body, text=notice, wraplength=410).pack(anchor="w", pady=(6, 0))
     ttk.Label(body, text="この画面を閉じると、実行中の解析も停止します。", wraplength=410).pack(
         anchor="w", pady=(10, 16))
 
     def stop():
+        if request_stop is not None:
+            request_stop()
         server.should_exit = True
         status.set("停止中…")
         browser_button.configure(state="disabled")
@@ -504,51 +611,79 @@ def revoke_local_sessions(app, settings: Settings) -> None:
 
 def run_local(settings: Settings, web_dir: Path, port: int = 8765, *, open_browser=True, gui=False,
               store_version: str | None = None):
-    import uvicorn
-
     redirector = redirector_owner()
     configure_private_tmp(settings)
     with runtime_lock(settings.data_dir), launcher_mutex(), bind_loopback(port) as sock:
-        from .app_update import restore_pending_database
-
-        # After an update that could not restore the previous database, finish it before
-        # this (previous) version opens and migrates the database.
-        restore_pending_database(settings.data_dir)
-        app = create_local_app(settings, web_dir, port, store_version=store_version)
-        server = uvicorn.Server(server_config(app, port))
-        # A verified in-app update stops this launcher before its successor starts.
-        app.state.request_shutdown = lambda: setattr(server, "should_exit", True)
-        supervisor = WorkerSupervisor(settings, lambda: setattr(server, "should_exit", True))
-        supervisor.start()
-        owner_watch_stopped = threading.Event()
-
-        def watch_redirector():
-            while not owner_watch_stopped.wait(0.25):
-                if redirector is not None and not process_alive(redirector):
-                    server.should_exit = True
-                    return
-
-        if redirector is not None:
-            threading.Thread(target=watch_redirector, daemon=True).start()
+        # Only the lock holder reads and writes the stop record (#284): a refused second launch leaves it.
+        previous = begin_stop_record(settings.data_dir)
+        reason = StopReason()
         try:
-            if gui:
-                _gui(server, settings.app_origin, lambda: server.run(sockets=[sock]), open_browser)
-            else:
-                if open_browser:
-                    def open_when_ready():
-                        while not server.started and not server.should_exit:
-                            time.sleep(0.1)
-                        if server.started and not server.should_exit:
-                            webbrowser.open(settings.app_origin)
-                    threading.Thread(target=open_when_ready, daemon=True).start()
-                print("Cytellect local: " + settings.app_origin + " (Ctrl+C to stop)", flush=True)
-                server.run(sockets=[sock])
+            _serve_local(settings, web_dir, port, sock, redirector, reason, previous,
+                         open_browser=open_browser, gui=gui, store_version=store_version)
+        except BaseException as error:
+            code = error.args[0] if isinstance(error, RuntimeError) and error.args else None
+            reason.request(None, "launcher_closed" if isinstance(error, KeyboardInterrupt)
+                           else code if code in ABNORMAL_STOPS else "unhandled_exception")
+            raise
         finally:
-            owner_watch_stopped.set()
-            supervisor.stop()
-            revoke_local_sessions(app, settings)
-        if supervisor.failure:
-            raise RuntimeError(supervisor.failure)
+            # A server that ended although nothing asked it to stop is an abnormal stop. (A termination
+            # signal to the command-line launcher ends the process inside uvicorn: no record, "unrecorded".)
+            record_stop(settings.data_dir, reason.code or "server_stopped")
+
+
+def _serve_local(settings: Settings, web_dir: Path, port: int, sock, redirector, reason: StopReason,
+                 previous: dict | None, *, open_browser: bool, gui: bool, store_version: str | None):
+    import uvicorn
+
+    from .app_update import restore_pending_database
+
+    # After an update that could not restore the previous database, finish it before
+    # this (previous) version opens and migrates the database.
+    restore_pending_database(settings.data_dir)
+    app = create_local_app(settings, web_dir, port, store_version=store_version, previous_stop=previous)
+    server = uvicorn.Server(server_config(app, port))
+    # A verified in-app update stops this launcher before its successor starts.
+    app.state.request_shutdown = lambda: reason.request(server, "update_switch")
+    supervisor: WorkerSupervisor
+
+    def worker_ended() -> None:
+        # The supervisor sets its failure ("local_worker_stopped" or "local_worker_start_failed") first.
+        reason.request(server, supervisor.failure or "local_worker_stopped")
+
+    supervisor = WorkerSupervisor(settings, worker_ended)
+    supervisor.start()
+    owner_watch_stopped = threading.Event()
+
+    def watch_redirector():
+        while not owner_watch_stopped.wait(0.25):
+            if redirector is not None and not process_alive(redirector):
+                reason.request(server, "parent_process_gone")
+                return
+
+    if redirector is not None:
+        threading.Thread(target=watch_redirector, daemon=True).start()
+    try:
+        if gui:
+            _gui(server, settings.app_origin, lambda: server.run(sockets=[sock]), open_browser,
+                 request_stop=lambda: reason.request(None, "launcher_closed"), notice=previous_stop_line(previous))
+        else:
+            if previous:
+                print("Cytellect local: the previous run stopped abnormally (" + previous["reason"] + ")", flush=True)
+            if open_browser:
+                def open_when_ready():
+                    while not server.started and not server.should_exit:
+                        time.sleep(0.1)
+                    if server.started and not server.should_exit:
+                        webbrowser.open(settings.app_origin)
+                threading.Thread(target=open_when_ready, daemon=True).start()
+            print("Cytellect local: " + settings.app_origin + " (Ctrl+C to stop)", flush=True)
+            server.run(sockets=[sock])
+    finally:
+        owner_watch_stopped.set()
+        supervisor.stop()
+        revoke_local_sessions(app, settings)
+    if supervisor.failure:
+        raise RuntimeError(supervisor.failure)
 
 
 def _report_startup_error(message: str, gui: bool, *, retry: bool = False, information: bool = False) -> bool:
