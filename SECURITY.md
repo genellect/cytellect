@@ -122,7 +122,7 @@ Cytellect は、未発表の顕微鏡画像を研究者の PC 上で解析する
 | 更新の差し替えと、古いバージョンへの差し戻し | EXE 版の各リリースには、バージョン、インストーラーの名前、SHA-256、サイズ、ソースのコミット、発行時刻を記載したマニフェストと、Ed25519 鍵による署名を付ける。アプリは、組み込んだ公開鍵でマニフェストの署名を検証してから、インストーラーを取得する。現在より新しいバージョンであり、インストーラーの SHA-256 とサイズがマニフェストと一致する場合にのみ実行する。配布元が示すハッシュは、信頼の根拠にしない。Microsoft Store 版は、Microsoft が署名し、Microsoft Store が更新する。 | [`update_signature.py`](services/api/src/cytellect_api/update_signature.py) [`app_update.py`](services/api/src/cytellect_api/app_update.py) [`local-release.yml`](.github/workflows/local-release.yml) [`test_update_signature.py`](tests/test_update_signature.py) [`test_app_update.py`](tests/test_app_update.py) |
 | 初回のダウンロードの差し替え | 最初に導入するインストーラーも、同じ署名付きのマニフェストで検証できる（[手順](docs/install-windows.ja.md#2-ダウンロードと確認)）。 | [`update_signature.py`](services/api/src/cytellect_api/update_signature.py) |
 | 依存パッケージ、同梱物、検出モデルの差し替え | Python と JavaScript の依存パッケージは、ロックファイルでバージョンとハッシュを固定する。同梱する Fiji、検出モデル、Python の実行環境は、ビルド時に SHA-256 を照合する。検出モデルは、読み込みの前にも SHA-256 を照合する。 | [`uv.lock`](uv.lock) [`pnpm-lock.yaml`](pnpm-lock.yaml) [`fiji/runtime.lock.json`](engines/fiji/runtime.lock.json) [`cellpose/runtime.lock.json`](engines/cellpose/runtime.lock.json) [`build_windows_installer.py`](scripts/build_windows_installer.py) [`runner.py`](engines/cellpose/runner.py) [`test_windows_installer.py`](tests/test_windows_installer.py) |
-| リポジトリへの不正な変更 | `main` への反映は、ルールセットで管理者に限定する。変更はプルリクエストで行い、必須の CI に合格したものを反映する。リリースは単一のコミットから作成し、各段階でそのコミットを照合する。`main` の履歴にないコミットとタグの再利用は拒否する。サイズまたはハッシュが試験済みのファイルと一致しないファイルは、公開しない。 | [`local-release.yml`](.github/workflows/local-release.yml) [`windows_exe_release.cjs`](scripts/windows_exe_release.cjs) [`windows_exe_release.test.cjs`](scripts/windows_exe_release.test.cjs) |
+| リポジトリへの不正な変更 | `main` への反映は、ルールセットで管理者に限定する。変更はプルリクエストで行い、必須の CI に合格したものを反映する。リリースは単一のコミットから作成し、各段階でそのコミットを照合する。`main` の履歴にないコミットとタグの再利用は拒否する。以前の実行がビルドしたパッケージと提出の記録は、`main` の履歴にあるコミットのワークフロー定義で動いた、このリポジトリの `main` ブランチの実行のものだけを使う。`main` という名前のタグから起動した実行のものは使わない。Microsoft Store には、提出済みの版より古いコミットを提出しない。サイズまたはハッシュが試験済みのファイルと一致しないファイルは、公開しない。 | [`local-release.yml`](.github/workflows/local-release.yml) [`windows-store-release.yml`](.github/workflows/windows-store-release.yml) [`windows_exe_release.cjs`](scripts/windows_exe_release.cjs) [`submit_windows_msix.py`](scripts/submit_windows_msix.py) [`windows_exe_release.test.cjs`](scripts/windows_exe_release.test.cjs) [`test_store_submission.py`](tests/test_store_submission.py) |
 | CI の悪用 | ワークフローのトークンは、既定で読み取り専用とする。フォークに由来する実行には、書き込み権限とシークレットを与えない。リリースは、フォークに由来する実行を拒否する。 | [`ci.yml`](.github/workflows/ci.yml) [`local-release.yml`](.github/workflows/local-release.yml) [`windows_exe_release.cjs`](scripts/windows_exe_release.cjs) |
 | 既知の脆弱性の悪用 | CodeQL（ワークフロー、JavaScript/TypeScript、Python）を、プルリクエスト、`main`、週次で実行する。依存パッケージの脆弱性の監査（pip-audit、pnpm audit）と、ソフトウェア部品表（SBOM）の生成を CI で実行する。 | [`codeql.yml`](.github/workflows/codeql.yml) [`ci.yml`](.github/workflows/ci.yml) [`sbom.py`](scripts/sbom.py) [`test_sbom.py`](tests/test_sbom.py) |
 
@@ -152,7 +152,7 @@ Cytellect は、未発表の顕微鏡画像を研究者の PC 上で解析する
 | 推論サーバーの認証情報（Modal のプロキシ認証） | 中継サービスのシークレットに保管する。クラウドにログインした PC は保持しない。 | 推論サーバーへの検出の要求 | Modal での再発行と、シークレットの更新で交換する。 |
 | 更新の署名鍵（Ed25519） | 管理者のパスワードマネージャーと、`main` からの実行に限定した GitHub Actions の署名環境にのみ保管する。リポジトリ全体のシークレットには置かない。 | EXE 版の更新のマニフェストへの署名。署名のジョブだけが使用する。 | 交換と失効の手順を定めている（[更新の署名](docs/release-signing.md)）。 |
 | 更新の公開鍵 | アプリに組み込む。 | マニフェストの署名の検証 | 鍵の交換の手順でのみ変更する。 |
-| Microsoft Store への提出の認証情報 | 管理者の承認を要する、`main` に限定した GitHub Actions の環境に保管する。 | Microsoft Store への提出 | 提出のジョブだけが使用する。 |
+| Microsoft Store への提出の認証情報 | `main` に限定した GitHub Actions の環境に保管する。 | Microsoft Store への提出 | 提出のジョブだけが使用する。 |
 | Cloudflare の API トークン | 管理者の運用環境にのみ置く。 | Cytellect のアカウントと `cytellect.app` のゾーンに限定した、Workers と D1 の編集 | Cloudflare での無効化で失効する。 |
 | ワークフローのトークン（`GITHUB_TOKEN`） | GitHub Actions が実行ごとに発行する。 | 既定は読み取り専用。書き込みは、それを要するジョブにだけ与える。 | 実行の終了で無効になる。 |
 
@@ -174,7 +174,7 @@ Cytellect は、未発表の顕微鏡画像を研究者の PC 上で解析する
 |---|---|---|
 | 多要素認証 | 運用に使用する外部サービスのアカウントは、すべてパスキーまたは認証アプリによる多要素認証を必須とする。 | 運用上の設定 |
 | 運用の権限 | 中継サービス、推論サーバー、配布の運用は、genellect だけが行う。推論サーバーのアカウントに、ほかの利用者を招待しない。 | 運用上の設定 |
-| 配布の承認 | 手動の配布と Microsoft Store への提出は、管理者の承認を要する GitHub Actions の環境で実行する。自動の配布は、保護された `main` 上で CI と配布試験に合格したバージョンだけを公開する。 | [`local-release.yml`](.github/workflows/local-release.yml) [`windows-store-release.yml`](.github/workflows/windows-store-release.yml) [`windows_exe_release.cjs`](scripts/windows_exe_release.cjs) [`windows_exe_release.test.cjs`](scripts/windows_exe_release.test.cjs) |
+| 配布の承認 | 保護された `main` へのマージが、配布の承認にあたる。`main` にマージできるのは管理者だけである。自動の配布（EXE と Microsoft Store への提出）は、`main` 上で CI と配布試験に合格した最も新しいバージョンだけを公開し、CI に失敗したバージョンを公開しない。手動の配布は、管理者が起動し、管理者の確認を要する GitHub Actions の環境で署名する。 | [`local-release.yml`](.github/workflows/local-release.yml) [`windows-store-release.yml`](.github/workflows/windows-store-release.yml) [`windows_exe_release.cjs`](scripts/windows_exe_release.cjs) [`windows_exe_release.test.cjs`](scripts/windows_exe_release.test.cjs) |
 | 支出の上限 | 中継サービスの月間予算とアカウントごとの上限に加えて、推論サーバーの事業者側にも支出の上限を設定する。 | [`store.ts`](services/proposal-worker/src/store.ts) [`wrangler.toml.example`](services/proposal-worker/wrangler.toml.example) |
 
 ### 4.4 暗号方式

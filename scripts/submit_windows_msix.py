@@ -8,6 +8,7 @@ import http.client
 import json
 import os
 import re
+import subprocess
 import tempfile
 import urllib.error
 import urllib.parse
@@ -261,8 +262,40 @@ def price_terms(pricing, confirmed_base: bool = False):
     return price_id, pricing.get("marketSpecificPricings") or {}
 
 
+def main_ancestry(history: Path, commit: str):
+    """Whether a commit is an ancestor of the candidate, in a checkout with the full history of main."""
+    def is_ancestor(older: str) -> bool:
+        try:
+            return subprocess.run(
+                ["git", "-C", str(history), "merge-base", "--is-ancestor", older, commit],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60, check=False,
+            ).returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            return False
+    return is_ancestor
+
+
+def require_descendant(packages: list, commit: str, is_ancestor, where: str) -> None:
+    """The Store never goes back to an older commit under a newer version number.
+
+    A package submitted by this script names its source commit; the candidate must descend from
+    every commit so named, whether the package is published, in review or in a draft. A manually
+    numbered package names no commit and is not compared. A name that cannot be read stops the
+    submission (the caller reports an incomplete response).
+    """
+    if is_ancestor is None:
+        return
+    for item in packages:
+        name = item.get("fileName")
+        if not isinstance(name, str):
+            raise StoreError(f"The Store listed a {where} package without a file name.")
+        source = re.search(r"-([0-9a-f]{40})\.msix$", name)
+        if source and source[1] != commit and not is_ancestor(source[1]):
+            raise StoreError(f"The candidate does not descend from the commit of the {where} package.")
+
+
 def submit(store: Store, package: Path, version: str, commit: str, recover_id: str = "",
-           *, confirmed_free_id: str = "") -> bool:
+           *, confirmed_free_id: str = "", is_ancestor=None) -> bool:
     app = store.call("GET")
     if app.get("packageIdentityName") != PACKAGE_IDENTITY:
         raise StoreError("The API resolved to a different Store package identity.")
@@ -284,6 +317,7 @@ def submit(store: Store, package: Path, version: str, commit: str, recover_id: s
         raise StoreError("The published package layout no longer matches the single x64 MSIX release.")
     if version_parts(published_packages[0]["version"]) >= version_parts(version):
         raise StoreError("The candidate version must be newer than every published package.")
+    require_descendant(published_packages, commit, is_ancestor, "published")
     pending_ref = app.get("pendingApplicationSubmission")
     replacement = {
         "fileName": name, "fileStatus": "PendingUpload",
@@ -294,9 +328,12 @@ def submit(store: Store, package: Path, version: str, commit: str, recover_id: s
         path = submission_path(pending_ref)
         draft = store.call("GET", path)
         packages = draft.get("applicationPackages", [])
+        # A submission in review is waited for, whichever commit it holds (an older candidate is then
+        # stopped by the published package's commit). A draft may hold a newer commit than the published one.
         if draft.get("status") in IN_REVIEW:
             print(f"Waiting for Store submission {pending_ref['id']} to finish.")
-            return any(item["fileName"].endswith(suffix) for item in packages)
+            return any(isinstance(item.get("fileName"), str) and item["fileName"].endswith(suffix) for item in packages)
+        require_descendant(packages, commit, is_ancestor, "pending")
         changed_fields = sorted(key for key in WRITABLE_FIELDS if draft.get(key) != published.get(key))
         recover_clone = (
             pending_ref["id"] == recover_id and not changed_fields and packages == published_packages
@@ -362,12 +399,15 @@ def main() -> None:
     parser.add_argument("--package", type=Path, required=True)
     parser.add_argument("--receipt", type=Path, required=True)
     parser.add_argument("--commit", required=True)
+    parser.add_argument("--history", type=Path, required=True,
+                        help="A checkout that holds the full history of main")
     args = parser.parse_args()
     try:
         version = verify_package(args.package, args.receipt, args.commit)
         accepted = submit(Store.authenticate(), args.package, version, args.commit,
                           os.environ.get("STORE_RECOVERY_SUBMISSION_ID", ""),
-                          confirmed_free_id=os.environ.get("STORE_CONFIRMED_FREE_SUBMISSION_ID", ""))
+                          confirmed_free_id=os.environ.get("STORE_CONFIRMED_FREE_SUBMISSION_ID", ""),
+                          is_ancestor=main_ancestry(args.history, args.commit))
         if accepted and (output := os.environ.get("GITHUB_OUTPUT")):
             with Path(output).open("a", encoding="utf-8") as stream:
                 stream.write("accepted=true\n")

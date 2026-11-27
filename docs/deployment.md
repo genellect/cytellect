@@ -1,6 +1,6 @@
 # Git-driven publication
 
-The normal release path is feature branch → pull request → required CI → merge into main → Vercel automatic production deployment. Never use an uncommitted working directory as the production source. A successful merge, Vercel build, hosted browser check, analysis-server acceptance and scientific validation are distinct states.
+The normal release path is feature branch → pull request → required CI → merge into main → Vercel automatic production deployment. Permission to merge into `main` is also permission for every production deployment and distribution of the merged content, so no deployment asks for another approval after the merge ([team rules, section 7](team-development.md#7-production-release-and-distribution)). Never use an uncommitted working directory as the production source. A successful merge, Vercel build, hosted browser check, analysis-server acceptance and scientific validation are distinct states.
 
 Vercel project cytellect is connected to genellect/cytellect with apps/web as root, Node 24, pnpm frozen install and pnpm build. The production branch is main. Preview deployments are built for `feat/**`, `fix/**` and other review branches; `apps/web/vercel.json` turns them off for `claude/**`, `codex/**`, `chore/**`, `docs/**` and `test/**` so agent and documentation branches do not use up the daily deployment limit. Use Git integration rather than copying a local CLI token into CI secrets. The GitHub App is authorized only for this repository.
 

@@ -503,14 +503,15 @@ describe("recorded tour across scenes", () => {
       "run-a.json": {run: "a"}, "done-a.json": {state: "a"}, "first.json": {scene: "first"},
       "run-b.json": {run: "b"}, "done-b.json": {state: "b"}, "second.json": {scene: "second"},
     };
-    /** A transport whose part `held` arrives only when released. */
-    function held(name: string | null) {
+    /** A transport whose part `held` arrives only when released; `tag` marks its parts' bodies as this transport's. */
+    function held(name: string | null, tag = "") {
       let release = () => {};
       const arrived = new Promise<void>(resolve => {release = resolve;});
       const fetchStatic = vi.fn(async (url: string) => {
         const file = url.replace("/showcase/snapshot/", "");
         if (file === name) await arrived;
-        return file in files ? new Response(JSON.stringify(files[file])) : new Response("missing", {status: 404});
+        const body = tag && /^journal-.+\.json$/.test(file) ? {...files[file] as object, tag} : files[file];
+        return file in files ? new Response(JSON.stringify(body)) : new Response("missing", {status: 404});
       });
       return {release, fetchStatic, transport: createShowcaseTransport({fetchStatic, createEngine: () => null, capable: () => false, snapshotBase: "/showcase/snapshot/"})};
     }
@@ -568,6 +569,77 @@ describe("recorded tour across scenes", () => {
         files["journal.json"] = {version: 2, parts: ["journal-first.json", "journal-second.json"], counts: [3, 3], workspaces: [["wa"], ["wb"]], revisions: [[A], [B]]};
         delete files["journal-third.json"];
       }
+    });
+
+    /** The scenes whose parts a transport `held(…, tag)` has read (parsed), in order. */
+    function readParts(tag: string) {
+      const parse = vi.spyOn(JSON, "parse");
+      return {parse, read: () => parse.mock.calls.map(([text]) => String(text)).filter(text => text.includes(`"tag":"${tag}"`))
+        .flatMap(text => /"scene":"(first|second|third):/.exec(text)?.[1] ?? [])};
+    }
+
+    it("reads the other parts only once no request has been waiting for a while, so an explained change is not held back", async () => {
+      vi.useFakeTimers({toFake: ["setTimeout", "Date"]});
+      const {parse, read} = readParts("quiet");
+      try {
+        const {transport, fetchStatic} = held(null, "quiet");
+        await transport.fetch("/v1/workspaces/wb/selection");
+        const change = await transport.fetch("/v1/workspaces/wb/runs", {method: "POST", body: JSON.stringify({target: "nucleoli"})});
+        expect(await change.json()).toEqual({detail: "showcase_action_not_recorded"});
+        await vi.advanceTimersByTimeAsync(1000);
+        // The other part has downloaded, but reading it would hold the page while the notice is shown.
+        expect(fetchStatic.mock.calls.map(([url]) => url)).toContain("/showcase/snapshot/journal-first.json");
+        expect(read()).toEqual(["second"]);
+        // A request delays the reading again.
+        await transport.fetch("/v1/workspaces/wb/selection");
+        await vi.advanceTimersByTimeAsync(1500);
+        expect(read()).toEqual(["second"]);
+        await vi.advanceTimersByTimeAsync(600);
+        expect(read()).toEqual(["second", "first"]);
+      } finally {parse.mockRestore(); vi.useRealTimers();}
+    });
+
+    it("reads the other parts one at a time, each after a quiet moment of its own", async () => {
+      vi.useFakeTimers({toFake: ["setTimeout", "Date"]});
+      const {parse, read} = readParts("apart");
+      files["journal.json"] = {version: 2, parts: ["journal-first.json", "journal-second.json", "journal-third.json"], counts: [3, 3, 1],
+        workspaces: [["wa"], ["wb"], ["wc"]], revisions: [[A], [B], []]};
+      files["journal-third.json"] = {version: 1, entries: [entry("GET", "/v1/workspaces/wc/jobs", null, "done-a.json", "third:walk")]};
+      try {
+        const {transport} = held(null, "apart");
+        await transport.fetch("/v1/workspaces/wb/selection");
+        await transport.fetch("/v1/workspaces/wb/runs", {method: "POST", body: JSON.stringify({target: "nucleoli"})});
+        for (let step = 0; step < 20 && !read().includes("first"); step++) await vi.advanceTimersToNextTimerAsync();
+        expect(read()).toEqual(["second", "first"]);
+        // Reading a part held the page: the next one waits for another quiet moment.
+        await vi.advanceTimersByTimeAsync(1500);
+        expect(read()).toEqual(["second", "first"]);
+        // A request in that moment puts it off again.
+        await transport.fetch("/v1/workspaces/wb/selection");
+        await vi.advanceTimersByTimeAsync(1500);
+        expect(read()).toEqual(["second", "first"]);
+        await vi.advanceTimersByTimeAsync(600);
+        expect(read()).toEqual(["second", "first", "third"]);
+      } finally {
+        parse.mockRestore(); vi.useRealTimers();
+        files["journal.json"] = {version: 2, parts: ["journal-first.json", "journal-second.json"], counts: [3, 3], workspaces: [["wa"], ["wb"]], revisions: [[A], [B]]};
+        delete files["journal-third.json"];
+      }
+    });
+
+    it("reads the other parts at once when an answer needs them", async () => {
+      vi.useFakeTimers({toFake: ["setTimeout", "Date"]});
+      const {parse, read} = readParts("needed");
+      try {
+        const {transport} = held(null, "needed");
+        await transport.fetch("/v1/workspaces/wb/selection");
+        // A statistic by a cohort of the visitor's own is found by its pattern, which the whole tour decides.
+        const statistic = transport.fetch(`/v1/revisions/${"cccccccc-0000-4000-8000-000000000003"}/descriptive`, {method: "POST", body});
+        // Only the recorded moment of work passes, well before the page would count as quiet.
+        await vi.advanceTimersByTimeAsync(500);
+        expect(await (await statistic).json()).toEqual({scene: "second"});
+        expect(read()).toEqual(["second", "first"]);
+      } finally {parse.mockRestore(); vi.useRealTimers();}
     });
 
     it("explains at once an edit of one of the open scene's analysis versions that its scene did not record", async () => {

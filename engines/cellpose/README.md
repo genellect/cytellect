@@ -46,11 +46,14 @@ hashes before loading the model. Ordinary Windows setup retains that runner chec
 describe its image: identical runner, model and package versions, with only the
 CUDA 12.6 build of Torch. Every package shared with `requirements.lock` keeps the
 same version (`requirements-cuda.in`). `infra/Dockerfile.cellpose-gpu` builds the
-image; `.github/workflows/cellpose-gpu-image.yml` publishes it from `main` on the
-owner's instruction. `infra/modal_cellpose.py` runs that image as a Modal Server
+image; `.github/workflows/cellpose-gpu-image.yml` publishes it from `main`.
+`infra/modal_cellpose.py` runs that image as a Modal Server
 (L4 preferred, A10 fallback, at most one container with one GPU, 20 s scale-down,
 proxy-auth required); `.github/workflows/cellpose-modal-deploy.yml`
-deploys it from `main`.
+deploys it from `main`. Permission to merge into `main` covers publishing and
+deploying the merged version ([team development rules §7](../../docs/team-development.md#7-本番公開と配布));
+the acceptance after a deployment uses paid GPU time, which is paid service use and
+needs the owner's separate permission.
 
 On CUDA the runner uses float32 with TF32 disabled and requests deterministic
 algorithms with `warn_only=True`; unsupported operations may still run with a warning.

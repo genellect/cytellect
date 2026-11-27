@@ -215,6 +215,84 @@ class StoreSubmissionTests(TestCase):
         store.call.assert_called_with("POST", "/submissions/101/commit")
 
     @patch.object(release, "upload_package")
+    def test_does_not_go_back_to_a_commit_older_than_the_published_package(self, upload):
+        newer = "c" * 40
+        current = {**EXISTING, "fileName": f"Cytellect-Store-1.0.3.0-{newer}.msix"}
+        published = {**PUBLISHED, "applicationPackages": [current]}
+        store = Mock()
+        store.call.side_effect = [APP, published]
+        asked = []
+        with self.assertRaisesRegex(release.StoreError, "does not descend"):
+            release.submit(store, PACKAGE, VERSION, COMMIT, is_ancestor=lambda sha: asked.append(sha) or False)
+        self.assertEqual(asked, [newer])
+        self.assertEqual([call.args[0] for call in store.call.call_args_list], ["GET", "GET"])
+        upload.assert_not_called()
+        # A descendant of the published commit is submitted, as is a successor of a manually numbered package.
+        removed = {**REPLACEMENTS[0], "fileName": current["fileName"]}
+        prepared = {**PREPARED, "applicationPackages": [removed, REPLACEMENTS[1]]}
+        for packages, answer in (([current], True), ([EXISTING], False)):
+            store = Mock()
+            first = {**PUBLISHED, "applicationPackages": packages}
+            ready = prepared if packages == [current] else PREPARED
+            store.call.side_effect = [APP, first, {**DRAFT, "applicationPackages": packages}, ready, ready,
+                                      {"status": "CommitStarted"}]
+            self.assertTrue(release.submit(store, PACKAGE, VERSION, COMMIT, is_ancestor=lambda sha, answer=answer: answer))
+
+    @patch.object(release, "upload_package")
+    def test_does_not_go_back_to_a_commit_older_than_a_submission_in_review_or_a_draft(self, upload):
+        newer, older = "c" * 40, "a" * 40
+        pending = {**APP, "pendingApplicationSubmission": {"id": "101"}}
+        in_review = {**DRAFT, "status": "Certification",
+                     "applicationPackages": [{**EXISTING, "fileName": f"Cytellect-Store-1.0.5.0-{newer}.msix"}]}
+        draft = {**DRAFT, "applicationPackages": [
+            REPLACEMENTS[0], {**REPLACEMENTS[1], "fileName": f"Cytellect-Store-1.0.5.0-{newer}.msix"}]}
+        # A draft that names a commit the candidate does not descend from stops it.
+        store = Mock()
+        store.call.side_effect = [pending, PUBLISHED, draft]
+        asked = []
+        with self.assertRaisesRegex(release.StoreError, "does not descend from the commit of the pending package"):
+            release.submit(store, PACKAGE, VERSION, COMMIT, is_ancestor=lambda sha: asked.append(sha) or False)
+        self.assertEqual(asked, [newer])
+        self.assertEqual([call.args[0] for call in store.call.call_args_list], ["GET", "GET", "GET"])
+        # A newer commit in review is waited for, without failing and without submitting the older candidate.
+        store = Mock()
+        store.call.side_effect = [pending, PUBLISHED, in_review]
+        self.assertFalse(release.submit(store, PACKAGE, VERSION, COMMIT, is_ancestor=lambda sha: False))
+        self.assertEqual([call.args[0] for call in store.call.call_args_list], ["GET", "GET", "GET"])
+        # A draft package the Store lists without a file name stops the submission with a clear error.
+        store = Mock()
+        store.call.side_effect = [pending, PUBLISHED, {**DRAFT, "applicationPackages": [{**EXISTING, "fileName": None}]}]
+        with self.assertRaisesRegex(release.StoreError, "without a file name"):
+            release.submit(store, PACKAGE, VERSION, COMMIT, is_ancestor=lambda sha: True)
+        # A submission in review of an older commit is waited for; one of the candidate itself is accepted.
+        store = Mock()
+        older_review = {**in_review, "applicationPackages": [{**EXISTING, "fileName": f"Cytellect-Store-1.0.4.0-{older}.msix"}]}
+        store.call.side_effect = [pending, PUBLISHED, older_review]
+        self.assertFalse(release.submit(store, PACKAGE, VERSION, COMMIT, is_ancestor=lambda sha: sha == older))
+        store = Mock()
+        own_review = {**in_review, "applicationPackages": [{**EXISTING, "fileName": NAME}]}
+        store.call.side_effect = [pending, PUBLISHED, own_review]
+        self.assertTrue(release.submit(store, PACKAGE, VERSION, COMMIT, is_ancestor=lambda sha: False))
+        # Resuming the candidate's own draft compares only the other packages' commits.
+        store = Mock()
+        store.call.side_effect = [pending, PUBLISHED, PREPARED, PREPARED, {"status": "CommitStarted"}]
+        self.assertTrue(release.submit(store, PACKAGE, VERSION, COMMIT, is_ancestor=lambda sha: False))
+        upload.assert_called_once_with("example", PACKAGE, NAME)
+
+    def test_ancestry_is_read_from_the_checkout_that_holds_main_history(self):
+        with patch.object(release.subprocess, "run") as run:
+            run.return_value.returncode = 0
+            self.assertTrue(release.main_ancestry(Path("automation"), COMMIT)("c" * 40))
+            self.assertEqual(run.call_args.args[0],
+                             ["git", "-C", "automation", "merge-base", "--is-ancestor", "c" * 40, COMMIT])
+            # Not an ancestor (1), an unknown commit (128) and a missing git all refuse the submission.
+            for code in (1, 128):
+                run.return_value.returncode = code
+                self.assertFalse(release.main_ancestry(Path("automation"), COMMIT)("c" * 40))
+            run.side_effect = OSError
+            self.assertFalse(release.main_ancestry(Path("automation"), COMMIT)("c" * 40))
+
+    @patch.object(release, "upload_package")
     def test_package_without_a_store_id_does_not_acquire_one(self, upload):
         old = {key: value for key, value in EXISTING.items() if key != "id"}
         removed = {key: value for key, value in REPLACEMENTS[0].items() if key != "id"}

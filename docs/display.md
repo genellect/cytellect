@@ -44,7 +44,21 @@ previous label.
 
 Each pane opens with its image filling the pane (the smallest zoom that leaves no
 empty margin), centred. In the public demo, the nucleolar and nucleoplasm views draw the
-adopted nuclei faintly as context; only the shown region's outlines can be selected.
+adopted nuclei faintly as context; only the shown region's outlines can be selected. In the nucleolar
+view (production and the demo, one field or side by side) a click inside a nucleus and outside its nucleoli
+selects the nucleolus of that nucleus nearest to the click, because nucleoli cover little of a nucleus and
+many are only a few screen pixels wide. A nucleolus belongs to the clicked nucleus when the centroid of
+its outline lies inside the nucleus outline; where nucleus outlines overlap, the smaller one containing
+the click is taken. The clicked nucleus is marked and stated as a value, 「核 12：核小体 3」, with the number of
+nucleoli it encloses by that rule; a nucleus that encloses none is marked the same way, 「核 12：核小体 0」, and
+no nucleolus stays selected, so a missed nucleolus can be drawn with the outline tools. A nucleolus selected
+directly or from the table marks and states its nucleus the same way (the nucleus holding the nucleolus's
+centroid). The count is of the nucleolus outlines drawn, each region once by its outer ring, as the pane heading
+counts outlines; the measured nucleoli per nucleus (`nucleolar_count`) come from the analysis package and can
+differ for a nucleolus across the nucleus border. Side by side, only the images of the field that holds the
+selection mark a cell; a saved view's own nucleus stays marked beside it. A click outside every nucleus does nothing. This is
+screen-side geometry for choosing what to select; the nucleoplasm view is unchanged, since the nucleoplasm
+itself fills the nucleus.
 
 This is display only. Original pixels, detection, masks, measurements, review
 state and statistics are unchanged, and the shared scale does not correct

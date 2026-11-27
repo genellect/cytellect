@@ -1,4 +1,5 @@
 """scripts/dev.py doctor/serve: readiness probes never spend money or leak credentials."""
+import contextlib
 import http.server
 import json
 import sys
@@ -179,9 +180,10 @@ def test_stop_also_ends_descendants_that_outlive_their_leader():
         pytest.skip("process groups and /proc")
 
     def alive(pid: int) -> bool:
+        # A process that exits between opening and reading its stat file answers ESRCH (ProcessLookupError).
         try:
             state = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0]
-        except FileNotFoundError:
+        except (FileNotFoundError, ProcessLookupError):
             return False
         return state != "Z"
 
@@ -199,7 +201,8 @@ def test_stop_also_ends_descendants_that_outlive_their_leader():
         assert not alive(descendant)
     finally:
         if alive(descendant):
-            os.kill(descendant, 9)
+            with contextlib.suppress(ProcessLookupError):
+                os.kill(descendant, 9)
 
 
 def test_cloud_setup_installs_the_versions_the_repository_pins():
