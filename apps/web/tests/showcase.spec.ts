@@ -749,7 +749,12 @@ async function nucleusClickPoints(image: Locator) {
   });
 }
 /** Waits until the pane's image takes clicks: until its picture has loaded the frame is busy and ignores them. */
-const ready = (image: Locator) => expect(image.locator("xpath=ancestor::div[@aria-busy][1]")).toHaveAttribute("aria-busy", "false", {timeout: live});
+async function ready(image: Locator) {
+  const frame = image.locator("xpath=ancestor::div[@data-review-frame][1]");
+  await expect(frame).toHaveAttribute("aria-busy", "false", {timeout: live});
+  // A picture that failed to load also ends the wait, and ignores clicks: it must not be the reason.
+  await expect(frame.getByRole("alert").filter({hasText: "画像を読み込めませんでした"})).toHaveCount(0);
+}
 /** Whether the pane's selected nucleolus lies inside its outlined nucleus `index` (by the centre of its outline). */
 const selectedWithin = (image: Locator, index: number) => image.evaluate((element, nucleus) => {
   const svg = element as SVGSVGElement, path = svg.querySelector<SVGPathElement>("path[data-region][aria-pressed=true]")!;
@@ -805,8 +810,11 @@ test("in the nucleolus view a click on a nucleus selects its nearest nucleolus, 
   const cards = page.locator("[class*=fieldCard]");
   let empty: {index: number; free: [number, number] | null} | undefined;
   for (let card = 0; card < await cards.count() && !empty; card++) {
+    // Another field's picture replaces the shown one before the frame can be ready for it.
+    const shown = await image.locator("image").first().getAttribute("href"), already = await cards.nth(card).getAttribute("aria-pressed") === "true";
     await cards.nth(card).click();
     await expect(cards.nth(card)).toHaveAttribute("aria-pressed", "true");
+    if (!already && shown) await expect(image.locator("image").first()).not.toHaveAttribute("href", shown, {timeout: live});
     await expect(image.locator("polygon[class*=context]").first()).toBeAttached({timeout: live});
     await expect(image.locator("path[data-region][aria-pressed=true]")).toHaveCount(0);
     await ready(image);
