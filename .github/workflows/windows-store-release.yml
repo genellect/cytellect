@@ -73,8 +73,13 @@ jobs:
     if: needs.source.outputs.artifact-run == ''
     runs-on: windows-latest
     timeout-minutes: 120
+    # A run that builds nothing stays out of the build group of a commit, so it cannot cancel a build.
     concurrency:
-      group: store-msix-build-${{ github.ref }}
+      group: >-
+        ${{ needs.source.outputs.commit != '' && needs.source.outputs.artifact-run == '' &&
+        needs.proposal-compatibility.result == 'success' &&
+        format('store-msix-build-{0}', needs.source.outputs.commit) ||
+        format('store-msix-build-idle-{0}', github.run_id) }}
       cancel-in-progress: true
     env:
       STORE_COMMIT: ${{ needs.source.outputs.commit }}
@@ -157,8 +162,15 @@ jobs:
     permissions:
       actions: read
       contents: read
+    # Submissions run one at a time. A run that submits nothing stays out of the group: a queued
+    # run there would replace the submission that is already waiting.
     concurrency:
-      group: windows-store-submission
+      group: >-
+        ${{ vars.STORE_SUBMISSIONS_ENABLED == 'true' && needs.source.outputs.commit != '' &&
+        needs.proposal-compatibility.result == 'success' &&
+        (needs.package.result == 'success' ||
+        (needs.package.result == 'skipped' && needs.source.outputs.artifact-run != '')) &&
+        'windows-store-submission' || format('windows-store-submission-idle-{0}', github.run_id) }}
       cancel-in-progress: false
     env:
       STORE_COMMIT: ${{ needs.source.outputs.commit }}
@@ -204,7 +216,7 @@ jobs:
             printf '%s\n' 'The checkout is not the selected Store commit.'
             exit 1
           fi
-          python -B scripts/submit_windows_msix.py --commit "$STORE_COMMIT" --package store-package/Cytellect-Store.msix --receipt store-package/Cytellect-Store.json
+          python -B scripts/submit_windows_msix.py --commit "$STORE_COMMIT" --history automation --package store-package/Cytellect-Store.msix --receipt store-package/Cytellect-Store.json
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         if: steps.submission.outputs.accepted == 'true'
         with:

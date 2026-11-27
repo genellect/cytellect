@@ -18,10 +18,15 @@ Microsoft Store 用のプロダクト識別子は `24D2FD66.Cytellect`。3 番�
 
 1. Partner Center に [Microsoft Entra テナントを関連付け](https://learn.microsoft.com/en-us/windows/apps/publish/partner-center/associate-existing-azure-ad-tenant-with-partner-center-account)、[Store 提出 API 用のアプリ](https://learn.microsoft.com/en-us/windows/uwp/monetize/create-and-manage-submissions-using-windows-store-services)を登録する。
 2. GitHub のリポジトリ変数 `STORE_MSIX_PUBLISHER` に Partner Center の発行者識別子を設定する。発行者の表示名はリポジトリの Secret `STORE_MSIX_PUBLISHER_DISPLAY_NAME` に保存して CI ログでマスクする。
-3. GitHub の `store-release` Environment は、実行元を `main` に限定し、Required reviewers（実行ごとの承認者）を設定しない。専用の Secrets に `STORE_TENANT_ID`、`STORE_CLIENT_ID`、`STORE_CLIENT_SECRET` を登録し、提出を開始するときにリポジトリ変数 `STORE_SUBMISSIONS_ENABLED` を `true` にする。
+3. GitHub の `store-release` Environment は、実行元をブランチの `main` だけに限定し（Deployment branches and tags で、ブランチの `main` を選ぶ。タグは含めない）、Required reviewers（実行ごとの承認者）を設定しない。専用の Secrets に `STORE_TENANT_ID`、`STORE_CLIENT_ID`、`STORE_CLIENT_SECRET` を登録し、提出を開始するときにリポジトリ変数 `STORE_SUBMISSIONS_ENABLED` を `true` にする。
 4. 配布前の AI 接続の検査は、EXE の自動配布と同じ `windows-exe-preflight` Environment（承認者なし、`main` 限定）を使う。未設定の場合は[有効化手順](release-signing.md#exe-の自動配布)の 1 と 2 で設定する。
+5. リポジトリの ruleset で、`main` という名前のタグ（`refs/tags/main`）の作成を禁じる。タグから起動した実行も、実行元の名前は `main` になるため。
 
-選んだコミットは、すべてのジョブが使う：検査とビルドはそのコミットを checkout し、提出ジョブは受領書・MSIX 内のコミットと照合する。提出の直前に、より新しいコミットが `Verify` に成功していれば提出をやめ、そのコミットの実行に任せる。一般公開済みの提出から新しい提出を作り、掲載情報や価格などを引き継いだまま x64 パッケージを差し替える。既存の審査が進行中なら、そのまま待つ。
+選んだコミットは、すべてのジョブが使う：検査とビルドはそのコミットを checkout し、提出ジョブは受領書・MSIX 内のコミットと照合する。提出の直前に、より新しいコミットが `Verify` に成功していれば提出をやめ、そのコミットの実行に任せる。
+
+古いコミットには戻さない。提出済みのコミットより古いコミットは、新しいコミットの `Verify` が再実行中・失敗であっても、選ばず、提出しない。提出スクリプトも、公開中のパッケージのファイル名にあるコミットが、提出するコミットの祖先であることを確かめる。以前の実行がビルドしたパッケージと提出の記録（受領書）は、`main` の履歴にあるコミットのワークフロー定義で動いた、このリポジトリの `main` ブランチの実行のものだけを使う。
+
+一般公開済みの提出から新しい提出を作り、掲載情報や価格などを引き継いだまま x64 パッケージを差し替える。既存の審査が進行中なら、そのまま待つ。
 
 6 時間ごとの実行は、ビルド済みで未提出のパッケージの提出を再開する。ビルドはしない。ビルドに失敗したコミットは、新しいコミットの `Verify` の成功か、Actions からの手動の起動でやり直す。手動の起動も、`main` で CI に成功した最も新しいコミットを選ぶ。提出を止めるときは `STORE_SUBMISSIONS_ENABLED` を `true` 以外にする。途中で止まった場合は、Actions に記録された提出 ID を Partner Center で確認する。Store の審査と公開後、端末は Microsoft Store の自動更新で新しい版を受け取る。
 

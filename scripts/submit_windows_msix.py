@@ -8,6 +8,7 @@ import http.client
 import json
 import os
 import re
+import subprocess
 import tempfile
 import urllib.error
 import urllib.parse
@@ -261,8 +262,21 @@ def price_terms(pricing, confirmed_base: bool = False):
     return price_id, pricing.get("marketSpecificPricings") or {}
 
 
+def main_ancestry(history: Path, commit: str):
+    """Whether a commit is an ancestor of the candidate, in a checkout with the full history of main."""
+    def is_ancestor(older: str) -> bool:
+        try:
+            return subprocess.run(
+                ["git", "-C", str(history), "merge-base", "--is-ancestor", older, commit],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60, check=False,
+            ).returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            return False
+    return is_ancestor
+
+
 def submit(store: Store, package: Path, version: str, commit: str, recover_id: str = "",
-           *, confirmed_free_id: str = "") -> bool:
+           *, confirmed_free_id: str = "", is_ancestor=None) -> bool:
     app = store.call("GET")
     if app.get("packageIdentityName") != PACKAGE_IDENTITY:
         raise StoreError("The API resolved to a different Store package identity.")
@@ -284,6 +298,11 @@ def submit(store: Store, package: Path, version: str, commit: str, recover_id: s
         raise StoreError("The published package layout no longer matches the single x64 MSIX release.")
     if version_parts(published_packages[0]["version"]) >= version_parts(version):
         raise StoreError("The candidate version must be newer than every published package.")
+    # A package submitted by this script names its source commit. The Store never goes back to an
+    # older commit under a newer version number; a manually numbered package names no commit.
+    source = re.search(r"-([0-9a-f]{40})\.msix$", published_packages[0]["fileName"])
+    if source and is_ancestor is not None and not is_ancestor(source[1]):
+        raise StoreError("The candidate does not descend from the commit of the published package.")
     pending_ref = app.get("pendingApplicationSubmission")
     replacement = {
         "fileName": name, "fileStatus": "PendingUpload",
@@ -362,12 +381,15 @@ def main() -> None:
     parser.add_argument("--package", type=Path, required=True)
     parser.add_argument("--receipt", type=Path, required=True)
     parser.add_argument("--commit", required=True)
+    parser.add_argument("--history", type=Path, required=True,
+                        help="A checkout that holds the full history of main")
     args = parser.parse_args()
     try:
         version = verify_package(args.package, args.receipt, args.commit)
         accepted = submit(Store.authenticate(), args.package, version, args.commit,
                           os.environ.get("STORE_RECOVERY_SUBMISSION_ID", ""),
-                          confirmed_free_id=os.environ.get("STORE_CONFIRMED_FREE_SUBMISSION_ID", ""))
+                          confirmed_free_id=os.environ.get("STORE_CONFIRMED_FREE_SUBMISSION_ID", ""),
+                          is_ancestor=main_ancestry(args.history, args.commit))
         if accepted and (output := os.environ.get("GITHUB_OUTPUT")):
             with Path(output).open("a", encoding="utf-8") as stream:
                 stream.write("accepted=true\n")

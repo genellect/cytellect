@@ -66,6 +66,30 @@ async function requirePassedJobs(github, context, runs, commit) {
   return run;
 }
 
+// An artifact of an earlier run counts only if a job of the given workflow uploaded it from a run on
+// this repository's main branch, started by an event the release routes use. The run's commit, which
+// fixes the workflow definition that ran, must be in the first-parent history of main: a run
+// dispatched from a tag named `main` reports the same branch name but an arbitrary definition. The
+// artifact's name carries the released commit, since a `workflow_run` or scheduled run reports the
+// head of main as its own SHA.
+async function trustedArtifactRun(github, context, history, name, workflow, job) {
+  const repo = context.repo;
+  const artifacts = await github.paginate(github.rest.actions.listArtifactsForRepo, { ...repo, name, per_page: 100 });
+  for (const artifact of artifacts) {
+    if (artifact.expired || artifact.workflow_run?.head_branch !== 'main' ||
+        artifact.workflow_run?.head_repository_id !== context.payload.repository.id) continue;
+    const run_id = artifact.workflow_run.id;
+    const { data: prior } = await github.rest.actions.getWorkflowRun({ ...repo, run_id });
+    if (prior.path !== workflow || !history.includes(prior.head_sha) ||
+        !['workflow_run', 'workflow_dispatch', 'schedule'].includes(prior.event)) continue;
+    const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
+      ...repo, run_id, filter: 'latest', per_page: 100,
+    });
+    if (jobs.some(item => item.name === job && item.conclusion === 'success')) return String(run_id);
+  }
+  return '';
+}
+
 async function select(github, context, core) {
   const repo = context.repo;
   const releases = await github.paginate(github.rest.repos.listReleases, { ...repo, per_page: 100 });
@@ -90,24 +114,8 @@ async function select(github, context, core) {
     ...releaseTags.map(tag => versionNumber(tag.name))) + 1;
   if (!Number.isSafeInteger(next)) throw new Error('The EXE version number is out of range');
   const version = candidates[0]?.name.slice(1) ?? `0.1.0-local.${next}`;
-  let artifactRun = '';
-  const name = `auto-exe-${version}-${commit}`;
-  const artifacts = await github.paginate(github.rest.actions.listArtifactsForRepo, { ...repo, name, per_page: 100 });
-  for (const artifact of artifacts) {
-    if (artifact.expired || artifact.workflow_run?.head_branch !== 'main' ||
-        artifact.workflow_run?.head_repository_id !== context.payload.repository.id) continue;
-    const run_id = artifact.workflow_run.id;
-    const { data: prior } = await github.rest.actions.getWorkflowRun({ ...repo, run_id });
-    if (prior.path !== '.github/workflows/local-release.yml' ||
-        !['workflow_run', 'workflow_dispatch', 'schedule'].includes(prior.event)) continue;
-    const { data: priorJobs } = await github.rest.actions.listJobsForWorkflowRun({
-      ...repo, run_id, filter: 'latest', per_page: 100,
-    });
-    if (priorJobs.jobs.some(job => job.name === 'package' && job.conclusion === 'success')) {
-      artifactRun = String(run_id);
-      break;
-    }
-  }
+  const artifactRun = await trustedArtifactRun(github, context, history,
+    `auto-exe-${version}-${commit}`, '.github/workflows/local-release.yml', 'package');
   if (!mayAttempt(context.eventName, candidates.length === 1, artifactRun !== '')) {
     core.info(`${version} is reserved for ${commit} without a tested package; a scheduled run does not rebuild it`);
     return;
@@ -301,23 +309,13 @@ async function syncChannel(github, context, core, {
 // a per-run approval: only the newest main commit whose `Verify` run passed is ever submitted.
 const storeWorkflow = '.github/workflows/windows-store-release.yml';
 
-// An artifact counts only if a job of the Store workflow on main uploaded it from a run that this
-// route starts. Its name carries the commit: a `workflow_run` or scheduled run reports the head
-// of main as its own SHA, so the run's SHA does not identify the packaged source.
-async function storeArtifactRun(github, context, name, job) {
-  const repo = context.repo;
-  const artifacts = await github.paginate(github.rest.actions.listArtifactsForRepo, { ...repo, name, per_page: 100 });
-  for (const artifact of artifacts) {
-    if (artifact.expired || artifact.workflow_run?.head_branch !== 'main' ||
-        artifact.workflow_run?.head_repository_id !== context.payload.repository.id) continue;
-    const run_id = artifact.workflow_run.id;
-    const { data: prior } = await github.rest.actions.getWorkflowRun({ ...repo, run_id });
-    if (prior.path !== storeWorkflow ||
-        !['workflow_run', 'workflow_dispatch', 'schedule'].includes(prior.event)) continue;
-    const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
-      ...repo, run_id, filter: 'latest', per_page: 100,
-    });
-    if (jobs.some(item => item.name === job && item.conclusion === 'success')) return String(run_id);
+// The first commit of `commits` that an earlier run of this route submitted: its receipt is kept
+// under a name that carries the commit.
+async function submittedStoreCommit(github, context, history, commits) {
+  for (const commit of commits) {
+    if (await trustedArtifactRun(github, context, history, `store-submitted-${commit}`, storeWorkflow, 'submit')) {
+      return commit;
+    }
   }
   return '';
 }
@@ -327,11 +325,16 @@ async function selectStore(github, context, core, history = mainHistory()) {
   const commit = chooseCandidate(history, verified);
   if (!commit) return;
   const run = await requirePassedJobs(github, context, runs, commit);
-  if (await storeArtifactRun(github, context, `store-submitted-${commit}`, 'submit')) {
-    core.info(`${commit} has already been submitted to the Store`);
+  // The Store never goes back: a commit is not selected once it, or a newer commit of main whose
+  // `Verify` has since been rerun or has failed, has been submitted.
+  const submitted = await submittedStoreCommit(github, context, history,
+    history.slice(0, history.indexOf(commit) + 1));
+  if (submitted) {
+    core.info(submitted === commit ? `${commit} has already been submitted to the Store`
+      : `${submitted} is newer and has been submitted to the Store; ${commit} is not selected`);
     return;
   }
-  const artifactRun = await storeArtifactRun(github, context, `store-msix-${commit}`, 'package');
+  const artifactRun = await trustedArtifactRun(github, context, history, `store-msix-${commit}`, storeWorkflow, 'package');
   // A scheduled run resumes the submission of a built package. It does not build one, so a
   // failing build is repeated only by a new commit or by the owner's dispatch.
   if (context.eventName === 'schedule' && !artifactRun) {
@@ -345,7 +348,8 @@ async function selectStore(github, context, core, history = mainHistory()) {
 
 // Immediately before the submission: main may have advanced while the package was built. The
 // selected commit is submitted only while it is still the newest verified one; otherwise the run
-// that the newer commit's `Verify` started submits that commit.
+// that the newer commit's `Verify` started submits that commit. Nor is it submitted after a newer
+// commit has been.
 async function confirmStore(github, context, core, history = mainHistory()) {
   const commit = process.env.STORE_COMMIT;
   if (!shaPattern.test(commit)) throw new Error('Invalid Store source commit');
@@ -354,11 +358,15 @@ async function confirmStore(github, context, core, history = mainHistory()) {
     throw new Error('The Store source is not a verified commit of main');
   }
   const newest = chooseCandidate(history, verified);
-  core.setOutput('current', String(newest === commit));
-  if (newest !== commit) core.info(`${newest} is newer and verified; ${commit} is not submitted`);
+  const newer = newest !== commit ? newest
+    : await submittedStoreCommit(github, context, history, history.slice(0, history.indexOf(commit)));
+  core.setOutput('current', String(!newer));
+  if (newer) {
+    core.info(`${newer} is newer and ${newer === newest ? 'verified' : 'has been submitted'}; ${commit} is not submitted`);
+  }
 }
 
 module.exports = {
   chooseCandidate, mayAttempt, select, reserve, publish, syncChannel, selectStore, confirmStore,
-  mainHistory,
+  mainHistory, trustedArtifactRun,
 };

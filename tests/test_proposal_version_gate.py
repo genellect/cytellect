@@ -145,7 +145,16 @@ def test_the_store_route_submits_only_the_selected_verified_commit_without_a_rev
     submit = store["submit"]
     assert "vars.STORE_SUBMISSIONS_ENABLED == 'true'" in submit
     assert "environment: store-release" in submit
-    assert "group: windows-store-submission\n      cancel-in-progress: false" in submit
+    # Submissions stay serial; a run that builds or submits nothing joins neither shared group.
+    assert ("(needs.package.result == 'skipped' && needs.source.outputs.artifact-run != '')) &&\n"
+            "        'windows-store-submission' || format('windows-store-submission-idle-{0}', github.run_id) }}\n"
+            "      cancel-in-progress: false") in submit
+    assert submit.count("windows-store-submission'") == 1 and "github.ref" not in package + submit
+    assert ("format('store-msix-build-{0}', needs.source.outputs.commit) ||\n"
+            "        format('store-msix-build-idle-{0}', github.run_id) }}\n      cancel-in-progress: true") in package
+    for job in (package, submit):
+        group = job.split("concurrency:\n", 1)[1].split("cancel-in-progress", 1)[0]
+        assert "needs.source.outputs.commit != ''" in group
     # The freshness check runs from main and precedes every step that touches the package or a secret.
     helper = next(step for step in submit.split("      - ") if "path: automation" in step)
     assert "sparse-checkout: scripts/windows_exe_release.cjs" in helper and "persist-credentials: false" in helper
@@ -153,7 +162,7 @@ def test_the_store_route_submits_only_the_selected_verified_commit_without_a_rev
     assert "confirmStore(github, context, core, release.mainHistory('automation'))" in submit
     assert submit.index("confirmStore") < submit.index("download-artifact") < submit.index("STORE_CLIENT_SECRET")
     assert submit.count("if: steps.newest.outputs.current == 'true'") == 3
-    assert '--commit "$STORE_COMMIT"' in submit
+    assert '--commit "$STORE_COMMIT" --history automation' in submit
     assert "name: store-submitted-${{ needs.source.outputs.commit }}" in submit
     # Store credentials reach the submission only; every third-party action is pinned to a commit.
     assert [name for name, job in store.items() if "STORE_CLIENT_SECRET" in job] == ["submit"]
