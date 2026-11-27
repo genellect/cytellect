@@ -587,8 +587,11 @@ test("operations the recording does not hold are explained at once, without the 
     await pane.getByRole("region", {name: /の測定値$/}).locator("tbody button").first().click({timeout: live});
     await expect(pane.locator("svg path[data-region][aria-pressed=true]")).toHaveCount(1);
     const outlines = await pane.locator("svg path[data-region]").count();
+    // "At once" counts from when the deletion can be made: the tools stay disabled while the opening fields load.
+    const remove = pane.getByRole("button", {name: "選択領域を削除", exact: true});
+    await expect(remove).toBeEnabled({timeout: live});
     const started = Date.now();
-    await pane.getByRole("button", {name: "選択領域を削除", exact: true}).click();
+    await remove.click();
     await expect(notRecorded(page)).toBeVisible({timeout: 5000});
     expect(Date.now() - started).toBeLessThan(5000);
     expect(await pane.locator("svg path[data-region]").count()).toBe(outlines);
@@ -599,8 +602,10 @@ test("operations the recording does not hold are explained at once, without the 
   // One field at a time.
   await expect(regions(page).first()).toBeAttached({timeout: live});
   await selectRegion(page, (await largestRegion(page)).id);
+  const remove = page.getByRole("button", {name: "選択領域を削除", exact: true});
+  await expect(remove).toBeEnabled({timeout: live});
   const started = Date.now();
-  await page.getByRole("button", {name: "選択領域を削除", exact: true}).click();
+  await remove.click();
   await expect(notRecorded(page)).toBeVisible({timeout: 5000});
   expect(Date.now() - started).toBeLessThan(5000);
   await expect(header.locator("[data-showcase-engine=idle]")).toBeAttached();
@@ -635,8 +640,10 @@ test("deleting one region of an opening field and taking it back is answered fro
   await expect(notRecorded(page)).toHaveCount(0);
   // The recording holds one deletion from the opening fields; a further one (after taking one back too) is explained at once.
   await choose(rows.first());
+  const remove = section.getByRole("button", {name: "選択領域を削除", exact: true});
+  await expect(remove).toBeEnabled({timeout: live});
   const started = Date.now();
-  await section.getByRole("button", {name: "選択領域を削除", exact: true}).click();
+  await remove.click();
   await expect(notRecorded(page)).toBeVisible({timeout: 5000});
   expect(Date.now() - started).toBeLessThan(5000);
   expect(await section.locator("svg path[data-region]").count()).toBe(before);
