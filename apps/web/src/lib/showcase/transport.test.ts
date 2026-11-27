@@ -570,6 +570,48 @@ describe("recorded tour across scenes", () => {
       }
     });
 
+    /** The scenes whose parts have been read (parsed), in order. */
+    function readParts() {
+      const parse = vi.spyOn(JSON, "parse");
+      return {parse, read: () => parse.mock.calls.flatMap(([text]) => /"scene":"(first|second):/.exec(String(text))?.[1] ?? [])};
+    }
+
+    it("reads the other parts only once no request has been waiting for a while, so an explained change is not held back", async () => {
+      vi.useFakeTimers({toFake: ["setTimeout", "Date"]});
+      const {parse, read} = readParts();
+      try {
+        const {transport, fetchStatic} = held(null);
+        await transport.fetch("/v1/workspaces/wb/selection");
+        const change = await transport.fetch("/v1/workspaces/wb/runs", {method: "POST", body: JSON.stringify({target: "nucleoli"})});
+        expect(await change.json()).toEqual({detail: "showcase_action_not_recorded"});
+        await vi.advanceTimersByTimeAsync(1000);
+        // The other part has downloaded, but reading it would hold the page while the notice is shown.
+        expect(fetchStatic.mock.calls.map(([url]) => url)).toContain("/showcase/snapshot/journal-first.json");
+        expect(read()).toEqual(["second"]);
+        // A request delays the reading again.
+        await transport.fetch("/v1/workspaces/wb/selection");
+        await vi.advanceTimersByTimeAsync(1500);
+        expect(read()).toEqual(["second"]);
+        await vi.advanceTimersByTimeAsync(600);
+        expect(read()).toEqual(["second", "first"]);
+      } finally {parse.mockRestore(); vi.useRealTimers();}
+    });
+
+    it("reads the other parts at once when an answer needs them", async () => {
+      vi.useFakeTimers({toFake: ["setTimeout", "Date"]});
+      const {parse, read} = readParts();
+      try {
+        const {transport} = held(null);
+        await transport.fetch("/v1/workspaces/wb/selection");
+        // A statistic by a cohort of the visitor's own is found by its pattern, which the whole tour decides.
+        const statistic = transport.fetch(`/v1/revisions/${"cccccccc-0000-4000-8000-000000000003"}/descriptive`, {method: "POST", body});
+        // Only the recorded moment of work passes, well before the page would count as quiet.
+        await vi.advanceTimersByTimeAsync(500);
+        expect(await (await statistic).json()).toEqual({scene: "second"});
+        expect(read()).toEqual(["second", "first"]);
+      } finally {parse.mockRestore(); vi.useRealTimers();}
+    });
+
     it("explains at once an edit of one of the open scene's analysis versions that its scene did not record", async () => {
       const {transport, release} = held("journal-first.json");
       await transport.fetch("/v1/workspaces/wb/selection");

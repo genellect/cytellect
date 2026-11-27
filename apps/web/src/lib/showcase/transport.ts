@@ -54,6 +54,11 @@ function headerList(headers: RequestInit["headers"]): HeaderList {
 /** A recorded body matches when equal, with "*" in the recording standing for any value the client generates or counts. */
 /** How long after the first paint the recorded tour starts loading (it competes with the opening images). */
 const JOURNAL_DELAY_MS = 6000;
+/**
+ * How long no request must have been waiting before another scene's part of the tour is read in the background.
+ * Reading a large part holds the page for a moment, so an answer and the screen it updates come first.
+ */
+const QUIET_MS = 2000;
 
 export function journalBodyMatches(recorded: string | null, actual: string | null): boolean {
   if (recorded === null) return true;
@@ -161,6 +166,11 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
   let live = false, active = false;
   // Recorded tour: `cursor` is the last change it answered.
   let journal: Promise<Journal | null> | null = null, journaled = false, cursor = -1, complete = false;
+  // Visitors' requests not answered yet, and when one last arrived or was answered.
+  let waiting = 0, lastRequest = 0;
+  // Settled once an answer needs the whole tour: the parts not read yet are then read at once.
+  let needWhole = () => {};
+  const wholeNeeded = new Promise<void>(resolve => {needWhole = resolve;});
   // The workspace the visitor has open: the last one a request named, in request order. Each request keeps the one
   // open when it was made, since its answer is decided after the requests before it.
   let openWorkspace: string | null = null;
@@ -337,12 +347,12 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
     return jsonResponse({...result, figure: opening.figure, ...(result.spec ? {spec: {...result.spec, plot: opening.plot}} : {})}, response.status);
   }
   /** One journal file: the whole tour (version 1), or its index of parts (version 2). */
-  async function journalFile(name: string, downloaded?: Promise<string | null>): Promise<Journal | JournalIndex | null> {
+  async function journalFile(name: string, downloaded?: Promise<ArrayBuffer | null>): Promise<Journal | JournalIndex | null> {
     let value: Journal | JournalIndex;
     if (downloaded) {
-      const text = await downloaded;
-      if (text === null) return null;
-      value = JSON.parse(text) as Journal | JournalIndex;
+      const bytes = await downloaded;
+      if (bytes === null) return null;
+      value = JSON.parse(new TextDecoder().decode(bytes)) as Journal | JournalIndex;
     } else {
       const response = await dependencies.fetchStatic(`${dependencies.snapshotBase}${name}`);
       if (!response.ok) {await response.text(); return null;}
@@ -353,14 +363,24 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
   }
   let tourIndex: Promise<Journal | JournalIndex | null> | null = null;
   const tourParts = new Map<string, Promise<Journal | JournalIndex | null>>();
-  const partBodies = new Map<string, Promise<string | null>>();
+  const partBodies = new Map<string, Promise<ArrayBuffer | null>>();
   const indexFile = () => tourIndex ??= journalFile("journal.json").catch(() => null);
-  /** A part's download, started once; it is read (parsed) only when asked for with partFile. */
+  /** A part's download, started once and kept as bytes; it is read (decoded and parsed) only when asked for with partFile. */
   const partBody = (name: string) => {
     if (!partBodies.has(name)) partBodies.set(name, dependencies.fetchStatic(`${dependencies.snapshotBase}${name}`)
-      .then(async response => response.ok ? response.text() : (await response.text(), null)).catch(() => null));
+      .then(async response => response.ok ? response.arrayBuffer() : (await response.text(), null)).catch(() => null));
     return partBodies.get(name)!;
   };
+  /** Settles once no request has been waiting for QUIET_MS. */
+  function quiet(): Promise<void> {
+    return new Promise(resolve => {
+      const check = () => {
+        const left = QUIET_MS - (Date.now() - lastRequest);
+        if (!waiting && left <= 0) resolve(); else setTimeout(check, Math.max(left, 100));
+      };
+      check();
+    });
+  }
   const partFile = (name: string) => {
     if (!tourParts.has(name)) tourParts.set(name, journalFile(name, partBody(name)).catch(() => null));
     return tourParts.get(name)!;
@@ -381,22 +401,27 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
     return index.parts.filter((_, position) => index.workspaces[position].includes(workspace));
   }
   /** The recorded tour. A tour split into parts (one per scene, docs/showcase.md) is read whole, in order, so it
-   *  answers exactly as the same tour in one file. Every part is requested at once, the open workspace's scene's
-   *  parts first, so that scene answers as soon as its parts arrive (sceneTour). */
+   *  answers exactly as the same tour in one file. The open workspace's scene's parts come first, so that scene
+   *  answers as soon as its parts arrive (sceneTour). */
   function loadJournal() {
     journal ??= indexFile()
       .then(async value => {
         if (value?.version !== 2) return value;
         if (!value.parts.every(part => PART_NAME.test(part))) return null;
-        // Every part downloads at once; the open scene's parts are read first, so that scene can answer while the
-        // others are still being read (reading a large part holds the page for a moment).
         // The open scene's parts download first, with the whole connection, and are read first; the others then
         // download together. A change the open scene's parts cannot answer waits for them (sceneTour, earlyTour).
         const first = partsOf(value, openWorkspace);
         await Promise.all(first.map(partBody));
         value.parts.forEach(partBody);
         await Promise.all(first.map(partFile));
-        const parts = await Promise.all(value.parts.map(partFile));
+        // Reading a large part holds the page for a moment: the others are read one at a time once no request has
+        // been waiting for a while, so the answer to a visitor's change and its screen are not held back (an
+        // unrecorded change is explained at once). An answer that needs them has them read at once.
+        const parts: Array<Journal | JournalIndex | null> = [];
+        for (const name of value.parts) {
+          if (!tourParts.has(name)) await Promise.race([quiet(), wholeNeeded]);
+          parts.push(await partFile(name));
+        }
         if (!parts.every(part => part?.version === 1)) return null;
         // Changes answered from the open scene's parts counted positions by the index: parts that disagree with it
         // (published apart) would put those positions elsewhere in the whole tour.
@@ -546,6 +571,7 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       const decided = await decide(early, method, path, body, opened, true);
       if (decided !== WHOLE) return decided;
     }
+    needWhole();
     const entries = (await loadJournal())?.entries;
     if (!entries) return null;
     const decided = await decide(entries, method, path, body, opened, false);
@@ -725,28 +751,32 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
         // Decisions are taken in request order, so a read issued after a change sees that change. A read
         // the opening snapshot answers is decided in order too, but its file (an image, masks) downloads
         // alongside the next requests instead of holding them (the two opening images load together).
-        const workspace = SETTINGS.exec(path)?.[1];
-        if (isRead && workspace) void openingFields(workspace);
-        const opened = openWorkspace = WORKSPACE.exec(path)?.[1] ?? openWorkspace;
-        const decided = gate.then(async (): Promise<Response | null | (() => Promise<Response | null>)> => {
-          const body = await text();
-          // Figures are drawn from the recorded results (figures.json), not recorded with the tour.
-          const figured = await fromFigures(method, path, body);
-          if (figured !== undefined) return figured;
-          const journaled = await fromJournal(method, path, body, opened);
-          if (journaled || !isRead) return isRead ? withFigure(path, await withKnownJobs(path, journaled)) : journaled;
-          if (JOBS.test(path)) return withKnownJobs(path, await fromSnapshot(path));
-          if (RESULT.test(path)) return withFigure(path, await fromSnapshot(path));
-          const later = await recordedLater(path);
-          if (later) seen.set(path, "snapshot");
-          return later;
-        });
-        gate = decided.catch(() => null);
-        const decision = await decided;
-        const answered = typeof decision === "function" ? await decision() : decision;
-        if (signal?.aborted) throw abortError();
-        if (answered) return answered;
-        return (await snapshot()) ? noticeResponse("showcase_action_not_recorded", 409) : noticeResponse("showcase_unavailable", 503);
+        // A request counts as waiting until it is answered (the other scenes' parts are read only when none is, quiet()).
+        waiting++; lastRequest = Date.now();
+        try {
+          const workspace = SETTINGS.exec(path)?.[1];
+          if (isRead && workspace) void openingFields(workspace);
+          const opened = openWorkspace = WORKSPACE.exec(path)?.[1] ?? openWorkspace;
+          const decided = gate.then(async (): Promise<Response | null | (() => Promise<Response | null>)> => {
+            const body = await text();
+            // Figures are drawn from the recorded results (figures.json), not recorded with the tour.
+            const figured = await fromFigures(method, path, body);
+            if (figured !== undefined) return figured;
+            const journaled = await fromJournal(method, path, body, opened);
+            if (journaled || !isRead) return isRead ? withFigure(path, await withKnownJobs(path, journaled)) : journaled;
+            if (JOBS.test(path)) return withKnownJobs(path, await fromSnapshot(path));
+            if (RESULT.test(path)) return withFigure(path, await fromSnapshot(path));
+            const later = await recordedLater(path);
+            if (later) seen.set(path, "snapshot");
+            return later;
+          });
+          gate = decided.catch(() => null);
+          const decision = await decided;
+          const answered = typeof decision === "function" ? await decision() : decision;
+          if (signal?.aborted) throw abortError();
+          if (answered) return answered;
+          return (await snapshot()) ? noticeResponse("showcase_action_not_recorded", 409) : noticeResponse("showcase_unavailable", 503);
+        } finally {waiting--; lastRequest = Date.now();}
       }
       // The recorder: the opening reads come from the snapshot, everything else from the API.
       if (isRead && !live && !active) {
