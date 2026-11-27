@@ -323,10 +323,10 @@ context 1.2.0 without the additions, and answers have no kind of request (the ea
 The Worker with this prompt was deployed on 2026-11-26 from the PR's head (record below), and its answers were checked
 the same day on public cases with the owner's permission (the evaluation below the record). After that evaluation the
 text of `2026-11-26.1` was changed in place, in `359d4ef7` and later commits of PR #303: no distributed client uses
-this version, and #237 changed an undistributed prompt's text the same way. Production answers with the earlier text
-(deployed from 518074a6) until the Worker is redeployed, and the new text has not been evaluated yet.
-`doctor --proposal-version` checks only that a version is accepted, not which text of it is deployed, so the Worker
-must be redeployed before distribution for the corrected wording to reach researchers. The local API reuses a saved
+this version, and #237 changed an undistributed prompt's text the same way. The Worker with the new text was deployed
+on 2026-11-27 with the owner's permission and evaluated again on the same public cases (record and second evaluation
+below). `doctor --proposal-version` checks only that a version is accepted, not which text of it is deployed, so a
+later change of the text must again be deployed before distribution to reach researchers. The local API reuses a saved
 proposal keyed by the prompt version, the context and the workspace's state (`proposals.py`), so a workspace that
 already asked the same request in the same state returns the earlier answer without a model call: evaluate the new
 text on a new workspace.
@@ -366,6 +366,7 @@ in the first seconds after a deploy can still reach the previous version.
 | 2026-11-17 | `main` 1a775ab2 (#236) | `177d9093-24c7-4c83-a8ea-e326e0225453`; previous `47f1eb8f` | Claude answers with the format described in the prompt, not forced (#236), with the owner's permission. Variables and secrets unchanged (live variables equal the operator file). Before: `pnpm check`, `pnpm test` (156 passed, 1 skipped), `test:deployment` (4). After: unauthenticated 401 and authenticated `{}` 400 on both hosts and routes. Paid checks with the owner's permission (public method scenarios and synthetic numbers only, no images): discussion `2026-11-16.1` → `claude-sonnet-5-5`; proposal `2026-11-16.1` → `claude-sonnet-5-5`; discussion `2026-11-12.2` → `gpt-6.1-sol`. Public-case evaluation of the 12 proposal scenarios: 12/12 answered by `claude-sonnet-5-5` in 6–9 s, 12/12 schema-valid with no repair call, 12/12 expected behaviour (`expectedBehavior`), 11/12 accepted by the local validation; `unsupported-frap` (recipe `none`, correctly declined) left `channels` empty and was rejected as `proposal_channels_mismatch`, so the prompt now asks for every channel also when the recipe is none (next deployment). Claude requests: 14 settlements, 14 calls, USD 0.5525 in the ledger (mean 12,641 input / 786 output tokens). No reservation or budget incident remained; 2026-11 ledger total USD 1.3072. |
 | 2026-11-17 | `main` 1932f7af (#237) | `c7236078-3fa6-4238-bfca-7acc4cb9adfa`; previous `177d9093-24c7-4c83-a8ea-e326e0225453` | The proposal prompt asks for every channel also when the recipe is `none` (#237), with the owner's permission. Variables and secrets unchanged. Before: `main` tree equal to the PR head, `pnpm test` (156 passed, 1 skipped). After, on `api.cytellect.app`: unauthenticated POST 401 and authenticated `{}` 400 `request_invalid` on both routes. One paid re-run of the public `unsupported-frap` scenario: HTTP 200 from `claude-sonnet-5-5` in 7.8 s, recipe `none` with `ch1` as `unused`, accepted by the local validation, so all 12 public scenarios now pass it. Windows 0.1.0-local.24 (source 1a775ab2, published by the owner on 2026-11-17) is the first client on the Claude prompt versions. |
 | 2026-11-26 | PR [#303](https://github.com/genellect/cytellect/pull/303) head 518074a6 (before the merge, as the order above requires) | `801eb4b6-1ceb-48e0-9cc9-98b2786859b1`; previous `4fd496b6-6c7a-4d6f-adef-93551593a0b9` (2026-11-20, `main` 95471999, #245, by Cloudflare's deployment list; it has no row here) | Accepts prompt `2026-11-26.1` with proposal context 1.3.0 (#284 W7), with the owner's permission. The Worker's runtime sources on `main` equalled the previous deployment, so the change is `contract.json`, `index.ts` and `openai.ts` of this PR. No new migration (`0001`–`0004` applied; `migrations list --remote` reported none to apply). The operator file was generated from the live settings; live variables equal it before and after, and the secret names, the D1 binding, the compatibility date and flag are unchanged. Before: `pnpm check`, `pnpm test` (168 passed, 1 skipped), `test:deployment` (4), a dry run; `doctor --proposal-version` from the PR head was refused for `/v1/proposals` (`request_invalid`), as expected of the previous Worker. After, on `api.cytellect.app` and workers.dev: unauthenticated POST 401 with `no-store` and authenticated `{}` 400 `request_invalid` on both routes; `doctor --proposal-version` (no Idempotency-Key, so no admission, usage count or model call) accepted `2026-11-26.1` with context 1.3.0 from the PR head, `2026-11-19.1` with context 1.2.0 from `main` 401cb2f4 (the clients already distributed), and discussions `2026-11-16.1`. No paid request was made at the deployment (the evaluation followed, below). The check also showed that the client's probe sent context 1.3.0 for a pinned earlier prompt and reported that working pair as incompatible; the probe now sends the context the checked prompt reads (fixed in the same PR). |
+| 2026-11-27 | PR [#303](https://github.com/genellect/cytellect/pull/303) head e8b91219 (before the merge; its Worker source equals 43a6649e) | `7fec9a42-6f20-47de-8727-87ed2fa6d587`; previous `801eb4b6-1ceb-48e0-9cc9-98b2786859b1` | The text of prompt `2026-11-26.1` asks for the workspace's words in what the researcher reads (`359d4ef7`, `6d97c148`), with the owner's permission. The source also carries `main`'s #302 Worker changes (legacy invitation redemption limited per client address, login attempts claimed before comparison); their secrets (`ADMIN_TOKEN`, `ADMIN_SIGNING_KEY`) and the D1 binding were already live. No new migration (`migrations list --remote`: none to apply). Live variables, secret names, the D1 binding, the compatibility date and flag equal the operator file and the 2026-11-26 deployment. Before: `pnpm check`, `pnpm test` (171 passed, 1 skipped), `test:deployment` (4), a dry run whose bundle holds the new text. After, on `api.cytellect.app` and workers.dev: unauthenticated POST 401 with `no-store` and authenticated `{}` 400 `request_invalid` on both routes; `doctor --proposal-version` accepted `2026-11-26.1` and discussions `2026-11-16.1` (no model call or usage count). The paid evaluation follows below. |
 
 #### Evaluation of prompt `2026-11-26.1` on public cases (2026-11-26)
 
@@ -402,9 +403,37 @@ What the evaluation shows and does not show:
   `f1`/`f2`, `fields[].paths`, `run`, `nuclear-intensity`, `raw`, 「フィールド」 for 視野, and the folder names
   `control`/`treated` as group names where the request said 対照 and 処理. With recipe `none` the screen shows the
   seventh answer with nothing to apply. The wording was corrected by a rule added in place to the text of
-  `2026-11-26.1` (see above): it needs another deployment with the owner's permission and a new evaluation, and neither
-  has been done. Two findings are not addressed: the folder names `control`/`treated` used as group names where the
-  researcher said 対照 and 処理, and the request outside the recipes returned as `settings`.
+  `2026-11-26.1` (see above), deployed and evaluated again on 2026-11-27 (below). Two findings were not addressed by
+  it: the folder names `control`/`treated` used as group names where the researcher said 対照 and 処理, and the
+  request outside the recipes returned as `settings`.
 - Seven requests on two public datasets are a check that the route works end to end and of the answers' character, not
   a measure of accuracy. The evaluation with a registered case set (`eval:public`) and researchers' own questions
   remains open ([roadmap](roadmap.md)).
+
+#### Second evaluation, with the corrected text (2026-11-27)
+
+The same seven requests, with the owner's permission, through the workspace's screen of PR #303 to the Worker deployed
+on 2026-11-27 (`claude-sonnet-5-5`), each set on a new workspace so no saved proposal was reused. Every request
+answered HTTP 200 with no format error; the ledger moved from USD 1.9193 to 2.2685 for the month (USD 0.3492, about
+0.050 a request) and from 50 to 57 settlements; no reservation or budget incident remained.
+
+The text the researcher reads (`answer`, `rationale`, missing items, the questions and options of `choices`) was
+checked for the service's identifiers: channel tokens, field ids, context key names, recipe and metric ids, schema
+words and enumerated values (`raw`, `run`, `nuclear` and the like) and 「フィールド」. The nine answers of the first
+evaluation held 63 such words, every answer at least one; the seven answers of this one held none.
+
+| Request | Kind returned | Recipe | What the screen showed |
+|---|---|---|---|
+| 「この画像で何が測れる？」 (A01) | answer | none | DRAQ and GFP by their recorded stains, what could be measured in words (核の面積, 核内の平均輝度), four options such as 「核染色は DRAQ」 |
+| 「まだ測定しない。チャンネルは何？」 (A01) | answer | none | No measurement; each channel as 1 番目 / 2 番目 with its recorded stain, label and file name; three options |
+| 「核の面積を測りたい」 (A01) | settings | nuclear-intensity | Settings in words, 「設定の適用には、核染色の指定が必要です。」 and 「核染色に DRAQ を指定」 |
+| 「核を検出して測定して」 (A01) | run | nuclear-intensity | 「対象：全視野 · 1 視野」 and the same item to confirm |
+| 「フォルダーの名前から群と実験回を割り当てたい」 (folders) | answer | none | The rule (folder `control` → 群 control, `treated` → 群 treated, one 視野 each), the provisional 実験回1 named as provisional and matching the suggestions; options include 「群名は 未処理 と 処理 にする」 |
+| 「対照と処理で核の面積を比べたい」 (folders) | answer | none | No stain assumed; 「核染色は c01」「核染色は c02」 and grouping options |
+| 「FRAP の回復曲線を解析して」 (folders) | answer | none | No measurement; the time series and bleach region it needs |
+
+What changed and what did not: the identifiers are gone from what the researcher reads; the assignment answer now
+matches its suggestions; the request outside the recipes came back as `answer` this time (a single sample, not a
+fix: the prompt's rule for it did not change); group names still follow the folder names `control`/`treated` when the
+request asks for folder names, with an option to rename them. Seven requests are a check of the answers' character, not
+of accuracy.
