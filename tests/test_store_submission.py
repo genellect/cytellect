@@ -246,15 +246,24 @@ class StoreSubmissionTests(TestCase):
                      "applicationPackages": [{**EXISTING, "fileName": f"Cytellect-Store-1.0.5.0-{newer}.msix"}]}
         draft = {**DRAFT, "applicationPackages": [
             REPLACEMENTS[0], {**REPLACEMENTS[1], "fileName": f"Cytellect-Store-1.0.5.0-{newer}.msix"}]}
-        # A submission in review, or a draft, that names a commit the candidate does not descend from stops it.
-        for submission in (in_review, draft):
-            store = Mock()
-            store.call.side_effect = [pending, PUBLISHED, submission]
-            asked = []
-            with self.assertRaisesRegex(release.StoreError, "does not descend from the commit of the pending package"):
-                release.submit(store, PACKAGE, VERSION, COMMIT, is_ancestor=lambda sha: asked.append(sha) or False)
-            self.assertEqual(asked, [newer])
-            self.assertEqual([call.args[0] for call in store.call.call_args_list], ["GET", "GET", "GET"])
+        # A draft that names a commit the candidate does not descend from stops it.
+        store = Mock()
+        store.call.side_effect = [pending, PUBLISHED, draft]
+        asked = []
+        with self.assertRaisesRegex(release.StoreError, "does not descend from the commit of the pending package"):
+            release.submit(store, PACKAGE, VERSION, COMMIT, is_ancestor=lambda sha: asked.append(sha) or False)
+        self.assertEqual(asked, [newer])
+        self.assertEqual([call.args[0] for call in store.call.call_args_list], ["GET", "GET", "GET"])
+        # A newer commit in review is waited for, without failing and without submitting the older candidate.
+        store = Mock()
+        store.call.side_effect = [pending, PUBLISHED, in_review]
+        self.assertFalse(release.submit(store, PACKAGE, VERSION, COMMIT, is_ancestor=lambda sha: False))
+        self.assertEqual([call.args[0] for call in store.call.call_args_list], ["GET", "GET", "GET"])
+        # A draft package the Store lists without a file name stops the submission with a clear error.
+        store = Mock()
+        store.call.side_effect = [pending, PUBLISHED, {**DRAFT, "applicationPackages": [{**EXISTING, "fileName": None}]}]
+        with self.assertRaisesRegex(release.StoreError, "without a file name"):
+            release.submit(store, PACKAGE, VERSION, COMMIT, is_ancestor=lambda sha: True)
         # A submission in review of an older commit is waited for; one of the candidate itself is accepted.
         store = Mock()
         older_review = {**in_review, "applicationPackages": [{**EXISTING, "fileName": f"Cytellect-Store-1.0.4.0-{older}.msix"}]}

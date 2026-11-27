@@ -286,7 +286,10 @@ def require_descendant(packages: list, commit: str, is_ancestor, where: str) -> 
     if is_ancestor is None:
         return
     for item in packages:
-        source = re.search(r"-([0-9a-f]{40})\.msix$", item["fileName"])
+        name = item.get("fileName")
+        if not isinstance(name, str):
+            raise StoreError(f"The Store listed a {where} package without a file name.")
+        source = re.search(r"-([0-9a-f]{40})\.msix$", name)
         if source and source[1] != commit and not is_ancestor(source[1]):
             raise StoreError(f"The candidate does not descend from the commit of the {where} package.")
 
@@ -325,11 +328,12 @@ def submit(store: Store, package: Path, version: str, commit: str, recover_id: s
         path = submission_path(pending_ref)
         draft = store.call("GET", path)
         packages = draft.get("applicationPackages", [])
-        # A submission in review, or a draft, may hold a newer commit than the published one.
-        require_descendant(packages, commit, is_ancestor, "pending")
+        # A submission in review is waited for, whichever commit it holds (an older candidate is then
+        # stopped by the published package's commit). A draft may hold a newer commit than the published one.
         if draft.get("status") in IN_REVIEW:
             print(f"Waiting for Store submission {pending_ref['id']} to finish.")
-            return any(item["fileName"].endswith(suffix) for item in packages)
+            return any(isinstance(item.get("fileName"), str) and item["fileName"].endswith(suffix) for item in packages)
+        require_descendant(packages, commit, is_ancestor, "pending")
         changed_fields = sorted(key for key in WRITABLE_FIELDS if draft.get(key) != published.get(key))
         recover_clone = (
             pending_ref["id"] == recover_id and not changed_fields and packages == published_packages

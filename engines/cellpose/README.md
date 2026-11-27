@@ -52,7 +52,8 @@ image; `.github/workflows/cellpose-gpu-image.yml` publishes it from `main`.
 proxy-auth required); `.github/workflows/cellpose-modal-deploy.yml`
 deploys it from `main`. Permission to merge into `main` covers publishing and
 deploying the merged version ([team development rules §7](../../docs/team-development.md#7-本番公開と配布));
-the acceptance after a deployment uses paid GPU time.
+the acceptance after a deployment uses paid GPU time, which is paid service use and
+needs the owner's separate permission.
 
 On CUDA the runner uses float32 with TF32 disabled and requests deterministic
 algorithms with `warn_only=True`; unsupported operations may still run with a warning.

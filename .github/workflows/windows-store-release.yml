@@ -151,6 +151,9 @@ jobs:
             throw 'The checkout is not the selected Store commit'
           }
           if (!$env:STORE_PUBLISHER_DISPLAY_NAME) { throw 'The Store publisher display name is required' }
+          # A re-run keeps its run number while it builds the newest commit, so its version could be older
+          # than one already submitted: a new run (Actions, Run workflow) builds instead.
+          if ([int]$env:GITHUB_RUN_ATTEMPT -ne 1) { throw 'A re-run would build an old version number; start a new run instead' }
           $buildNumber = [int]$env:GITHUB_RUN_NUMBER + 3
           if ($buildNumber -gt 65535) { throw 'MSIX build number exhausted' }
           $version = "1.0.$buildNumber.0"
