@@ -754,6 +754,25 @@ async function ready(image: Locator) {
   await expect(frame).toHaveAttribute("aria-busy", "false", {timeout: live});
   // A picture that failed to load also ends the wait, and ignores clicks: it must not be the reason.
   await expect(frame.getByRole("alert").filter({hasText: "画像を読み込めませんでした"})).toHaveCount(0);
+  // Points are taken from the screen: the image must have stopped moving (tables and panes still settling).
+  let last = "";
+  await expect.poll(async () => {const box = JSON.stringify(await image.boundingBox()); const still = box === last; last = box; return still;}, {timeout: live, intervals: [250]}).toBe(true);
+}
+/**
+ * Brings outline `index` of the pane to the middle of its image, as a visitor does to reach a nucleus the outline
+ * tools cover: enlarge once, then drag the image until that nucleus is in the middle.
+ */
+async function bringToMiddle(page: Page, image: Locator, index: number) {
+  const frame = image.locator("xpath=ancestor::div[@data-review-frame][1]");
+  await frame.getByRole("toolbar", {name: /の表示操作$/}).getByRole("button", {name: "拡大", exact: true}).click();
+  await ready(image);
+  const box = (await image.boundingBox())!, middle = {x: box.x + box.width / 2, y: box.y + box.height / 2};
+  const nucleus = await image.locator("polygon[class*=context]").nth(index).evaluate(node => {const rect = node.getBoundingClientRect(); return {x: rect.x + rect.width / 2, y: rect.y + rect.height / 2};});
+  await page.mouse.move(middle.x, middle.y);
+  await page.mouse.down();
+  await page.mouse.move(middle.x - (nucleus.x - middle.x), middle.y - (nucleus.y - middle.y), {steps: 12});
+  await page.mouse.up();
+  await ready(image);
 }
 /** The pane's statement of the marked cell (「核 12：核小体 3」), and the marked nucleus outline. */
 const cellLine = (image: Locator) => image.locator("xpath=ancestor::div[@data-review-frame][1]").locator("p[role=status]");
@@ -771,6 +790,8 @@ const selectedWithin = (image: Locator, index: number) => image.evaluate((elemen
 test("in the nucleolus view a click on a nucleus marks it as 核 n：核小体 k and selects its nearest nucleolus, side by side and on one field; a nucleus without one shows 0 and selects none", async ({page}) => {
   test.setTimeout(300_000);
   test.skip(!OPENING_NUCLEOLAR, "The fully recorded opening scene has no nucleoli.");
+  // A desktop window, so that the outline tools a selection opens cover little of each image.
+  await page.setViewportSize({width: 1600, height: 1100});
   const watch = await openDemo(page);
   const header = page.locator("header");
   await expect(regions(page).first()).toBeAttached({timeout: live});
@@ -792,10 +813,11 @@ test("in the nucleolus view a click on a nucleus marks it as 核 n：核小体 k
       // Two nuclei in turn: each click, inside the nucleus and outside its nucleoli, selects one nucleolus of that nucleus.
       const chosen: string[] = [];
       for (const nth of [0, 1]) {
+        await ready(image);
         const target = (await nucleusClickPoints(image)).nuclei.filter(nucleus => nucleus.free && nucleus.nucleoli > 0)[nth];
         expect(target, `pane ${pane}: a nucleus with nucleoli and room to click`).toBeDefined();
         await page.mouse.click(...target.free!);
-        await expect(pressed).toHaveCount(1);
+        await expect(pressed, `pane ${pane} of ${panes}, nucleus ${nth} (${target.free})`).toHaveCount(1);
         expect(await selectedWithin(image, target.index)).toBe(true);
         chosen.push((await pressed.getAttribute("data-region"))!);
         // The selection is the ordinary one: its number is drawn and the outline tools apply to it.
@@ -818,7 +840,7 @@ test("in the nucleolus view a click on a nucleus marks it as 核 n：核小体 k
   // A nucleus that encloses no nucleolus is marked the same way and stated as 0, and the selection is cleared.
   const image = images.first(), marked = markedCell(image), line = cellLine(image);
   const cards = page.locator("[class*=fieldCard]");
-  let empty: {index: number; free: [number, number] | null} | undefined;
+  let empty: {index: number; free: [number, number] | null} | undefined, holder: {index: number; free: [number, number] | null} | undefined;
   for (let card = 0; card < await cards.count() && !empty; card++) {
     // Another field's picture replaces the shown one before the frame can be ready for it.
     const shown = await image.locator("image").first().getAttribute("href"), already = await cards.nth(card).getAttribute("aria-pressed") === "true";
@@ -827,16 +849,25 @@ test("in the nucleolus view a click on a nucleus marks it as 核 n：核小体 k
     if (!already && shown) await expect(image.locator("image").first()).not.toHaveAttribute("href", shown, {timeout: live});
     await expect(image.locator("polygon[class*=context]").first()).toBeAttached({timeout: live});
     await expect(image.locator("path[data-region][aria-pressed=true]")).toHaveCount(0);
+    await expect(marked).toHaveCount(0);
+    await expect(line).toBeHidden();
     await ready(image);
-    empty = (await nucleusClickPoints(image)).nuclei.find(nucleus => nucleus.free && nucleus.nucleoli === 0);
+    const before = (await nucleusClickPoints(image)).nuclei;
+    if (!before.some(nucleus => nucleus.free && nucleus.nucleoli === 0)) continue;
+    // A nucleolus selected first, so that the nucleus without one must replace that selection, not just add a mark.
+    // The selection widens the outline tools over the image: the nucleus is found again with them in place.
+    holder = before.find(nucleus => nucleus.free && nucleus.nucleoli > 0)!;
+    const without = before.find(nucleus => nucleus.free && nucleus.nucleoli === 0)!;
+    await page.mouse.click(...holder.free!);
+    await expect(image.locator("path[data-region][aria-pressed=true]")).toHaveCount(1);
+    await ready(image);
+    empty = (await nucleusClickPoints(image)).nuclei.find(nucleus => nucleus.index === without.index && nucleus.free);
+    if (!empty) {
+      await bringToMiddle(page, image, without.index);
+      empty = (await nucleusClickPoints(image)).nuclei.find(nucleus => nucleus.index === without.index && nucleus.free);
+    }
   }
-  expect(empty, "a field with a nucleus that encloses no nucleolus").toBeDefined();
-  await expect(marked).toHaveCount(0);
-  await expect(line).toBeHidden();
-  // A nucleolus selected first: the nucleus without one replaces that selection, not just adds a mark.
-  const holder = (await nucleusClickPoints(image)).nuclei.find(nucleus => nucleus.free && nucleus.nucleoli > 0)!;
-  await page.mouse.click(...holder.free!);
-  await expect(image.locator("path[data-region][aria-pressed=true]")).toHaveCount(1);
+  expect(empty, "a field with a nucleus that encloses no nucleolus, reachable beside the outline tools").toBeDefined();
   const emptyId = await nucleusId(image, empty!.index);
   await page.mouse.click(...empty!.free!);
   await expect(marked).toHaveCount(1);
@@ -850,8 +881,11 @@ test("in the nucleolus view a click on a nucleus marks it as 核 n：核小体 k
   // The outline tools stay usable there, so a missed nucleolus can be drawn.
   await expect(page.getByRole("toolbar", {name: /の領域編集$/}).first().getByRole("button", {name: "領域を描画"})).toBeEnabled();
   // Choosing a nucleus with nucleoli afterwards moves the mark and selects its nucleolus.
-  const holderId = await nucleusId(image, holder.index);
-  await page.mouse.click(...(await nucleusClickPoints(image)).nuclei.find(nucleus => nucleus.index === holder.index)!.free!);
+  const holderId = await nucleusId(image, holder!.index);
+  await ready(image);
+  const holderPoint = (await nucleusClickPoints(image)).nuclei.find(nucleus => nucleus.index === holder!.index)?.free;
+  if (!holderPoint) await bringToMiddle(page, image, holder!.index);
+  await page.mouse.click(...(holderPoint ?? (await nucleusClickPoints(image)).nuclei.find(nucleus => nucleus.index === holder!.index)!.free!));
   await expect(marked).toHaveAttribute("data-context-pick", holderId!);
   await expect(line).toHaveText(new RegExp(`^核 ${holderId}：核小体 [1-9]\\d*$`));
   await expect(image.locator("path[data-region][aria-pressed=true]")).toHaveCount(1);
