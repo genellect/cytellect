@@ -166,11 +166,13 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
   let live = false, active = false;
   // Recorded tour: `cursor` is the last change it answered.
   let journal: Promise<Journal | null> | null = null, journaled = false, cursor = -1, complete = false;
-  // Visitors' requests not answered yet, and when one last arrived or was answered.
-  let waiting = 0, lastRequest = 0;
+  // Visitors' requests not answered yet, and when the page was last busy: a request arrived or was answered, or a
+  // part of the tour was read in the background.
+  let waiting = 0, lastBusy = 0;
   // Settled once an answer needs the whole tour: the parts not read yet are then read at once.
-  let needWhole = () => {};
-  const wholeNeeded = new Promise<void>(resolve => {needWhole = resolve;});
+  let wholeWanted = false, wantWhole = () => {};
+  const wholeNeeded = new Promise<void>(resolve => {wantWhole = resolve;});
+  const needWhole = () => {wholeWanted = true; wantWhole();};
   // The workspace the visitor has open: the last one a request named, in request order. Each request keeps the one
   // open when it was made, since its answer is decided after the requests before it.
   let openWorkspace: string | null = null;
@@ -371,14 +373,14 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
       .then(async response => response.ok ? response.arrayBuffer() : (await response.text(), null)).catch(() => null));
     return partBodies.get(name)!;
   };
-  /** Settles once no request has been waiting for QUIET_MS. */
+  /** Settles once no request is waiting and the page has not been busy for QUIET_MS. */
   function quiet(): Promise<void> {
     return new Promise(resolve => {
       const check = () => {
-        const left = QUIET_MS - (Date.now() - lastRequest);
+        const left = QUIET_MS - (Date.now() - lastBusy);
         if (!waiting && left <= 0) resolve(); else setTimeout(check, Math.max(left, 100));
       };
-      check();
+      setTimeout(check, 0);
     });
   }
   const partFile = (name: string) => {
@@ -416,11 +418,14 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
         await Promise.all(first.map(partFile));
         // Reading a large part holds the page for a moment: the others are read one at a time once no request has
         // been waiting for a while, so the answer to a visitor's change and its screen are not held back (an
-        // unrecorded change is explained at once). An answer that needs them has them read at once.
+        // unrecorded change is explained at once). Each part read this way keeps the page busy, so the next one waits
+        // for another quiet moment. An answer that needs them has them read at once.
         const parts: Array<Journal | JournalIndex | null> = [];
         for (const name of value.parts) {
-          if (!tourParts.has(name)) await Promise.race([quiet(), wholeNeeded]);
+          const background = !tourParts.has(name) && !wholeWanted;
+          if (background) await Promise.race([quiet(), wholeNeeded]);
           parts.push(await partFile(name));
+          if (background) lastBusy = Date.now();
         }
         if (!parts.every(part => part?.version === 1)) return null;
         // Changes answered from the open scene's parts counted positions by the index: parts that disagree with it
@@ -752,7 +757,7 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
         // the opening snapshot answers is decided in order too, but its file (an image, masks) downloads
         // alongside the next requests instead of holding them (the two opening images load together).
         // A request counts as waiting until it is answered (the other scenes' parts are read only when none is, quiet()).
-        waiting++; lastRequest = Date.now();
+        waiting++; lastBusy = Date.now();
         try {
           const workspace = SETTINGS.exec(path)?.[1];
           if (isRead && workspace) void openingFields(workspace);
@@ -776,7 +781,7 @@ export function createShowcaseTransport(dependencies: TransportDependencies) {
           if (signal?.aborted) throw abortError();
           if (answered) return answered;
           return (await snapshot()) ? noticeResponse("showcase_action_not_recorded", 409) : noticeResponse("showcase_unavailable", 503);
-        } finally {waiting--; lastRequest = Date.now();}
+        } finally {waiting--; lastBusy = Date.now();}
       }
       // The recorder: the opening reads come from the snapshot, everything else from the API.
       if (isRead && !live && !active) {
