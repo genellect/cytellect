@@ -55,8 +55,8 @@ no nucleolus stays selected, so a missed nucleolus can be drawn with the outline
 directly or from the table marks and states its nucleus the same way (the nucleus holding the nucleolus's
 centroid). The count is of the nucleolus outlines drawn, each region once by its outer ring, as the pane heading
 counts outlines; the measured nucleoli per nucleus (`nucleolar_count`) come from the analysis package and can
-differ for a nucleolus across the nucleus border. Side by side, only the pane that holds the selection marks a
-cell. A click outside every nucleus does nothing. This is
+differ for a nucleolus across the nucleus border. Side by side, only the images of the field that holds the
+selection mark a cell; a saved view's own nucleus stays marked beside it. A click outside every nucleus does nothing. This is
 screen-side geometry for choosing what to select; the nucleoplasm view is unchanged, since the nucleoplasm
 itself fills the nucleus.
 

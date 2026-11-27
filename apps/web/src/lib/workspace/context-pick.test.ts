@@ -80,6 +80,10 @@ describe("picking a nucleolus from a click on its nucleus", () => {
     const split = [{id: 31, points: square(20, 20, 30)}, {id: 31, points: square(210, 10, 4)}];
     expect(enclosedRegions(nuclei[0], split)).toEqual([31]);
     expect(enclosedRegions(nuclei[1], split)).toEqual([]);
+    // A nucleus drawn with a small detached piece listed first is still the nucleus of its outer ring.
+    const pieces = [{id: 4, points: square(150, 150, 3)}, {id: 4, points: square(0, 0, 100)}];
+    expect(pickEnclosedRegion([150.5, 150.5], pieces, nucleoli)).toEqual({context: 4, region: 12});
+    expect(enclosingOutline(nucleoli[0], pieces)).toBe(4);
     expect(contextLabel(NUCLEOLUS_CONTEXT, 4, 0)).toBe("核 4：核小体 0");
   });
 });

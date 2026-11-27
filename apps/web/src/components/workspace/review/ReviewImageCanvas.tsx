@@ -57,7 +57,7 @@ export interface ReviewImageCanvasProps {
   contextNames?: ContextNames;
   /** Clears the selection: a picked enclosing outline that encloses no region leaves no region selected. */
   onDeselect?: () => void;
-  /** Whether this image's field holds the selection (side by side, only one pane does): a picked outline is marked only there. */
+  /** Whether this image's field holds the selection (side by side, only one pane's field does): a cell is marked only there. */
   active?: boolean;
   /** The enclosing structure a per-structure value belongs to (a nucleus whose nucleoli were measured), outlined apart. */
   contextSelected?: number;
@@ -143,8 +143,10 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
   const [draft, setDraft] = useState<EditDraft | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  // The enclosing outline the visitor clicked that encloses no region; it stays marked while nothing is selected.
-  const [picked, setPicked] = useState<{identity: string; id: number} | null>(null);
+  // The enclosing outline the visitor clicked, and the region that click selected (none when it encloses none). It
+  // stands while that selection does; another selection forgets it.
+  const [picked, setPicked] = useState<{identity: string; id: number; region: number | undefined} | null>(null);
+  useEffect(() => {if (picked && selected !== picked.region) setPicked(null);}, [picked, selected]);
   const pending = useRef(false);
   const focusedSelection = useRef("");
   const drawingPointer = useRef<number | null>(null);
@@ -173,16 +175,17 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
   const outlines = useMemo(() => contours.map(contour => ({outline: {id: String(contour.id), points: contour.points}, state: "included" as const})), [contours]);
   const regions = useMemo(() => compoundOutlines(outlines), [outlines]);
   const selectedAnchor = useMemo(() => selected === undefined ? undefined : regionAnnotations(outlines.filter(value => Number(value.outline.id) === selected))[0], [outlines, selected]);
-  // The cell the view states: the enclosing outline of the selected region (however it was chosen: a click on its
-  // nucleus, on itself or in the table), or, with nothing selected, the clicked outline that encloses none. Only in
-  // the pane that holds the selection, and not over a saved view's own enclosing outline (contextSelected).
+  // The cell the view states: the outline the visitor clicked while its selection stands (also one that encloses
+  // none, with nothing selected), else the enclosing outline of the selected region (a nucleolus chosen directly or
+  // from the table). Only in the image of the field that holds the selection.
   const cell = useMemo(() => {
-    if (!contextNames || !context || !visible || draft || !active || contextSelected !== undefined) return undefined;
+    if (!contextNames || !context || !visible || draft || !active) return undefined;
+    const outer = outerRings(context);
     const region = selected === undefined ? undefined : outerRings(contours).find(ring => ring.id === selected);
-    const id = region ? enclosingOutline(region, context) : selected === undefined && picked?.identity === identity ? picked.id : undefined;
-    const outline = id === undefined ? undefined : context.find(value => value.id === id);
+    const id = picked?.identity === identity && picked.region === selected ? picked.id : region ? enclosingOutline(region, context) : undefined;
+    const outline = id === undefined ? undefined : outer.find(value => value.id === id);
     return outline ? {id: outline.id, regions: enclosedRegions(outline, contours).length} : undefined;
-  }, [contextNames, context, visible, draft, active, contextSelected, selected, contours, picked, identity]);
+  }, [contextNames, context, visible, draft, active, selected, contours, picked, identity]);
   const syncBackground = useEffectEvent(()=>{
     if(backgroundEdit){setDraft({identity,operation:"background",polygon:[],merged:[]});setError("");onEditingChange?.(true);}
     else if(draft?.operation==="background"){setDraft(null);onEditingChange?.(false);}
@@ -273,7 +276,7 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
     const bounds = viewportRef.current!.getBoundingClientRect();
     const choice = pickEnclosedRegion(reviewImagePoint(camera, {x: event.clientX - bounds.left, y: event.clientY - bounds.top}), context, contours, outline);
     if (!choice) return;
-    setPicked({identity, id: choice.context});
+    setPicked({identity, id: choice.context, region: choice.region});
     if (choice.region !== undefined) onSelect(choice.region);
     else onDeselect?.();
   };

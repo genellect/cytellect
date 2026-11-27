@@ -73,6 +73,8 @@ export function pickEnclosedRegion(point: Point, context: readonly Ring[], regio
   }
   enclosing ??= hit === undefined ? undefined : context.find(outline => outline.id === hit && outline.points.length >= 3);
   if (!enclosing) return null;
+  // A nucleus drawn as several rings (a hole, a detached piece) holds what its outer ring holds.
+  enclosing = outerRings(context).find(outline => outline.id === enclosing!.id) ?? enclosing;
   const members = new Set(enclosedRegions(enclosing, regions));
   let region: number | undefined, nearest = Infinity;
   for (const candidate of regions) {
@@ -106,7 +108,7 @@ export const enclosedRegions = (outline: Ring, regions: readonly Ring[]) => oute
 /** The enclosing outline that holds a region (the smallest where outlines overlap); undefined when none does. */
 export function enclosingOutline(region: Ring, context: readonly Ring[]): number | undefined {
   let found: Ring | undefined, smallest = Infinity;
-  for (const outline of context) {
+  for (const outline of outerRings(context)) {
     if (!encloses(outline, region)) continue;
     const area = Math.abs(signedArea(outline.points));
     if (area < smallest || (area === smallest && outline.id < found!.id)) {found = outline; smallest = area;}
