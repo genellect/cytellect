@@ -57,7 +57,7 @@ Modal の Starter プラン（月額 0 円）を使う。
 
 ### 1. コンテナイメージを公開する
 
-GitHub の Actions で「Cellpose GPU image」を `main` から実行する（オーナーの指示で行う）。完了すると、実行結果の概要にイメージの場所（`ghcr.io/genellect/cytellect-cellpose-gpu@sha256:…`）が表示される。`infra/modal_cellpose.py` の `IMAGE` を、この値にする。
+GitHub の Actions で「Cellpose GPU image」を `main` から実行する（`main` にマージした版の公開は、マージの許可で承認済み。[チーム開発ルール §7](team-development.md#7-本番公開と配布)）。完了すると、実行結果の概要にイメージの場所（`ghcr.io/genellect/cytellect-cellpose-gpu@sha256:…`）が表示される。`infra/modal_cellpose.py` の `IMAGE` を、この値にする。
 
 中身は、公開しているコード、公開ライブラリ、公開モデル（BSD-3-Clause）だけ。パッケージは公開（Public）にする。
 
@@ -76,7 +76,7 @@ GitHub の Actions で「Cellpose GPU image」を `main` から実行する（�
    3. 同じ画面の Environment secrets に、`MODAL_TOKEN_ID` と `MODAL_TOKEN_SECRET`（手順 2 の 3）を登録する。
    4. Settings → Secrets and variables → Actions の Repository secrets に同じ名前の値がある場合は、削除する。リポジトリ全体のシークレットは、どのブランチの workflow からも読めるため。
    5. `python3 scripts/dev.py doctor --owner` で、環境にトークンがあり、リポジトリ全体に残っていないことを確かめる。
-2. GitHub の Actions で「Cellpose Modal deploy」を `main` から実行する（オーナーの指示で行う）。サーバーの URL（`https://genellect--cytellect-cellpose-cellposeserver.us-east.modal.direct`）は、ログの `Created Server CellposeServer` の行に表示される。Server 型の URL は `*.modal.run` ではなく `*.modal.direct` で、ログに出ていれば実行結果の概要にも記録する。
+2. GitHub の Actions で「Cellpose Modal deploy」を `main` から実行する（`main` にマージした版のデプロイは、マージの許可で承認済み。デプロイ後の受入で GPU の費用が発生する）。サーバーの URL（`https://genellect--cytellect-cellpose-cellposeserver.us-east.modal.direct`）は、ログの `Created Server CellposeServer` の行に表示される。Server 型の URL は `*.modal.run` ではなく `*.modal.direct` で、ログに出ていれば実行結果の概要にも記録する。
 
 デプロイは `main` から Actions で行い、作業ディレクトリから本番に出さない（[公開の流れ](deployment.md)）。そのため、デプロイ用のトークンは GitHub の `modal-deploy` 環境のシークレットにだけ置き、研究室の PC には置かない。workflow はこの環境を指定して動くので、`main` 以外のブランチの workflow はトークンを読めない。環境にトークンがない間は、デプロイは認証の確認（`modal token info`）で止まる。Claude Code のクラウドセッションでは、Modal の CLI が使う gRPC が環境のプロキシを通らないため、ネットワークを制限しない環境でも `modal deploy` は接続できない（2026-11-16 に確認）。セッションからは Actions を起動して結果を確かめる。
 

@@ -12,13 +12,18 @@
 
 ## main から提出する
 
-[Windows Store release](../.github/workflows/windows-store-release.yml) は `main` の更新を Windows ランナーでビルドし、MSIX と受領書を保存する。Microsoft Store 用のプロダクト識別子は `24D2FD66.Cytellect`。3 番目の版番号にはこのワークフローの実行番号に 3 を足した値を使う。1.0.3.0 までは手動で採番した版に残す。
+[Windows Store release](../.github/workflows/windows-store-release.yml) は、`main` への push の `Verify`（CI）が成功するたびに起動する。`main` の履歴で最も新しい、`Verify` と配布に必要なジョブ（[EXE の自動配布](release-signing.md#exe-の自動配布)と同じ）がすべて成功したコミットを選び、Windows ランナーでビルドして MSIX と受領書を保存し、Microsoft Store に提出する。CI に失敗したコミットは、ビルドも提出もしない。`main` へのマージが提出の承認にあたり、実行ごとの承認は求めない（[チーム開発ルール §7](team-development.md#7-本番公開と配布)）。
+
+Microsoft Store 用のプロダクト識別子は `24D2FD66.Cytellect`。3 番目の版番号にはこのワークフローの実行番号に 3 を足した値を使う。1.0.3.0 までは手動で採番した版に残す。
 
 1. Partner Center に [Microsoft Entra テナントを関連付け](https://learn.microsoft.com/en-us/windows/apps/publish/partner-center/associate-existing-azure-ad-tenant-with-partner-center-account)、[Store 提出 API 用のアプリ](https://learn.microsoft.com/en-us/windows/uwp/monetize/create-and-manage-submissions-using-windows-store-services)を登録する。
 2. GitHub のリポジトリ変数 `STORE_MSIX_PUBLISHER` に Partner Center の発行者識別子を設定する。発行者の表示名はリポジトリの Secret `STORE_MSIX_PUBLISHER_DISPLAY_NAME` に保存して CI ログでマスクする。
-3. GitHub の `store-release` Environment にオーナーの承認と `main` からの実行制限を設定する。専用の Secrets に `STORE_TENANT_ID`、`STORE_CLIENT_ID`、`STORE_CLIENT_SECRET` を登録し、提出を開始するときにリポジトリ変数 `STORE_SUBMISSIONS_ENABLED` を `true` にする。
+3. GitHub の `store-release` Environment は、実行元を `main` に限定し、Required reviewers（実行ごとの承認者）を設定しない。専用の Secrets に `STORE_TENANT_ID`、`STORE_CLIENT_ID`、`STORE_CLIENT_SECRET` を登録し、提出を開始するときにリポジトリ変数 `STORE_SUBMISSIONS_ENABLED` を `true` にする。
+4. 配布前の AI 接続の検査は、EXE の自動配布と同じ `windows-exe-preflight` Environment（承認者なし、`main` 限定）を使う。未設定の場合は[有効化手順](release-signing.md#exe-の自動配布)の 1 と 2 で設定する。
 
-提出ジョブは、実行時点の `main` と受領書・MSIX 内のコミットを照合する。一般公開済みの提出から新しい提出を作り、掲載情報や価格などを引き継いだまま x64 パッケージを差し替える。既存の審査が進行中なら、そのまま待つ。6 時間ごとの実行でも最新のビルドを選び直す。途中で止まった場合は、Actions に記録された提出 ID を Partner Center で確認する。Store の審査と公開後、端末は Microsoft Store の自動更新で新しい版を受け取る。
+選んだコミットは、すべてのジョブが使う：検査とビルドはそのコミットを checkout し、提出ジョブは受領書・MSIX 内のコミットと照合する。提出の直前に、より新しいコミットが `Verify` に成功していれば提出をやめ、そのコミットの実行に任せる。一般公開済みの提出から新しい提出を作り、掲載情報や価格などを引き継いだまま x64 パッケージを差し替える。既存の審査が進行中なら、そのまま待つ。
+
+6 時間ごとの実行は、ビルド済みで未提出のパッケージの提出を再開する。ビルドはしない。ビルドに失敗したコミットは、新しいコミットの `Verify` の成功か、Actions からの手動の起動でやり直す。手動の起動も、`main` で CI に成功した最も新しいコミットを選ぶ。提出を止めるときは `STORE_SUBMISSIONS_ENABLED` を `true` 以外にする。途中で止まった場合は、Actions に記録された提出 ID を Partner Center で確認する。Store の審査と公開後、端末は Microsoft Store の自動更新で新しい版を受け取る。
 
 ### Store が基本価格を `Base` と返した場合
 
@@ -42,7 +47,7 @@ Store 版の更新には Microsoft Store を使う。ソースの検証、ロー
 
 パッケージの差し替えでは、下書きから読み取った旧パッケージの `id` があれば、その値と `PendingDelete` を一緒に送る。新しい MSIX は `PendingUpload` として追加し、旧版の ID は引き継がない。[Microsoft のパッケージ更新例](https://learn.microsoft.com/en-us/windows/uwp/monetize/csharp-code-examples-for-the-windows-store-submission-api)。
 
-通常は復旧対象を指定しない。パッケージ更新の前に実行が停止した場合、Actions の作成ログと Partner Center の提出IDを照合する。オーナーが復旧を決めたときだけ、GitHub の Settings → Environments → store-release → Environment variables に `STORE_RECOVERY_SUBMISSION_ID` を設定し、数値の提出IDを値にする。main の Windows Store release を実行し、環境承認時に対象コミットと提出IDを確認する。
+通常は復旧対象を指定しない。パッケージ更新の前に実行が停止した場合、Actions の作成ログと Partner Center の提出IDを照合する。オーナーが復旧を決めたときだけ、GitHub の Settings → Environments → store-release → Environment variables に `STORE_RECOVERY_SUBMISSION_ID` を設定し、数値の提出IDを値にする。main の Windows Store release を実行し、Actions のログで対象コミットと提出IDを確認する。
 
 復旧は指定IDの公開下書きが PendingCommit で、パッケージと配布・掲載情報が公開版と一致する場合に限る。差異があればログに出た項目名を調べる。API で作成した下書きは API で更新する。受理記録と Microsoft の提出状態を確認したら、同じ Environment variables からこの変数を削除する。対象の提出を取りやめる場合も削除する。他の提出IDには適用されない。
 

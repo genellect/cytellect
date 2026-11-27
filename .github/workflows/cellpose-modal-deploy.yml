@@ -1,7 +1,8 @@
 name: Cellpose Modal deploy
 # Deploys the remote Cellpose GPU server (infra/modal_cellpose.py) to Modal from
-# main. This is a paid-service release step: run it only on the owner's explicit
-# instruction. The Modal deploy token lives only in the secrets of the `modal-deploy`
+# main. Permission to merge into main covers deploying the merged version
+# (docs/team-development.md, section 7); the acceptance after the deployment uses paid
+# GPU time. The Modal deploy token lives only in the secrets of the `modal-deploy`
 # environment, which the owner restricts to main (docs/cloud-gpu.ja.md): a workflow
 # on another branch cannot read it. Repository-wide secrets are not used.
 on:

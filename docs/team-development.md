@@ -53,7 +53,7 @@ Cytellect の開発に参加するメンバーのためのルール。開発の�
 - 並行して動かすエージェントには、別々のブランチと worktree を割り当て、同じファイルを編集させない。
 - エージェントの成果物は、依頼者が内容を確認してからレビューに出す。
 - エージェントが作成したコミットには、ツールが付ける `Co-Authored-By` 行を残す。
-- エージェントにマージや本番公開をさせるのは、オーナーがその PR について明示的に指示した場合に限る。
+- エージェントにマージをさせるのは、オーナーがその PR について明示的に指示した場合に限る。マージの許可は、マージした内容の本番デプロイと本番配布の許可を兼ねる（[7](#7-本番公開と配布)）。
 - 作業の引き継ぎは、PR の説明と [roadmap](roadmap.md) に記録する。セッションごとの引き継ぎ文書は新たに作らない。
 
 ### 6. 研究データの扱い
@@ -78,9 +78,11 @@ Cytellect の開発に参加するメンバーのためのルール。開発の�
 
 ### 7. 本番公開と配布
 
-- `main` へのマージは、Vercel による本番サイトの自動デプロイを起動する。
-- Windows 版の配布には、配布物の導入後の受入確認を要する。オーナーは EXE の[自動配布](release-signing.md#exe-の自動配布)を有効にできる。手動配布と Store の公開は個別にオーナーの判断を得る。
-- 有料サービスの契約、外部サービスの追加、費用が発生する設定は、オーナーが判断する。
+- **`main` へのマージの許可は、マージした内容のすべての本番デプロイと本番配布の許可を兼ねる**（2026-11-27、オーナーの判断）。対象は、公開サイト（Vercel）、公開デモの作り直し、AI の中継 Worker、Cellpose の GPU サーバー（Modal）とそのイメージ、Docker 版、Windows 版の EXE と Microsoft Store への提出。マージのあとに、デプロイや配布ごとの承認を求めない。EXE の自動配布（[#261](https://github.com/genellect/cytellect/issues/261)、[#263](https://github.com/genellect/cytellect/pull/263)）で仕組みにした方針を、すべての経路に当てはめる。
+- **自動の経路は、マージからそのまま進む。** Vercel は本番サイトをデプロイする。EXE の[自動配布](release-signing.md#exe-の自動配布)と [Microsoft Store への提出](windows-msix.md#main-から提出する)は、`main` で CI に成功した最も新しいコミットだけを対象にし、CI に失敗したコミットは配布しない。承認に代わる安全策は、マージの前のレビューと必須 CI、`main` での CI と配布試験にある。
+- **手で行う手順が残る経路も、`main` にマージした版については承認済み。** 中継 Worker、Modal、公開デモの作り直し、EXE の手動配布などは、各文書の手順と検証に従って行い、前後の版を記録する。
+- **次は、マージの許可に含まれない。** オーナーが対象を指示する：`main` へのマージそのもの、`main` にマージしていない内容（PR の head など）の本番へのデプロイ・配布、ロールバック、有料サービスの利用（有料 API での評価など）、有料サービスの契約、外部サービスの追加、費用が発生する設定。
+- Windows 版の配布には、配布物の導入後の受入確認を要する。
 
 ### 8. このルールの変更
 
@@ -139,7 +141,7 @@ These rules apply to everyone contributing to Cytellect. They define how we work
 - Assign each concurrent agent its own branch and worktree, and do not let two agents edit the same files.
 - The requester reviews an agent's output before requesting review from others.
 - Keep the `Co-Authored-By` lines that agent tools add to commits.
-- Agents merge or publish only when the owner explicitly instructs them to for that PR.
+- Agents merge only when the owner explicitly instructs them to for that PR. Permission to merge also covers the production deployment and distribution of the merged content ([7](#7-production-release-and-distribution)).
 - Record handoffs in the PR description and the [roadmap](roadmap.md). Do not create new per-session handoff documents.
 
 ### 6. Research data
@@ -164,9 +166,11 @@ Research data falls into these categories.
 
 ### 7. Production release and distribution
 
-- Merging into `main` triggers an automatic Vercel deployment of the production site.
-- Windows distribution requires installed-copy acceptance. The owner can enable [automatic EXE distribution](release-signing.md#exe-の自動配布). Manual and Store releases require a separate owner decision.
-- The owner decides on paid subscriptions, new external services and settings that incur costs.
+- **Permission to merge into `main` is also permission for every production deployment and distribution of the merged content** (owner's decision, 2026-11-27). This covers the public site (Vercel), rebuilding the public demo, the AI relay Worker, the Cellpose GPU server (Modal) and its image, the Docker version, the Windows EXE and the Microsoft Store submission. No deployment or distribution asks for another approval after the merge. The policy built into automatic EXE distribution ([#261](https://github.com/genellect/cytellect/issues/261), [#263](https://github.com/genellect/cytellect/pull/263)) applies to every route.
+- **Automatic routes proceed from the merge.** Vercel deploys the production site. [Automatic EXE distribution](release-signing.md#exe-の自動配布) and the [Microsoft Store submission](windows-msix.md#main-から提出する) take only the newest `main` commit that passed CI, and never a commit that failed CI. The safeguards that replace an approval are review and required CI before the merge, and CI and distribution tests on `main`.
+- **Routes with manual steps are approved as well for the version merged into `main`.** The relay Worker, Modal, rebuilding the public demo and manual EXE distribution follow the procedure and checks of their documents, and record the versions before and after.
+- **Permission to merge does not cover the following.** The owner names the target: the merge into `main` itself, deploying or distributing content that is not merged into `main` (such as a PR head) to production, rollbacks, use of paid services (such as evaluation through a paid API), paid subscriptions, new external services and settings that incur costs.
+- Windows distribution requires installed-copy acceptance.
 
 ### 8. Changing these rules
 

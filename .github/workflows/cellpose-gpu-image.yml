@@ -1,6 +1,6 @@
 name: Cellpose GPU image
-# Builds and publishes the remote GPU inference image from main. Publishing is a
-# release step: run it only on the owner's explicit instruction.
+# Builds and publishes the remote GPU inference image from main. Permission to merge
+# into main covers publishing the merged version (docs/team-development.md, section 7).
 on:
   workflow_dispatch:
 permissions:

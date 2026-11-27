@@ -4,7 +4,7 @@ Windows 版のアプリ内更新は、オーナーの Ed25519 鍵で署名され
 
 ## 仕組み
 
-パッケージ作成の前に、配布するソースと同じ SHA と、Windows に組み込む接続先で解析提案・考察の版を検査する。配布用の `PROPOSAL_PREFLIGHT_URL` と `PROPOSAL_PREFLIGHT_DEVICE_TOKEN` は、手動配布と Store ではオーナーの承認を必須にした `proposal-preflight`、EXE の自動配布では `windows-exe-preflight` に置き、検査ジョブだけで使う。repository secret、署名・パッケージのジョブへ渡さない。Store のパッケージと定期提出にも同じ検査を必須とする。未設定・不一致は配布を止める。[設定と検査の手順](proposal-deployment.md#required-prompt-version-check-before-distribution)を先に満たす。
+パッケージ作成の前に、配布するソースと同じ SHA と、Windows に組み込む接続先で解析提案・考察の版を検査する。配布用の `PROPOSAL_PREFLIGHT_URL` と `PROPOSAL_PREFLIGHT_DEVICE_TOKEN` は、EXE の自動配布と Store への提出では承認者のない `windows-exe-preflight`、手動配布ではオーナーの承認を必須にした `proposal-preflight` に置き、検査ジョブだけで使う。repository secret、署名・パッケージのジョブへ渡さない。Store は、パッケージの作成の前と、ビルド済みのパッケージの提出を再開する前に、同じ検査を必須とする。未設定・不一致は配布を止める。[設定と検査の手順](proposal-deployment.md#required-prompt-version-check-before-distribution)を先に満たす。
 
 - リリースごとに `Cytellect-update-<版>.json`（版、インストーラーのファイル名・SHA-256・大きさ、ソースのコミット、発行時刻）と、その署名 `Cytellect-update-<版>.json.sig` を添付する。
 - 署名は `.github/workflows/local-release.yml` の `draft` ジョブが行う。手動配布はオーナーが承認する `release`、EXE の自動配布はオーナーが有効にした `windows-exe-publish` 環境で動く。secret `UPDATE_SIGNING_KEY` で `ssh-keygen -Y sign -n cytellect-update` を実行し、アプリと同じ検証（`scripts/update_manifest.py verify`）で確かめてから、タグと下書きのリリースを作る。secret がない場合や公開鍵と合わない場合は公開せずに止まる。自動配布では再試行に使うタグが先に作られる。
@@ -52,13 +52,15 @@ UPDATE_PUBLIC_KEY = "ssh-ed25519 AAAA... cytellect-update"
 
 ## 4. 配布する
 
+`main` へのマージの許可は、マージした内容の配布の許可を兼ねる（[チーム開発ルール §7](team-development.md#7-本番公開と配布)）。自動配布は実行ごとの承認を求めず、手動配布はオーナーが自分で起動して、署名の前に内容を確かめる。
+
 ### EXE の自動配布
 
 オーナーが有効化すると、`main` への push の `Verify` が成功した時点で `Prepare Windows release` が起動する。直近に成功したコミットを `main` の履歴順で選び、同じ SHA の配布を再開するときは、予約済みのタグと有効期限内の検証済み成果物を使う。手動の配布と同じインストール試験と署名を通し、下書きの添付物の SHA-256 を照合して公開する。公開済み manifest の署名を `main` または直前の保護済み配布記録のソースに組み込まれた公開鍵で検証し、EXE の記録と一致したら、`windows-exe-channel` ブランチの `windows-exe.json` を更新する。公式サイトはこの記録から版を選び、アプリ内更新は GitHub Releases から選ぶ。
 
 有効化はオーナーが行う。
 
-1. GitHub の `windows-exe-preflight`、`windows-exe-publish`、`windows-exe-channel` environments を作成し、デプロイ元を `main` に限定する。自動経路には実行ごとの承認者を設定しない。
+1. GitHub の `windows-exe-preflight`、`windows-exe-publish`、`windows-exe-channel` environments を作成し、デプロイ元を `main` に限定する。自動経路には実行ごとの承認者を設定しない。`windows-exe-preflight` は [Microsoft Store への提出](windows-msix.md#main-から提出する)も使う。
 2. `windows-exe-preflight` に変数 `PROPOSAL_PREFLIGHT_URL` と秘密 `PROPOSAL_PREFLIGHT_DEVICE_TOKEN`、`windows-exe-publish` に秘密 `UPDATE_SIGNING_KEY` を登録する。[配布前の互換性検査](proposal-deployment.md#required-prompt-version-check-before-distribution)とこの文書の鍵の手順を使う。
 3. 配布記録の更新専用に非公開の GitHub App を作成する。権限は Contents の読み書きと必須の Metadata の読み取りに絞り、`genellect/cytellect` だけにインストールする。`windows-exe-channel` の作成・更新・削除を制限する ruleset では、この App のみを例外にする。同名の environment に変数 `WINDOWS_EXE_CHANNEL_APP_CLIENT_ID` と秘密 `WINDOWS_EXE_CHANNEL_APP_PRIVATE_KEY` を設定する。自動配布を無効にした状態で Actions の `channel_only` を選び、現在の公開版を検証して記録を書き込む。通常の書き込み権限がこのブランチを更新できないことも確かめる。
 4. 初回の配布候補を確認し、リポジトリ変数 `WINDOWS_EXE_AUTO_RELEASE` を `true` にする。次の `Verify` 成功時、定期実行時、または Actions の `automatic` を選んだ手動起動時に配布を進める。

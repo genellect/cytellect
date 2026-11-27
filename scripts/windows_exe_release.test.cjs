@@ -4,7 +4,9 @@ const { mkdtempSync, rmdirSync, unlinkSync, writeFileSync } = require('node:fs')
 const { tmpdir } = require('node:os');
 const { join } = require('node:path');
 const { test } = require('node:test');
-const { chooseCandidate, mayAttempt, reserve, publish, syncChannel } = require('./windows_exe_release.cjs');
+const {
+  chooseCandidate, mayAttempt, reserve, publish, syncChannel, selectStore, confirmStore,
+} = require('./windows_exe_release.cjs');
 
 test('selects by main history and never regresses to a release that completed late', () => {
   const history = ['newest', 'middle', 'published', 'oldest'];
@@ -156,4 +158,121 @@ test('rejects an unsigned website update and repairs a verified record after a f
     version, asset: 'installer', url: `${base}/${installer.name}`, sha256: installer.sha256,
     source_commit: commit, size_bytes: installer.bytes,
   });
+});
+
+// The Microsoft Store route: a stubbed GitHub API with `Verify` runs, their jobs and the
+// artifacts of earlier Store runs. History is newest first.
+const storeHistory = ['d', 'c', 'b', 'a'].map(letter => letter.repeat(40));
+const [newest, newer, selected, oldest] = storeHistory;
+const storeJobs = ['python', 'web', 'fiji-browser', 'browser-e2e', 'cellpose-gpu-image',
+  'local-windows', 'windows-installed', 'windows-installer', 'python-windows-314'];
+
+function storeApi({ verified, failedJob = {}, artifacts = [], eventName = 'workflow_run' }) {
+  const repository = 7;
+  const verifyRuns = verified.map((head_sha, index) => ({ id: index + 1, head_sha, head_repository: { id: repository } }));
+  // A fork's successful run on a branch named main never verifies a commit.
+  verifyRuns.push({ id: 90, head_sha: newest, head_repository: { id: 8 } });
+  const storeRuns = new Map();
+  const listed = artifacts.map((artifact, index) => {
+    const id = 100 + index;
+    storeRuns.set(id, {
+      path: artifact.path ?? '.github/workflows/windows-store-release.yml',
+      event: artifact.event ?? 'workflow_run',
+      jobs: [{ name: artifact.job, conclusion: artifact.conclusion ?? 'success' }],
+    });
+    return { name: artifact.name, expired: artifact.expired ?? false, workflow_run: {
+      id, head_branch: artifact.branch ?? 'main', head_repository_id: artifact.repository ?? repository,
+    } };
+  });
+  const rest = { actions: {
+    listWorkflowRuns: 'runs', listJobsForWorkflowRun: 'jobs', listArtifactsForRepo: 'artifacts',
+    getWorkflowRun: async ({ run_id }) => ({ data: storeRuns.get(run_id) }),
+  } };
+  const github = { rest, paginate: async (endpoint, parameters) => {
+    if (endpoint === 'runs') {
+      assert.deepEqual([parameters.workflow_id, parameters.branch, parameters.event, parameters.status],
+        ['ci.yml', 'main', 'push', 'success']);
+      return verifyRuns;
+    }
+    if (endpoint === 'artifacts') return listed.filter(item => item.name === parameters.name);
+    if (storeRuns.has(parameters.run_id)) return storeRuns.get(parameters.run_id).jobs;
+    const head = verifyRuns.find(run => run.id === parameters.run_id).head_sha;
+    return storeJobs.map(name => ({ name, conclusion: failedJob[head] === name ? 'failure' : 'success' }));
+  } };
+  const outputs = {};
+  const core = { info() {}, setOutput: (key, value) => { outputs[key] = value; } };
+  const context = { repo: {}, eventName, payload: { repository: { id: repository } } };
+  return { github, context, core, outputs };
+}
+
+test('the Store source is the newest main commit whose Verify run passed, never a failed one', async () => {
+  // `newest` and `newer` have no successful Verify run (failed or still running).
+  let api = storeApi({ verified: [oldest, selected] });
+  await selectStore(api.github, api.context, api.core, storeHistory);
+  assert.deepEqual(api.outputs, { commit: selected, 'artifact-run': '' });
+  // No commit of main has passed: nothing is selected.
+  api = storeApi({ verified: [] });
+  await selectStore(api.github, api.context, api.core, storeHistory);
+  assert.deepEqual(api.outputs, {});
+  // A successful run whose required job did not pass stops the route instead of falling back.
+  api = storeApi({ verified: [oldest, selected], failedJob: { [selected]: 'windows-installed' } });
+  await assert.rejects(selectStore(api.github, api.context, api.core, storeHistory),
+    new RegExp(`windows-installed has not passed on ${selected}`));
+  assert.deepEqual(api.outputs, {});
+});
+
+test('a submitted Store commit is not selected again and only a trusted package is reused', async () => {
+  const packageName = `store-msix-${selected}`;
+  const built = { name: packageName, job: 'package' };
+  let api = storeApi({ verified: [selected], artifacts: [
+    { ...built, expired: true }, { ...built, branch: 'feature' }, { ...built, repository: 8 },
+    { ...built, path: '.github/workflows/ci.yml' }, { ...built, event: 'pull_request' },
+    { ...built, conclusion: 'failure' },
+  ] });
+  await selectStore(api.github, api.context, api.core, storeHistory);
+  assert.deepEqual(api.outputs, { commit: selected, 'artifact-run': '' });
+  api = storeApi({ verified: [selected], artifacts: [{ ...built, conclusion: 'failure' }, built] });
+  await selectStore(api.github, api.context, api.core, storeHistory);
+  assert.deepEqual(api.outputs, { commit: selected, 'artifact-run': '101' });
+  // The receipt of an accepted submission ends the route for that commit; an older commit's does not.
+  api = storeApi({ verified: [selected], artifacts: [built, { name: `store-submitted-${oldest}`, job: 'submit' }] });
+  await selectStore(api.github, api.context, api.core, storeHistory);
+  assert.equal(api.outputs.commit, selected);
+  api = storeApi({ verified: [selected], artifacts: [built, { name: `store-submitted-${selected}`, job: 'submit' }] });
+  await selectStore(api.github, api.context, api.core, storeHistory);
+  assert.deepEqual(api.outputs, {});
+});
+
+test('a scheduled Store run resumes a built package and does not build one', async () => {
+  let api = storeApi({ verified: [selected], eventName: 'schedule' });
+  await selectStore(api.github, api.context, api.core, storeHistory);
+  assert.deepEqual(api.outputs, {});
+  api = storeApi({ verified: [selected], eventName: 'schedule',
+    artifacts: [{ name: `store-msix-${selected}`, job: 'package' }] });
+  await selectStore(api.github, api.context, api.core, storeHistory);
+  assert.deepEqual(api.outputs, { commit: selected, 'artifact-run': '100' });
+});
+
+test('an older Store package is not submitted once a newer commit has passed Verify', async t => {
+  const previous = process.env.STORE_COMMIT;
+  t.after(() => {
+    if (previous === undefined) delete process.env.STORE_COMMIT;
+    else process.env.STORE_COMMIT = previous;
+  });
+  process.env.STORE_COMMIT = selected;
+  // A newer commit that failed, or has not finished, Verify does not displace the selected one.
+  let api = storeApi({ verified: [oldest, selected] });
+  await confirmStore(api.github, api.context, api.core, storeHistory);
+  assert.deepEqual(api.outputs, { current: 'true' });
+  api = storeApi({ verified: [oldest, selected, newer] });
+  await confirmStore(api.github, api.context, api.core, storeHistory);
+  assert.deepEqual(api.outputs, { current: 'false' });
+  // The source must itself be a verified commit of main.
+  api = storeApi({ verified: [oldest] });
+  await assert.rejects(confirmStore(api.github, api.context, api.core, storeHistory), /not a verified commit of main/);
+  process.env.STORE_COMMIT = 'e'.repeat(40);
+  api = storeApi({ verified: ['e'.repeat(40)] });
+  await assert.rejects(confirmStore(api.github, api.context, api.core, storeHistory), /not a verified commit of main/);
+  process.env.STORE_COMMIT = 'main';
+  await assert.rejects(confirmStore(api.github, api.context, api.core, storeHistory), /Invalid Store source commit/);
 });

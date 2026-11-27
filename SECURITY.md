@@ -152,7 +152,7 @@ Cytellect は、未発表の顕微鏡画像を研究者の PC 上で解析する
 | 推論サーバーの認証情報（Modal のプロキシ認証） | 中継サービスのシークレットに保管する。クラウドにログインした PC は保持しない。 | 推論サーバーへの検出の要求 | Modal での再発行と、シークレットの更新で交換する。 |
 | 更新の署名鍵（Ed25519） | 管理者のパスワードマネージャーと、`main` からの実行に限定した GitHub Actions の署名環境にのみ保管する。リポジトリ全体のシークレットには置かない。 | EXE 版の更新のマニフェストへの署名。署名のジョブだけが使用する。 | 交換と失効の手順を定めている（[更新の署名](docs/release-signing.md)）。 |
 | 更新の公開鍵 | アプリに組み込む。 | マニフェストの署名の検証 | 鍵の交換の手順でのみ変更する。 |
-| Microsoft Store への提出の認証情報 | 管理者の承認を要する、`main` に限定した GitHub Actions の環境に保管する。 | Microsoft Store への提出 | 提出のジョブだけが使用する。 |
+| Microsoft Store への提出の認証情報 | `main` に限定した GitHub Actions の環境に保管する。 | Microsoft Store への提出 | 提出のジョブだけが使用する。 |
 | Cloudflare の API トークン | 管理者の運用環境にのみ置く。 | Cytellect のアカウントと `cytellect.app` のゾーンに限定した、Workers と D1 の編集 | Cloudflare での無効化で失効する。 |
 | ワークフローのトークン（`GITHUB_TOKEN`） | GitHub Actions が実行ごとに発行する。 | 既定は読み取り専用。書き込みは、それを要するジョブにだけ与える。 | 実行の終了で無効になる。 |
 
@@ -174,7 +174,7 @@ Cytellect は、未発表の顕微鏡画像を研究者の PC 上で解析する
 |---|---|---|
 | 多要素認証 | 運用に使用する外部サービスのアカウントは、すべてパスキーまたは認証アプリによる多要素認証を必須とする。 | 運用上の設定 |
 | 運用の権限 | 中継サービス、推論サーバー、配布の運用は、genellect だけが行う。推論サーバーのアカウントに、ほかの利用者を招待しない。 | 運用上の設定 |
-| 配布の承認 | 手動の配布と Microsoft Store への提出は、管理者の承認を要する GitHub Actions の環境で実行する。自動の配布は、保護された `main` 上で CI と配布試験に合格したバージョンだけを公開する。 | [`local-release.yml`](.github/workflows/local-release.yml) [`windows-store-release.yml`](.github/workflows/windows-store-release.yml) [`windows_exe_release.cjs`](scripts/windows_exe_release.cjs) [`windows_exe_release.test.cjs`](scripts/windows_exe_release.test.cjs) |
+| 配布の承認 | 保護された `main` へのマージが、配布の承認にあたる。`main` にマージできるのは管理者だけである。自動の配布（EXE と Microsoft Store への提出）は、`main` 上で CI と配布試験に合格した最も新しいバージョンだけを公開し、CI に失敗したバージョンを公開しない。手動の配布は、管理者が起動し、管理者の確認を要する GitHub Actions の環境で署名する。 | [`local-release.yml`](.github/workflows/local-release.yml) [`windows-store-release.yml`](.github/workflows/windows-store-release.yml) [`windows_exe_release.cjs`](scripts/windows_exe_release.cjs) [`windows_exe_release.test.cjs`](scripts/windows_exe_release.test.cjs) |
 | 支出の上限 | 中継サービスの月間予算とアカウントごとの上限に加えて、推論サーバーの事業者側にも支出の上限を設定する。 | [`store.ts`](services/proposal-worker/src/store.ts) [`wrangler.toml.example`](services/proposal-worker/wrangler.toml.example) |
 
 ### 4.4 暗号方式

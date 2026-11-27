@@ -1,24 +1,64 @@
 name: Windows Store release
+# Merging into main is the approval of this submission (docs/team-development.md, section 7), so no
+# job waits for a reviewer. The source is the newest main commit whose `Verify` run for the push
+# passed with every required job; a commit that failed CI is never built or submitted.
 on:
-  push:
+  workflow_run:
+    workflows: [Verify]
     branches: [main]
+    types: [completed]
   workflow_dispatch:
   schedule:
     - cron: '23 */6 * * *'
 permissions:
   contents: read
 jobs:
-  # Before a package is built. A scheduled run builds none: its check is `scheduled-proposal-compatibility`.
-  proposal-compatibility:
+  # The submitted source is selected once, here, and every later job checks out, builds, verifies
+  # and submits exactly that commit. The workflow itself always runs from main: for `workflow_run`
+  # and `schedule`, the SHA of the run is the head of main and does not identify the source.
+  source:
     if: >-
-      github.ref == 'refs/heads/main' && github.event_name != 'schedule' &&
-      vars.STORE_MSIX_PUBLISHER != ''
+      github.ref == 'refs/heads/main' && github.repository == 'genellect/cytellect' &&
+      vars.STORE_MSIX_PUBLISHER != '' &&
+      (github.event_name != 'workflow_run' ||
+       (github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.head_repository.id == github.event.repository.id))
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    environment: proposal-preflight
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      commit: ${{ steps.select.outputs.commit }}
+      artifact-run: ${{ steps.select.outputs.artifact-run }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-        with: {ref: "${{ github.sha }}", persist-credentials: false}
+        with:
+          fetch-depth: 0
+          sparse-checkout: scripts/windows_exe_release.cjs
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Select the newest successful main commit
+        id: select
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: await require('./scripts/windows_exe_release.cjs').selectStore(github, context, core)
+  # The environment has no reviewer (the same one as the automatic EXE release). It holds the
+  # service URL and the device token, which only this job reads. A built package that is not going
+  # to be submitted needs no check.
+  proposal-compatibility:
+    needs: source
+    if: >-
+      needs.source.outputs.commit != '' &&
+      (needs.source.outputs.artifact-run == '' || vars.STORE_SUBMISSIONS_ENABLED == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: windows-exe-preflight
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with: {ref: "${{ needs.source.outputs.commit }}", persist-credentials: false}
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with: {python-version: '3.12'}
       - run: python -m pip install uv==0.12.2
@@ -29,22 +69,20 @@ jobs:
           CYTELLECT_PROPOSAL_TOKEN: ${{ secrets.PROPOSAL_PREFLIGHT_DEVICE_TOKEN }}
         run: uv run python scripts/dev.py doctor --proposal-version --packaged-client
   package:
-    needs: proposal-compatibility
-    if: >-
-      github.ref == 'refs/heads/main' && github.event_name != 'schedule' &&
-      vars.STORE_MSIX_PUBLISHER != ''
+    needs: [source, proposal-compatibility]
+    if: needs.source.outputs.artifact-run == ''
     runs-on: windows-latest
     timeout-minutes: 120
     concurrency:
       group: store-msix-build-${{ github.ref }}
       cancel-in-progress: true
     env:
+      STORE_COMMIT: ${{ needs.source.outputs.commit }}
       NEXT_TELEMETRY_DISABLED: '1'
       PYTHONDONTWRITEBYTECODE: '1'
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-        with:
-          persist-credentials: false
+        with: {ref: "${{ needs.source.outputs.commit }}", persist-credentials: false}
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with: {node-version: '24'}
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
@@ -63,7 +101,9 @@ jobs:
           STORE_PUBLISHER: ${{ vars.STORE_MSIX_PUBLISHER }}
           STORE_PUBLISHER_DISPLAY_NAME: ${{ secrets.STORE_MSIX_PUBLISHER_DISPLAY_NAME }}
         run: |
-          if ((git rev-parse HEAD).Trim() -ne $env:GITHUB_SHA) { throw 'Unexpected source commit' }
+          if ($env:STORE_COMMIT -cnotmatch '^[0-9a-f]{40}$' -or (git rev-parse HEAD).Trim() -cne $env:STORE_COMMIT) {
+            throw 'The checkout is not the selected Store commit'
+          }
           if (!$env:STORE_PUBLISHER_DISPLAY_NAME) { throw 'The Store publisher display name is required' }
           $buildNumber = [int]$env:GITHUB_RUN_NUMBER + 3
           if ($buildNumber -gt 65535) { throw 'MSIX build number exhausted' }
@@ -92,72 +132,25 @@ jobs:
           if ($wheels.Count -ne 1) { throw 'Expected one project wheel' }
           & $python -B scripts/build_local_bundle.py --version $releaseVersion --output $archive --runtime-data $data --wheel $wheels[0].FullName --requirements $requirements
           if ($LASTEXITCODE -ne 0) { throw 'Windows bundle build failed' }
-          & $python -B scripts/build_windows_msix.py --release-zip $archive --commit $env:GITHUB_SHA --version $version --output (Join-Path $output 'Cytellect-Store.msix') --cache (Join-Path $env:RUNNER_TEMP 'installer-cache') --pip-python (Get-Command python).Source --identity $identity
+          & $python -B scripts/build_windows_msix.py --release-zip $archive --commit $env:STORE_COMMIT --version $version --output (Join-Path $output 'Cytellect-Store.msix') --cache (Join-Path $env:RUNNER_TEMP 'installer-cache') --pip-python (Get-Command python).Source --identity $identity
           if ($LASTEXITCODE -ne 0) { throw 'Store MSIX build failed' }
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: store-msix-${{ github.sha }}
+          name: store-msix-${{ needs.source.outputs.commit }}
           path: ${{ runner.temp }}/store-msix/*
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
           overwrite: true
-  select:
-    needs: package
-    if: >-
-      always() && !cancelled() && github.ref == 'refs/heads/main' &&
-      vars.STORE_SUBMISSIONS_ENABLED == 'true' &&
-      (needs.package.result == 'success' || github.event_name == 'schedule')
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-    outputs:
-      run-id: ${{ steps.candidate.outputs.run-id }}
-    steps:
-      - id: candidate
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
-        with:
-          script: |
-            async function artifact(name) {
-              const {data} = await github.rest.actions.listArtifactsForRepo({
-                ...context.repo, name, per_page: 100,
-              });
-              return data.artifacts.find(item => !item.expired &&
-                item.workflow_run?.head_branch === 'main' &&
-                item.workflow_run?.head_sha === context.sha &&
-                item.workflow_run?.head_repository_id === context.payload.repository.id);
-            }
-            if (await artifact(`store-submitted-${context.sha}`)) return;
-            const candidate = await artifact(`store-msix-${context.sha}`);
-            if (candidate) core.setOutput('run-id', String(candidate.workflow_run.id));
-  # A scheduled run asks for the protected check (an owner's approval) only when a package waits to be
-  # submitted; `package` is skipped on a schedule, so the status functions keep this job and `submit` running.
-  scheduled-proposal-compatibility:
-    needs: select
-    if: >-
-      always() && !cancelled() && github.event_name == 'schedule' &&
-      needs.select.outputs.run-id != ''
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    environment: proposal-preflight
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-        with: {ref: "${{ github.sha }}", persist-credentials: false}
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with: {python-version: '3.12'}
-      - run: python -m pip install uv==0.12.2
-      - run: uv sync --locked --dev
-      - name: Require the Store client's service and both prompt versions
-        env:
-          CYTELLECT_PROPOSAL_URL: ${{ vars.PROPOSAL_PREFLIGHT_URL }}
-          CYTELLECT_PROPOSAL_TOKEN: ${{ secrets.PROPOSAL_PREFLIGHT_DEVICE_TOKEN }}
-        run: uv run python scripts/dev.py doctor --proposal-version --packaged-client
+  # `package` is skipped when an earlier run built this commit, so the status functions keep this job
+  # running. The environment holds the Store credentials and has no reviewer; it accepts main only.
   submit:
-    needs: [select, proposal-compatibility, scheduled-proposal-compatibility]
+    needs: [source, proposal-compatibility, package]
     if: >-
-      always() && !cancelled() && needs.select.outputs.run-id != '' &&
-      (needs.proposal-compatibility.result == 'success' ||
-      needs.scheduled-proposal-compatibility.result == 'success')
+      always() && !cancelled() && vars.STORE_SUBMISSIONS_ENABLED == 'true' &&
+      needs.source.outputs.commit != '' && needs.proposal-compatibility.result == 'success' &&
+      (needs.package.result == 'success' ||
+       (needs.package.result == 'skipped' && needs.source.outputs.artifact-run != ''))
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: store-release
@@ -167,20 +160,39 @@ jobs:
     concurrency:
       group: windows-store-submission
       cancel-in-progress: false
+    env:
+      STORE_COMMIT: ${{ needs.source.outputs.commit }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with: {ref: "${{ needs.source.outputs.commit }}", persist-credentials: false}
+      # The selection runs from main, not from the selected commit, with the full history of main.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
+          path: automation
+          fetch-depth: 0
+          sparse-checkout: scripts/windows_exe_release.cjs
+          sparse-checkout-cone-mode: false
           persist-credentials: false
+      - name: Submit only while no newer main commit has passed Verify
+        id: newest
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const release = require('./automation/scripts/windows_exe_release.cjs');
+            await release.confirmStore(github, context, core, release.mainHistory('automation'));
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        if: steps.newest.outputs.current == 'true'
         with: {python-version: '3.12'}
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        if: steps.newest.outputs.current == 'true'
         with:
           github-token: ${{ github.token }}
-          run-id: ${{ needs.select.outputs.run-id }}
-          name: store-msix-${{ github.sha }}
+          run-id: ${{ needs.source.outputs.artifact-run || github.run_id }}
+          name: store-msix-${{ needs.source.outputs.commit }}
           path: store-package
-      - name: Submit the current main package for certification
+      - name: Submit the selected main package for certification
         id: submission
+        if: steps.newest.outputs.current == 'true'
         env:
           STORE_TENANT_ID: ${{ secrets.STORE_TENANT_ID }}
           STORE_CLIENT_ID: ${{ secrets.STORE_CLIENT_ID }}
@@ -188,15 +200,14 @@ jobs:
           STORE_RECOVERY_SUBMISSION_ID: ${{ vars.STORE_RECOVERY_SUBMISSION_ID }}
           STORE_CONFIRMED_FREE_SUBMISSION_ID: ${{ vars.STORE_CONFIRMED_FREE_SUBMISSION_ID }}
         run: |
-          head=$(git ls-remote origin refs/heads/main | cut -f1)
-          if [ "$head" != "$GITHUB_SHA" ]; then
-            printf '%s\n' 'A newer main commit is available. Skipping this package.'
-            exit 0
+          if [ "$(git rev-parse HEAD)" != "$STORE_COMMIT" ]; then
+            printf '%s\n' 'The checkout is not the selected Store commit.'
+            exit 1
           fi
-          python -B scripts/submit_windows_msix.py --commit "$GITHUB_SHA" --package store-package/Cytellect-Store.msix --receipt store-package/Cytellect-Store.json
+          python -B scripts/submit_windows_msix.py --commit "$STORE_COMMIT" --package store-package/Cytellect-Store.msix --receipt store-package/Cytellect-Store.json
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         if: steps.submission.outputs.accepted == 'true'
         with:
-          name: store-submitted-${{ github.sha }}
+          name: store-submitted-${{ needs.source.outputs.commit }}
           path: store-package/Cytellect-Store.json
           retention-days: 14
