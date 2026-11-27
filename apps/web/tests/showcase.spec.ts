@@ -755,6 +755,11 @@ async function ready(image: Locator) {
   // A picture that failed to load also ends the wait, and ignores clicks: it must not be the reason.
   await expect(frame.getByRole("alert").filter({hasText: "画像を読み込めませんでした"})).toHaveCount(0);
 }
+/** The pane's statement of the marked cell (「核 12：核小体 3」), and the marked nucleus outline. */
+const cellLine = (image: Locator) => image.locator("xpath=ancestor::div[@data-review-frame][1]").locator("p[role=status]");
+const markedCell = (image: Locator) => image.locator("polygon[data-context=cell]");
+/** The number of the nucleus drawn as outline `index` of the pane (its id in the nuclei masks). */
+const nucleusId = (image: Locator, index: number) => image.locator("polygon[class*=context]").nth(index).getAttribute("data-context-pick");
 /** Whether the pane's selected nucleolus lies inside its outlined nucleus `index` (by the centre of its outline). */
 const selectedWithin = (image: Locator, index: number) => image.evaluate((element, nucleus) => {
   const svg = element as SVGSVGElement, path = svg.querySelector<SVGPathElement>("path[data-region][aria-pressed=true]")!;
@@ -763,7 +768,7 @@ const selectedWithin = (image: Locator, index: number) => image.evaluate((elemen
   return svg.querySelectorAll<SVGPolygonElement>("polygon[class*=context]")[nucleus].isPointInFill(point);
 }, index);
 
-test("in the nucleolus view a click on a nucleus selects its nearest nucleolus, side by side and on one field; a nucleus without one says so", async ({page}) => {
+test("in the nucleolus view a click on a nucleus marks it as 核 n：核小体 k and selects its nearest nucleolus, side by side and on one field; a nucleus without one shows 0 and selects none", async ({page}) => {
   test.setTimeout(300_000);
   test.skip(!OPENING_NUCLEOLAR, "The fully recorded opening scene has no nucleoli.");
   const watch = await openDemo(page);
@@ -795,6 +800,11 @@ test("in the nucleolus view a click on a nucleus selects its nearest nucleolus, 
         chosen.push((await pressed.getAttribute("data-region"))!);
         // The selection is the ordinary one: its number is drawn and the outline tools apply to it.
         await expect(image.locator("text")).toHaveText(chosen[nth]);
+        // The clicked nucleus is marked and stated as a value, with how many nucleoli it holds.
+        const id = await nucleusId(image, target.index);
+        await expect(markedCell(image)).toHaveCount(1);
+        await expect(markedCell(image)).toHaveAttribute("data-context-pick", id!);
+        await expect(cellLine(image)).toHaveText(new RegExp(`^核 ${id}：核小体 [1-9]\\d*$`));
       }
       expect(chosen[1]).not.toBe(chosen[0]);
       // Outside every nucleus a click selects nothing and keeps the selection.
@@ -805,8 +815,8 @@ test("in the nucleolus view a click on a nucleus selects its nearest nucleolus, 
       await expect(pressed).toHaveAttribute("data-region", chosen[1]);
     }
   }
-  // A nucleus that encloses no nucleolus is marked and says so; nothing is selected, and the next operation clears it.
-  const image = images.first(), marked = image.locator("polygon[data-context=empty]"), line = page.getByRole("status").filter({hasText: "この核に核小体はありません"});
+  // A nucleus that encloses no nucleolus is marked the same way and stated as 0, and the selection is cleared.
+  const image = images.first(), marked = markedCell(image), line = cellLine(image);
   const cards = page.locator("[class*=fieldCard]");
   let empty: {index: number; free: [number, number] | null} | undefined;
   for (let card = 0; card < await cards.count() && !empty; card++) {
@@ -821,19 +831,29 @@ test("in the nucleolus view a click on a nucleus selects its nearest nucleolus, 
     empty = (await nucleusClickPoints(image)).nuclei.find(nucleus => nucleus.free && nucleus.nucleoli === 0);
   }
   expect(empty, "a field with a nucleus that encloses no nucleolus").toBeDefined();
-  await expect(line).toHaveCount(0);
+  await expect(marked).toHaveCount(0);
+  await expect(line).toBeHidden();
+  // A nucleolus selected first: the nucleus without one replaces that selection, not just adds a mark.
+  const holder = (await nucleusClickPoints(image)).nuclei.find(nucleus => nucleus.free && nucleus.nucleoli > 0)!;
+  await page.mouse.click(...holder.free!);
+  await expect(image.locator("path[data-region][aria-pressed=true]")).toHaveCount(1);
+  const emptyId = await nucleusId(image, empty!.index);
   await page.mouse.click(...empty!.free!);
   await expect(marked).toHaveCount(1);
+  await expect(marked).toHaveAttribute("data-context-pick", emptyId!);
+  await expect(line).toHaveText(`核 ${emptyId}：核小体 0`);
   await expect(line).toBeVisible();
   await expect(image.locator("path[data-region][aria-pressed=true]")).toHaveCount(0);
+  // It stays while nothing else is chosen: the value is not a passing notice.
   await page.keyboard.press("Shift");
-  await expect(marked).toHaveCount(0);
-  await expect(line).toHaveCount(0);
-  // Choosing a nucleus with nucleoli afterwards replaces the mark with an ordinary selection.
-  await page.mouse.click(...(await nucleusClickPoints(image)).nuclei.find(nucleus => nucleus.index === empty!.index)!.free!);
-  await expect(marked).toHaveCount(1);
-  await page.mouse.click(...(await nucleusClickPoints(image)).nuclei.find(nucleus => nucleus.free && nucleus.nucleoli > 0)!.free!);
-  await expect(marked).toHaveCount(0);
+  await expect(line).toHaveText(`核 ${emptyId}：核小体 0`);
+  // The outline tools stay usable there, so a missed nucleolus can be drawn.
+  await expect(page.getByRole("toolbar", {name: /の領域編集$/}).first().getByRole("button", {name: "領域を描画"})).toBeEnabled();
+  // Choosing a nucleus with nucleoli afterwards moves the mark and selects its nucleolus.
+  const holderId = await nucleusId(image, holder.index);
+  await page.mouse.click(...(await nucleusClickPoints(image)).nuclei.find(nucleus => nucleus.index === holder.index)!.free!);
+  await expect(marked).toHaveAttribute("data-context-pick", holderId!);
+  await expect(line).toHaveText(new RegExp(`^核 ${holderId}：核小体 [1-9]\\d*$`));
   await expect(image.locator("path[data-region][aria-pressed=true]")).toHaveCount(1);
   await expect(notRecorded(page)).toHaveCount(0);
   await noErrors(page, watch);

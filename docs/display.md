@@ -49,8 +49,11 @@ view (production and the demo, one field or side by side) a click inside a nucle
 selects the nucleolus of that nucleus nearest to the click, because nucleoli cover little of a nucleus and
 many are only a few screen pixels wide. A nucleolus belongs to the clicked nucleus when the centroid of
 its outline lies inside the nucleus outline; where nucleus outlines overlap, the smaller one containing
-the click is taken. A nucleus that encloses no nucleolus is marked, with one line saying so
-("この核に核小体はありません"), until the next operation. A click outside every nucleus does nothing. This is
+the click is taken. The clicked nucleus is marked and stated as a value, 「核 12：核小体 3」, with the number of
+nucleoli it encloses by that rule; a nucleus that encloses none is marked the same way, 「核 12：核小体 0」, and
+no nucleolus stays selected, so a missed nucleolus can be drawn with the outline tools. A nucleolus selected
+directly or from the table marks and states its nucleus the same way. The count is that screen-side rule, not
+a measured value or an n of the statistics. A click outside every nucleus does nothing. This is
 screen-side geometry for choosing what to select; the nucleoplasm view is unchanged, since the nucleoplasm
 itself fills the nucleus.
 

@@ -2,8 +2,11 @@ import type {Point} from "@/lib/types";
 
 type Ring = {id: number; points: Point[]};
 
-/** Shown when a clicked nucleus encloses no nucleolus (the nucleolus view). */
-export const NUCLEUS_WITHOUT_NUCLEOLI = "この核に核小体はありません";
+/** The names a picked enclosing outline is stated with: 「核 12：核小体 3」 in the nucleolus view. */
+export interface ContextNames {outline: string; region: string}
+export const NUCLEOLUS_CONTEXT: ContextNames = {outline: "核", region: "核小体"};
+/** The state of a picked enclosing outline as 「項目：値」, e.g. 核 12：核小体 3 (0 when it encloses none). */
+export const contextLabel = (names: ContextNames, outline: number, regions: number) => `${names.outline} ${outline}：${names.region} ${regions}`;
 
 function signedArea(points: readonly Point[]) {
   let sum = 0;
@@ -77,4 +80,21 @@ export function pickEnclosedRegion(point: Point, context: readonly Ring[], regio
     if (distance < nearest || (distance === nearest && candidate.id < region!)) {region = candidate.id; nearest = distance;}
   }
   return {context: enclosing.id, region};
+}
+
+/** Whether a region belongs to an enclosing outline: the region's outline centroid lies inside it. */
+export const encloses = (outline: Ring, region: Ring) => region.points.length >= 3 && outline.points.length >= 3 && pointInPolygon(polygonCentroid(region.points), outline.points);
+
+/** The ids of the regions an enclosing outline holds (by their centroids), as pickEnclosedRegion counts them. */
+export const enclosedRegions = (outline: Ring, regions: readonly Ring[]) => regions.filter(region => encloses(outline, region)).map(region => region.id);
+
+/** The enclosing outline that holds a region (the smallest where outlines overlap); undefined when none does. */
+export function enclosingOutline(region: Ring, context: readonly Ring[]): number | undefined {
+  let found: Ring | undefined, smallest = Infinity;
+  for (const outline of context) {
+    if (!encloses(outline, region)) continue;
+    const area = Math.abs(signedArea(outline.points));
+    if (area < smallest || (area === smallest && outline.id < found!.id)) {found = outline; smallest = area;}
+  }
+  return found?.id;
 }

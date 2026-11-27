@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest";
 import type {Point} from "@/lib/types";
-import {pickEnclosedRegion, pointInPolygon, polygonCentroid} from "./context-pick";
+import {contextLabel, enclosedRegions, enclosingOutline, NUCLEOLUS_CONTEXT, pickEnclosedRegion, pointInPolygon, polygonCentroid} from "./context-pick";
 
 const square = (x: number, y: number, size: number): Point[] => [[x, y], [x + size, y], [x + size, y + size], [x, y + size]];
 
@@ -63,5 +63,15 @@ describe("picking a nucleolus from a click on its nucleus", () => {
   it("keeps the lower number on a tie and skips degenerate outlines", () => {
     const regions = [{id: 9, points: square(60, 45, 10)}, {id: 4, points: square(30, 45, 10)}, {id: 1, points: [[49, 50], [51, 50]] as Point[]}];
     expect(pickEnclosedRegion([50, 50], [nuclei[0]], regions)).toEqual({context: 1, region: 4});
+  });
+  it("counts and finds a nucleus's nucleoli by the same rule as the pick, and states it as a value", () => {
+    expect(enclosedRegions(nuclei[0], nucleoli)).toEqual([11, 12]);
+    expect(enclosedRegions(nuclei[2], nucleoli)).toEqual([]);
+    expect(enclosingOutline(nucleoli[2], nuclei)).toBe(2);
+    // The smaller of two overlapping nuclei holds the nucleolus; one outside every nucleus has none.
+    expect(enclosingOutline({id: 5, points: square(30, 30, 4)}, [nuclei[0], {id: 7, points: square(20, 20, 30)}])).toBe(7);
+    expect(enclosingOutline({id: 6, points: square(150, 50, 4)}, nuclei)).toBeUndefined();
+    expect(contextLabel(NUCLEOLUS_CONTEXT, 12, 3)).toBe("核 12：核小体 3");
+    expect(contextLabel(NUCLEOLUS_CONTEXT, 4, 0)).toBe("核 4：核小体 0");
   });
 });
