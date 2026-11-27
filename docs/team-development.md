@@ -80,7 +80,7 @@ Cytellect の開発に参加するメンバーのためのルール。開発の�
 
 - **`main` へのマージの許可は、マージした内容のすべての本番デプロイと本番配布の許可を兼ねる**（2026-11-27、オーナーの判断）。対象は、公開サイト（Vercel）、公開デモの作り直し、AI の中継 Worker、Cellpose の GPU サーバー（Modal）とそのイメージ、Docker 版、Windows 版の EXE と Microsoft Store への提出。マージのあとに、デプロイや配布ごとの承認を求めない。EXE の自動配布（[#261](https://github.com/genellect/cytellect/issues/261)、[#263](https://github.com/genellect/cytellect/pull/263)）で仕組みにした方針を、すべての経路に当てはめる。
 - **自動の経路は、マージからそのまま進む。** Vercel は本番サイトをデプロイする。EXE の[自動配布](release-signing.md#exe-の自動配布)と [Microsoft Store への提出](windows-msix.md#main-から提出する)は、`main` で CI に成功した最も新しいコミットだけを対象にし、CI に失敗したコミットは配布しない。承認に代わる安全策は、マージの前のレビューと必須 CI、`main` での CI と配布試験にある。
-- **手で行う手順が残る経路も、`main` にマージした版については承認済み。** 中継 Worker、Modal、公開デモの作り直し、EXE の手動配布などは、各文書の手順と検証に従って行い、前後の版を記録する。
+- **手で行う手順が残る経路も、`main` にマージした版については承認済み。** 中継 Worker、Modal、公開デモの作り直しなどは、各文書の手順と検証に従って行い、前後の版を記録する。EXE の[手動配布](release-signing.md#手動配布)は、版や対象のコミットを指定してオーナー自身が起動する経路で、起動したオーナーが `release` 環境で確かめる。マージした版の配布は自動配布が行うので、これはマージの後に求める承認ではない。
 - **次は、マージの許可に含まれない。** オーナーが対象を指示する：`main` へのマージそのもの、`main` にマージしていない内容（PR の head など）の本番へのデプロイ・配布、ロールバック、有料サービスの利用（有料 API での評価など）、有料サービスの契約、外部サービスの追加、費用が発生する設定。
 - Windows 版の配布には、配布物の導入後の受入確認を要する。
 
@@ -168,7 +168,7 @@ Research data falls into these categories.
 
 - **Permission to merge into `main` is also permission for every production deployment and distribution of the merged content** (owner's decision, 2026-11-27). This covers the public site (Vercel), rebuilding the public demo, the AI relay Worker, the Cellpose GPU server (Modal) and its image, the Docker version, the Windows EXE and the Microsoft Store submission. No deployment or distribution asks for another approval after the merge. The policy built into automatic EXE distribution ([#261](https://github.com/genellect/cytellect/issues/261), [#263](https://github.com/genellect/cytellect/pull/263)) applies to every route.
 - **Automatic routes proceed from the merge.** Vercel deploys the production site. [Automatic EXE distribution](release-signing.md#exe-の自動配布) and the [Microsoft Store submission](windows-msix.md#main-から提出する) take only the newest `main` commit that passed CI, and never a commit that failed CI. The safeguards that replace an approval are review and required CI before the merge, and CI and distribution tests on `main`.
-- **Routes with manual steps are approved as well for the version merged into `main`.** The relay Worker, Modal, rebuilding the public demo and manual EXE distribution follow the procedure and checks of their documents, and record the versions before and after.
+- **Routes with manual steps are approved as well for the version merged into `main`.** The relay Worker, Modal and rebuilding the public demo follow the procedure and checks of their documents, and record the versions before and after. [Manual EXE distribution](release-signing.md#手動配布) is a route the owner starts with a chosen version or commit, and the owner who started it confirms it in the `release` environment. Automatic distribution already distributes the merged version, so this is not an approval asked for after the merge.
 - **Permission to merge does not cover the following.** The owner names the target: the merge into `main` itself, deploying or distributing content that is not merged into `main` (such as a PR head) to production, rollbacks, use of paid services (such as evaluation through a paid API), paid subscriptions, new external services and settings that incur costs.
 - Windows distribution requires installed-copy acceptance.
 
