@@ -84,6 +84,9 @@ describe("picking a nucleolus from a click on its nucleus", () => {
     const pieces = [{id: 4, points: square(150, 150, 3)}, {id: 4, points: square(0, 0, 100)}];
     expect(pickEnclosedRegion([150.5, 150.5], pieces, nucleoli)).toEqual({context: 4, region: 12});
     expect(enclosingOutline(nucleoli[0], pieces)).toBe(4);
+    // A small piece of a large nucleus lying inside a smaller nucleus does not win the click: nuclei compare by outer ring.
+    const overlapping = [{id: 7, points: square(0, 0, 100)}, {id: 7, points: square(242, 42, 4)}, {id: 2, points: square(200, 0, 100)}];
+    expect(pickEnclosedRegion([243, 43], overlapping, nucleoli)?.context).toBe(2);
     expect(contextLabel(NUCLEOLUS_CONTEXT, 4, 0)).toBe("核 4：核小体 0");
   });
 });

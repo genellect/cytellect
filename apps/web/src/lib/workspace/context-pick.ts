@@ -65,10 +65,12 @@ function distanceToOutline(point: Point, points: readonly Point[]) {
  * Null when the point is outside every enclosing outline and none was hit.
  */
 export function pickEnclosedRegion(point: Point, context: readonly Ring[], regions: readonly Ring[], hit?: number): {context: number; region?: number} | null {
+  // Where nuclei overlap, the smaller nucleus (by its outer ring) whose drawing holds the point is taken.
+  const outer = new Map(outerRings(context).map(ring => [ring.id, ring]));
   let enclosing: Ring | undefined, smallest = Infinity;
   for (const outline of context) {
     if (outline.points.length < 3 || !pointInPolygon(point, outline.points)) continue;
-    const area = Math.abs(signedArea(outline.points));
+    const area = Math.abs(signedArea((outer.get(outline.id) ?? outline).points));
     if (area < smallest || (area === smallest && outline.id < enclosing!.id)) {enclosing = outline; smallest = area;}
   }
   enclosing ??= hit === undefined ? undefined : context.find(outline => outline.id === hit && outline.points.length >= 3);

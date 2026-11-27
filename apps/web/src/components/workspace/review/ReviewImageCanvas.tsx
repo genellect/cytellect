@@ -146,7 +146,7 @@ export function ReviewImageCanvas({src, width, height, contours, selected, class
   // The enclosing outline the visitor clicked, and the region that click selected (none when it encloses none). It
   // stands while that selection does; another selection forgets it.
   const [picked, setPicked] = useState<{identity: string; id: number; region: number | undefined} | null>(null);
-  useEffect(() => {if (picked && selected !== picked.region) setPicked(null);}, [picked, selected]);
+  useEffect(() => {if (picked && (!active || selected !== picked.region)) setPicked(null);}, [picked, selected, active]);
   const pending = useRef(false);
   const focusedSelection = useRef("");
   const drawingPointer = useRef<number | null>(null);
